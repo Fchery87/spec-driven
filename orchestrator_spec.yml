@@ -463,7 +463,7 @@ file_structure:
 # LLM configuration
 llm_config:
   provider: "gemini"
-  model: "gemini-2.5-pro-flash"
+  model: "gemini-2.5-flash"
   max_tokens: 8192
   temperature: 0.7
   timeout_seconds: 120

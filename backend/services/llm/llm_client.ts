@@ -9,9 +9,9 @@ export class GeminiClient {
   }
 
   /**
-   * Generate completion from Gemini API
+   * Generate completion from Gemini API with retry logic
    */
-  async generateCompletion(prompt: string, context?: string[]): Promise<LLMResponse> {
+  async generateCompletion(prompt: string, context?: string[], retries = 3): Promise<LLMResponse> {
     if (!this.config.api_key) {
       throw new Error('Gemini API key not configured');
     }
@@ -33,29 +33,57 @@ export class GeminiClient {
       }
     };
 
-    try {
-      const response = await fetch(
-        `${this.baseUrl}/models/${this.config.model}:generateContent?key=${this.config.api_key}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(requestBody)
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const response = await fetch(
+          `${this.baseUrl}/models/${this.config.model}:generateContent?key=${this.config.api_key}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestBody)
+          }
+        );
+
+        if (response.status === 429) {
+          // Rate limit - wait and retry
+          const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff
+          console.log(`Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          continue;
         }
-      );
 
-      if (!response.ok) {
-        throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
+        }
+
+        const data = await response.json();
+
+        return this.parseResponse(data);
+      } catch (error) {
+        lastError = error as Error;
+
+        // If it's a rate limit error and we have retries left, continue
+        if (error instanceof Error && error.message.includes('429') && attempt < retries) {
+          const waitTime = Math.pow(2, attempt) * 1000;
+          console.log(`Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          continue;
+        }
+
+        // If not a rate limit or no retries left, throw
+        if (attempt === retries) {
+          console.error('Gemini API call failed after retries:', error);
+          throw new Error(`Failed to generate completion after ${retries} retries: ${error}`);
+        }
       }
-
-      const data = await response.json();
-      
-      return this.parseResponse(data);
-    } catch (error) {
-      console.error('Gemini API call failed:', error);
-      throw new Error(`Failed to generate completion: ${error}`);
     }
+
+    throw lastError || new Error('Failed to generate completion');
   }
 
   /**

@@ -12,7 +12,7 @@ export class AgentExecutor {
 
     const llmConfig: LLMConfig = {
       provider: llmConfigData.provider || 'gemini',
-      model: llmConfigData.model || 'gemini-2.5-pro-flash',
+      model: llmConfigData.model || 'gemini-2.5-flash',
       max_tokens: llmConfigData.max_tokens || 8192,
       temperature: llmConfigData.temperature || 0.7,
       timeout_seconds: llmConfigData.timeout_seconds || 120,
@@ -309,13 +309,13 @@ export async function getArchitectExecutor(
   artifacts: Record<string, string>
 ): Promise<Record<string, string>> {
   const executor = new AgentExecutor();
+  const brief = artifacts['ANALYSIS/project-brief.md'] || '';
   const prd = artifacts['SPEC/PRD.md'] || '';
-  const dataModel = artifacts['SPEC/data-model.md'] || '';
-  const result = await executor.runArchitectAgent(prd, dataModel, {
+  const result = await executor.runArchitectAgent(brief, {
     project_id: projectId,
     phase: 'SOLUTIONING',
     artifacts
-  });
+  }, prd);
   return result.artifacts;
 }
 
@@ -327,7 +327,9 @@ export async function getScruMasterExecutor(
   const executor = new AgentExecutor();
   const prd = artifacts['SPEC/PRD.md'] || '';
   const architecture = artifacts['SOLUTIONING/architecture.md'] || '';
-  const result = await executor.runScrumMasterAgent(prd, architecture, {
+  const dataModel = artifacts['SPEC/data-model.md'] || '';
+  const apiSpec = artifacts['SPEC/api-spec.json'] || '';
+  const result = await executor.runScrumMasterAgent(prd, architecture, dataModel, apiSpec, {
     project_id: projectId,
     phase: 'SOLUTIONING',
     artifacts
@@ -343,8 +345,7 @@ export async function getDevOpsExecutor(
 ): Promise<Record<string, string>> {
   const executor = new AgentExecutor();
   const prd = artifacts['SPEC/PRD.md'] || '';
-  const dataModel = artifacts['SPEC/data-model.md'] || '';
-  const result = await executor.runDevOpsAgent(prd, dataModel, stackChoice, {
+  const result = await executor.runDevOpsAgent(prd, stackChoice || 'nextjs_only_expo', {
     project_id: projectId,
     phase: 'DEPENDENCIES',
     artifacts

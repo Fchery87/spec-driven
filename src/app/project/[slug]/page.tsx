@@ -43,6 +43,8 @@ export default function ProjectPage() {
   const [artifacts, setArtifacts] = useState<Record<string, any>>({});
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [executing, setExecuting] = useState(false);
+  const [advancing, setAdvancing] = useState(false);
 
   useEffect(() => {
     fetchProject();
@@ -84,7 +86,34 @@ export default function ProjectPage() {
     }
   };
 
+  const handleExecutePhase = async () => {
+    setExecuting(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/projects/${slug}/execute-phase`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        await fetchProject();
+        await fetchArtifacts();
+      } else {
+        setError(result.error || 'Failed to execute phase');
+      }
+    } catch (err) {
+      setError('Failed to execute phase');
+      console.error(err);
+    } finally {
+      setExecuting(false);
+    }
+  };
+
   const handlePhaseAdvance = async () => {
+    setAdvancing(true);
+    setError(null);
     try {
       const response = await fetch(`/api/projects/${slug}/phase`, {
         method: 'POST',
@@ -95,14 +124,16 @@ export default function ProjectPage() {
       const result = await response.json();
 
       if (result.success) {
-        fetchProject();
-        fetchArtifacts();
+        await fetchProject();
+        await fetchArtifacts();
       } else {
         setError(result.error || 'Failed to advance phase');
       }
     } catch (err) {
       setError('Failed to advance phase');
       console.error(err);
+    } finally {
+      setAdvancing(false);
     }
   };
 
@@ -333,24 +364,61 @@ export default function ProjectPage() {
         {!showStackSelection && project.current_phase !== 'DONE' && (
           <Card>
             <CardContent className="pt-6">
-              <div className="flex gap-4">
-                <Button
-                  onClick={handlePhaseAdvance}
-                  className="flex-1"
-                >
-                  Advance to Next Phase
-                </Button>
-                <Button variant="outline" onClick={() => fetchProject()}>
-                  Refresh
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() => setShowDeleteDialog(true)}
-                  className="flex items-center gap-2"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete Project
-                </Button>
+              <div className="space-y-4">
+                {/* Primary action - Execute current phase */}
+                {shouldShowExecuteButton(project.current_phase, artifacts) && (
+                  <div>
+                    <Button
+                      onClick={handleExecutePhase}
+                      disabled={executing}
+                      className="w-full h-12 text-base font-semibold"
+                      size="lg"
+                    >
+                      {executing ? (
+                        <>
+                          <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-slate-200 border-t-white"></div>
+                          Generating Artifacts with AI...
+                        </>
+                      ) : (
+                        `Execute ${project.current_phase} Phase`
+                      )}
+                    </Button>
+                    <p className="text-xs text-slate-500 mt-2 text-center">
+                      AI agents will analyze your project and generate the required specifications
+                    </p>
+                  </div>
+                )}
+
+                {/* Secondary actions */}
+                <div className="flex gap-4 pt-2 border-t border-slate-200">
+                  <Button
+                    onClick={handlePhaseAdvance}
+                    disabled={advancing || executing}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    {advancing ? 'Advancing...' : 'Advance to Next Phase'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      fetchProject();
+                      fetchArtifacts();
+                    }}
+                    disabled={executing || advancing}
+                  >
+                    Refresh
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => setShowDeleteDialog(true)}
+                    className="flex items-center gap-2"
+                    disabled={executing || advancing}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -426,6 +494,19 @@ export default function ProjectPage() {
 }
 
 // Helper functions
+function shouldShowExecuteButton(phase: string, artifacts: Record<string, any>): boolean {
+  // Don't show execute button for user-driven phases
+  if (phase === 'STACK_SELECTION' || phase === 'DONE') {
+    return false;
+  }
+
+  // Check if current phase has artifacts
+  const currentPhaseArtifacts = artifacts[phase] || [];
+
+  // Show execute button if no artifacts exist for this phase
+  return currentPhaseArtifacts.length === 0;
+}
+
 function getPhaseDescription(phase: string): string {
   const descriptions: Record<string, string> = {
     ANALYSIS: 'Analyze and clarify project requirements. AI agents will generate your project constitution, brief, and user personas.',

@@ -54,6 +54,19 @@ export async function POST(
       }
     }
 
+    // Add project idea for ANALYSIS phase
+    if (metadata.current_phase === 'ANALYSIS') {
+      const fs = require('fs');
+      const path = require('path');
+      const projectIdeaPath = path.resolve(metadata.project_path, 'project_idea.txt');
+      if (fs.existsSync(projectIdeaPath)) {
+        previousArtifacts['project_idea'] = fs.readFileSync(projectIdeaPath, 'utf8');
+      } else {
+        // Fallback to description or name
+        previousArtifacts['project_idea'] = metadata.description || metadata.name;
+      }
+    }
+
     // Initialize orchestrator and run agent
     const orchestrator = new OrchestratorEngine();
 

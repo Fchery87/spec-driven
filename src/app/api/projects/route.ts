@@ -138,8 +138,18 @@ export async function POST(request: NextRequest) {
       dependencies_approved: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      project_path: projectPath
+      project_path: projectPath,
+      orchestration_state: {
+        artifact_versions: {},
+        phase_history: [],
+        approval_gates: {},
+        stack_choice: null
+      }
     };
+
+    // Store the project idea as initial context for the Analyst agent
+    const projectIdeaPath = resolve(projectPath, 'project_idea.txt');
+    writeFileSync(projectIdeaPath, description || name, 'utf8');
 
     saveProjectMetadata(slug, metadata);
 
