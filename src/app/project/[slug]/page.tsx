@@ -279,8 +279,43 @@ export default function ProjectPage() {
             </CardHeader>
             <CardContent>
               <StackSelection
-                onApprove={handleStackApprove}
-                disabled={false}
+                stacks={[
+                  {
+                    id: 'nextjs_only_expo',
+                    name: 'Next.js-Only + Expo',
+                    description: 'Unified TypeScript codebase with Next.js App Router and Expo mobile',
+                    composition: {
+                      frontend: 'Next.js 14 (App Router)',
+                      mobile: 'Expo with React Native',
+                      backend: 'Next.js API routes / tRPC',
+                      database: 'PostgreSQL with Prisma',
+                      deployment: 'Vercel'
+                    },
+                    best_for: ['MVPs', 'dashboards', 'CRUD SaaS', 'low ops footprint'],
+                    strengths: ['Single language', 'unified codebase', 'fast iteration', 'integrated API'],
+                    tradeoffs: ['Less suitable for heavy backend compute', 'long-running jobs'],
+                    scaling: 'Good for <10k DAU, existing managed infra'
+                  },
+                  {
+                    id: 'hybrid_nextjs_fastapi_expo',
+                    name: 'Hybrid Next.js + FastAPI + Expo',
+                    description: 'Decoupled services with Python backend for heavy compute',
+                    composition: {
+                      frontend: 'Next.js 14',
+                      mobile: 'Expo with React Native',
+                      backend: 'FastAPI (Python)',
+                      database: 'PostgreSQL with SQLAlchemy',
+                      deployment: 'Separate infra'
+                    },
+                    best_for: ['AI/ETL/OCR', 'long-running jobs', 'heavier backend compute'],
+                    strengths: ['Decoupled services', 'Python for data science/ML', 'flexibility', 'async workers'],
+                    tradeoffs: ['More operational complexity', 'separate deployments'],
+                    scaling: 'Good for 10k-100k DAU, complex backend logic'
+                  }
+                ]}
+                selectedStack={project.stack_choice || undefined}
+                onStackSelect={handleStackApprove}
+                isLoading={false}
               />
             </CardContent>
           </Card>
