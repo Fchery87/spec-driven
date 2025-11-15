@@ -1,0 +1,488 @@
+# Spec-Driven Orchestrator Configuration
+# Version: 1.0
+# Date: 2025-11-14
+
+# Phase workflow definition
+phases:
+  ANALYSIS:
+    description: "Clarify requirements through guided Q&A"
+    owner: "analyst"
+    duration_minutes: 30
+    inputs: ["user_idea"]
+    outputs: ["constitution.md", "project-brief.md", "personas.md"]
+    next_phase: "STACK_SELECTION"
+    validators: ["presence", "markdown_frontmatter", "content_quality"]
+    
+  STACK_SELECTION:
+    description: "Select and approve technology stack"
+    owner: "architect"
+    duration_minutes: 20
+    inputs: ["project-brief.md", "personas.md"]
+    outputs: ["plan.md", "README.md"]
+    depends_on: ["ANALYSIS"]
+    gates: ["stack_approved"]
+    next_phase: "SPEC"
+    validators: ["presence", "stack_approved"]
+    
+  SPEC:
+    description: "Generate detailed specifications"
+    owner: ["pm", "architect"]
+    duration_minutes: 45
+    inputs: ["project-brief.md", "personas.md", "approved_stack"]
+    outputs: ["PRD.md", "data-model.md", "api-spec.json"]
+    depends_on: ["ANALYSIS", "STACK_SELECTION"]
+    next_phase: "DEPENDENCIES"
+    validators: ["markdown_frontmatter", "api_openapi", "presence", "content_coverage"]
+    
+  DEPENDENCIES:
+    description: "Define and approve project dependencies"
+    owner: "devops"
+    duration_minutes: 30
+    inputs: ["PRD.md", "approved_stack"]
+    outputs: ["DEPENDENCIES.md", "dependency-proposal.md"]
+    depends_on: ["SPEC"]
+    gates: ["dependencies_approved"]
+    next_phase: "SOLUTIONING"
+    validators: ["presence", "dependencies_approved", "policy_check"]
+    
+  SOLUTIONING:
+    description: "Create architecture and task breakdown"
+    owner: ["architect", "scrummaster"]
+    duration_minutes: 60
+    inputs: ["PRD.md", "data-model.md", "api-spec.json", "DEPENDENCIES.md"]
+    outputs: ["architecture.md", "epics.md", "tasks.md"]
+    depends_on: ["SPEC", "DEPENDENCIES"]
+    next_phase: "DONE"
+    validators: ["markdown_frontmatter", "tasks_dag", "presence", "content_coverage"]
+    
+  DONE:
+    description: "Generate handoff and ZIP package"
+    owner: "orchestrator"
+    duration_minutes: 10
+    inputs: ["all_previous_artifacts"]
+    outputs: ["HANDOFF.md", "project.zip"]
+    depends_on: ["SOLUTIONING"]
+    validators: ["handoff_complete", "zip_created"]
+
+# Technology stack options
+stacks:
+  nextjs_only_expo:
+    name: "Next.js-Only + Expo"
+    description: "Unified TypeScript codebase with Next.js App Router and Expo mobile"
+    composition:
+      frontend: "Next.js 14 (App Router)"
+      mobile: "Expo with React Native"
+      backend: "Next.js API routes / tRPC"
+      database: "PostgreSQL with Prisma"
+      deployment: "Vercel"
+    best_for: ["MVPs", "dashboards", "CRUD SaaS", "low ops footprint"]
+    strengths: ["Single language", "unified codebase", "fast iteration", "integrated API"]
+    tradeoffs: ["Less suitable for heavy backend compute", "long-running jobs"]
+    scaling: "Good for <10k DAU, existing managed infra"
+    
+  hybrid_nextjs_fastapi_expo:
+    name: "Hybrid Next.js + FastAPI + Expo"
+    description: "Decoupled services with Python backend for heavy compute"
+    composition:
+      frontend: "Next.js 14"
+      mobile: "Expo with React Native"
+      backend: "FastAPI (Python)"
+      database: "PostgreSQL with SQLAlchemy"
+      deployment: "Separate infra"
+    best_for: ["AI/ETL/OCR", "long-running jobs", "heavier backend compute"]
+    strengths: ["Decoupled services", "Python for data science/ML", "flexibility", "async workers"]
+    tradeoffs: ["More operational complexity", "separate deployments"]
+    scaling: "Good for 10k-100k DAU, complex backend logic"
+
+# Agent definitions
+agents:
+  analyst:
+    role: "Business Analyst and Product Strategist"
+    perspective: "CEO/CPO"
+    responsibilities:
+      - "Ask clarifying questions to understand project vision"
+      - "Generate constitution, project brief, and personas"
+    prompt_template: |
+      You are a Business Analyst and Product Strategist (CEO/CPO perspective).
+      Your goal is to deeply understand the user's project vision.
+      
+      Ask targeted questions to clarify:
+      1. Target market and user personas
+      2. Problem and solution fit
+      3. Competitive landscape
+      4. Key features and MVP scope
+      5. Success criteria and constraints
+      
+      After Q&A, generate three markdown files:
+      - constitution.md (project guiding principles)
+      - project-brief.md (vision, market, objectives)
+      - personas.md (3-5 detailed user profiles)
+      
+      Each file must have front-matter: title, owner, version, date, status.
+      
+  pm:
+    role: "Product Manager"
+    perspective: "CPO"
+    responsibilities:
+      - "Convert vision into concrete specifications"
+      - "Document requirements comprehensively"
+      - "Prioritize features and create PRD"
+    prompt_template: |
+      You are a Product Manager (CPO perspective).
+      Your task: Create a detailed Product Requirements Document (PRD).
+      
+      Input: project-brief.md, personas.md
+      
+      Generate PRD.md with sections:
+      1. Executive Summary
+      2. Functional Requirements (numbered REQ-XXX-YYY format)
+      3. Non-Functional Requirements (performance, security, UX, scalability)
+      4. Use Cases and User Flows
+      5. Epics (feature sets) with IDs
+      6. User Stories per Epic with acceptance criteria
+      7. MVP Features (marked Phase 1) vs Phase 2 Features
+      8. Success Criteria and KPIs
+      
+      Each requirement must:
+      - Have a unique ID (REQ-FEATURE-001)
+      - Be linked to one or more personas
+      - Have clear acceptance criteria
+      - Be either MVP or Phase 2
+      
+      Front-matter: title, owner, version, date, status.
+      
+  architect:
+    role: "Chief Architect"
+    perspective: "CTO"
+    responsibilities:
+      - "Design system architecture"
+      - "Make technology choices"
+      - "Create data models and API specs"
+    prompt_template: |
+      You are a Chief Architect (CTO perspective).
+      Your task: Design the system architecture and technology choices.
+      
+      For Stack Selection Phase:
+      - Propose two stacks (Option A, Option B)
+      - Explain composition, use-cases, strengths, trade-offs
+      - Consider the project brief and requirements
+      
+      For Specification Phase:
+      - Design database schema (tables, columns, relationships)
+      - Create OpenAPI spec (endpoints, methods, payloads)
+      - Ensure alignment with PRD requirements
+      
+      For Solutioning Phase:
+      - Create comprehensive architecture.md
+      - Include tech stack details, component design, security, performance
+      - Reference PRD and data-model in your design
+      - Provide implementation hints and patterns
+      
+      All outputs must be technically sound and production-ready.
+      
+  scrummaster:
+    role: "Scrum Master and Project Manager"
+    perspective: "VP Engineering"
+    responsibilities:
+      - "Break requirements into executable tasks"
+      - "Plan execution and ensure nothing falls through cracks"
+      - "Create epics and task breakdown"
+    prompt_template: |
+      You are a Scrum Master and Project Manager (VP Engineering perspective).
+      Your task: Break requirements into executable tasks.
+      
+      Input: PRD.md, architecture.md, data-model.md, api-spec.json
+      
+      Generate:
+      1. epics.md - Map each epic from PRD with requirements, user stories, components, APIs
+      2. tasks.md - Detailed task list with:
+         - Unique ID and title
+         - Requirement(s) it fulfills (link to PRD REQ-XXX-YYY)
+         - Epic it belongs to
+         - User story
+         - Acceptance criteria
+         - Architecture reference (which component)
+         - Implementation hints (tech guidance, not code)
+         - Dependencies (what must be done first)
+         - Complexity (Small/Medium/Large)
+         - Priority (MVP or Phase 2)
+      
+      Tasks must be:
+      - Sequentially ordered with dependencies clear
+      - Self-contained (one task = one feature or logical unit)
+      - Implementable in 4-8 hours
+      - Testable with clear acceptance criteria
+      
+      Front-matter: title, owner, version, date, status.
+      
+  devops:
+    role: "DevOps Engineer"
+    perspective: "Infrastructure & SRE"
+    responsibilities:
+      - "Ensure project is deployment-ready"
+      - "Define dependencies and security policies"
+      - "Create deployment and monitoring setup"
+    prompt_template: |
+      You are a DevOps Engineer (Infrastructure & SRE perspective).
+      Your task: Define all dependencies for the approved stack.
+      
+      Input: PRD.md, approved stack choice
+      
+      For Next.js-Only + Expo Stack:
+      Generate DEPENDENCIES.md listing:
+      - Frontend: Next.js, React, TypeScript, Tailwind, UI library, state mgmt, HTTP client
+      - Mobile: Expo, React Native, shared code
+      - Backend: API framework (tRPC, Hono, or Next.js routes), ORM
+      - Database: PostgreSQL driver
+      - Testing: Unit test framework, E2E testing
+      - Dev tools: Linting, formatting, git hooks, type checking
+      - Security: Audit tools, scanning
+      
+      For Hybrid Stack (add):
+      - Backend: FastAPI, Pydantic, Uvicorn, SQLAlchemy, etc.
+      - Python testing, linting, scanning tools
+      
+      For each dependency:
+      - Explain WHY it was chosen
+      - Note security considerations
+      - Check licensing (MIT, Apache 2.0, etc.)
+      - Note any version constraints and why
+      - Mention any known deprecations or issues
+      
+      Format as readable markdown with rationale.
+      Include policy notes: no deprecated, no outdated, zero HIGH/CRITICAL vulns.
+
+# Validation rules
+validators:
+  presence:
+    description: "Check if all required files exist"
+    implementation: "file_exists_check"
+    
+  markdown_frontmatter:
+    description: "Ensure markdown files have required frontmatter"
+    required_fields: ["title", "owner", "version", "date", "status"]
+    implementation: "frontmatter_parser"
+    
+  content_quality:
+    description: "Check content is not empty or obviously incomplete"
+    min_length: 100
+    implementation: "content_length_check"
+    
+  content_coverage:
+    description: "Ensure sufficient content coverage"
+    requirements:
+      PRD.md: "at_least_5_requirements"
+      data-model.md: "has_tables"
+      api-spec.json: "has_endpoints"
+      tasks.md: "at_least_10_tasks"
+    implementation: "coverage_analysis"
+    
+  api_openapi:
+    description: "Validate OpenAPI specification"
+    version: "3.0"
+    implementation: "openapi_validator"
+    
+  stack_approved:
+    description: "Check if stack has been approved by user"
+    implementation: "database_field_check"
+    field: "stack_approved"
+    expected_value: true
+    
+  dependencies_approved:
+    description: "Check if dependencies have been approved by user"
+    implementation: "database_field_check"
+    field: "dependencies_approved"
+    expected_value: true
+    
+  policy_check:
+    description: "Run dependency policy scripts"
+    scripts:
+      - "npm_audit"
+      - "pip_audit"
+      - "no_deprecated"
+      - "no_outdated"
+    implementation: "script_execution"
+    
+  tasks_dag:
+    description: "Ensure no circular dependencies in task list"
+    implementation: "dependency_graph_analysis"
+    
+  handoff_complete:
+    description: "Check HANDOFF.md is generated and complete"
+    required_sections: ["project_context", "reading_order", "llm_prompt"]
+    implementation: "handoff_validator"
+    
+  zip_created:
+    description: "Verify ZIP archive is created and contains all files"
+    required_files: ["HANDOFF.md", "constitution.md", "PRD.md", "architecture.md"]
+    implementation: "zip_validation"
+
+# Security baseline (applies to all projects)
+security_baseline:
+  authentication:
+    - "All passwords hashed with bcrypt (cost 10+)"
+    - "JWT tokens with 1-hour expiry"
+    - "HTTPS only (no HTTP)"
+    
+  data_protection:
+    - "Sensitive data encrypted at rest (AES-256)"
+    - "TLS 1.2+ for transit"
+    
+  compliance:
+    - "GDPR-ready user data handling"
+    - "Audit logs for sensitive operations"
+    - "PII never in logs"
+    
+  scanning:
+    - "npm audit (zero HIGH/CRITICAL)"
+    - "pip-audit (zero HIGH/CRITICAL)"
+    - "SAST scanning (SonarQube or Snyk)"
+    
+  testing:
+    - "Unit test coverage >80%"
+    - "E2E tests for critical flows"
+    - "Security-focused test cases"
+# Frontend UI/UX Standards
+frontend_ui_standards:
+  component_library: "shadcn/ui"
+  icon_library: "lucide-react"
+  styling: "Tailwind CSS"
+
+  initialization_commands:
+    - "pnpm dlx shadcn@latest init"
+    - description: "Initializes shadcn/ui, installs cn utility, configures Tailwind, and sets up CSS variables"
+
+  default_approach: "shadcn/ui (unless project requirements specify otherwise)"
+
+  hard_rules:
+    - "Always use shadcn components over custom components (DEFAULT)"
+    - "Never create components yourself unless explicitly requested"
+    - "Always install components using the CLI: pnpm dlx shadcn@latest add <component>"
+    - "Always use standard Tailwind and shadcn color palette"
+    - "Never use inline custom colors"
+    - "Use lucide-react for all icons (DEFAULT)"
+
+  flexibility_clause:
+    principle: "User-Driven Customization"
+    description: "If the user explicitly requests alternative UI libraries or dependencies, honor that request"
+    examples:
+      - "User requests: 'Use Material-UI instead' → Switch to Material-UI"
+      - "User requests: 'Add Framer Motion for animations' → Include Framer Motion"
+      - "User requests: 'Use Bootstrap' → Switch to Bootstrap"
+      - "User does not specify → Default to shadcn/ui"
+    guidelines:
+      - "Only deviate from shadcn/ui when user explicitly requests it in project brief or PRD"
+      - "Document all alternative dependencies in DEPENDENCIES.md with rationale"
+      - "Maintain accessibility and design consistency standards regardless of UI library choice"
+      - "Update architecture.md to reflect non-standard UI decisions"
+
+  common_components_to_install:
+    - button: "Interactive action elements"
+    - card: "Content containers with header/footer"
+    - input: "Form input fields"
+    - badge: "Status and tag labels"
+    - dialog: "Modal dialogs and confirmations"
+    - dropdown-menu: "Dropdown menus and navigation"
+    - tabs: "Tabbed content sections"
+    - select: "Select dropdowns"
+    - textarea: "Multi-line text inputs"
+    - form: "Form composition helpers"
+    - alert: "Alert messages and notifications"
+    - toast: "Toast notifications"
+
+  color_system:
+    primary: "Primary action color (default: slate-900)"
+    secondary: "Secondary elements"
+    destructive: "Dangerous actions (red)"
+    muted: "Disabled or secondary text"
+    accent: "Accent highlights"
+    note: "Always use shadcn preset colors, never custom hex/rgb values inline"
+
+  typography:
+    - "Use Tailwind text utilities for all typography"
+    - "Font sizes: text-xs, text-sm, text-base, text-lg, text-xl, text-2xl, text-4xl"
+    - "Font weights: font-normal, font-medium, font-semibold, font-bold"
+    - "Always apply proper contrast ratios for accessibility (WCAG AA minimum)"
+
+  spacing_patterns:
+    - "Use Tailwind spacing scale: p-2, p-4, p-6, p-8 for padding"
+    - "Use gap-2, gap-4, gap-6, gap-8 for flex/grid gaps"
+    - "Consistent margins: mb-4, mb-6, mb-8"
+
+  responsive_design:
+    - "Mobile-first approach"
+    - "Use Tailwind breakpoints: sm, md, lg, xl, 2xl"
+    - "Example: md:grid-cols-2 lg:grid-cols-3"
+
+  accessibility:
+    - "Use semantic HTML: <button>, <input>, <form>, <nav>"
+    - "Include aria-labels for interactive elements"
+    - "Ensure keyboard navigation works"
+    - "Test with screen readers"
+    - "Minimum touch target size: 44x44px"
+
+  dev_setup:
+    step_1: "pnpm dlx shadcn@latest init"
+    step_2: "Add individual components as needed: pnpm dlx shadcn@latest add button"
+    step_3: "Import and use in components: import { Button } from '@/components/ui/button'"
+    step_4: "Follow shadcn/ui documentation at ui.shadcn.com for component patterns"
+
+# File structure templates
+file_structure:
+  project_directory: "/projects/{slug}/"
+  specs_directory: "/projects/{slug}/specs/"
+  artifact_versioning: "v{version}/"
+  
+  zip_structure:
+    root_files:
+      - "constitution.md"
+      - "project-brief.md"
+      - "personas.md"
+      - "README.md"
+      - "HANDOFF.md"
+    specs_folder:
+      - "PRD.md"
+      - "data-model.md"
+      - "api-spec.json"
+      - "architecture.md"
+      - "epics.md"
+      - "tasks.md"
+      - "plan.md"
+      - "DEPENDENCIES.md"
+    config_folder:
+      - ".ai-config/analyst_prompt.md"
+      - ".ai-config/pm_prompt.md"
+      - ".ai-config/architect_prompt.md"
+      - ".ai-config/scrummaster_prompt.md"
+      - ".ai-config/devops_prompt.md"
+      - ".ai-config/validators.yml"
+    docs_folder:
+      - "docs/security-baseline.md"
+      - "docs/DEPS_NOTES.md"
+
+# LLM configuration
+llm_config:
+  provider: "gemini"
+  model: "gemini-2.5-pro-flash"
+  max_tokens: 8192
+  temperature: 0.7
+  timeout_seconds: 120
+  
+  # Rate limiting and cost management
+  rate_limit:
+    requests_per_minute: 60
+    tokens_per_hour: 100000
+    
+  cost_management:
+    max_cost_per_project: 50.0  # USD
+    token_cost_per_million: 0.5
+
+# Project defaults
+project_defaults:
+  current_phase: "ANALYSIS"
+  phases_completed: []
+  stack_choice: null
+  stack_approved: false
+  dependencies_approved: false
+  artifact_versions: {}
+  zip_ready: false

@@ -1,0 +1,259 @@
+# ============================================================================
+# SECURITY SENSITIVE - NEVER COMMIT THESE
+# ============================================================================
+
+# Environment variables (contains API keys, secrets, credentials, DB passwords)
+.env
+.env.local
+.env.*.local
+.env.production.local
+.env.test.local
+.env.*.example
+!.env.example
+
+# Private keys and certificates
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.jks
+.ssh/
+private/
+
+# API Keys and tokens
+*.apikey
+*.token
+.api-key
+.access-token
+.refresh-token
+
+# AWS credentials
+~/.aws/credentials
+.aws/credentials
+.aws/config
+
+# Database credentials and backups
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+*.sql.gz
+db-backup/
+database-backup/
+
+# Firebase config
+google-services.json
+serviceAccountKey.json
+firebase-key.json
+
+# GCP secrets
+gcp-key.json
+gcp-credentials.json
+
+# Stripe keys
+.stripe/
+stripe.key
+
+# Twilio secrets
+.twilio/
+
+# Application secrets
+.secrets/
+secrets.yml
+secrets.json
+
+# Session data
+sessions/
+.sessions
+
+# ============================================================================
+# BUILD & DEPENDENCIES
+# ============================================================================
+
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+dist-node/
+
+# Package managers
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.pnpm-debug.log
+
+# Testing
+/coverage
+/test-results
+*.lcov
+.nyc_output/
+
+# Production
+/build
+/dist
+/.next/
+/out/
+.vercel/
+
+# Build artifacts
+*.tsbuildinfo
+.cache/
+.eslintcache
+
+# ============================================================================
+# IDE & EDITOR
+# ============================================================================
+
+# VS Code
+.vscode/
+.vscode-server/
+!.vscode/settings.json
+!.vscode/extensions.json
+.vscodeignore
+
+# JetBrains IDEs
+.idea/
+.idea_modules/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Sublime Text
+.sublime-project
+.sublime-workspace
+
+# Vim/Neovim
+*.swp
+*.swo
+*~
+.vim/
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# IntelliJ
+.DS_Store
+
+# ============================================================================
+# OPERATING SYSTEM
+# ============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.TemporaryItems
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+nul
+
+# Linux
+.directory
+.swap
+*.tmp
+
+# ============================================================================
+# LOGS & DEBUGGING
+# ============================================================================
+
+# Node logs
+npm-debug.log*
+npm-error.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+pnpm-debug.log*
+
+# Application logs
+logs/
+*.log
+debug/
+.debug
+*.trace
+
+# ============================================================================
+# DATABASE & PRISMA
+# ============================================================================
+
+# Prisma
+prisma/migrations/
+prisma/seed-data/
+.prisma/
+
+# ============================================================================
+# DOCUMENTATION
+# ============================================================================
+
+# All .md files except README.md and docs/
+*.md
+!README.md
+!docs/**/*.md
+
+# ============================================================================
+# TEMPORARY & CACHE
+# ============================================================================
+
+# Next.js cache
+.next/
+.nextjs/
+
+# Temporary files
+.tmp/
+temp/
+tmp/
+*.tmp
+
+# Cache files
+.cache/
+.vite/
+dist-cache/
+
+# ============================================================================
+# NEON & PLATFORM SPECIFIC
+# ============================================================================
+
+# Neon configuration
+.neon/
+neon.json
+
+# Vercel
+.vercel/
+.env.local.vercel
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# ============================================================================
+# CUSTOM PROJECT SPECIFIC
+# ============================================================================
+
+# Project artifacts
+/projects/
+artifacts/
+generated/
+
+# Downloaded files
+downloads/
+uploads/
+
+# Test data
+test-data/
+fixtures/
+
+# Local development
+.local/
+.dev/
