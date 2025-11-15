@@ -2,13 +2,20 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { CheckCircle2, Circle, AlertCircle, Play, ChevronRight } from "lucide-react"
+import { CheckCircle2, Circle, AlertCircle, Play, ChevronRight, Lock, FileCheck, Clock } from "lucide-react"
 
 interface Phase {
   name: string
   description: string
   status: 'completed' | 'current' | 'pending' | 'blocked'
   duration?: number
+  artifacts?: {
+    required: string[]
+    generated: string[]
+    complete: boolean
+  }
+  blockedReason?: string
+  gateName?: string
 }
 
 interface PhaseStepperProps {
@@ -132,28 +139,78 @@ export function PhaseStepper({
             </CardHeader>
             
             <CardContent className="pt-0">
-              {phase.duration && (
-                <div className="text-sm text-slate-600 mb-3">
-                  Duration: {phase.duration} minutes
+              {/* Status */}
+              <div className="flex items-center gap-2 mb-3">
+                <div className="text-sm font-medium capitalize text-slate-700">
+                  {phase.status === 'blocked' ? 'Blocked' : phase.status}
+                </div>
+              </div>
+
+              {/* Artifacts Progress */}
+              {phase.artifacts && phase.artifacts.required.length > 0 && (
+                <div className="mb-3 p-2 bg-slate-100 rounded">
+                  <div className="flex items-center gap-2 mb-1">
+                    <FileCheck className="h-4 w-4 text-slate-600" />
+                    <span className="text-xs font-medium text-slate-700">
+                      Artifacts: {phase.artifacts.generated.length}/{phase.artifacts.required.length}
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-300 rounded-full h-2 mt-1">
+                    <div
+                      className={`h-2 rounded-full transition-all ${
+                        phase.artifacts.complete ? 'bg-emerald-500' : 'bg-blue-500'
+                      }`}
+                      style={{
+                        width: `${(phase.artifacts.generated.length / phase.artifacts.required.length) * 100}%`
+                      }}
+                    />
+                  </div>
                 </div>
               )}
 
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-medium capitalize">
-                  Status: {phase.status}
+              {/* Blocked Reason */}
+              {phase.blockedReason && (
+                <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded flex items-start gap-2">
+                  <Lock className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-xs text-amber-800">
+                    <div className="font-semibold">{phase.gateName}</div>
+                    <div className="text-amber-700">{phase.blockedReason}</div>
+                  </div>
                 </div>
+              )}
 
-                {phase.name === currentPhase && canAdvance && onAdvance && (
+              {/* Duration */}
+              {phase.duration && (
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                  <Clock className="h-3 w-3" />
+                  {phase.duration} minutes
+                </div>
+              )}
+
+              {/* Advance Button */}
+              <div className="mt-3">
+                {phase.name === currentPhase && phase.status === 'current' && canAdvance && onAdvance && (
                   <Button
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation()
                       onAdvance()
                     }}
-                    className="flex items-center gap-1"
+                    className="w-full flex items-center justify-center gap-1"
                   >
-                    Advance
+                    Advance to Next Phase
                     <ChevronRight className="h-4 w-4" />
+                  </Button>
+                )}
+                {phase.status === 'blocked' && (
+                  <Button
+                    size="sm"
+                    disabled
+                    variant="outline"
+                    className="w-full flex items-center justify-center gap-1"
+                  >
+                    <Lock className="h-4 w-4" />
+                    Phase Blocked
                   </Button>
                 )}
               </div>

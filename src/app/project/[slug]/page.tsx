@@ -16,6 +16,7 @@ import {
 import { PhaseStepper } from '@/components/orchestration/PhaseStepper';
 import { StackSelection } from '@/components/orchestration/StackSelection';
 import { ArtifactViewer } from '@/components/orchestration/ArtifactViewer';
+import { calculatePhaseStatuses, canAdvanceFromPhase } from '@/utils/phase-status';
 import { ArrowLeft, FileText, CheckCircle, Trash2 } from 'lucide-react';
 
 interface Project {
@@ -272,11 +273,31 @@ export default function ProjectPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <PhaseStepper
-              currentPhase={project.current_phase}
-              completedPhases={project.phases_completed}
-              phases={PHASES}
-            />
+            {(() => {
+              const calculatedPhases = calculatePhaseStatuses({
+                current_phase: project.current_phase,
+                phases_completed: project.phases_completed || [],
+                stack_approved: project.stack_approved,
+                dependencies_approved: project.dependencies_approved,
+                artifacts: artifacts
+              });
+
+              const canAdvance = canAdvanceFromPhase(
+                project.current_phase,
+                project.phases_completed || [],
+                project.stack_approved,
+                project.dependencies_approved
+              );
+
+              return (
+                <PhaseStepper
+                  currentPhase={project.current_phase}
+                  phases={calculatedPhases}
+                  canAdvance={canAdvance}
+                  onAdvance={handlePhaseAdvance}
+                />
+              );
+            })()}
           </CardContent>
         </Card>
 
