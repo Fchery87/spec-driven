@@ -17,7 +17,7 @@ import { PhaseStepper } from '@/components/orchestration/PhaseStepper';
 import { StackSelection } from '@/components/orchestration/StackSelection';
 import { ArtifactViewer } from '@/components/orchestration/ArtifactViewer';
 import { calculatePhaseStatuses, canAdvanceFromPhase } from '@/utils/phase-status';
-import { ArrowLeft, FileText, CheckCircle, Trash2 } from 'lucide-react';
+import { ArrowLeft, FileText, CheckCircle, Trash2, Download } from 'lucide-react';
 
 interface Project {
   slug: string;
@@ -49,6 +49,7 @@ export default function ProjectPage() {
   const [advancing, setAdvancing] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [selectedArtifact, setSelectedArtifact] = useState<{ filename: string; content: string; phase: string } | null>(null);
+  const [generatingHandoff, setGeneratingHandoff] = useState(false);
 
   useEffect(() => {
     fetchProject();
@@ -180,6 +181,55 @@ export default function ProjectPage() {
       phase: phase
     });
     setViewerOpen(true);
+  };
+
+  const handleGenerateHandoff = async () => {
+    setGeneratingHandoff(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/projects/${slug}/generate-handoff`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        await fetchProject();
+        await fetchArtifacts();
+      } else {
+        setError(result.error || 'Failed to generate handoff');
+      }
+    } catch (err) {
+      setError('Failed to generate handoff');
+      console.error(err);
+    } finally {
+      setGeneratingHandoff(false);
+    }
+  };
+
+  const handleDownloadSpecs = async () => {
+    try {
+      const response = await fetch(`/api/projects/${slug}/download`);
+      if (!response.ok) {
+        const result = await response.json();
+        setError(result.error || 'Failed to download specifications');
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${slug}-specs-${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError('Failed to download specifications');
+      console.error(err);
+    }
   };
 
   const handleDeleteProject = async () => {
@@ -469,25 +519,74 @@ export default function ProjectPage() {
 
         {project.current_phase === 'DONE' && (
           <Card className="bg-green-50 border-green-200">
-            <CardContent className="pt-6 text-center">
-              <div className="flex items-center justify-center gap-2 mb-4">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-                <p className="text-green-700 font-semibold">
-                  Project specification complete! Ready for code generation.
+            <CardContent className="pt-6">
+              <div className="text-center mb-6">
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <p className="text-green-700 font-semibold">
+                    Project specification complete! Ready for code generation.
+                  </p>
+                </div>
+                <p className="text-slate-600 text-sm">
+                  Generate the HANDOFF.md document that contains all specifications compiled into a single prompt for LLM-based code generation.
                 </p>
               </div>
-              <div className="flex gap-4 justify-center">
-                <Button onClick={() => router.push('/dashboard')}>
-                  Back to Dashboard
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() => setShowDeleteDialog(true)}
-                  className="flex items-center gap-2"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete Project
-                </Button>
+
+              <div className="space-y-4">
+                {/* Check if handoff already exists */}
+                {artifacts['DONE'] && artifacts['DONE'].some((a: any) => a.name === 'HANDOFF.md') ? (
+                  <div className="space-y-3">
+                    <div className="bg-emerald-100 border border-emerald-300 rounded-lg p-4 text-center">
+                      <p className="text-emerald-800 font-semibold flex items-center justify-center gap-2">
+                        <CheckCircle className="h-4 w-4" />
+                        HANDOFF.md has been generated
+                      </p>
+                    </div>
+                    <Button
+                      onClick={handleDownloadSpecs}
+                      className="w-full flex items-center justify-center gap-2 h-12 bg-blue-600 hover:bg-blue-700"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download All Specifications (ZIP)
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    onClick={handleGenerateHandoff}
+                    disabled={generatingHandoff}
+                    className="w-full flex items-center justify-center gap-2 h-12"
+                  >
+                    {generatingHandoff ? (
+                      <>
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                        Generating HANDOFF.md...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4" />
+                        Generate HANDOFF.md
+                      </>
+                    )}
+                  </Button>
+                )}
+
+                <div className="flex gap-4 justify-center pt-2 border-t border-green-200">
+                  <Button
+                    onClick={() => router.push('/dashboard')}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Back to Dashboard
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => setShowDeleteDialog(true)}
+                    className="flex items-center gap-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete Project
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
