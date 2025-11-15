@@ -1,8 +1,11 @@
 "use client"
 
+import Link from "next/link"
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { CheckCircle2, Circle, AlertCircle, Play, ChevronRight, Lock, FileCheck, Clock } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { CheckCircle2, Circle, AlertCircle, Play, ChevronRight, Lock, FileCheck, Clock, Eye } from "lucide-react"
 
 interface Phase {
   name: string
@@ -68,8 +71,27 @@ export function PhaseStepper({
     return phase.status === 'completed' || phase.status === 'current'
   }
 
+  const completedCount = phases.filter((phase) => phase.status === "completed").length
+  const blockedCount = phases.filter((phase) => phase.status === "blocked").length
+  const currentData = phases.find((phase) => phase.name === currentPhase)
+
   return (
-    <div className="w-full max-w-4xl mx-auto">
+    <div className="w-full max-w-4xl mx-auto lg:sticky lg:top-24">
+      <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-border/70 bg-card/70 px-4 py-3 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-[hsl(var(--chart-4))]" /> Completed {completedCount}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-primary" /> Current {currentPhase}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-destructive" /> Blocked {blockedCount}
+        </div>
+        <div className="ml-auto text-xs uppercase tracking-wide text-muted-foreground">
+          {Math.round((completedCount / phases.length) * 100)}% complete
+        </div>
+      </div>
+
       {/* Phase Progress Bar */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
@@ -136,6 +158,11 @@ export function PhaseStepper({
               <CardDescription className="text-sm">
                 {phase.description}
               </CardDescription>
+              {phase.status === "blocked" && phase.blockedReason && (
+                <p className="text-xs text-destructive">
+                  Waiting on {phase.blockedReason}
+                </p>
+              )}
             </CardHeader>
             
             <CardContent className="pt-0">
@@ -144,6 +171,9 @@ export function PhaseStepper({
                 <div className="text-sm font-medium capitalize text-muted-foreground">
                   {phase.status === 'blocked' ? 'Blocked' : phase.status}
                 </div>
+                {phase.status === 'completed' && (
+                  <Badge variant="secondary" className="text-[11px]">Artifacts ready</Badge>
+                )}
               </div>
 
               {/* Artifacts Progress */}
@@ -189,30 +219,46 @@ export function PhaseStepper({
 
               {/* Advance Button */}
               <div className="mt-3">
-                {phase.name === currentPhase && phase.status === 'current' && canAdvance && onAdvance && (
-                  <Button
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onAdvance()
-                    }}
-                    className="w-full flex items-center justify-center gap-1"
-                  >
-                    Advance to Next Phase
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                )}
-                {phase.status === 'blocked' && (
-                  <Button
-                    size="sm"
-                    disabled
-                    variant="outline"
-                    className="w-full flex items-center justify-center gap-1"
-                  >
-                    <Lock className="h-4 w-4" />
-                    Phase Blocked
-                  </Button>
-                )}
+                <div className="flex flex-col gap-2">
+                  {phase.name === currentPhase && phase.status === 'current' && canAdvance && onAdvance && (
+                    <Button
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onAdvance()
+                      }}
+                      className="w-full flex items-center justify-center gap-1"
+                    >
+                      Advance to Next Phase
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {phase.status === 'blocked' && (
+                    <Button
+                      size="sm"
+                      disabled
+                      variant="outline"
+                      className="w-full flex items-center justify-center gap-1"
+                    >
+                      <Lock className="h-4 w-4" />
+                      Phase Blocked
+                    </Button>
+                  )}
+                  {phase.status === 'completed' && phase.artifacts && phase.artifacts.generated.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="w-full flex items-center justify-center gap-1"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onPhaseClick?.(phase.name)
+                      }}
+                    >
+                      <Eye className="h-4 w-4" />
+                      View Artifacts
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

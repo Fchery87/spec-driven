@@ -50,11 +50,22 @@ export default function ProjectPage() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [selectedArtifact, setSelectedArtifact] = useState<{ filename: string; content: string; phase: string } | null>(null);
   const [generatingHandoff, setGeneratingHandoff] = useState(false);
+  const [lastAction, setLastAction] = useState<string | null>(null);
+  const [lastActionType, setLastActionType] = useState<'success' | 'error' | null>(null);
 
   useEffect(() => {
     fetchProject();
     fetchArtifacts();
   }, [slug]);
+
+  const recordAction = (message: string, type: 'success' | 'error' = 'success') => {
+    setLastAction(message);
+    setLastActionType(type);
+    setTimeout(() => {
+      setLastAction(null);
+      setLastActionType(null);
+    }, 5000);
+  };
 
   const fetchProject = async () => {
     try {
@@ -114,12 +125,15 @@ export default function ProjectPage() {
       if (result.success) {
         await fetchProject();
         await fetchArtifacts();
+        recordAction(`Generated artifacts for ${project?.current_phase ?? 'current'} phase.`);
       } else {
         setError(result.error || 'Failed to execute phase');
+        recordAction(result.error || 'Failed to execute phase', 'error');
       }
     } catch (err) {
       setError('Failed to execute phase');
       console.error(err);
+      recordAction('Failed to execute phase', 'error');
     } finally {
       setExecuting(false);
     }
@@ -140,12 +154,15 @@ export default function ProjectPage() {
       if (result.success) {
         await fetchProject();
         await fetchArtifacts();
+        recordAction('Advanced to the next phase.');
       } else {
         setError(result.error || 'Failed to advance phase');
+        recordAction(result.error || 'Failed to advance phase', 'error');
       }
     } catch (err) {
       setError('Failed to advance phase');
       console.error(err);
+      recordAction('Failed to advance phase', 'error');
     } finally {
       setAdvancing(false);
     }
@@ -165,12 +182,15 @@ export default function ProjectPage() {
         setShowStackSelection(false);
         fetchProject();
         fetchArtifacts();
+        recordAction('Stack selection approved.');
       } else {
         setError(result.error || 'Failed to approve stack');
+        recordAction(result.error || 'Failed to approve stack', 'error');
       }
     } catch (err) {
       setError('Failed to approve stack');
       console.error(err);
+      recordAction('Failed to approve stack', 'error');
     }
   };
 
@@ -181,6 +201,23 @@ export default function ProjectPage() {
       phase: phase
     });
     setViewerOpen(true);
+  };
+
+  const handleArtifactDownload = (artifact: any) => {
+    try {
+      const element = document.createElement('a');
+      const file = new Blob([artifact.content], { type: 'text/plain' });
+      element.href = URL.createObjectURL(file);
+      element.download = artifact.name;
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+      URL.revokeObjectURL(element.href);
+      recordAction(`Downloaded ${artifact.name}.`);
+    } catch (err) {
+      console.error('Failed to download artifact:', err);
+      recordAction('Failed to download artifact', 'error');
+    }
   };
 
   const handleGenerateHandoff = async () => {
@@ -197,12 +234,15 @@ export default function ProjectPage() {
       if (result.success) {
         await fetchProject();
         await fetchArtifacts();
+        recordAction('Generated HANDOFF.md bundle.');
       } else {
         setError(result.error || 'Failed to generate handoff');
+        recordAction(result.error || 'Failed to generate handoff', 'error');
       }
     } catch (err) {
       setError('Failed to generate handoff');
       console.error(err);
+      recordAction('Failed to generate handoff', 'error');
     } finally {
       setGeneratingHandoff(false);
     }
@@ -214,6 +254,7 @@ export default function ProjectPage() {
       if (!response.ok) {
         const result = await response.json();
         setError(result.error || 'Failed to download specifications');
+        recordAction(result.error || 'Failed to download specifications', 'error');
         return;
       }
 
@@ -226,9 +267,11 @@ export default function ProjectPage() {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
+      recordAction('Specifications downloaded.');
     } catch (err) {
       setError('Failed to download specifications');
       console.error(err);
+      recordAction('Failed to download specifications', 'error');
     }
   };
 
@@ -262,7 +305,10 @@ export default function ProjectPage() {
   if (loading) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted p-8 flex items-center justify-center">
-        <p className="text-muted-foreground">Loading project...</p>
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-transparent" />
+          <p>Loading project...</p>
+        </div>
       </main>
     );
   }
@@ -271,18 +317,36 @@ export default function ProjectPage() {
     return (
       <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted p-8">
         <div className="max-w-4xl mx-auto">
-          <Button variant="ghost" onClick={() => router.back()} className="mb-8">
-            ← Back
+          <Button variant="ghost" onClick={() => router.back()} className="mb-8 flex items-center gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            Back
           </Button>
           <Card className="border border-destructive/30 bg-destructive/10">
-            <CardContent className="pt-6">
-              <p className="text-destructive">{error || 'Project not found'}</p>
+            <CardHeader>
+              <CardTitle className="text-destructive">Project unavailable</CardTitle>
+              <CardDescription className="text-destructive/80">
+                {error || 'Project not found'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Return to the dashboard and select another project or create a new one.
+              </p>
             </CardContent>
           </Card>
         </div>
       </main>
     );
   }
+
+  const completedCount = project.phases_completed.length;
+  const progress = Math.round((completedCount / PHASES.length) * 100);
+  const stackStatus = project.stack_choice
+    ? project.stack_approved
+      ? 'Approved'
+      : 'Awaiting approval'
+    : 'Not selected';
+  const dependencyStatus = project.dependencies_approved ? 'Approved' : 'Pending review';
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted p-8">
@@ -303,6 +367,60 @@ export default function ProjectPage() {
               {project.phases_completed.length} of {PHASES.length} phases completed
             </p>
           </div>
+        </div>
+
+        {lastAction && (
+          <div
+            className={`mb-6 rounded-2xl border px-4 py-3 text-sm ${
+              lastActionType === 'error'
+                ? 'border-destructive/40 bg-destructive/10 text-destructive'
+                : 'border-[hsl(var(--chart-4))]/40 bg-[hsl(var(--chart-4))]/10 text-[hsl(var(--chart-4))]'
+            }`}
+          >
+            {lastAction}
+          </div>
+        )}
+
+        <div className="mb-8 grid gap-4 md:grid-cols-3">
+          <Card className="border border-border/70 bg-card/70">
+            <CardHeader className="pb-3">
+              <CardDescription>Progress</CardDescription>
+              <CardTitle className="text-3xl">{progress}%</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                {completedCount} of {PHASES.length} phases complete
+              </p>
+              <div className="mt-2 h-2 w-full rounded-full bg-muted">
+                <div
+                  className="h-2 rounded-full bg-primary transition-all"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border border-border/70 bg-card/70">
+            <CardHeader className="pb-3">
+              <CardDescription>Stack</CardDescription>
+              <CardTitle className="text-lg">
+                {project.stack_choice ? project.stack_choice.replace(/_/g, ' ') : 'Not selected'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">{stackStatus}</p>
+            </CardContent>
+          </Card>
+          <Card className="border border-border/70 bg-card/70">
+            <CardHeader className="pb-3">
+              <CardDescription>Dependencies</CardDescription>
+              <CardTitle className="text-lg">{dependencyStatus}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Created {new Date(project.created_at).toLocaleDateString()}
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Error alert */}
@@ -385,11 +503,27 @@ export default function ProjectPage() {
 
                 <div>
                   <h3 className="font-semibold text-foreground mb-2">Expected Outputs</h3>
-                  <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                    {getPhaseOutputs(project.current_phase).map((output) => (
-                      <li key={output}>{output}</li>
-                    ))}
-                  </ul>
+                  <div className="space-y-2">
+                    {getPhaseOutputs(project.current_phase).map((output) => {
+                      const complete = isOutputComplete(project.current_phase, output, artifacts);
+                      return (
+                        <div
+                          key={output}
+                          className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/50 px-3 py-2 text-sm text-muted-foreground"
+                        >
+                          <span>{output}</span>
+                          {complete ? (
+                            <span className="flex items-center gap-1 text-[hsl(var(--chart-4))]">
+                              <CheckCircle className="h-4 w-4" />
+                              Ready
+                            </span>
+                          ) : (
+                            <span className="text-xs uppercase tracking-wide">Pending</span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
 
                 {/* Gate information */}
@@ -397,19 +531,26 @@ export default function ProjectPage() {
                   <div className="pt-4 border-t border-border">
                     <h3 className="font-semibold text-foreground mb-2">Approval Gates</h3>
                     <div className="space-y-2">
-                      {getPhaseGates(project.current_phase).map((gate) => (
-                        <div key={gate} className="flex items-center gap-2">
-                          <span className={`w-2 h-2 rounded-full ${
-                            (gate === 'stack_approved' && project.stack_approved) ||
-                            (gate === 'dependencies_approved' && project.dependencies_approved)
-                              ? 'bg-[hsl(var(--chart-4))]'
-                              : 'bg-destructive'
-                          }`}></span>
-                          <span className="text-sm text-muted-foreground capitalize">
-                            {gate.replace(/_/g, ' ')}
-                          </span>
-                        </div>
-                      ))}
+                      {getPhaseGates(project.current_phase).map((gate) => {
+                        const approved =
+                          (gate === 'stack_approved' && project.stack_approved) ||
+                          (gate === 'dependencies_approved' && project.dependencies_approved);
+                        return (
+                          <div key={gate} className="rounded-lg border border-border/70 bg-muted/40 p-3">
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${approved ? 'bg-[hsl(var(--chart-4))]' : 'bg-destructive'}`}></span>
+                              <span className="text-sm text-muted-foreground capitalize">
+                                {gate.replace(/_/g, ' ')}
+                              </span>
+                            </div>
+                            {!approved && (
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Waiting for stakeholder approval before advancing.
+                              </p>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 )}
@@ -429,19 +570,40 @@ export default function ProjectPage() {
                     <div key={phase}>
                       <h4 className="font-medium text-sm text-foreground mb-2">{phase}</h4>
                       {artifacts[phase] && artifacts[phase].length > 0 ? (
-                        <ul className="space-y-1">
+                        <div className="space-y-2">
                           {artifacts[phase].map((artifact: any) => (
-                            <li
+                            <div
                               key={artifact.name}
-                              className="text-xs text-muted-foreground truncate hover:text-[hsl(var(--chart-2))] hover:bg-muted cursor-pointer flex items-center gap-1 px-2 py-1 rounded transition-colors duration-200"
-                              title={`Click to view ${artifact.name}`}
-                              onClick={() => handleViewArtifact(artifact, phase)}
+                              className="rounded-xl border border-border/80 bg-muted/50 p-3 text-xs text-muted-foreground"
                             >
-                              <FileText className="h-3 w-3 flex-shrink-0" />
-                              {artifact.name}
-                            </li>
+                              <div className="mb-2 flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 truncate">
+                                  <FileText className="h-3.5 w-3.5 text-primary" />
+                                  <span className="truncate text-foreground">{artifact.name}</span>
+                                </div>
+                                <span className="text-[10px] uppercase tracking-wide">Phase {phase}</span>
+                              </div>
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 px-2 text-xs"
+                                  onClick={() => handleViewArtifact(artifact, phase)}
+                                >
+                                  View
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-xs"
+                                  onClick={() => handleArtifactDownload(artifact)}
+                                >
+                                  Download
+                                </Button>
+                              </div>
+                            </div>
                           ))}
-                        </ul>
+                        </div>
                       ) : (
                         <p className="text-xs text-muted-foreground">No artifacts yet</p>
                       )}
@@ -455,63 +617,66 @@ export default function ProjectPage() {
 
         {/* Actions */}
         {!showStackSelection && project.current_phase !== 'DONE' && (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="space-y-4">
-                {/* Primary action - Execute current phase */}
-                {shouldShowExecuteButton(project.current_phase, artifacts) && (
-                  <div>
-                    <Button
-                      onClick={handleExecutePhase}
-                      disabled={executing}
-                      className="w-full h-12 text-base font-semibold"
-                      size="lg"
-                    >
-                      {executing ? (
-                        <>
-                          <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-border border-t-transparent"></div>
-                          Generating Artifacts with AI...
-                        </>
-                      ) : (
-                        `Execute ${project.current_phase} Phase`
-                      )}
-                    </Button>
-                    <p className="text-xs text-muted-foreground mt-2 text-center">
-                      AI agents will analyze your project and generate the required specifications
-                    </p>
-                  </div>
-                )}
-
-                {/* Secondary actions */}
-                <div className="flex gap-4 pt-2 border-t border-border">
+          <Card className="border border-border/70">
+            <CardHeader>
+              <CardTitle>Phase Controls</CardTitle>
+              <CardDescription>Run the AI assistant, advance when approvals are satisfied, or refresh artifacts.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Primary action - Execute current phase */}
+              {shouldShowExecuteButton(project.current_phase, artifacts) && (
+                <div>
                   <Button
-                    onClick={handlePhaseAdvance}
-                    disabled={advancing || executing}
-                    variant="outline"
-                    className="flex-1"
+                    onClick={handleExecutePhase}
+                    disabled={executing}
+                    className="w-full h-12 text-base font-semibold"
+                    size="lg"
                   >
-                    {advancing ? 'Advancing...' : 'Advance to Next Phase'}
+                    {executing ? (
+                      <>
+                        <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-border border-t-transparent"></div>
+                        Generating Artifacts with AI...
+                      </>
+                    ) : (
+                      `Execute ${project.current_phase} Phase`
+                    )}
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      fetchProject();
-                      fetchArtifacts();
-                    }}
-                    disabled={executing || advancing}
-                  >
-                    Refresh
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => setShowDeleteDialog(true)}
-                    className="flex items-center gap-2"
-                    disabled={executing || advancing}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </Button>
+                  <p className="text-xs text-muted-foreground mt-2 text-center">
+                    AI agents will analyze your project and generate the required specifications
+                  </p>
                 </div>
+              )}
+
+              {/* Secondary actions */}
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  onClick={handlePhaseAdvance}
+                  disabled={advancing || executing}
+                  variant="outline"
+                  className="flex-1 min-w-[180px]"
+                >
+                  {advancing ? 'Advancing...' : 'Advance to Next Phase'}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1 min-w-[140px]"
+                  onClick={() => {
+                    fetchProject();
+                    fetchArtifacts();
+                  }}
+                  disabled={executing || advancing}
+                >
+                  Refresh
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowDeleteDialog(true)}
+                  className="flex-1 min-w-[140px] flex items-center justify-center gap-2"
+                  disabled={executing || advancing}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -549,6 +714,9 @@ export default function ProjectPage() {
                       <Download className="h-4 w-4" />
                       Download All Specifications (ZIP)
                     </Button>
+                    <p className="text-center text-xs text-muted-foreground">
+                      Share HANDOFF.md with engineering and attach ZIP to your build ticket.
+                    </p>
                   </div>
                 ) : (
                   <Button
@@ -568,6 +736,11 @@ export default function ProjectPage() {
                       </>
                     )}
                   </Button>
+                )}
+                {!artifacts['DONE']?.some((a: any) => a.name === 'HANDOFF.md') && (
+                  <p className="text-center text-xs text-muted-foreground">
+                    Compile all artifacts into a single prompt once your stakeholders sign off.
+                  </p>
                 )}
 
                 <div className="flex gap-4 justify-center pt-2 border-t border-[hsl(var(--chart-4))]/30">
@@ -690,4 +863,9 @@ function getPhaseGates(phase: string): string[] {
     DEPENDENCIES: ['dependencies_approved']
   };
   return gates[phase] || [];
+}
+
+function isOutputComplete(phase: string, output: string, artifacts: Record<string, any> = {}): boolean {
+  const phaseArtifacts = artifacts[phase] || [];
+  return phaseArtifacts.some((artifact: any) => artifact.name?.toLowerCase() === output.toLowerCase());
 }
