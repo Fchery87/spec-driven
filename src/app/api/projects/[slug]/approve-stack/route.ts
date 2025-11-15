@@ -8,7 +8,7 @@ export async function POST(
   try {
     const { slug } = params;
     const body = await request.json();
-    const { stack_choice, reasoning } = body;
+    const { stack_choice, reasoning, platform } = body;
 
     if (!stack_choice) {
       return NextResponse.json(
@@ -29,6 +29,7 @@ export async function POST(
     const updated = {
       ...metadata,
       stack_choice,
+      platform_type: platform,
       stack_approved: true,
       stack_approval_date: new Date().toISOString(),
       stack_reasoning: reasoning,
@@ -78,6 +79,7 @@ See plan.md for the full rationale and decision documentation.
       data: {
         slug,
         stack_choice,
+        platform_type: platform,
         stack_approved: true,
         message: 'Stack selection approved successfully'
       }
