@@ -37,6 +37,12 @@ export class ConfigLoader {
    * Normalize parsed YAML into OrchestratorSpec type
    */
   private normalizeSpec(parsed: Record<string, any>): OrchestratorSpec {
+    // If parsed data exists, use it directly (it's already in the correct format from YAML)
+    if (parsed && Object.keys(parsed).length > 0) {
+      return parsed as OrchestratorSpec;
+    }
+
+    // Otherwise return hardcoded defaults as fallback
     return {
       phases: {
         ANALYSIS: {
