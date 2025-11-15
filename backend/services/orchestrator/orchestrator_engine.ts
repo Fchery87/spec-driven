@@ -182,12 +182,32 @@ export class OrchestratorEngine {
           break;
 
         case 'SPEC':
-          generatedArtifacts = await getPMExecutor(
+          // SPEC phase has two owners: PM (generates PRD) and Architect (generates data-model and api-spec)
+          // First generate PRD with PM
+          const prdArtifacts = await getPMExecutor(
             this.llmClient,
             project.id,
             artifacts,
             project.orchestration_state.stack_choice
           );
+
+          // Then generate data model and API spec with Architect
+          // Add the newly generated PRD to artifacts for Architect to use
+          const artifactsWithPRD = {
+            ...artifacts,
+            'SPEC/PRD.md': prdArtifacts['PRD.md'] || ''
+          };
+
+          const architectArtifacts = await this.runArchitectForSpec(
+            project.id,
+            artifactsWithPRD
+          );
+
+          // Combine all artifacts
+          generatedArtifacts = {
+            ...prdArtifacts,
+            ...architectArtifacts
+          };
           break;
 
         case 'SOLUTIONING':
@@ -259,6 +279,26 @@ export class OrchestratorEngine {
         }`
       );
     }
+  }
+
+  /**
+   * Run Architect agent specifically for SPEC phase (data model + API spec)
+   */
+  private async runArchitectForSpec(
+    projectId: string,
+    artifacts: Record<string, string>
+  ): Promise<Record<string, string>> {
+    const executor = new (await import('../llm/agent_executors')).AgentExecutor();
+    const brief = artifacts['ANALYSIS/project-brief.md'] || '';
+    const prd = artifacts['SPEC/PRD.md'] || '';
+
+    const result = await executor.runArchitectAgent(brief, {
+      project_id: projectId,
+      phase: 'SPEC',
+      artifacts
+    }, prd);
+
+    return result.artifacts;
   }
 
   /**
