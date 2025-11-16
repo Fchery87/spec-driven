@@ -1,6 +1,10 @@
+"use client"
+
+import { useState } from "react"
 import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
+import { signOut, useSession } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
 
 import { SiteLogo } from "./SiteLogo"
@@ -16,6 +20,27 @@ interface SiteHeaderProps {
 }
 
 export function SiteHeader({ className }: SiteHeaderProps) {
+  const { data, isPending } = useSession()
+  const [isSigningOut, setIsSigningOut] = useState(false)
+
+  const isAuthenticated = Boolean(data?.session)
+  const userLabel = data?.user
+    ? data.user.name?.trim() || data.user.email || "Account"
+    : null
+
+  const handleSignOut = async () => {
+    if (isSigningOut) return
+
+    try {
+      setIsSigningOut(true)
+      await signOut()
+    } catch (error) {
+      console.error("Failed to sign out", error)
+    } finally {
+      setIsSigningOut(false)
+    }
+  }
+
   return (
     <header
       className={cn(
@@ -41,12 +66,34 @@ export function SiteHeader({ className }: SiteHeaderProps) {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" asChild className="hidden sm:flex">
-            <Link href="/sign-in">Sign In</Link>
-          </Button>
-          <Button size="sm" className="shadow-sm" asChild>
-            <Link href="/sign-up">Create Account</Link>
-          </Button>
+          {isPending ? (
+            <div className="h-9 w-28 animate-pulse rounded-md bg-muted" aria-hidden="true" />
+          ) : isAuthenticated ? (
+            <>
+              {userLabel && (
+                <span className="hidden text-sm font-medium text-muted-foreground sm:inline-block">
+                  {userLabel}
+                </span>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleSignOut}
+                disabled={isSigningOut}
+              >
+                {isSigningOut ? "Signing out..." : "Sign Out"}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" size="sm" asChild className="hidden sm:flex">
+                <Link href="/sign-in">Sign In</Link>
+              </Button>
+              <Button size="sm" className="shadow-sm" asChild>
+                <Link href="/sign-up">Create Account</Link>
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </header>
