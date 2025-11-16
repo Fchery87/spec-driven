@@ -5,6 +5,7 @@
 # Phase workflow definition
 phases:
   ANALYSIS:
+    name: "ANALYSIS"
     description: "Clarify requirements through guided Q&A"
     owner: "analyst"
     duration_minutes: 30
@@ -14,6 +15,7 @@ phases:
     validators: ["presence", "markdown_frontmatter", "content_quality"]
     
   STACK_SELECTION:
+    name: "STACK_SELECTION"
     description: "Select and approve technology stack"
     owner: "architect"
     duration_minutes: 20
@@ -25,6 +27,7 @@ phases:
     validators: ["presence", "stack_approved"]
     
   SPEC:
+    name: "SPEC"
     description: "Generate detailed specifications"
     owner: ["pm", "architect"]
     duration_minutes: 45
@@ -35,6 +38,7 @@ phases:
     validators: ["markdown_frontmatter", "api_openapi", "presence", "content_coverage"]
     
   DEPENDENCIES:
+    name: "DEPENDENCIES"
     description: "Define and approve project dependencies"
     owner: "devops"
     duration_minutes: 30
@@ -46,6 +50,7 @@ phases:
     validators: ["presence", "dependencies_approved", "policy_check"]
     
   SOLUTIONING:
+    name: "SOLUTIONING"
     description: "Create architecture and task breakdown"
     owner: ["architect", "scrummaster"]
     duration_minutes: 60
@@ -56,6 +61,7 @@ phases:
     validators: ["markdown_frontmatter", "tasks_dag", "presence", "content_coverage"]
     
   DONE:
+    name: "DONE"
     description: "Generate handoff and ZIP package"
     owner: "orchestrator"
     duration_minutes: 10

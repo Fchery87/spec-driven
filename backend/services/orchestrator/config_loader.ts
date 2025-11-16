@@ -46,6 +46,21 @@ export class ConfigLoader {
         console.warn('[ConfigLoader] Warning: Parsed YAML does not have phases object');
         return this.getDefaultSpec();
       }
+
+      // Validate and normalize phases: ensure each phase has a name field
+      if (typeof spec.phases === 'object' && spec.phases !== null) {
+        for (const [phaseName, phase] of Object.entries(spec.phases)) {
+          if (phase && typeof phase === 'object') {
+            // Auto-populate missing name field with phase key
+            const phaseObj = phase as any;
+            if (!phaseObj.name) {
+              console.log(`[ConfigLoader] Auto-populating missing name field for phase: ${phaseName}`);
+              phaseObj.name = phaseName;
+            }
+          }
+        }
+      }
+
       console.log('[ConfigLoader] Found phases:', Object.keys(spec.phases));
       return spec;
     }

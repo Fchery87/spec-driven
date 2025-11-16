@@ -25,15 +25,38 @@ export class OrchestratorEngine {
   private llmClient: GeminiClient;
 
   constructor() {
-    this.spec = new ConfigLoader().loadSpec();
-    console.log('[OrchestratorEngine] Loaded spec:', {
-      hasPhases: !!this.spec?.phases,
-      phaseKeys: this.spec?.phases ? Object.keys(this.spec.phases) : [],
-      hasValidators: !!this.spec?.validators,
-      hasLlmConfig: !!this.spec?.llm_config
-    });
-    this.validators = new Validators(this.spec.validators);
-    this.artifactManager = new ArtifactManager();
+    console.log('[OrchestratorEngine] Constructor called');
+    try {
+      this.spec = new ConfigLoader().loadSpec();
+      console.log('[OrchestratorEngine] Loaded spec:', {
+        hasPhases: !!this.spec?.phases,
+        phaseKeys: this.spec?.phases ? Object.keys(this.spec.phases) : [],
+        hasValidators: !!this.spec?.validators,
+        hasLlmConfig: !!this.spec?.llm_config
+      });
+
+      // Defensive validation: ensure spec is properly initialized
+      if (!this.spec || !this.spec.phases || Object.keys(this.spec.phases).length === 0) {
+        console.error('[OrchestratorEngine] Constructor validation failed!');
+        console.error('[OrchestratorEngine] this.spec:', this.spec);
+        throw new Error(
+          'OrchestratorEngine failed to load spec with phases. ' +
+          'Check that orchestrator_spec.yml exists, is valid YAML, and has a phases section defined.'
+        );
+      }
+      console.log('[OrchestratorEngine] Constructor validation passed');
+    } catch (error) {
+      console.error('[OrchestratorEngine] Constructor error:', error);
+      throw error;
+    }
+
+    try {
+      this.validators = new Validators(this.spec.validators);
+      this.artifactManager = new ArtifactManager();
+    } catch (error) {
+      console.error('[OrchestratorEngine] Failed to initialize validators/artifact manager:', error);
+      throw error;
+    }
 
     // Initialize Gemini client with LLM config from orchestrator spec
     const llmConfig = {
@@ -170,9 +193,13 @@ export class OrchestratorEngine {
     console.log('[OrchestratorEngine] runPhaseAgent called for phase:', project.current_phase);
     console.log('[OrchestratorEngine] this.spec exists?', !!this.spec);
     console.log('[OrchestratorEngine] this.spec.phases exists?', !!this.spec?.phases);
+    console.log('[OrchestratorEngine] this.spec.phases type:', typeof this.spec?.phases);
+    console.log('[OrchestratorEngine] this.spec.phases keys:', this.spec?.phases ? Object.keys(this.spec.phases) : 'N/A');
 
     if (!this.spec || !this.spec.phases) {
       console.error('[OrchestratorEngine] ERROR: spec or phases is undefined!');
+      console.error('[OrchestratorEngine] spec:', this.spec);
+      console.error('[OrchestratorEngine] spec.phases:', this.spec?.phases);
       throw new Error('OrchestratorEngine spec not properly initialized');
     }
 
