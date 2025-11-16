@@ -62,9 +62,14 @@ export async function POST(
 
       const nextPhase = PHASES[currentPhaseIndex + 1];
 
+      // Convert phases_completed to array for manipulation, then persistProjectToDB will convert to string
+      const currentCompletedArray = Array.isArray(metadata.phases_completed)
+        ? metadata.phases_completed
+        : (metadata.phases_completed ? metadata.phases_completed.split(',').filter((p: any) => p) : []);
+
       const updated = {
         ...metadata,
-        phases_completed: [...(metadata.phases_completed || []), metadata.current_phase],
+        phases_completed: [...currentCompletedArray, metadata.current_phase],
         current_phase: nextPhase,
         updated_at: new Date().toISOString()
       };

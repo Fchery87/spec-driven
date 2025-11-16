@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProjectMetadata, saveProjectMetadata, saveArtifact, persistProjectToDB } from '@/app/api/lib/project-utils';
 import { HandoffGenerator } from '@/backend/services/file_system/handoff_generator';
+import { ProjectDBService } from '@/backend/services/database/project_db_service';
 
 export async function POST(
   request: NextRequest,
@@ -35,6 +36,18 @@ export async function POST(
 
     // Save HANDOFF.md artifact
     saveArtifact(slug, 'DONE', 'HANDOFF.md', handoffContent);
+
+    // Log artifact to database
+    try {
+      const dbService = new ProjectDBService();
+      const project = await dbService.getProjectBySlug(slug);
+      if (project) {
+        await dbService.saveArtifact(project.id, 'DONE', 'HANDOFF.md', handoffContent);
+      }
+    } catch (dbError) {
+      console.error('Warning: Failed to log HANDOFF.md to database:', dbError);
+      // Don't fail the request if database logging fails
+    }
 
     // Update metadata to mark handoff as generated
     const updated = {

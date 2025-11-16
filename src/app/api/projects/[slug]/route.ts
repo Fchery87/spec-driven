@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getProjectMetadata, saveProjectMetadata, deleteProject, deleteProjectFromDB } from '@/app/api/lib/project-utils';
+import { getProjectMetadata, saveProjectMetadata, deleteProject, deleteProjectFromDB, persistProjectToDB } from '@/app/api/lib/project-utils';
 
 export async function GET(
   request: NextRequest,
@@ -56,6 +56,9 @@ export async function PUT(
     };
 
     saveProjectMetadata(slug, updated);
+
+    // Persist changes to database
+    await persistProjectToDB(slug, updated);
 
     return NextResponse.json({
       success: true,

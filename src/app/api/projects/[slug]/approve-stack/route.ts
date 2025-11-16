@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProjectMetadata, saveProjectMetadata, writeArtifact, persistProjectToDB } from '@/app/api/lib/project-utils';
+import { ProjectDBService } from '@/backend/services/database/project_db_service';
 
 export async function POST(
   request: NextRequest,
@@ -73,6 +74,19 @@ See plan.md for the full rationale and decision documentation.
 `;
 
     writeArtifact(slug, 'STACK_SELECTION', 'README.md', readmeContent);
+
+    // Log artifacts to database
+    try {
+      const dbService = new ProjectDBService();
+      const project = await dbService.getProjectBySlug(slug);
+      if (project) {
+        await dbService.saveArtifact(project.id, 'STACK_SELECTION', 'plan.md', stackContent);
+        await dbService.saveArtifact(project.id, 'STACK_SELECTION', 'README.md', readmeContent);
+      }
+    } catch (dbError) {
+      console.error('Warning: Failed to log artifacts to database:', dbError);
+      // Don't fail the request if database logging fails
+    }
 
     return NextResponse.json({
       success: true,

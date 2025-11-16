@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProjectMetadata, saveProjectMetadata, writeArtifact, persistProjectToDB } from '@/app/api/lib/project-utils';
+import { ProjectDBService } from '@/backend/services/database/project_db_service';
 
 export async function POST(
   request: NextRequest,
@@ -66,6 +67,18 @@ All project dependencies have been reviewed and approved. The project is now cle
 `;
 
     writeArtifact(slug, 'DEPENDENCIES', 'approval.md', approvalContent);
+
+    // Log artifact to database
+    try {
+      const dbService = new ProjectDBService();
+      const project = await dbService.getProjectBySlug(slug);
+      if (project) {
+        await dbService.saveArtifact(project.id, 'DEPENDENCIES', 'approval.md', approvalContent);
+      }
+    } catch (dbError) {
+      console.error('Warning: Failed to log artifact to database:', dbError);
+      // Don't fail the request if database logging fails
+    }
 
     return NextResponse.json({
       success: true,
