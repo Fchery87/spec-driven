@@ -1,51 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'fs';
+import { writeFileSync } from 'fs';
 import { resolve } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { ProjectDBService } from '@/backend/services/database/project_db_service';
 import { ProjectStorage } from '@/backend/services/file_system/project_storage';
-
-const getProjectsPath = () => resolve(process.cwd(), 'projects');
-
-const getProjectMetadata = (slug: string) => {
-  try {
-    const path = resolve(getProjectsPath(), slug, 'metadata.json');
-    if (existsSync(path)) {
-      return JSON.parse(readFileSync(path, 'utf8'));
-    }
-  } catch {
-    return null;
-  }
-};
-
-const saveProjectMetadata = (slug: string, metadata: any) => {
-  const dir = resolve(getProjectsPath(), slug);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
-  writeFileSync(resolve(dir, 'metadata.json'), JSON.stringify(metadata, null, 2));
-};
-
-const listAllProjects = () => {
-  const projectsPath = getProjectsPath();
-  if (!existsSync(projectsPath)) {
-    return [];
-  }
-  try {
-    return readdirSync(projectsPath).filter(item => {
-      const itemPath = resolve(projectsPath, item);
-      return statSync(itemPath).isDirectory();
-    });
-  } catch {
-    return [];
-  }
-};
+import { saveProjectMetadata } from '@/app/api/lib/project-utils';
 
 /**
  * GET /api/projects
  * List all projects from database
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const dbService = new ProjectDBService();
     const result = await dbService.listProjects();

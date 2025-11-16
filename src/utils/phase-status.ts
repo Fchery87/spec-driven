@@ -21,7 +21,7 @@ export interface ProjectProgress {
   phases_completed: string[]
   stack_approved?: boolean
   dependencies_approved?: boolean
-  artifacts?: Record<string, any[]>
+  artifacts?: Record<string, Array<{ name: string }>>
 }
 
 const PHASES = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'DONE']
@@ -53,19 +53,18 @@ const PHASE_DESCRIPTIONS: Record<string, string> = {
  * Calculate the status of each phase in the workflow
  */
 export function calculatePhaseStatuses(progress: ProjectProgress): Phase[] {
-  const { current_phase, phases_completed = [], stack_approved = false, dependencies_approved = false, artifacts = {} } = progress
+  const { current_phase, phases_completed = [], artifacts = {} } = progress
 
   return PHASES.map((phaseName) => {
     const isCompleted = phases_completed.includes(phaseName)
     const isCurrent = phaseName === current_phase
     const phaseIndex = PHASES.indexOf(phaseName)
     const currentPhaseIndex = PHASES.indexOf(current_phase)
-    const isPending = phaseIndex > currentPhaseIndex
 
     // Get artifacts for this phase
     const phaseArtifacts = artifacts[phaseName] || []
     const requiredFiles = REQUIRED_ARTIFACTS[phaseName] || []
-    const generatedFiles = phaseArtifacts.map((a: any) => a.name)
+    const generatedFiles = phaseArtifacts.map((a: { name: string }) => a.name)
     const artifactsComplete = requiredFiles.every((file) => generatedFiles.includes(file))
 
     // Determine if phase is blocked by an approval gate
@@ -76,7 +75,7 @@ export function calculatePhaseStatuses(progress: ProjectProgress): Phase[] {
 
     if (gateInfo && !isCompleted) {
       const gateField = gateInfo.field as keyof ProjectProgress
-      const gateApproved = (progress as any)[gateField] === true
+      const gateApproved = (progress as Record<string, unknown>)[gateField] === true
 
       // Phase is blocked if it's the current phase and the gate hasn't been approved
       if (isCurrent && !gateApproved) {
@@ -142,7 +141,7 @@ export function canAdvanceFromPhase(
 /**
  * Determine if a phase's artifacts are complete
  */
-export function areArtifactsComplete(phaseName: string, artifacts: any[]): boolean {
+export function areArtifactsComplete(phaseName: string, artifacts: Array<{ name: string }>): boolean {
   const requiredFiles = REQUIRED_ARTIFACTS[phaseName] || []
   if (requiredFiles.length === 0) {
     return true
@@ -155,7 +154,7 @@ export function areArtifactsComplete(phaseName: string, artifacts: any[]): boole
 /**
  * Get artifact completion percentage for a phase
  */
-export function getArtifactCompletionPercentage(phaseName: string, artifacts: any[]): number {
+export function getArtifactCompletionPercentage(phaseName: string, artifacts: Array<{ name: string }>): number {
   const requiredFiles = REQUIRED_ARTIFACTS[phaseName] || []
   if (requiredFiles.length === 0) {
     return 100

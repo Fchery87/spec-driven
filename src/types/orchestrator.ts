@@ -40,7 +40,7 @@ export interface Agent {
 export interface Validator {
   description: string;
   implementation: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface OrchestratorSpec {
@@ -48,10 +48,10 @@ export interface OrchestratorSpec {
   stacks: Record<string, Stack>;
   agents: Record<string, Agent>;
   validators: Record<string, Validator>;
-  security_baseline: Record<string, any>;
-  file_structure: Record<string, any>;
-  llm_config: Record<string, any>;
-  project_defaults: Record<string, any>;
+  security_baseline: Record<string, unknown>;
+  file_structure: Record<string, unknown>;
+  llm_config: Record<string, unknown>;
+  project_defaults: Record<string, unknown>;
 }
 
 export interface Project {
@@ -81,7 +81,7 @@ export interface OrchestrationState {
 
 export interface ValidationResult {
   status: 'pass' | 'warn' | 'fail';
-  checks: Record<string, any>;
+  checks: Record<string, unknown>;
   errors?: string[];
   warnings?: string[];
 }
@@ -95,7 +95,7 @@ export interface ProjectArtifact {
   file_path: string;
   file_size: number;
   content_hash: string;
-  frontmatter?: Record<string, any>;
+  frontmatter?: Record<string, unknown>;
   validation_status: string;
   validation_errors?: string[];
   created_at: Date;

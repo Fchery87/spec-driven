@@ -158,7 +158,7 @@ export function StackSelection({
           Choose Your Project Type
         </h2>
         <p className="text-muted-foreground max-w-2xl mx-auto mb-8">
-          First, let's determine whether you're building a web application, mobile application, or both.
+          First, let&apos;s determine whether you&apos;re building a web application, mobile application, or both.
         </p>
 
         <div className="flex gap-4 justify-center mb-8 flex-wrap">
@@ -296,7 +296,7 @@ export function StackSelection({
                 Custom Stack
               </CardTitle>
               <CardDescription>
-                Define your own technology stack if the predefined options don't fit your needs.
+                Define your own technology stack if the predefined options don&apos;t fit your needs.
               </CardDescription>
             </CardHeader>
 

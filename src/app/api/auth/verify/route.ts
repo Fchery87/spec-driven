@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { extractToken, authenticateRequest } from '@/backend/middleware/auth_middleware';
+import { extractToken } from '@/backend/middleware/auth_middleware';
 import { authService } from '@/backend/services/auth/auth_service';
 
 /**

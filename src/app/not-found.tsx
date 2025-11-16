@@ -2,7 +2,6 @@
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Search } from 'lucide-react'
 import Link from 'next/link'
 
 export default function NotFound() {
@@ -14,13 +13,13 @@ export default function NotFound() {
             <div className="text-6xl font-bold text-muted-foreground">404</div>
           </div>
           <h1 className="text-2xl font-semibold text-foreground">Page not found</h1>
-          <p className="text-muted-foreground">The page you're looking for doesn't exist or has been moved.</p>
+          <p className="text-muted-foreground">The page you&apos;re looking for doesn&apos;t exist or has been moved.</p>
         </div>
 
         <Card className="w-full border border-border/70 bg-card/80">
           <CardHeader>
             <CardTitle className="text-lg">Lost?</CardTitle>
-            <CardDescription>Let's get you back on track</CardDescription>
+            <CardDescription>Let&apos;s get you back on track</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-col gap-2">

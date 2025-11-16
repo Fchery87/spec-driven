@@ -2,7 +2,7 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { X, Copy, Download } from "lucide-react"
+import { Copy, Download } from "lucide-react"
 import { useState } from "react"
 
 interface ArtifactViewerProps {

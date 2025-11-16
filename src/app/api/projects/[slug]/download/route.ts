@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProjectMetadata, listArtifacts } from '@/app/api/lib/project-utils';
 import archiver from 'archiver';
-import { Readable } from 'stream';
+import { readFileSync } from 'fs';
+import { resolve as pathResolve } from 'path';
 
 export async function GET(
   request: NextRequest,
@@ -87,8 +88,6 @@ export async function GET(
 
       // Add all artifacts from all phases
       const allPhases = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'DONE'];
-      const { readFileSync } = require('fs');
-      const { resolve: pathResolve } = require('path');
 
       for (const phase of allPhases) {
         const artifacts = listArtifacts(slug, phase);

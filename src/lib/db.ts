@@ -1,5 +1,6 @@
 import { prisma } from './prisma';
 import { Project } from '@prisma/client';
+import { createHash } from 'crypto';
 
 /**
  * Database layer for project management
@@ -92,14 +93,14 @@ export async function updateProject(
  */
 export async function updateProjectMetadata(
   slug: string,
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
 ): Promise<Project> {
   const project = await getProjectBySlug(slug);
   if (!project) {
     throw new Error(`Project not found: ${slug}`);
   }
 
-  const updateData: any = {};
+  const updateData: Record<string, unknown> = {};
 
   // Map metadata fields to project fields
   if (metadata.current_phase) updateData.current_phase = metadata.current_phase;
@@ -169,8 +170,7 @@ export async function saveArtifact(
   content: string,
   version: number = 1
 ): Promise<void> {
-  const fileHash = require('crypto')
-    .createHash('sha256')
+  const fileHash = createHash('sha256')
     .update(content)
     .digest('hex');
 

@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,6 +22,11 @@ import { DependencySelector, type DependencySelection } from '@/components/orche
 import { calculatePhaseStatuses, canAdvanceFromPhase } from '@/utils/phase-status';
 import { ArrowLeft, FileText, CheckCircle, Trash2, Download } from 'lucide-react';
 
+interface Artifact {
+  name: string;
+  [key: string]: unknown;
+}
+
 interface Project {
   slug: string;
   name: string;
@@ -31,7 +36,7 @@ interface Project {
   stack_approved: boolean;
   dependencies_approved: boolean;
   created_at: string;
-  stats?: Record<string, any>;
+  stats?: Record<string, unknown>;
 }
 
 const PHASES = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'DONE'];
@@ -45,7 +50,7 @@ export default function ProjectPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showStackSelection, setShowStackSelection] = useState(false);
-  const [artifacts, setArtifacts] = useState<Record<string, any>>({});
+  const [artifacts, setArtifacts] = useState<Record<string, Artifact[]>>({});
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [executing, setExecuting] = useState(false);
@@ -59,10 +64,11 @@ export default function ProjectPage() {
   const [approvingDependencies, setApprovingDependencies] = useState(false);
 
   const dependencySelectorRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     fetchProject();
     fetchArtifacts();
-  }, [slug]);
+  }, [fetchProject, fetchArtifacts]);
 
   useEffect(() => {
     if (showDependencySelector) {
@@ -79,7 +85,7 @@ export default function ProjectPage() {
     }, 5000);
   };
 
-  const fetchProject = async () => {
+  const fetchProject = useCallback(async () => {
     try {
       const response = await fetch(`/api/projects/${slug}`);
       const result = await response.json();
@@ -106,9 +112,9 @@ export default function ProjectPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [slug]);
 
-  const fetchArtifacts = async () => {
+  const fetchArtifacts = useCallback(async () => {
     try {
       const response = await fetch(`/api/projects/${slug}/artifacts`);
       const result = await response.json();
@@ -121,7 +127,7 @@ export default function ProjectPage() {
     } catch (err) {
       console.error('Failed to fetch artifacts:', err);
     }
-  };
+  }, [slug]);
 
   const handleExecutePhase = async () => {
     setExecuting(true);
@@ -275,7 +281,7 @@ ${notes || 'N/A'}
     }
   };
 
-  const handleViewArtifact = async (artifact: any, phase: string) => {
+  const handleViewArtifact = async (artifact: Artifact, phase: string) => {
     try {
       // Fetch the actual artifact content from the file system
       const response = await fetch(`/api/projects/${slug}/artifacts/${phase}/${artifact.name}`);
@@ -298,7 +304,7 @@ ${notes || 'N/A'}
     }
   };
 
-  const handleArtifactDownload = async (artifact: any, phase: string) => {
+  const handleArtifactDownload = async (artifact: Artifact, phase: string) => {
     try {
       // Fetch the actual artifact content from the file system
       const response = await fetch(`/api/projects/${slug}/artifacts/${phase}/${artifact.name}`);
@@ -702,7 +708,7 @@ ${notes || 'N/A'}
                       <h4 className="font-medium text-sm text-foreground mb-2">{phase}</h4>
                       {artifacts[phase] && artifacts[phase].length > 0 ? (
                         <div className="space-y-2">
-                          {artifacts[phase].map((artifact: any) => (
+                          {artifacts[phase].map((artifact: Artifact) => (
                             <div
                               key={artifact.name}
                               className="rounded-xl border border-border/80 bg-muted/50 p-3 text-xs text-muted-foreground"
@@ -815,7 +821,7 @@ ${notes || 'N/A'}
 
               <div className="space-y-4">
                 {/* Check if handoff already exists */}
-                {artifacts['DONE'] && artifacts['DONE'].some((a: any) => a.name === 'HANDOFF.md') ? (
+                {artifacts['DONE'] && artifacts['DONE'].some((a: Artifact) => a.name === 'HANDOFF.md') ? (
                   <div className="space-y-3">
                     <div className="bg-[hsl(var(--chart-4))]/15 border border-[hsl(var(--chart-4))]/30 rounded-lg p-4 text-center">
                       <p className="text-[hsl(var(--chart-4))] font-semibold flex items-center justify-center gap-2">
@@ -853,7 +859,7 @@ ${notes || 'N/A'}
                     )}
                   </Button>
                 )}
-                {!artifacts['DONE']?.some((a: any) => a.name === 'HANDOFF.md') && (
+                {!artifacts['DONE']?.some((a: Artifact) => a.name === 'HANDOFF.md') && (
                   <p className="text-center text-xs text-muted-foreground">
                     Compile all artifacts into a single prompt once your stakeholders sign off.
                   </p>
@@ -887,7 +893,7 @@ ${notes || 'N/A'}
             <DialogHeader>
               <DialogTitle className="text-destructive">Delete Project</DialogTitle>
               <DialogDescription>
-                Are you sure you want to delete "{project?.name}"? This action cannot be undone and will permanently remove all project data and specifications.
+                Are you sure you want to delete &quot;{project?.name}&quot;? This action cannot be undone and will permanently remove all project data and specifications.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="gap-2 sm:gap-0">
@@ -936,7 +942,7 @@ ${notes || 'N/A'}
 }
 
 // Helper functions
-function shouldShowExecuteButton(phase: string, artifacts: Record<string, any>): boolean {
+function shouldShowExecuteButton(phase: string): boolean {
   // Don't show execute button for user-driven phases
   if (phase === 'STACK_SELECTION' || phase === 'DONE') {
     return false;
@@ -946,7 +952,7 @@ function shouldShowExecuteButton(phase: string, artifacts: Record<string, any>):
   return true;
 }
 
-function hasArtifactsForPhase(phase: string, artifacts: Record<string, any>): boolean {
+function hasArtifactsForPhase(phase: string, artifacts: Record<string, Artifact[]>): boolean {
   if (phase === 'STACK_SELECTION' || phase === 'DONE') {
     return false;
   }
@@ -986,7 +992,7 @@ function getPhaseGates(phase: string): string[] {
   return gates[phase] || [];
 }
 
-function isOutputComplete(phase: string, output: string, artifacts: Record<string, any> = {}): boolean {
+function isOutputComplete(phase: string, output: string, artifacts: Record<string, Artifact[]> = {}): boolean {
   const phaseArtifacts = artifacts[phase] || [];
-  return phaseArtifacts.some((artifact: any) => artifact.name?.toLowerCase() === output.toLowerCase());
+  return phaseArtifacts.some((artifact: Artifact) => artifact.name?.toLowerCase() === output.toLowerCase());
 }

@@ -27,6 +27,6 @@ export interface AgentContext {
 
 export interface AgentOutput {
   artifacts: Record<string, string>;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   next_actions?: string[];
 }

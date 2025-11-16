@@ -1,7 +1,5 @@
 "use client"
 
-import Link from "next/link"
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -74,14 +72,13 @@ export function PhaseStepper({
     return phases.findIndex(p => p.name === currentPhase)
   }
 
-  const isPhaseClickable = (phase: Phase, index: number) => {
+  const isPhaseClickable = (phase: Phase) => {
     // Can click completed phases or current phase
     return phase.status === 'completed' || phase.status === 'current'
   }
 
   const completedCount = phases.filter((phase) => phase.status === "completed").length
   const blockedCount = phases.filter((phase) => phase.status === "blocked").length
-  const currentData = phases.find((phase) => phase.name === currentPhase)
 
   return (
     <div className="w-full max-w-4xl mx-auto lg:sticky lg:top-24">

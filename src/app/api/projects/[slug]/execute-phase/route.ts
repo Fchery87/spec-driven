@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getProjectMetadata, saveProjectMetadata, listArtifacts, persistProjectToDB } from '@/app/api/lib/project-utils';
 import { OrchestratorEngine } from '@/backend/services/orchestrator/orchestrator_engine';
 import { ProjectDBService } from '@/backend/services/database/project_db_service';
+import { readFileSync, existsSync } from 'fs';
+import { resolve } from 'path';
 
 // Increase timeout for LLM operations (in seconds)
 export const maxDuration = 300; // 5 minutes
@@ -49,9 +51,6 @@ export async function POST(
     const currentIndex = allPhases.indexOf(metadata.current_phase);
 
     // Helper to read artifact file content
-    const { readFileSync } = require('fs');
-    const { resolve } = require('path');
-
     for (let i = 0; i < currentIndex; i++) {
       const phaseArtifacts = listArtifacts(slug, allPhases[i]);
       for (const artifact of phaseArtifacts) {
@@ -68,11 +67,9 @@ export async function POST(
 
     // Add project idea for ANALYSIS phase
     if (metadata.current_phase === 'ANALYSIS') {
-      const fs = require('fs');
-      const path = require('path');
-      const projectIdeaPath = path.resolve(process.cwd(), 'projects', slug, 'project_idea.txt');
-      if (fs.existsSync(projectIdeaPath)) {
-        previousArtifacts['project_idea'] = fs.readFileSync(projectIdeaPath, 'utf8');
+      const projectIdeaPath = resolve(process.cwd(), 'projects', slug, 'project_idea.txt');
+      if (existsSync(projectIdeaPath)) {
+        previousArtifacts['project_idea'] = readFileSync(projectIdeaPath, 'utf8');
       } else {
         // Fallback to description or name
         previousArtifacts['project_idea'] = metadata.description || metadata.name;

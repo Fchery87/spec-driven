@@ -181,7 +181,7 @@ export default function CreateProject() {
               </div>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
-              At the end, you'll get:
+              At the end, you&apos;ll get:
               <ul className="mt-2 space-y-1 list-disc list-inside">
                 <li>Complete specifications</li>
                 <li>Technology decisions</li>

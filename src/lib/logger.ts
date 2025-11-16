@@ -9,7 +9,7 @@ export interface LogEntry {
   timestamp: string
   level: LogLevel
   message: string
-  context?: Record<string, any>
+  context?: Record<string, unknown>
   error?: Error
 }
 
@@ -17,7 +17,7 @@ class Logger {
   private isDevelopment = process.env.NODE_ENV === 'development'
   private isServer = typeof window === 'undefined'
 
-  log(level: LogLevel, message: string, context?: Record<string, any>, error?: Error) {
+  log(level: LogLevel, message: string, context?: Record<string, unknown>, error?: Error) {
     const timestamp = new Date().toISOString()
 
     const entry: LogEntry = {
@@ -44,19 +44,19 @@ class Logger {
     }
   }
 
-  debug(message: string, context?: Record<string, any>) {
+  debug(message: string, context?: Record<string, unknown>) {
     this.log('debug', message, context)
   }
 
-  info(message: string, context?: Record<string, any>) {
+  info(message: string, context?: Record<string, unknown>) {
     this.log('info', message, context)
   }
 
-  warn(message: string, context?: Record<string, any>) {
+  warn(message: string, context?: Record<string, unknown>) {
     this.log('warn', message, context)
   }
 
-  error(message: string, error?: Error, context?: Record<string, any>) {
+  error(message: string, error?: Error, context?: Record<string, unknown>) {
     this.log('error', message, context, error)
     if (error?.stack && this.isDevelopment) {
       console.error('Stack trace:', error.stack)
@@ -153,15 +153,15 @@ export function withLogging(
  * Hook for logging in React components
  */
 export function useLogger(componentName: string) {
-  const log = (message: string, context?: Record<string, any>) => {
+  const log = (message: string, context?: Record<string, unknown>) => {
     logger.debug(`[${componentName}] ${message}`, context)
   }
 
-  const logError = (message: string, error: Error, context?: Record<string, any>) => {
+  const logError = (message: string, error: Error, context?: Record<string, unknown>) => {
     logger.error(`[${componentName}] ${message}`, error, context)
   }
 
-  const logEvent = (eventName: string, context?: Record<string, any>) => {
+  const logEvent = (eventName: string, context?: Record<string, unknown>) => {
     logger.info(`[${componentName}] Event: ${eventName}`, context)
   }
 

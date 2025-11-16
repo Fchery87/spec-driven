@@ -394,7 +394,7 @@ export default function Dashboard() {
             <DialogHeader>
               <DialogTitle className="text-destructive">Delete Project</DialogTitle>
               <DialogDescription>
-                Are you sure you want to delete "{selectedProjectToDelete?.name}"? This action cannot be undone and will permanently remove all project data and specifications.
+                Are you sure you want to delete &quot;{selectedProjectToDelete?.name}&quot;? This action cannot be undone and will permanently remove all project data and specifications.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="gap-2 sm:gap-0">

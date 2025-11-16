@@ -1,6 +1,23 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, rmSync } from 'fs';
 import { resolve } from 'path';
 
+export interface ProjectMetadata {
+  id?: string;
+  slug: string;
+  name: string;
+  description?: string | null;
+  current_phase: string;
+  phases_completed: string | string[];
+  stack_choice?: string | null;
+  stack_approved: boolean;
+  dependencies_approved: boolean;
+  handoff_generated?: boolean;
+  handoff_generated_at?: string;
+  orchestration_state?: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export const getProjectsPath = () => resolve(process.cwd(), 'projects');
 
 /**
@@ -22,7 +39,7 @@ export const getProjectMetadata = (slug: string) => {
  * Save project metadata to file system
  * Database persistence handled separately in async functions
  */
-export const saveProjectMetadata = (slug: string, metadata: any) => {
+export const saveProjectMetadata = (slug: string, metadata: ProjectMetadata) => {
   const dir = resolve(getProjectsPath(), slug);
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
@@ -110,14 +127,14 @@ export const deleteProject = (slug: string): boolean => {
  * Database persistence helper functions
  * These are async and should be called from route handlers
  */
-export async function persistProjectToDB(slug: string, metadata: any) {
+export async function persistProjectToDB(slug: string, metadata: ProjectMetadata) {
   try {
     const db = await import('@/lib/db');
     const project = await db.getProjectBySlug(slug);
 
     // Ensure phases_completed is a string (comma-separated, not an array)
     const phasesCompleted = Array.isArray(metadata.phases_completed)
-      ? metadata.phases_completed.filter((p: any) => p).join(',')
+      ? metadata.phases_completed.filter((p: string) => p).join(',')
       : (metadata.phases_completed || '');
 
     if (project) {
