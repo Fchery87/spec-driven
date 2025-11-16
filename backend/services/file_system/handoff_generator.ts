@@ -1,6 +1,8 @@
 import { Project } from '@/types/orchestrator';
 import { listArtifacts } from '@/app/api/lib/project-utils';
 import { logger } from '@/lib/logger';
+import { readFileSync, existsSync } from 'fs';
+import { resolve } from 'path';
 
 /**
  * Generate HANDOFF.md for LLM-based code generation
@@ -17,7 +19,19 @@ export class HandoffGenerator {
     for (const phase of allPhases) {
       const phaseArtifacts = listArtifacts(slug, phase);
       for (const artifact of phaseArtifacts) {
-        artifacts[`${phase}/${artifact.name}`] = artifact.content || '';
+        try {
+          const artifactPath = resolve(process.cwd(), 'projects', slug, 'specs', phase, 'v1', artifact.name);
+          if (existsSync(artifactPath)) {
+            const content = readFileSync(artifactPath, 'utf8');
+            artifacts[`${phase}/${artifact.name}`] = content;
+          } else {
+            artifacts[`${phase}/${artifact.name}`] = '';
+          }
+        } catch (error) {
+          const err = error instanceof Error ? error : new Error(String(error));
+          logger.warn(`Failed to read artifact ${artifact.name}:`, err);
+          artifacts[`${phase}/${artifact.name}`] = '';
+        }
       }
     }
 
