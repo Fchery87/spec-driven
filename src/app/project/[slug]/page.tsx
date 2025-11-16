@@ -475,12 +475,18 @@ export default function ProjectPage() {
                 project.dependencies_approved
               );
 
+              const canExecutePhase = shouldShowExecuteButton(project.current_phase, artifacts);
+
               return (
                 <PhaseStepper
                   currentPhase={project.current_phase}
                   phases={calculatedPhases}
                   canAdvance={canAdvance}
                   onAdvance={handlePhaseAdvance}
+                  canExecute={canExecutePhase}
+                  onExecute={handleExecutePhase}
+                  executing={executing}
+                  executeLabel={`Execute ${project.current_phase} Phase`}
                 />
               );
             })()}
@@ -638,34 +644,9 @@ export default function ProjectPage() {
           <Card className="border border-border/70">
             <CardHeader>
               <CardTitle>Phase Controls</CardTitle>
-              <CardDescription>Run the AI assistant, advance when approvals are satisfied, or refresh artifacts.</CardDescription>
+              <CardDescription>Advance once approvals are satisfied, refresh artifacts, or clean up this project.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Primary action - Execute current phase */}
-              {shouldShowExecuteButton(project.current_phase, artifacts) && (
-                <div>
-                  <Button
-                    onClick={handleExecutePhase}
-                    disabled={executing}
-                    className="w-full h-12 text-base font-semibold"
-                    size="lg"
-                  >
-                    {executing ? (
-                      <>
-                        <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-border border-t-transparent"></div>
-                        Generating Artifacts with AI...
-                      </>
-                    ) : (
-                      `Execute ${project.current_phase} Phase`
-                    )}
-                  </Button>
-                  <p className="text-xs text-muted-foreground mt-2 text-center">
-                    AI agents will analyze your project and generate the required specifications
-                  </p>
-                </div>
-              )}
-
-              {/* Secondary actions */}
               <div className="flex flex-wrap gap-3">
                 <Button
                   onClick={handlePhaseAdvance}

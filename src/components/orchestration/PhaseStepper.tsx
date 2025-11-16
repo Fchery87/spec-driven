@@ -27,14 +27,22 @@ interface PhaseStepperProps {
   onPhaseClick?: (phase: string) => void
   canAdvance?: boolean
   onAdvance?: () => void
+  canExecute?: boolean
+  onExecute?: () => void
+  executeLabel?: string
+  executing?: boolean
 }
 
-export function PhaseStepper({ 
-  phases, 
-  currentPhase, 
-  onPhaseClick, 
-  canAdvance = false, 
-  onAdvance 
+export function PhaseStepper({
+  phases,
+  currentPhase,
+  onPhaseClick,
+  canAdvance = false,
+  onAdvance,
+  canExecute = false,
+  onExecute,
+  executeLabel,
+  executing = false,
 }: PhaseStepperProps) {
   const getPhaseIcon = (status: Phase['status']) => {
     switch (status) {
@@ -217,9 +225,25 @@ export function PhaseStepper({
                 </div>
               )}
 
-              {/* Advance Button */}
+              {/* Execute & Advance Buttons */}
               <div className="mt-3">
                 <div className="flex flex-col gap-2">
+                  {phase.name === currentPhase && phase.status === 'current' && canExecute && onExecute && (
+                    <Button
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onExecute()
+                      }}
+                      className="w-full flex items-center justify-center gap-2"
+                      disabled={executing}
+                    >
+                      {executing && (
+                        <span className="h-3 w-3 animate-spin rounded-full border-2 border-border border-t-transparent" />
+                      )}
+                      {executing ? "Executing..." : executeLabel ?? `Execute ${phase.name} Phase`}
+                    </Button>
+                  )}
                   {phase.name === currentPhase && phase.status === 'current' && canAdvance && onAdvance && (
                     <Button
                       size="sm"
