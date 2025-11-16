@@ -116,6 +116,23 @@ export async function POST(request: NextRequest) {
     const projectIdeaPath = resolve(process.cwd(), 'projects', slug, 'project_idea.txt');
     writeFileSync(projectIdeaPath, description || name, 'utf8');
 
+    // Save project metadata to filesystem for retrieval
+    const metadata = {
+      id: dbProject.id,
+      slug: dbProject.slug,
+      name: dbProject.name,
+      description: dbProject.description || null,
+      current_phase: dbProject.current_phase,
+      phases_completed: dbProject.phases_completed,
+      stack_choice: dbProject.stack_choice,
+      stack_approved: dbProject.stack_approved,
+      dependencies_approved: dbProject.dependencies_approved,
+      created_at: dbProject.created_at,
+      updated_at: dbProject.updated_at,
+      orchestration_state: {}
+    };
+    saveProjectMetadata(slug, metadata);
+
     return NextResponse.json({
       success: true,
       data: {
