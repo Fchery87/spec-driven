@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'fs';
 import { resolve } from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { ProjectDBService } from '@/backend/services/database/project_db_service';
+import { ProjectStorage } from '@/backend/services/file_system/project_storage';
 
 const getProjectsPath = () => resolve(process.cwd(), 'projects');
 
@@ -41,31 +43,31 @@ const listAllProjects = () => {
 
 /**
  * GET /api/projects
- * List all projects
+ * List all projects from database
  */
 export async function GET(request: NextRequest) {
   try {
-    const projects = listAllProjects();
+    const dbService = new ProjectDBService();
+    const result = await dbService.listProjects();
 
-    const projectDetails = projects.map(slug => {
-      const metadata = getProjectMetadata(slug);
-
-      return {
-        slug,
-        name: metadata?.name || slug,
-        current_phase: metadata?.current_phase || 'ANALYSIS',
-        stack_choice: metadata?.stack_choice,
-        stack_approved: metadata?.stack_approved || false,
-        dependencies_approved: metadata?.dependencies_approved || false,
-        created_at: metadata?.created_at,
-        updated_at: metadata?.updated_at,
-        stats: { total_artifacts: 0, total_size: 0 }
-      };
-    });
+    const projectDetails = result.projects.map(project => ({
+      id: project.id,
+      slug: project.slug,
+      name: project.name,
+      description: project.description,
+      current_phase: project.current_phase,
+      stack_choice: project.stack_choice,
+      stack_approved: project.stack_approved,
+      dependencies_approved: project.dependencies_approved,
+      created_at: project.created_at,
+      updated_at: project.updated_at,
+      artifact_count: project._count?.artifacts || 0
+    }));
 
     return NextResponse.json({
       success: true,
-      data: projectDetails
+      data: projectDetails,
+      total: result.total
     });
   } catch (error) {
     console.error('Error listing projects:', error);
@@ -78,7 +80,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/projects
- * Create a new project
+ * Create a new project in database and filesystem
  */
 export async function POST(request: NextRequest) {
   try {
@@ -98,70 +100,36 @@ export async function POST(request: NextRequest) {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '') + '-' + uuidv4().substring(0, 8);
 
-    // Create project directory
-    const projectsPath = getProjectsPath();
-    const projectPath = resolve(projectsPath, slug);
-
-    if (!existsSync(projectPath)) {
-      mkdirSync(projectPath, { recursive: true });
-    }
-
-    // Create subdirectories
-    const subdirs = [
-      'specs/ANALYSIS/v1',
-      'specs/STACK_SELECTION/v1',
-      'specs/SPEC/v1',
-      'specs/DEPENDENCIES/v1',
-      'specs/SOLUTIONING/v1',
-      '.ai-config',
-      'docs'
-    ];
-
-    for (const subdir of subdirs) {
-      const dirPath = resolve(projectPath, subdir);
-      if (!existsSync(dirPath)) {
-        mkdirSync(dirPath, { recursive: true });
-      }
-    }
-
-    // Initialize metadata
-    const metadata = {
-      id: uuidv4(),
-      slug,
+    // Create project in database
+    const dbService = new ProjectDBService();
+    const dbProject = await dbService.createProject({
       name,
-      description,
-      created_by_id: 'system',
-      current_phase: 'ANALYSIS',
-      phases_completed: [],
-      stack_choice: null,
-      stack_approved: false,
-      dependencies_approved: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      project_path: projectPath,
-      orchestration_state: {
-        artifact_versions: {},
-        phase_history: [],
-        approval_gates: {},
-        stack_choice: null
-      }
-    };
+      description: description || undefined,
+      slug
+    });
+
+    // Also create filesystem structure for artifacts
+    const projectStorage = new ProjectStorage({ base_path: resolve(process.cwd(), 'projects') });
+    projectStorage.createProjectDirectory(slug);
 
     // Store the project idea as initial context for the Analyst agent
-    const projectIdeaPath = resolve(projectPath, 'project_idea.txt');
+    const projectIdeaPath = resolve(process.cwd(), 'projects', slug, 'project_idea.txt');
     writeFileSync(projectIdeaPath, description || name, 'utf8');
-
-    saveProjectMetadata(slug, metadata);
 
     return NextResponse.json({
       success: true,
       data: {
-        ...metadata,
-        orchestration_state: {
-          artifact_versions: {},
-          validation_results: {},
-          approval_gates: {}
-        }
+        id: dbProject.id,
+        slug: dbProject.slug,
+        name: dbProject.name,
+        description: dbProject.description,
+        current_phase: dbProject.current_phase,
+        phases_completed: dbProject.phases_completed,
+        stack_choice: dbProject.stack_choice,
+        stack_approved: dbProject.stack_approved,
+        dependencies_approved: dbProject.dependencies_approved,
+        created_at: dbProject.created_at,
+        updated_at: dbProject.updated_at
       }
     });
   } catch (error) {
