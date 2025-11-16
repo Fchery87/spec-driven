@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { logger } from '@/lib/logger';
 
 // Instantiate Prisma Client
 const prismaClientSingleton = () => {

@@ -4,14 +4,17 @@ import { OrchestratorEngine } from '@/backend/services/orchestrator/orchestrator
 import { ProjectDBService } from '@/backend/services/database/project_db_service';
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
+import { logger } from '@/lib/logger';
+import { withCorrelationId, getCorrelationId } from '@/lib/correlation-id';
+import { withLLMRateLimit } from '@/app/api/middleware/rate-limit';
 
 // Increase timeout for LLM operations (in seconds)
 export const maxDuration = 300; // 5 minutes
 
-export async function POST(
+const handler = async (
   request: NextRequest,
   { params }: { params: { slug: string } }
-) {
+) => {
   try {
     const { slug } = params;
 
@@ -59,7 +62,11 @@ export async function POST(
           const content = readFileSync(artifactPath, 'utf8');
           previousArtifacts[`${allPhases[i]}/${artifact.name}`] = content;
         } catch (err) {
-          console.warn(`Warning: Failed to read artifact ${allPhases[i]}/${artifact.name}:`, err);
+          logger.warn(`Failed to read artifact for context`, {
+            project: slug,
+            phase: allPhases[i],
+            artifact: artifact.name,
+          }, err instanceof Error ? err : undefined);
           previousArtifacts[`${allPhases[i]}/${artifact.name}`] = '';
         }
       }
@@ -112,7 +119,10 @@ export async function POST(
           );
         }
       } catch (dbError) {
-        console.error('Warning: Failed to record phase failure:', dbError);
+        logger.warn('Failed to record phase execution failure to database', {
+          project: slug,
+          phase: metadata.current_phase,
+        }, dbError instanceof Error ? dbError : undefined);
       }
 
       return NextResponse.json(
@@ -145,7 +155,10 @@ export async function POST(
         );
       }
     } catch (dbError) {
-      console.error('Warning: Failed to record phase completion:', dbError);
+      logger.warn('Failed to record phase completion to database', {
+        project: slug,
+        phase: metadata.current_phase,
+      }, dbError instanceof Error ? dbError : undefined);
       // Don't fail the request if database logging fails
     }
 
@@ -159,7 +172,10 @@ export async function POST(
       }
     });
   } catch (error) {
-    console.error('Error executing phase agent:', error);
+    logger.error('Error executing phase agent', error instanceof Error ? error : new Error(String(error)), {
+      project: params.slug,
+      correlationId: getCorrelationId(),
+    });
     return NextResponse.json(
       {
         success: false,
@@ -170,4 +186,9 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+};
+
+// Apply rate limiting and correlation ID middleware
+export const POST = withCorrelationId(
+  withLLMRateLimit(handler)
+);

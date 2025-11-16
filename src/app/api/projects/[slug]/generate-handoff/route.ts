@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getProjectMetadata, saveProjectMetadata, saveArtifact, persistProjectToDB } from '@/app/api/lib/project-utils';
 import { HandoffGenerator } from '@/backend/services/file_system/handoff_generator';
 import { ProjectDBService } from '@/backend/services/database/project_db_service';
+import { logger } from '@/lib/logger';
 
 export async function POST(
   request: NextRequest,
@@ -45,7 +46,7 @@ export async function POST(
         await dbService.saveArtifact(project.id, 'DONE', 'HANDOFF.md', handoffContent);
       }
     } catch (dbError) {
-      console.error('Warning: Failed to log HANDOFF.md to database:', dbError);
+      logger.error('Warning: Failed to log HANDOFF.md to database:', dbError);
       // Don't fail the request if database logging fails
     }
 
@@ -71,7 +72,7 @@ export async function POST(
       }
     });
   } catch (error) {
-    console.error('Error generating handoff:', error);
+    logger.error('Error generating handoff:', error);
     return NextResponse.json(
       {
         success: false,

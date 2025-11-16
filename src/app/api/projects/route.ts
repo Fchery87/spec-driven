@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { ProjectDBService } from '@/backend/services/database/project_db_service';
 import { ProjectStorage } from '@/backend/services/file_system/project_storage';
 import { saveProjectMetadata } from '@/app/api/lib/project-utils';
+import { logger } from '@/lib/logger';
 
 /**
  * GET /api/projects
@@ -35,7 +36,7 @@ export async function GET() {
       total: result.total
     });
   } catch (error) {
-    console.error('Error listing projects:', error);
+    logger.error('Error listing projects:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to list projects' },
       { status: 500 }
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
       }
     });
   } catch (error) {
-    console.error('Error creating project:', error);
+    logger.error('Error creating project:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to create project' },
       { status: 500 }

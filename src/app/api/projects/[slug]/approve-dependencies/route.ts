@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProjectMetadata, saveProjectMetadata, writeArtifact, persistProjectToDB } from '@/app/api/lib/project-utils';
 import { ProjectDBService } from '@/backend/services/database/project_db_service';
+import { logger } from '@/lib/logger';
 
 export async function POST(
   request: NextRequest,
@@ -76,7 +77,7 @@ All project dependencies have been reviewed and approved. The project is now cle
         await dbService.saveArtifact(project.id, 'DEPENDENCIES', 'approval.md', approvalContent);
       }
     } catch (dbError) {
-      console.error('Warning: Failed to log artifact to database:', dbError);
+      logger.error('Warning: Failed to log artifact to database:', dbError);
       // Don't fail the request if database logging fails
     }
 
@@ -89,7 +90,7 @@ All project dependencies have been reviewed and approved. The project is now cle
       }
     });
   } catch (error) {
-    console.error('Error approving dependencies:', error);
+    logger.error('Error approving dependencies:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to approve dependencies' },
       { status: 500 }

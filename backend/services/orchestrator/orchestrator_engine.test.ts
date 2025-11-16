@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import { logger } from '@/lib/logger';
 
 /**
  * Unit tests for OrchestratorEngine

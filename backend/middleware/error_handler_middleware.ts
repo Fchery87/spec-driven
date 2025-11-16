@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AppError, formatErrorResponse, getStatusCode } from '@/backend/lib/error_handler';
 import { v4 as uuidv4 } from 'uuid';
+import { logger } from '@/lib/logger';
 
 /**
  * Generate a unique request ID for tracking
@@ -32,12 +33,12 @@ export function withErrorHandler(
 
     try {
       // Log request
-      console.log(`[${requestId}] ${request.method} ${request.nextUrl.pathname}`);
+      logger.info(`[${requestId}] ${request.method} ${request.nextUrl.pathname}`);
 
       const response = await handler(request);
 
       // Log successful response
-      console.log(
+      logger.info(
         `[${requestId}] ${response.status} - ${request.method} ${request.nextUrl.pathname}`
       );
 
@@ -66,14 +67,14 @@ export function withErrorHandlerParams(
     const requestId = generateRequestId();
 
     try {
-      console.log(
+      logger.info(
         `[${requestId}] ${request.method} ${request.nextUrl.pathname}`,
         params
       );
 
       const response = await handler(request, params);
 
-      console.log(
+      logger.info(
         `[${requestId}] ${response.status} - ${request.method} ${request.nextUrl.pathname}`
       );
 
@@ -91,14 +92,14 @@ export function withErrorHandlerParams(
 function handleError(error: unknown, requestId: string): NextResponse {
   // Log error
   if (error instanceof AppError) {
-    console.warn(
+    logger.warn(
       `[${requestId}] AppError: ${error.code} - ${error.message}`,
       error.details
     );
   } else if (error instanceof Error) {
-    console.error(`[${requestId}] Error: ${error.message}`, error.stack);
+    logger.error(`[${requestId}] Error: ${error.message}`, error.stack);
   } else {
-    console.error(`[${requestId}] Unknown error:`, error);
+    logger.error(`[${requestId}] Unknown error:`, error);
   }
 
   // Format response

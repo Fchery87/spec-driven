@@ -6,6 +6,7 @@
  */
 
 import jwt from 'jsonwebtoken';
+import { logger } from '@/lib/logger';
 
 export interface JWTPayload {
   userId: string;
@@ -24,7 +25,7 @@ export class JWTService {
     this.expiresIn = expiresIn;
 
     if (!this.secret || this.secret === 'your-secret-key') {
-      console.warn(
+      logger.warn(
         'WARNING: Using default JWT secret. Set JWT_SECRET environment variable in production.'
       );
     }
@@ -51,9 +52,9 @@ export class JWTService {
       return decoded;
     } catch (error) {
       if (error instanceof jwt.TokenExpiredError) {
-        console.warn('Token expired');
+        logger.warn('Token expired');
       } else if (error instanceof jwt.JsonWebTokenError) {
-        console.warn('Invalid token');
+        logger.warn('Invalid token');
       }
       return null;
     }

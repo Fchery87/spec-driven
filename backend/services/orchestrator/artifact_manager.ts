@@ -4,6 +4,7 @@ import { resolve, dirname } from 'path';
 import { createHash } from 'crypto';
 import { Archiver } from '../file_system/archiver';
 import { ProjectStorage } from '../file_system/project_storage';
+import { logger } from '@/lib/logger';
 
 export class ArtifactManager {
   private basePath: string = resolve(process.cwd(), 'projects');

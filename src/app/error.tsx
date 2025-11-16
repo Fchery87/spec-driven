@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import { useEffect } from 'react'
+import { logger } from '@/lib/logger';
 
 export default function Error({
   error,
@@ -14,7 +15,7 @@ export default function Error({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error(error)
+    logger.error('Global error boundary caught', error)
   }, [error])
 
   return (

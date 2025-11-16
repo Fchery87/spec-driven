@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getProjectMetadata } from '@/app/api/lib/project-utils';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { logger } from '@/lib/logger';
 
 export async function GET(
   request: NextRequest,
@@ -42,14 +43,14 @@ export async function GET(
         }
       });
     } catch (fileErr) {
-      console.error(`Failed to read artifact file ${name}:`, fileErr);
+      logger.error(`Failed to read artifact file ${name}:`, fileErr);
       return NextResponse.json(
         { success: false, error: 'Artifact not found' },
         { status: 404 }
       );
     }
   } catch (error) {
-    console.error('Error fetching artifact:', error);
+    logger.error('Error fetching artifact:', error);
     return NextResponse.json(
       {
         success: false,

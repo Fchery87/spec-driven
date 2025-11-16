@@ -1,4 +1,5 @@
 import { LLMConfig, LLMResponse, AgentContext, AgentOutput } from '@/types/llm';
+import { logger } from '@/lib/logger';
 
 export class GeminiClient {
   private config: LLMConfig;
@@ -17,7 +18,7 @@ export class GeminiClient {
     }
 
     const fullPrompt = this.buildPrompt(prompt, context);
-    console.log('Generating completion with Gemini:', {
+    logger.info('Generating completion with Gemini:', {
       model: this.config.model,
       promptLength: fullPrompt.length,
       temperature: this.config.temperature,
@@ -60,14 +61,14 @@ export class GeminiClient {
         if (response.status === 429) {
           // Rate limit - wait and retry
           const waitTime = Math.pow(2, attempt) * 1000; // Exponential backoff
-          console.log(`Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`);
+          logger.info(`Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`);
           await new Promise(resolve => setTimeout(resolve, waitTime));
           continue;
         }
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('Gemini API error details:', {
+          logger.error('Gemini API error details:', {
             status: response.status,
             statusText: response.statusText,
             errorText,
@@ -78,7 +79,7 @@ export class GeminiClient {
         }
 
         const data = await response.json();
-        console.log('Gemini API success:', {
+        logger.info('Gemini API success:', {
           model: data.modelVersion,
           candidatesCount: data.candidates?.length,
           finishReason: data.candidates?.[0]?.finishReason
@@ -87,7 +88,7 @@ export class GeminiClient {
         return this.parseResponse(data);
       } catch (error) {
         lastError = error as Error;
-        console.error('Gemini API call error:', {
+        logger.error('Gemini API call error:', {
           attempt: attempt + 1,
           maxRetries: retries,
           error: error instanceof Error ? error.message : String(error)
@@ -96,14 +97,14 @@ export class GeminiClient {
         // If it's a rate limit error and we have retries left, continue
         if (error instanceof Error && error.message.includes('429') && attempt < retries) {
           const waitTime = Math.pow(2, attempt) * 1000;
-          console.log(`Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`);
+          logger.info(`Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`);
           await new Promise(resolve => setTimeout(resolve, waitTime));
           continue;
         }
 
         // If not a rate limit or no retries left, throw
         if (attempt === retries) {
-          console.error('Gemini API call failed after retries:', error);
+          logger.error('Gemini API call failed after retries:', error);
           throw new Error(`Failed to generate completion after ${retries} retries: ${error}`);
         }
       }

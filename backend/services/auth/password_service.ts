@@ -6,6 +6,7 @@
  */
 
 import bcrypt from 'bcryptjs';
+import { logger } from '@/lib/logger';
 
 export class PasswordService {
   private costFactor: number;
@@ -42,7 +43,7 @@ export class PasswordService {
     try {
       return await bcrypt.compare(plainPassword, hash);
     } catch (error) {
-      console.error('Password verification error:', error);
+      logger.error('Password verification error:', error);
       return false;
     }
   }

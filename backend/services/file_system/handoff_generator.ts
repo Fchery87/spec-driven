@@ -1,5 +1,6 @@
 import { Project } from '@/types/orchestrator';
 import { listArtifacts } from '@/app/api/lib/project-utils';
+import { logger } from '@/lib/logger';
 
 /**
  * Generate HANDOFF.md for LLM-based code generation

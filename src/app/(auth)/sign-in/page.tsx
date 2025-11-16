@@ -1,10 +1,8 @@
 "use client"
 
-export const dynamic = 'force-dynamic'
-
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useState } from "react"
+import { useState, Suspense } from "react"
 import { KeyRound, Loader2, ShieldCheck } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -21,8 +19,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { signIn } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
+import { useLogger } from "@/lib/logger"
 
-export default function SignInPage() {
+function SignInPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard"
@@ -31,6 +30,7 @@ export default function SignInPage() {
   const [loading, setLoading] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { logEvent, logError } = useLogger("SignInPage")
 
   const handleEmailSignIn = async () => {
     if (!email || !password) {
@@ -41,45 +41,44 @@ export default function SignInPage() {
     setLoading(true)
 
     try {
-      console.log("Starting sign in...")
+      logEvent("sign_in_start")
       const result = await signIn.email(
         { email, password, callbackURL: callbackUrl },
         {
           onRequest: () => {
-            console.log("onRequest triggered")
+            logEvent("sign_in_request")
             setLoading(true)
           },
           onResponse: (ctx) => {
-            console.log("onResponse triggered:", ctx)
+            logEvent("sign_in_response")
             setLoading(false)
           },
           onError: (ctx) => {
-            console.log("onError triggered:", ctx)
+            logEvent("sign_in_error", { error: ctx.error.message })
             setError(ctx.error.message || "Unable to sign in.")
             setLoading(false)
           },
           onSuccess: (ctx) => {
-            console.log("onSuccess triggered:", ctx)
+            logEvent("sign_in_success")
             router.push(callbackUrl)
           },
         }
       )
 
-      console.log("Sign in result:", result)
-
       // Fallback: if onSuccess doesn't trigger, check result and redirect manually
       if (result && !result.error) {
-        console.log("Manual redirect after successful sign in")
+        logEvent("sign_in_redirect")
         setTimeout(() => {
           router.push(callbackUrl)
         }, 100)
       } else if (result?.error) {
-        console.error("Sign in result has error:", result.error)
+        logEvent("sign_in_failed", { error: result.error.message })
         setError(result.error.message || "Sign in failed")
         setLoading(false)
       }
     } catch (err) {
-      console.error("Sign in exception:", err)
+      const error = err instanceof Error ? err : new Error(String(err))
+      logError("Sign in exception", error)
       setError("An unexpected error occurred.")
       setLoading(false)
     }
@@ -162,7 +161,6 @@ export default function SignInPage() {
               disabled={loading}
               type="button"
               onClick={(e) => {
-                console.log("Button clicked!")
                 e.preventDefault()
                 handleEmailSignIn()
               }}
@@ -212,6 +210,28 @@ function BadgeHeroLabel() {
       <ShieldCheck className="h-4 w-4 text-primary" />
       Secure Access
     </div>
+  )
+}
+
+export default function SignInPage() {
+  return (
+    <Suspense fallback={<SignInPageLoadingFallback />}>
+      <SignInPageContent />
+    </Suspense>
+  )
+}
+
+function SignInPageLoadingFallback() {
+  return (
+    <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted px-4 py-16">
+      <div className="mx-auto flex max-w-5xl flex-col items-center gap-10">
+        <div className="text-center space-y-3">
+          <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/80 px-3 py-1 text-xs font-medium uppercase tracking-[0.3em] text-muted-foreground animate-pulse">
+            Loading...
+          </div>
+        </div>
+      </div>
+    </main>
   )
 }
 

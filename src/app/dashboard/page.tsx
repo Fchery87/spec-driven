@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
+import { logger } from '@/lib/logger';
   Dialog,
   DialogContent,
   DialogDescription,
@@ -62,7 +63,7 @@ export default function Dashboard() {
       }
     } catch (err) {
       setError('Failed to fetch projects');
-      console.error(err);
+      logger.error(err);
     } finally {
       setLoading(false);
     }
@@ -104,7 +105,7 @@ export default function Dashboard() {
       }
     } catch (err) {
       setError('Failed to delete project');
-      console.error(err);
+      logger.error(err);
     } finally {
       setDeleting(false);
     }

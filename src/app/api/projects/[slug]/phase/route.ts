@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProjectMetadata, saveProjectMetadata, listArtifacts, persistProjectToDB } from '@/app/api/lib/project-utils';
+import { logger } from '@/lib/logger';
 
 const PHASES = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'DONE'];
 
@@ -92,7 +93,7 @@ export async function POST(
       { status: 400 }
     );
   } catch (error) {
-    console.error('Error managing phase:', error);
+    logger.error('Error managing phase:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to manage phase' },
       { status: 500 }

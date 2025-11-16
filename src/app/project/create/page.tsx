@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Lightbulb, Settings, Zap } from 'lucide-react';
+import { logger } from '@/lib/logger';
 
 export default function CreateProject() {
   const router = useRouter();
@@ -44,7 +45,7 @@ export default function CreateProject() {
       }
     } catch (err) {
       setError('Failed to create project');
-      console.error(err);
+      logger.error(err);
     } finally {
       setLoading(false);
     }

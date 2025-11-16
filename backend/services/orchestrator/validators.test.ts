@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { Validators } from './validators'
+import { logger } from '@/lib/logger';
 
 describe('Validators', () => {
   const validators = new Validators()

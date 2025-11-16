@@ -2,6 +2,7 @@ import { OrchestratorSpec } from '@/types/orchestrator';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import * as yaml from 'js-yaml';
+import { logger } from '@/lib/logger';
 
 // Global singleton to prevent multiple spec loads
 let globalSpec: OrchestratorSpec | null = null;
@@ -42,7 +43,7 @@ export class ConfigLoader {
 
       return this.spec;
     } catch (error) {
-      console.error('Failed to load orchestrator spec:', error);
+      logger.error('Failed to load orchestrator spec:', error);
       // Fallback to defaults if YAML parsing fails
       const defaultSpec = this.getDefaultSpec();
       globalSpec = defaultSpec;
@@ -56,11 +57,11 @@ export class ConfigLoader {
   private normalizeSpec(parsed: Record<string, any>): OrchestratorSpec {
     // If parsed data exists, use it directly (it's already in the correct format from YAML)
     if (parsed && Object.keys(parsed).length > 0) {
-      console.log('[ConfigLoader] Successfully parsed YAML with keys:', Object.keys(parsed));
+      logger.info('[ConfigLoader] Successfully parsed YAML with keys:', Object.keys(parsed));
       const spec = parsed as OrchestratorSpec;
       // Validate that phases exist
       if (!spec.phases) {
-        console.warn('[ConfigLoader] Warning: Parsed YAML does not have phases object');
+        logger.warn('[ConfigLoader] Warning: Parsed YAML does not have phases object');
         return this.getDefaultSpec();
       }
 
@@ -71,18 +72,18 @@ export class ConfigLoader {
             // Auto-populate missing name field with phase key
             const phaseObj = phase as any;
             if (!phaseObj.name) {
-              console.log(`[ConfigLoader] Auto-populating missing name field for phase: ${phaseName}`);
+              logger.info(`[ConfigLoader] Auto-populating missing name field for phase: ${phaseName}`);
               phaseObj.name = phaseName;
             }
           }
         }
       }
 
-      console.log('[ConfigLoader] Found phases:', Object.keys(spec.phases));
+      logger.info('[ConfigLoader] Found phases:', Object.keys(spec.phases));
       return spec;
     }
 
-    console.log('[ConfigLoader] Parsed YAML is empty, using defaults');
+    logger.info('[ConfigLoader] Parsed YAML is empty, using defaults');
     // Otherwise return hardcoded defaults as fallback
     return {
       phases: {

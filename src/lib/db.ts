@@ -1,6 +1,7 @@
 import { prisma } from './prisma';
 import { Project } from '@prisma/client';
 import { createHash } from 'crypto';
+import { logger } from './logger';
 
 /**
  * Database layer for project management
@@ -136,7 +137,7 @@ export async function deleteProject(slug: string): Promise<boolean> {
 
     return true;
   } catch (error) {
-    console.error(`Error deleting project ${slug}:`, error);
+    logger.error(`Error deleting project ${slug}`, error instanceof Error ? error : new Error(String(error)), { slug });
     return false;
   }
 }

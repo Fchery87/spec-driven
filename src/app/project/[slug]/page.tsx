@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
+import { logger } from '@/lib/logger';
   Dialog,
   DialogContent,
   DialogDescription,
@@ -97,7 +98,7 @@ export default function ProjectPage() {
       }
     } catch (err) {
       setError('Failed to fetch project');
-      console.error(err);
+      logger.error(err);
     } finally {
       setLoading(false);
     }
@@ -114,7 +115,7 @@ export default function ProjectPage() {
         setArtifacts(allArtifacts);
       }
     } catch (err) {
-      console.error('Failed to fetch artifacts:', err);
+      logger.error('Failed to fetch artifacts:', err);
     }
   }, [slug]);
 
@@ -150,7 +151,7 @@ export default function ProjectPage() {
       }
     } catch (err) {
       setError('Failed to execute phase');
-      console.error(err);
+      logger.error(err);
       recordAction('Failed to execute phase', 'error');
     } finally {
       setExecuting(false);
@@ -179,7 +180,7 @@ export default function ProjectPage() {
       }
     } catch (err) {
       setError('Failed to advance phase');
-      console.error(err);
+      logger.error(err);
       recordAction('Failed to advance phase', 'error');
     } finally {
       setAdvancing(false);
@@ -207,7 +208,7 @@ export default function ProjectPage() {
       }
     } catch (err) {
       setError('Failed to approve stack');
-      console.error(err);
+      logger.error(err);
       recordAction('Failed to approve stack', 'error');
     }
   };
@@ -274,7 +275,7 @@ ${notes || 'N/A'}
       }
     } catch (err) {
       setError('Failed to approve dependencies')
-      console.error(err)
+      logger.error(err)
       recordAction('Failed to approve dependencies', 'error')
     } finally {
       setApprovingDependencies(false)
@@ -299,7 +300,7 @@ ${notes || 'N/A'}
       });
       setViewerOpen(true);
     } catch (err) {
-      console.error('Failed to fetch artifact:', err);
+      logger.error('Failed to fetch artifact:', err);
       recordAction('Failed to load artifact', 'error');
     }
   };
@@ -325,7 +326,7 @@ ${notes || 'N/A'}
       URL.revokeObjectURL(element.href);
       recordAction(`Downloaded ${artifact.name}.`);
     } catch (err) {
-      console.error('Failed to download artifact:', err);
+      logger.error('Failed to download artifact:', err);
       recordAction('Failed to download artifact', 'error');
     }
   };
@@ -351,7 +352,7 @@ ${notes || 'N/A'}
       }
     } catch (err) {
       setError('Failed to generate handoff');
-      console.error(err);
+      logger.error(err);
       recordAction('Failed to generate handoff', 'error');
     } finally {
       setGeneratingHandoff(false);
@@ -380,7 +381,7 @@ ${notes || 'N/A'}
       recordAction('Specifications downloaded.');
     } catch (err) {
       setError('Failed to download specifications');
-      console.error(err);
+      logger.error(err);
       recordAction('Failed to download specifications', 'error');
     }
   };
@@ -405,7 +406,7 @@ ${notes || 'N/A'}
       }
     } catch (err) {
       setError('Failed to delete project');
-      console.error(err);
+      logger.error(err);
       setShowDeleteDialog(false);
     } finally {
       setDeleting(false);

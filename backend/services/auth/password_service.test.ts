@@ -4,6 +4,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { PasswordService } from './password_service';
+import { logger } from '@/lib/logger';
 
 describe('PasswordService', () => {
   let service: PasswordService;

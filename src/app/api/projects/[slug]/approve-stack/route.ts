@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProjectMetadata, saveProjectMetadata, writeArtifact, persistProjectToDB } from '@/app/api/lib/project-utils';
 import { ProjectDBService } from '@/backend/services/database/project_db_service';
+import { logger } from '@/lib/logger';
 
 export async function POST(
   request: NextRequest,
@@ -84,7 +85,7 @@ See plan.md for the full rationale and decision documentation.
         await dbService.saveArtifact(project.id, 'STACK_SELECTION', 'README.md', readmeContent);
       }
     } catch (dbError) {
-      console.error('Warning: Failed to log artifacts to database:', dbError);
+      logger.error('Warning: Failed to log artifacts to database:', dbError);
       // Don't fail the request if database logging fails
     }
 
@@ -99,7 +100,7 @@ See plan.md for the full rationale and decision documentation.
       }
     });
   } catch (error) {
-    console.error('Error approving stack:', error);
+    logger.error('Error approving stack:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to approve stack' },
       { status: 500 }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { withAuth, AuthenticatedRequest } from '@/backend/middleware/auth_middleware';
 import { authService } from '@/backend/services/auth/auth_service';
 
@@ -65,7 +66,7 @@ async function handler(request: AuthenticatedRequest) {
 
     return NextResponse.json(result, { status: 200 });
   } catch (error) {
-    console.error('Change password error:', error);
+    logger.error('Change password error:', error);
     return NextResponse.json(
       {
         success: false,

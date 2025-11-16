@@ -3,6 +3,7 @@ import { getProjectMetadata, listArtifacts } from '@/app/api/lib/project-utils';
 import archiver from 'archiver';
 import { readFileSync } from 'fs';
 import { resolve as pathResolve } from 'path';
+import { logger } from '@/lib/logger';
 
 export async function GET(
   request: NextRequest,
@@ -74,7 +75,7 @@ export async function GET(
       });
 
       archive.on('error', (error: Error) => {
-        console.error('Archive error:', error);
+        logger.error('Archive error:', error);
         resolve(
           NextResponse.json(
             {
@@ -97,7 +98,7 @@ export async function GET(
             const content = readFileSync(artifactPath, 'utf8');
             archive.append(content, { name: `${slug}/specs/${phase}/${artifact.name}` });
           } catch (err) {
-            console.error(`Warning: Failed to read artifact ${artifact.name}:`, err);
+            logger.error(`Warning: Failed to read artifact ${artifact.name}:`, err);
             // Continue with empty content rather than failing entire ZIP
             archive.append('', { name: `${slug}/specs/${phase}/${artifact.name}` });
           }
@@ -163,7 +164,7 @@ Project: ${metadata.name}
       archive.finalize();
     });
   } catch (error) {
-    console.error('Error creating download:', error);
+    logger.error('Error creating download:', error);
     return NextResponse.json(
       {
         success: false,

@@ -1,7 +1,9 @@
 /**
  * Logging utility for both frontend and backend
- * Provides structured logging with different levels
+ * Provides structured logging with different levels and correlation IDs
  */
+
+import { getCorrelationId, getRequestId } from './correlation-id'
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
@@ -11,6 +13,8 @@ export interface LogEntry {
   message: string
   context?: Record<string, unknown>
   error?: Error
+  correlationId?: string
+  requestId?: string
 }
 
 class Logger {
@@ -19,13 +23,17 @@ class Logger {
 
   log(level: LogLevel, message: string, context?: Record<string, unknown>, error?: Error) {
     const timestamp = new Date().toISOString()
+    const correlationId = this.isServer ? undefined : getCorrelationId()
+    const requestId = this.isServer ? undefined : getRequestId()
 
     const entry: LogEntry = {
       timestamp,
       level,
       message,
       context,
-      error
+      error,
+      correlationId,
+      requestId
     }
 
     // Always log in development
@@ -75,16 +83,39 @@ class Logger {
   }
 
   private logToServer(entry: LogEntry) {
-    // Server-side logging with proper formatting
-    const prefix = `[${entry.level.toUpperCase()}]`
-    const message = `${prefix} ${entry.message}`
+    // Server-side logging with structured format (JSON for aggregation)
+    const logObject = {
+      timestamp: entry.timestamp,
+      level: entry.level.toUpperCase(),
+      message: entry.message,
+      correlationId: entry.correlationId,
+      requestId: entry.requestId,
+      context: entry.context,
+      ...(entry.error && {
+        error: {
+          name: entry.error.name,
+          message: entry.error.message,
+          stack: entry.error.stack,
+        },
+      }),
+    }
 
-    if (entry.level === 'error') {
-      console.error(message, entry.context, entry.error)
-    } else if (entry.level === 'warn') {
-      console.warn(message, entry.context)
+    // In development, use prettier console output
+    if (this.isDevelopment) {
+      const prefix = `[${entry.level.toUpperCase()}]`
+      const correlationInfo = entry.correlationId ? ` [${entry.correlationId}]` : ''
+      const message = `${prefix}${correlationInfo} ${entry.message}`
+
+      if (entry.level === 'error') {
+        console.error(message, entry.context, entry.error)
+      } else if (entry.level === 'warn') {
+        console.warn(message, entry.context)
+      } else {
+        console.log(message, entry.context)
+      }
     } else {
-      console.log(message, entry.context)
+      // Production: structured JSON logging
+      console.log(JSON.stringify(logObject))
     }
   }
 

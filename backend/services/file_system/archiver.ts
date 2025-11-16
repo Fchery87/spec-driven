@@ -4,6 +4,7 @@ import { resolve } from 'path';
 import { createHash } from 'crypto';
 import { promisify } from 'util';
 import archiver from 'archiver';
+import { logger } from '@/lib/logger';
 
 export interface ZipConfig {
   include_metadata: boolean;

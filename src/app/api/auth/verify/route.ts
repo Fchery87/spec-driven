@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { extractToken } from '@/backend/middleware/auth_middleware';
 import { authService } from '@/backend/services/auth/auth_service';
 
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    console.error('Token verification error:', error);
+    logger.error('Token verification error:', error);
     return NextResponse.json(
       {
         success: false,

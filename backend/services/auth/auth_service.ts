@@ -12,6 +12,7 @@ import prisma from '@/backend/lib/prisma';
 import { JWTService, JWTPayload } from './jwt_service';
 import { PasswordService } from './password_service';
 import { z } from 'zod';
+import { logger } from '@/lib/logger';
 
 // Validation schemas
 const RegisterSchema = z.object({

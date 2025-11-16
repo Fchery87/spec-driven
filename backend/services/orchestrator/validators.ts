@@ -2,13 +2,14 @@ import { Validator, ValidationResult, Project } from '@/types/orchestrator';
 import { existsSync, readFileSync, statSync } from 'fs';
 import { resolve } from 'path';
 import { execSync } from 'child_process';
+import { logger } from '@/lib/logger';
 
 export class Validators {
   private validators: Record<string, Validator>;
   private projectsBasePath: string;
 
-  constructor(validators: Record<string, Validator>) {
-    this.validators = validators;
+  constructor(validators?: Record<string, Validator>) {
+    this.validators = validators || {};
     this.projectsBasePath = resolve(process.cwd(), 'projects');
   }
 
@@ -826,7 +827,10 @@ export class Validators {
 
       return readFileSync(artifactPath, 'utf8');
     } catch (error) {
-      console.error(`Error reading artifact ${artifactName}:`, error);
+      logger.warn(`Error reading artifact ${artifactName}`, {
+        artifact: artifactName,
+        path: artifactPath,
+      }, error instanceof Error ? error : undefined);
       return '';
     }
   }
@@ -834,24 +838,152 @@ export class Validators {
   private extractFrontmatter(content: string): Record<string, any> | null {
     const frontmatterRegex = /^---\n([\s\S]*?)\n---/;
     const match = content.match(frontmatterRegex);
-    
+
     if (!match) return null;
-    
+
     try {
       // Simple YAML parsing - in production use proper YAML parser
       const frontmatter: Record<string, any> = {};
       const lines = match[1].split('\n');
-      
+
       for (const line of lines) {
         const [key, ...valueParts] = line.split(':');
         if (key && valueParts.length > 0) {
           frontmatter[key.trim()] = valueParts.join(':').trim();
         }
       }
-      
+
       return frontmatter;
     } catch {
       return null;
     }
+  }
+
+  // Public test-facing methods for unit testing
+  public validatePresence(artifacts: Record<string, string>, validator: any): { passed: boolean; errors?: string[] } {
+    const errors: string[] = [];
+    const requiredFiles = validator.required_files || [];
+
+    for (const file of requiredFiles) {
+      if (!artifacts[file]) {
+        errors.push(`Required file missing: ${file}`);
+      }
+    }
+
+    return {
+      passed: errors.length === 0,
+      errors: errors.length > 0 ? errors : undefined
+    };
+  }
+
+  public validateMarkdownFrontmatter(artifacts: Record<string, string>): { passed: boolean; errors?: string[] } {
+    const errors: string[] = [];
+    const requiredFields = ['title', 'owner', 'version', 'date', 'status'];
+
+    for (const [filename, content] of Object.entries(artifacts)) {
+      if (!filename.endsWith('.md')) continue;
+
+      const frontmatter = this.extractFrontmatter(content);
+      if (!frontmatter) {
+        errors.push(`${filename} missing frontmatter`);
+        continue;
+      }
+
+      for (const field of requiredFields) {
+        if (!frontmatter[field]) {
+          errors.push(`${filename} missing frontmatter field: ${field}`);
+        }
+      }
+    }
+
+    return {
+      passed: errors.length === 0,
+      errors: errors.length > 0 ? errors : undefined
+    };
+  }
+
+  public validateContentQuality(artifacts: Record<string, string>): { passed: boolean; errors?: string[] } {
+    const errors: string[] = [];
+    const minLength = 100;
+
+    for (const [filename, content] of Object.entries(artifacts)) {
+      const cleanContent = content.replace(/\s/g, '');
+      if (cleanContent.length < minLength) {
+        errors.push(`${filename} content too short: ${cleanContent.length} chars (min ${minLength})`);
+      }
+    }
+
+    return {
+      passed: errors.length === 0,
+      errors: errors.length > 0 ? errors : undefined
+    };
+  }
+
+  public validateContentCoverage(artifacts: Record<string, string>, validator: any): { passed: boolean; errors?: string[] } {
+    const errors: string[] = [];
+
+    if (validator.type === 'SPEC') {
+      const prdContent = artifacts['PRD.md'] || '';
+      const reqMatches = prdContent.match(/REQ-\w+-\d+/g) || [];
+
+      if (reqMatches.length < 5) {
+        errors.push(`PRD.md has only ${reqMatches.length} requirements (min 5)`);
+      }
+    }
+
+    return {
+      passed: errors.length === 0,
+      errors: errors.length > 0 ? errors : undefined
+    };
+  }
+
+  public validateTaskDAG(artifacts: Record<string, string>): { passed: boolean; errors?: string[] } {
+    const errors: string[] = [];
+    const tasksContent = artifacts['tasks.md'] || '';
+
+    if (!tasksContent) {
+      errors.push('tasks.md not found');
+      return { passed: false, errors };
+    }
+
+    const taskDependencies = this.parseTaskDependencies(tasksContent);
+    const circularDeps = this.detectCircularDependencies(taskDependencies);
+
+    if (circularDeps.length > 0) {
+      for (const cycle of circularDeps) {
+        errors.push(`Circular dependency detected: ${cycle.join(' → ')}`);
+      }
+    }
+
+    return {
+      passed: errors.length === 0,
+      errors: errors.length > 0 ? errors : undefined
+    };
+  }
+
+  public validateAPIOpenAPI(artifacts: Record<string, string>): { passed: boolean; errors?: string[] } {
+    const errors: string[] = [];
+    const apiSpec = artifacts['api-spec.json'] || '';
+
+    try {
+      const spec = JSON.parse(apiSpec);
+
+      if (!spec.openapi || !spec.openapi.startsWith('3.')) {
+        errors.push('Missing or invalid OpenAPI version');
+      }
+      if (!spec.info) {
+        errors.push('Missing API info section');
+      }
+      if (!spec.paths || Object.keys(spec.paths).length === 0) {
+        errors.push('No API paths defined');
+      }
+    } catch (error) {
+      errors.push(`Invalid JSON in api-spec.json: ${error}`);
+    }
+
+    return {
+      passed: errors.length === 0,
+      errors: errors.length > 0 ? errors : undefined
+    };
   }
 }

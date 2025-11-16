@@ -1,6 +1,7 @@
 import { GeminiClient } from './llm_client';
 import { AgentContext, AgentOutput, LLMConfig } from '@/types/llm';
 import { ConfigLoader } from '../orchestrator/config_loader';
+import { logger } from '@/lib/logger';
 
 export class AgentExecutor {
   private llmClient: GeminiClient;
@@ -251,15 +252,15 @@ export class AgentExecutor {
     // Fallback: if still no artifacts found, put entire content into first expected file
     // This ensures at least one file is created
     if (Object.keys(artifacts).length === 0 && expectedFiles.length > 0) {
-      console.warn(`Failed to parse artifacts. Expected files: ${expectedFiles.join(', ')}`);
-      console.warn(`Putting entire response in first expected file: ${expectedFiles[0]}`);
+      logger.warn(`Failed to parse artifacts. Expected files: ${expectedFiles.join(', ')}`);
+      logger.warn(`Putting entire response in first expected file: ${expectedFiles[0]}`);
       artifacts[expectedFiles[0]] = content;
     }
 
     // Ensure all expected files are present (fill in missing ones with empty strings for now)
     for (const filename of expectedFiles) {
       if (!artifacts[filename]) {
-        console.warn(`Missing expected artifact: ${filename}. Creating placeholder.`);
+        logger.warn(`Missing expected artifact: ${filename}. Creating placeholder.`);
         artifacts[filename] = '';
       }
     }

@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, unlinkSync, rmSync } from 'fs';
 import { resolve, dirname, basename } from 'path';
 import { createHash } from 'crypto';
+import { logger } from '@/lib/logger';
 
 export interface ProjectStorageConfig {
   base_path: string;
@@ -198,7 +199,7 @@ export class ProjectStorage {
       }
       return false;
     } catch (error) {
-      console.error(`Failed to delete artifact ${artifactPath}:`, error);
+      logger.error(`Failed to delete artifact ${artifactPath}:`, error);
       return false;
     }
   }
@@ -282,7 +283,7 @@ export class ProjectStorage {
       }
       return false;
     } catch (error) {
-      console.error(`Failed to delete project ${projectPath}:`, error);
+      logger.error(`Failed to delete project ${projectPath}:`, error);
       return false;
     }
   }

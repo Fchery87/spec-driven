@@ -1,8 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   webpack: (config, { isServer }) => {
     // Disable file system caching on Windows to prevent stale cache issues
     if (process.platform === 'win32') {

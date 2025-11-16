@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtService, JWTPayload } from '@/backend/services/auth/jwt_service';
+import { logger } from '@/lib/logger';
 
 export interface AuthenticatedRequest extends NextRequest {
   user?: JWTPayload;
@@ -79,7 +80,7 @@ export function withAuth(
     try {
       return await handler(request as AuthenticatedRequest, params);
     } catch (error) {
-      console.error('Route error:', error);
+      logger.error('Route error:', error);
       return NextResponse.json(
         { success: false, message: 'Internal server error' },
         { status: 500 }
@@ -108,7 +109,7 @@ export function optionalAuth(
     try {
       return await handler(request as AuthenticatedRequest, params);
     } catch (error) {
-      console.error('Route error:', error);
+      logger.error('Route error:', error);
       return NextResponse.json(
         { success: false, message: 'Internal server error' },
         { status: 500 }

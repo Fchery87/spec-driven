@@ -1,5 +1,6 @@
 import prisma from '@/backend/lib/prisma';
 import { v4 as uuidv4 } from 'uuid';
+import { logger } from '@/lib/logger';
 
 export class ProjectDBService {
   /**

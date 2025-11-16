@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Lightbulb, Layers, Package, Sparkles, Workflow, ClipboardList, ShieldCheck, Rocket, ArrowUpRight, Timer, FileText } from 'lucide-react';
+import { logger } from '@/lib/logger';
 
 import { sampleSpecText, sampleSpecTitle } from '@/content/sample-spec';
 

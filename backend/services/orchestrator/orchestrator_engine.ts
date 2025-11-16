@@ -1,4 +1,5 @@
 import {
+import { logger } from '@/lib/logger';
   Project,
   Phase,
   OrchestratorSpec,
@@ -25,10 +26,10 @@ export class OrchestratorEngine {
   private llmClient: GeminiClient;
 
   constructor() {
-    console.log('[OrchestratorEngine] Constructor called');
+    logger.info('[OrchestratorEngine] Constructor called');
     try {
       this.spec = new ConfigLoader().loadSpec();
-      console.log('[OrchestratorEngine] Loaded spec:', {
+      logger.info('[OrchestratorEngine] Loaded spec:', {
         hasPhases: !!this.spec?.phases,
         phaseKeys: this.spec?.phases ? Object.keys(this.spec.phases) : [],
         hasValidators: !!this.spec?.validators,
@@ -37,16 +38,16 @@ export class OrchestratorEngine {
 
       // Defensive validation: ensure spec is properly initialized
       if (!this.spec || !this.spec.phases || Object.keys(this.spec.phases).length === 0) {
-        console.error('[OrchestratorEngine] Constructor validation failed!');
-        console.error('[OrchestratorEngine] this.spec:', this.spec);
+        logger.error('[OrchestratorEngine] Constructor validation failed!');
+        logger.error('[OrchestratorEngine] this.spec:', this.spec);
         throw new Error(
           'OrchestratorEngine failed to load spec with phases. ' +
           'Check that orchestrator_spec.yml exists, is valid YAML, and has a phases section defined.'
         );
       }
-      console.log('[OrchestratorEngine] Constructor validation passed');
+      logger.info('[OrchestratorEngine] Constructor validation passed');
     } catch (error) {
-      console.error('[OrchestratorEngine] Constructor error:', error);
+      logger.error('[OrchestratorEngine] Constructor error:', error);
       throw error;
     }
 
@@ -54,7 +55,7 @@ export class OrchestratorEngine {
       this.validators = new Validators(this.spec.validators);
       this.artifactManager = new ArtifactManager();
     } catch (error) {
-      console.error('[OrchestratorEngine] Failed to initialize validators/artifact manager:', error);
+      logger.error('[OrchestratorEngine] Failed to initialize validators/artifact manager:', error);
       throw error;
     }
 
@@ -190,16 +191,16 @@ export class OrchestratorEngine {
     artifacts: Record<string, string>;
     message: string;
   }> {
-    console.log('[OrchestratorEngine] runPhaseAgent called for phase:', project.current_phase);
-    console.log('[OrchestratorEngine] this.spec exists?', !!this.spec);
-    console.log('[OrchestratorEngine] this.spec.phases exists?', !!this.spec?.phases);
-    console.log('[OrchestratorEngine] this.spec.phases type:', typeof this.spec?.phases);
-    console.log('[OrchestratorEngine] this.spec.phases keys:', this.spec?.phases ? Object.keys(this.spec.phases) : 'N/A');
+    logger.info('[OrchestratorEngine] runPhaseAgent called for phase:', project.current_phase);
+    logger.info('[OrchestratorEngine] this.spec exists?', !!this.spec);
+    logger.info('[OrchestratorEngine] this.spec.phases exists?', !!this.spec?.phases);
+    logger.info('[OrchestratorEngine] this.spec.phases type:', typeof this.spec?.phases);
+    logger.info('[OrchestratorEngine] this.spec.phases keys:', this.spec?.phases ? Object.keys(this.spec.phases) : 'N/A');
 
     if (!this.spec || !this.spec.phases) {
-      console.error('[OrchestratorEngine] ERROR: spec or phases is undefined!');
-      console.error('[OrchestratorEngine] spec:', this.spec);
-      console.error('[OrchestratorEngine] spec.phases:', this.spec?.phases);
+      logger.error('[OrchestratorEngine] ERROR: spec or phases is undefined!');
+      logger.error('[OrchestratorEngine] spec:', this.spec);
+      logger.error('[OrchestratorEngine] spec.phases:', this.spec?.phases);
       throw new Error('OrchestratorEngine spec not properly initialized');
     }
 
@@ -209,7 +210,7 @@ export class OrchestratorEngine {
     }
 
     try {
-      console.log(`Executing agent for phase: ${project.current_phase}`);
+      logger.info(`Executing agent for phase: ${project.current_phase}`);
 
       let generatedArtifacts: Record<string, string> = {};
 
@@ -314,7 +315,7 @@ export class OrchestratorEngine {
         message: `Agent for phase ${project.current_phase} completed successfully`
       };
     } catch (error) {
-      console.error('Error running phase agent:', error);
+      logger.error('Error running phase agent:', error);
       throw new Error(
         `Failed to execute agent for phase ${project.current_phase}: ${
           error instanceof Error ? error.message : String(error)
@@ -440,7 +441,7 @@ export class OrchestratorEngine {
   ): Promise<void> {
     // This would save to database
     // For now, just log
-    console.log(`Phase transition: ${fromPhase} -> ${toPhase} by ${userId} (${type})`);
+    logger.info(`Phase transition: ${fromPhase} -> ${toPhase} by ${userId} (${type})`);
   }
 
   /**

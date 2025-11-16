@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, rmSync } from 'fs';
 import { resolve } from 'path';
+import { logger } from '@/lib/logger';
 
 export interface ProjectMetadata {
   id?: string;
@@ -118,7 +119,7 @@ export const deleteProject = (slug: string): boolean => {
     }
     return false;
   } catch (error) {
-    console.error(`Error deleting project ${slug}:`, error);
+    logger.error(`Error deleting project ${slug}:`, error);
     return false;
   }
 };
@@ -157,7 +158,7 @@ export async function persistProjectToDB(slug: string, metadata: ProjectMetadata
       });
     }
   } catch (error) {
-    console.error(`Error persisting project ${slug} to database:`, error);
+    logger.error(`Error persisting project ${slug} to database:`, error);
   }
 }
 
@@ -166,7 +167,7 @@ export async function deleteProjectFromDB(slug: string): Promise<boolean> {
     const db = await import('@/lib/db');
     return await db.deleteProject(slug);
   } catch (error) {
-    console.error(`Error deleting project ${slug} from database:`, error);
+    logger.error(`Error deleting project ${slug} from database:`, error);
     return false;
   }
 }

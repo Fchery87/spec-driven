@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import type { Metadata } from "next"
+import { logger } from '@/lib/logger';
 
 const dependencySections = [
   {

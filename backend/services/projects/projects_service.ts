@@ -1,4 +1,5 @@
 import { 
+import { logger } from '@/lib/logger';
   Project, 
   OrchestrationState, 
   PhaseHistory, 
@@ -342,7 +343,7 @@ export class ProjectsService {
     };
 
     // In a real implementation, this would save to a database
-    console.log('Phase history recorded:', history);
+    logger.info('Phase history recorded:', history);
   }
 
   /**

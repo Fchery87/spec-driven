@@ -8,6 +8,7 @@
 import { ProjectDBService } from '@/backend/services/database/project_db_service';
 import { listArtifacts, getProjectMetadata } from '@/app/api/lib/project-utils';
 import { readdirSync, existsSync } from 'fs';
+import { logger } from '@/lib/logger';
 
 const dbService = new ProjectDBService();
 
@@ -15,7 +16,7 @@ const dbService = new ProjectDBService();
  * Migrate a project from file-based storage to database
  */
 export async function migrateProjectToDatabase(slug: string) {
-  console.log(`Starting migration for project: ${slug}`);
+  logger.info(`Starting migration for project: ${slug}`);
 
   try {
     // Get project metadata from file system
@@ -31,7 +32,7 @@ export async function migrateProjectToDatabase(slug: string) {
       slug
     });
 
-    console.log(`Created database project: ${project.id}`);
+    logger.info(`Created database project: ${project.id}`);
 
     // Migrate all artifacts
     const allPhases = [
@@ -52,7 +53,7 @@ export async function migrateProjectToDatabase(slug: string) {
           artifact.name,
           artifact.content || ''
         );
-        console.log(`  Migrated: ${phase}/${artifact.name}`);
+        logger.info(`  Migrated: ${phase}/${artifact.name}`);
       }
     }
 
@@ -82,10 +83,10 @@ export async function migrateProjectToDatabase(slug: string) {
       );
     }
 
-    console.log(`✅ Migration completed successfully for: ${slug}`);
+    logger.info(`✅ Migration completed successfully for: ${slug}`);
     return project;
   } catch (error) {
-    console.error(`❌ Migration failed for ${slug}:`, error);
+    logger.error(`❌ Migration failed for ${slug}:`, error);
     throw error;
   }
 }
@@ -97,7 +98,7 @@ export async function migrateAllProjectsToDatabase() {
   const projectsDir = './projects';
 
   if (!existsSync(projectsDir)) {
-    console.log('No projects directory found');
+    logger.info('No projects directory found');
     return;
   }
 
@@ -105,17 +106,17 @@ export async function migrateAllProjectsToDatabase() {
     return existsSync(`${projectsDir}/${dir}/metadata.json`);
   });
 
-  console.log(`Found ${projectDirs.length} projects to migrate`);
+  logger.info(`Found ${projectDirs.length} projects to migrate`);
 
   for (const slug of projectDirs) {
     try {
       await migrateProjectToDatabase(slug);
     } catch (error) {
-      console.error(`Failed to migrate project ${slug}:`, error);
+      logger.error(`Failed to migrate project ${slug}:`, error);
     }
   }
 
-  console.log('Migration completed');
+  logger.info('Migration completed');
 }
 
 /**
@@ -128,14 +129,14 @@ export async function verifyMigration(slug: string) {
     throw new Error(`Project not found in database: ${slug}`);
   }
 
-  console.log(`\nVerification Report for: ${project.name}`);
-  console.log(`Project ID: ${project.id}`);
-  console.log(`Current Phase: ${project.current_phase}`);
-  console.log(`Phases Completed: ${project.phases_completed || 'none'}`);
-  console.log(`Total Artifacts: ${project.artifacts.length}`);
-  console.log(`Stack Approved: ${project.stack_approved}`);
-  console.log(`Dependencies Approved: ${project.dependencies_approved}`);
-  console.log(`Handoff Generated: ${project.handoff_generated}`);
+  logger.info(`\nVerification Report for: ${project.name}`);
+  logger.info(`Project ID: ${project.id}`);
+  logger.info(`Current Phase: ${project.current_phase}`);
+  logger.info(`Phases Completed: ${project.phases_completed || 'none'}`);
+  logger.info(`Total Artifacts: ${project.artifacts.length}`);
+  logger.info(`Stack Approved: ${project.stack_approved}`);
+  logger.info(`Dependencies Approved: ${project.dependencies_approved}`);
+  logger.info(`Handoff Generated: ${project.handoff_generated}`);
 
   // Count artifacts by phase
   const artifactsByPhase: Record<string, number> = {};
@@ -144,10 +145,10 @@ export async function verifyMigration(slug: string) {
       (artifactsByPhase[artifact.phase] || 0) + 1;
   }
 
-  console.log(`\nArtifacts by Phase:`);
+  logger.info(`\nArtifacts by Phase:`);
   for (const [phase, count] of Object.entries(artifactsByPhase)) {
-    console.log(`  ${phase}: ${count}`);
+    logger.info(`  ${phase}: ${count}`);
   }
 
-  console.log(`\n✅ Verification complete`);
+  logger.info(`\n✅ Verification complete`);
 }

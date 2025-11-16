@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { authService } from '@/backend/services/auth/auth_service';
 import { withErrorHandlerParams } from '@/backend/middleware/error_handler_middleware';
 import { validateInput, LoginSchema } from '@/backend/lib/validation_schemas';

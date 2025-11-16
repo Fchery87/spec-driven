@@ -2,12 +2,13 @@ import { betterAuth } from "better-auth"
 import { prismaAdapter } from "better-auth/adapters/prisma"
 
 import { prisma } from "@/lib/prisma"
+import { logger } from "@/lib/logger"
 
 const baseURL = process.env.NEXT_PUBLIC_APP_URL || process.env.AUTH_BASE_URL
 
 // Validate required environment variables
 if (!baseURL && process.env.NODE_ENV === "production") {
-  console.warn(
+  logger.warn(
     "[AUTH] Warning: NEXT_PUBLIC_APP_URL or AUTH_BASE_URL not set. This is required in production."
   )
 }
@@ -22,7 +23,7 @@ export const auth = betterAuth({
     enabled: true,
     autoSignIn: true,
     async sendResetPassword(data) {
-      console.log("Password reset requested", data.email)
+      logger.info("Password reset requested", { email: data.email })
     },
   },
   socialProviders: {
