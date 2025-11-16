@@ -43,7 +43,7 @@ export class PasswordService {
     try {
       return await bcrypt.compare(plainPassword, hash);
     } catch (error) {
-      logger.error('Password verification error:', error);
+      logger.error('Password verification error:', error instanceof Error ? error : new Error(String(error)));
       return false;
     }
   }
