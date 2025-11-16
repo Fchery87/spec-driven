@@ -3,7 +3,7 @@
  * Wraps API handlers to enforce rate limits
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { llmLimiter, generalLimiter, authLimiter, getRateLimitKey, createRateLimitResponse } from '@/lib/rate-limiter';
 import { logger } from '@/lib/logger';
 

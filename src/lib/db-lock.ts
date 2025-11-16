@@ -47,7 +47,7 @@ function hashLockId(id: string): [number, number] {
  * Attempt to acquire a database lock
  */
 export async function acquireLock(options: LockOptions): Promise<LockHandle | null> {
-  const { lockId, timeoutMs = 5000, autoRelease = true, autoReleaseMs = 300000 } = options;
+  const { lockId, autoRelease = true, autoReleaseMs = 300000 } = options;
   const [id1, id2] = hashLockId(lockId);
 
   try {

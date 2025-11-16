@@ -2,7 +2,6 @@ export const dynamic = 'force-dynamic'
 
 import type { Metadata } from "next"
 import Link from "next/link"
-import { logger } from '@/lib/logger';
 
 const databaseSteps = [
   {

@@ -6,6 +6,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { signOut, useSession } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
+import { useLogger } from "@/lib/logger"
 
 import { SiteLogo } from "./SiteLogo"
 
@@ -22,6 +23,7 @@ interface SiteHeaderProps {
 export function SiteHeader({ className }: SiteHeaderProps) {
   const { data, isPending } = useSession()
   const [isSigningOut, setIsSigningOut] = useState(false)
+  const { logError } = useLogger("SiteHeader")
 
   const isAuthenticated = Boolean(data?.session)
   const userLabel = data?.user
@@ -35,7 +37,8 @@ export function SiteHeader({ className }: SiteHeaderProps) {
       setIsSigningOut(true)
       await signOut()
     } catch (error) {
-      console.error("Failed to sign out", error)
+      const err = error instanceof Error ? error : new Error(String(error))
+      logError("Failed to sign out", err)
     } finally {
       setIsSigningOut(false)
     }

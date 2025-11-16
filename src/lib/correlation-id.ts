@@ -3,7 +3,6 @@
  * Allows tracking related operations across services and logs
  */
 
-import { headers } from 'next/headers';
 import { v4 as uuidv4 } from 'uuid';
 
 const CORRELATION_ID_HEADER = 'x-correlation-id';
@@ -11,34 +10,30 @@ const REQUEST_ID_HEADER = 'x-request-id';
 
 /**
  * Get or create a correlation ID for the current request
- * On server: reads from headers or generates new
+ * On server (API routes): reads from headers or generates new
  * On client: generates and stores in localStorage
  */
 export function getCorrelationId(): string {
-  // Server-side
-  if (typeof window === 'undefined') {
-    const headersList = headers();
-    const correlationId = headersList.get(CORRELATION_ID_HEADER);
-    return correlationId || uuidv4();
+  // Client-side: use localStorage for session persistence
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(CORRELATION_ID_HEADER);
+    if (stored) return stored;
+
+    const newId = uuidv4();
+    localStorage.setItem(CORRELATION_ID_HEADER, newId);
+    return newId;
   }
 
-  // Client-side: use localStorage for session persistence
-  const stored = localStorage.getItem(CORRELATION_ID_HEADER);
-  if (stored) return stored;
-
-  const newId = uuidv4();
-  localStorage.setItem(CORRELATION_ID_HEADER, newId);
-  return newId;
+  // Server-side: generate or use environment variable
+  // In API routes, use withCorrelationId middleware to read from request headers
+  return uuidv4();
 }
 
 /**
  * Get unique request ID (different for each request)
+ * For server-side: use withCorrelationId middleware in API routes
  */
 export function getRequestId(): string {
-  if (typeof window === 'undefined') {
-    const headersList = headers();
-    return headersList.get(REQUEST_ID_HEADER) || uuidv4();
-  }
   return uuidv4();
 }
 

@@ -136,7 +136,7 @@ export function getPhasePath(projectId: string, phase: string, version?: string)
  * Type-safe phase checking
  */
 export function isValidPhase(phase: string): phase is (typeof PHASE_CONFIG.phases)[number] {
-  return PHASE_CONFIG.phases.includes(phase as any);
+  return PHASE_CONFIG.phases.includes(phase as string);
 }
 
 /**

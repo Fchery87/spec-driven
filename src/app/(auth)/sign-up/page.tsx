@@ -7,7 +7,6 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { Loader2, ShieldPlus, X } from "lucide-react"
-import { logger } from '@/lib/logger';
 
 import { Button } from "@/components/ui/button"
 import {

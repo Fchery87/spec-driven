@@ -7,8 +7,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import {
 import { logger } from '@/lib/logger';
+import {
   Dialog,
   DialogContent,
   DialogDescription,

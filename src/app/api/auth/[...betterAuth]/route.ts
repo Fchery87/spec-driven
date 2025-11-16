@@ -1,5 +1,4 @@
 import type { NextRequest } from "next/server"
-import { logger } from '@/lib/logger';
 
 import { auth } from "@/lib/auth"
 

@@ -1,5 +1,7 @@
 "use client"
 
+export const dynamic = 'force-dynamic'
+
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useState, Suspense } from "react"
@@ -49,7 +51,7 @@ function SignInPageContent() {
             logEvent("sign_in_request")
             setLoading(true)
           },
-          onResponse: (ctx) => {
+          onResponse: () => {
             logEvent("sign_in_response")
             setLoading(false)
           },
@@ -58,7 +60,7 @@ function SignInPageContent() {
             setError(ctx.error.message || "Unable to sign in.")
             setLoading(false)
           },
-          onSuccess: (ctx) => {
+          onSuccess: () => {
             logEvent("sign_in_success")
             router.push(callbackUrl)
           },

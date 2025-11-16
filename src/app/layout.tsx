@@ -3,7 +3,6 @@ export const dynamic = 'force-dynamic'
 import './globals.css'
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
-import { logger } from '@/lib/logger';
 
 import { ClientLayout } from '@/components/layout/ClientLayout'
 import { ErrorBoundary } from '@/components/ErrorBoundary'

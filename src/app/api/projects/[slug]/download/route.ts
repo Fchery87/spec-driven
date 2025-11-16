@@ -8,7 +8,7 @@ import { logger } from '@/lib/logger';
 export async function GET(
   request: NextRequest,
   { params }: { params: { slug: string } }
-) {
+): Promise<Response> {
   try {
     const { slug } = params;
 

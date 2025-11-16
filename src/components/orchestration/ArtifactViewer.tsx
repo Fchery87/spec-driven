@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button"
 import { Copy, Download } from "lucide-react"
 import { useState } from "react"
+import { useLogger } from "@/lib/logger"
 
 interface ArtifactViewerProps {
   open: boolean
@@ -21,6 +22,7 @@ export function ArtifactViewer({
   phase
 }: ArtifactViewerProps) {
   const [copied, setCopied] = useState(false)
+  const { logError } = useLogger("ArtifactViewer")
 
   const handleCopy = async () => {
     try {
@@ -28,7 +30,8 @@ export function ArtifactViewer({
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
-      console.error('Failed to copy:', err)
+      const error = err instanceof Error ? err : new Error(String(err))
+      logError('Failed to copy artifact content', error)
     }
   }
 

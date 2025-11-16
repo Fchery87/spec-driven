@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Concurrent execution safeguards
  * Prevents race conditions, duplicate work, and ensures idempotency

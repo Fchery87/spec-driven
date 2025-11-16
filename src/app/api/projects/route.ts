@@ -6,13 +6,25 @@ import { ProjectDBService } from '@/backend/services/database/project_db_service
 import { ProjectStorage } from '@/backend/services/file_system/project_storage';
 import { saveProjectMetadata } from '@/app/api/lib/project-utils';
 import { logger } from '@/lib/logger';
+import { withCorrelationId } from '@/lib/correlation-id';
+import { generalLimiter, getRateLimitKey, createRateLimitResponse } from '@/lib/rate-limiter';
 
 /**
  * GET /api/projects
  * List all projects from database
  */
-export async function GET() {
+export const GET = withCorrelationId(async (request: NextRequest) => {
+  // Rate limiting
+  const rateLimitKey = getRateLimitKey(request);
+  const isAllowed = await generalLimiter.isAllowed(rateLimitKey);
+
+  if (!isAllowed) {
+    const remaining = generalLimiter.getRemainingPoints(rateLimitKey);
+    return createRateLimitResponse(remaining, Date.now() + 60000, 60);
+  }
+
   try {
+    logger.debug('GET /api/projects - fetching projects list');
     const dbService = new ProjectDBService();
     const result = await dbService.listProjects();
 
@@ -30,30 +42,43 @@ export async function GET() {
       artifact_count: project._count?.artifacts || 0
     }));
 
+    logger.info('GET /api/projects - success', { count: result.total });
     return NextResponse.json({
       success: true,
       data: projectDetails,
       total: result.total
     });
   } catch (error) {
-    logger.error('Error listing projects:', error);
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.error('GET /api/projects - failed', err);
     return NextResponse.json(
       { success: false, error: 'Failed to list projects' },
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * POST /api/projects
  * Create a new project in database and filesystem
  */
-export async function POST(request: NextRequest) {
+export const POST = withCorrelationId(async (request: NextRequest) => {
+  // Rate limiting
+  const rateLimitKey = getRateLimitKey(request);
+  const isAllowed = await generalLimiter.isAllowed(rateLimitKey);
+
+  if (!isAllowed) {
+    const remaining = generalLimiter.getRemainingPoints(rateLimitKey);
+    return createRateLimitResponse(remaining, Date.now() + 60000, 60);
+  }
+
   try {
+    logger.debug('POST /api/projects - creating new project');
     const body = await request.json();
     const { name, description } = body;
 
     if (!name) {
+      logger.warn('POST /api/projects - missing project name');
       return NextResponse.json(
         { success: false, error: 'Project name is required' },
         { status: 400 }
@@ -65,6 +90,8 @@ export async function POST(request: NextRequest) {
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '') + '-' + uuidv4().substring(0, 8);
+
+    logger.debug('POST /api/projects - generated slug', { slug });
 
     // Create project in database
     const dbService = new ProjectDBService();
@@ -99,6 +126,7 @@ export async function POST(request: NextRequest) {
     };
     saveProjectMetadata(slug, metadata);
 
+    logger.info('POST /api/projects - project created successfully', { slug, projectId: dbProject.id });
     return NextResponse.json({
       success: true,
       data: {
@@ -116,10 +144,11 @@ export async function POST(request: NextRequest) {
       }
     });
   } catch (error) {
-    logger.error('Error creating project:', error);
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.error('POST /api/projects - failed', err);
     return NextResponse.json(
       { success: false, error: 'Failed to create project' },
       { status: 500 }
     );
   }
-}
+});

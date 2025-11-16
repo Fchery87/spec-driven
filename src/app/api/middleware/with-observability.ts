@@ -3,15 +3,20 @@
  * Applies correlation ID tracking and rate limiting in one wrapper
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { withCorrelationId } from '@/lib/correlation-id';
 import { withLLMRateLimit, withAuthRateLimit, withGeneralRateLimit, LimitType } from './rate-limit';
+
+interface ApiContext {
+  params?: Record<string, string>;
+  [key: string]: unknown;
+}
 
 /**
  * Wrap an API handler with full observability (correlation ID + rate limiting)
  */
 export function withObservability(
-  handler: (req: NextRequest, context?: any) => Promise<Response>,
+  handler: (req: NextRequest, context?: ApiContext) => Promise<Response>,
   limitType: LimitType = 'general',
   userIdFn?: (req: NextRequest) => string | undefined
 ) {
@@ -34,7 +39,7 @@ export function withObservability(
  * Wrap for LLM endpoints with full observability
  */
 export function withLLMObservability(
-  handler: (req: NextRequest, context?: any) => Promise<Response>,
+  handler: (req: NextRequest, context?: ApiContext) => Promise<Response>,
   userIdFn?: (req: NextRequest) => string | undefined
 ) {
   return withObservability(handler, 'llm', userIdFn);
@@ -44,7 +49,7 @@ export function withLLMObservability(
  * Wrap for auth endpoints with full observability
  */
 export function withAuthObservability(
-  handler: (req: NextRequest, context?: any) => Promise<Response>,
+  handler: (req: NextRequest, context?: ApiContext) => Promise<Response>,
   userIdFn?: (req: NextRequest) => string | undefined
 ) {
   return withObservability(handler, 'auth', userIdFn);
@@ -54,7 +59,7 @@ export function withAuthObservability(
  * Wrap for general API endpoints with full observability
  */
 export function withGeneralObservability(
-  handler: (req: NextRequest, context?: any) => Promise<Response>,
+  handler: (req: NextRequest, context?: ApiContext) => Promise<Response>,
   userIdFn?: (req: NextRequest) => string | undefined
 ) {
   return withObservability(handler, 'general', userIdFn);
