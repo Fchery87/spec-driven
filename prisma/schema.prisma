@@ -11,7 +11,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  // Uses Neon PostgreSQL for production
+  // Uses PostgreSQL for both development and production
   // Connection string format: postgresql://[user]:[password]@[host]/[database]
 }
 
