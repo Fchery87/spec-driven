@@ -95,7 +95,8 @@ export async function migrateProjectToDatabase(slug: string) {
     logger.info(`✅ Migration completed successfully for: ${slug}`);
     return project;
   } catch (error) {
-    logger.error(`❌ Migration failed for ${slug}:`, error);
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.error(`❌ Migration failed for ${slug}:`, err);
     throw error;
   }
 }
@@ -121,7 +122,8 @@ export async function migrateAllProjectsToDatabase() {
     try {
       await migrateProjectToDatabase(slug);
     } catch (error) {
-      logger.error(`Failed to migrate project ${slug}:`, error);
+      const err = error instanceof Error ? error : new Error(String(error));
+      logger.error(`Failed to migrate project ${slug}:`, err);
     }
   }
 
