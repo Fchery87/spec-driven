@@ -7,7 +7,8 @@
 
 import { ProjectDBService } from '@/backend/services/database/project_db_service';
 import { listArtifacts, getProjectMetadata } from '@/app/api/lib/project-utils';
-import { readdirSync, existsSync } from 'fs';
+import { readdirSync, existsSync, readFileSync } from 'fs';
+import { resolve } from 'path';
 import { logger } from '@/lib/logger';
 
 const dbService = new ProjectDBService();
@@ -47,13 +48,21 @@ export async function migrateProjectToDatabase(slug: string) {
     for (const phase of allPhases) {
       const artifacts = listArtifacts(slug, phase);
       for (const artifact of artifacts) {
-        await dbService.saveArtifact(
-          project.id,
-          phase,
-          artifact.name,
-          artifact.content || ''
-        );
-        logger.info(`  Migrated: ${phase}/${artifact.name}`);
+        try {
+          // Read file content from filesystem
+          const artifactPath = resolve(process.cwd(), 'projects', slug, 'specs', phase, 'v1', artifact.name);
+          const content = existsSync(artifactPath) ? readFileSync(artifactPath, 'utf-8') : '';
+
+          await dbService.saveArtifact(
+            project.id,
+            phase,
+            artifact.name,
+            content
+          );
+          logger.info(`  Migrated: ${phase}/${artifact.name}`);
+        } catch (err) {
+          logger.warn(`  Failed to migrate: ${phase}/${artifact.name}`, { error: String(err) });
+        }
       }
     }
 
