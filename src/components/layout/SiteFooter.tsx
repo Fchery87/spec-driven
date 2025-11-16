@@ -8,7 +8,13 @@ interface SiteFooterProps {
   className?: string
 }
 
-const footerLinks = [
+interface FooterLink {
+  label: string
+  href: string
+  newTab?: boolean
+}
+
+const footerLinks: Array<{ title: string; links: FooterLink[] }> = [
   {
     title: "Product",
     links: [
@@ -20,9 +26,9 @@ const footerLinks = [
   {
     title: "Resources",
     links: [
-      { label: "Database Setup", href: "https://github.com/Fchery87/spec-driven/blob/main/docs/DATABASE_SETUP.md" },
-      { label: "Repository", href: "https://github.com/Fchery87/spec-driven" },
-      { label: "Support", href: "mailto:hello@specdriven.ai" },
+      { label: "Database Setup", href: "/resources/database-setup", newTab: true },
+      { label: "Dependencies", href: "/resources/dependencies", newTab: true },
+      { label: "Support", href: "mailto:hello@specdriven.ai", newTab: true },
     ],
   },
 ]
@@ -51,8 +57,8 @@ export function SiteFooter({ className }: SiteFooterProps) {
                     <Link
                       href={link.href}
                       className="transition-colors hover:text-foreground"
-                      target={link.href.startsWith("http") ? "_blank" : undefined}
-                      rel={link.href.startsWith("http") ? "noreferrer" : undefined}
+                      target={link.newTab ? "_blank" : undefined}
+                      rel={link.newTab ? "noreferrer" : undefined}
                     >
                       {link.label}
                     </Link>
