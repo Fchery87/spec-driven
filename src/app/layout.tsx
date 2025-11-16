@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 
 import { ClientLayout } from '@/components/layout/ClientLayout'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { cn } from '@/lib/utils'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -20,7 +21,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={cn('min-h-screen bg-background text-foreground antialiased', inter.className)}>
-        <ClientLayout>{children}</ClientLayout>
+        <ErrorBoundary>
+          <ClientLayout>{children}</ClientLayout>
+        </ErrorBoundary>
       </body>
     </html>
   )
