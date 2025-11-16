@@ -199,7 +199,7 @@ export class ProjectStorage {
       }
       return false;
     } catch (error) {
-      logger.error(`Failed to delete artifact ${artifactPath}:`, error);
+      logger.error(`Failed to delete artifact ${artifactPath}:`, error instanceof Error ? error : new Error(String(error)));
       return false;
     }
   }
@@ -283,7 +283,7 @@ export class ProjectStorage {
       }
       return false;
     } catch (error) {
-      logger.error(`Failed to delete project ${projectPath}:`, error);
+      logger.error(`Failed to delete project ${projectPath}:`, error instanceof Error ? error : new Error(String(error)));
       return false;
     }
   }

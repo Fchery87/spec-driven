@@ -43,7 +43,7 @@ export class ConfigLoader {
 
       return this.spec;
     } catch (error) {
-      logger.error('Failed to load orchestrator spec:', error);
+      logger.error('Failed to load orchestrator spec:', error instanceof Error ? error : new Error(String(error)));
       // Fallback to defaults if YAML parsing fails
       const defaultSpec = this.getDefaultSpec();
       globalSpec = defaultSpec;

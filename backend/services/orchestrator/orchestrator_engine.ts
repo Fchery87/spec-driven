@@ -47,7 +47,7 @@ export class OrchestratorEngine {
       }
       logger.info('[OrchestratorEngine] Constructor validation passed');
     } catch (error) {
-      logger.error('[OrchestratorEngine] Constructor error:', error);
+      logger.error('[OrchestratorEngine] Constructor error:', error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
 
@@ -55,7 +55,7 @@ export class OrchestratorEngine {
       this.validators = new Validators(this.spec.validators);
       this.artifactManager = new ArtifactManager();
     } catch (error) {
-      logger.error('[OrchestratorEngine] Failed to initialize validators/artifact manager:', error);
+      logger.error('[OrchestratorEngine] Failed to initialize validators/artifact manager:', error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
 
@@ -315,7 +315,7 @@ export class OrchestratorEngine {
         message: `Agent for phase ${project.current_phase} completed successfully`
       };
     } catch (error) {
-      logger.error('Error running phase agent:', error);
+      logger.error('Error running phase agent:', error instanceof Error ? error : new Error(String(error)));
       throw new Error(
         `Failed to execute agent for phase ${project.current_phase}: ${
           error instanceof Error ? error.message : String(error)

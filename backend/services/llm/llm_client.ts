@@ -104,7 +104,7 @@ export class GeminiClient {
 
         // If not a rate limit or no retries left, throw
         if (attempt === retries) {
-          logger.error('Gemini API call failed after retries:', error);
+          logger.error('Gemini API call failed after retries:', error instanceof Error ? error : new Error(String(error)));
           throw new Error(`Failed to generate completion after ${retries} retries: ${error}`);
         }
       }
