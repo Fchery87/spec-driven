@@ -3,6 +3,11 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import * as yaml from 'js-yaml';
 
+// Global singleton to prevent multiple spec loads
+let globalSpec: OrchestratorSpec | null = null;
+let lastLoadTime: number = 0;
+const RELOAD_INTERVAL = 5000; // Reload spec every 5 seconds in development
+
 export class ConfigLoader {
   private spec: OrchestratorSpec | null = null;
 
@@ -10,11 +15,17 @@ export class ConfigLoader {
    * Load orchestrator specification from YAML file
    */
   loadSpec(): OrchestratorSpec {
-    // In development mode, always reload to pick up changes
     const isDevelopment = process.env.NODE_ENV === 'development';
+    const now = Date.now();
 
-    if (this.spec && !isDevelopment) {
-      return this.spec;
+    // Use global singleton as primary cache
+    if (globalSpec && !isDevelopment) {
+      return globalSpec;
+    }
+
+    // In development, reload only if enough time has passed to avoid thrashing
+    if (isDevelopment && globalSpec && now - lastLoadTime < RELOAD_INTERVAL) {
+      return globalSpec;
     }
 
     try {
@@ -25,11 +36,17 @@ export class ConfigLoader {
       const parsedYaml = yaml.load(fileContent) as Record<string, any>;
       this.spec = this.normalizeSpec(parsedYaml);
 
+      // Update global singleton and instance
+      globalSpec = this.spec;
+      lastLoadTime = now;
+
       return this.spec;
     } catch (error) {
       console.error('Failed to load orchestrator spec:', error);
       // Fallback to defaults if YAML parsing fails
-      return this.getDefaultSpec();
+      const defaultSpec = this.getDefaultSpec();
+      globalSpec = defaultSpec;
+      return defaultSpec;
     }
   }
 
