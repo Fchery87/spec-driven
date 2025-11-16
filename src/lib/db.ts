@@ -103,8 +103,8 @@ export async function updateProjectMetadata(
 
   // Map metadata fields to project fields
   if (metadata.current_phase) updateData.current_phase = metadata.current_phase;
-  if (metadata.phases_completed) updateData.phases_completed = metadata.phases_completed;
-  if (metadata.stack_choice) updateData.stack_choice = metadata.stack_choice;
+  if (metadata.phases_completed !== undefined) updateData.phases_completed = metadata.phases_completed || '';
+  if (metadata.stack_choice !== undefined) updateData.stack_choice = metadata.stack_choice;
   if (metadata.stack_approved !== undefined) updateData.stack_approved = metadata.stack_approved;
   if (metadata.dependencies_approved !== undefined) {
     updateData.dependencies_approved = metadata.dependencies_approved;

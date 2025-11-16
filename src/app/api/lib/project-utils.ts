@@ -115,17 +115,23 @@ export async function persistProjectToDB(slug: string, metadata: any) {
     const db = await import('@/lib/db');
     const project = await db.getProjectBySlug(slug);
 
+    // Ensure phases_completed is a string (comma-separated, not an array)
+    const phasesCompleted = Array.isArray(metadata.phases_completed)
+      ? metadata.phases_completed.filter((p: any) => p).join(',')
+      : (metadata.phases_completed || '');
+
     if (project) {
-      await db.updateProjectMetadata(slug, metadata);
+      await db.updateProjectMetadata(slug, {
+        ...metadata,
+        phases_completed: phasesCompleted,
+      });
     } else {
       await db.createProject({
         slug,
         name: metadata.name,
         description: metadata.description,
         current_phase: metadata.current_phase,
-        phases_completed: Array.isArray(metadata.phases_completed)
-          ? metadata.phases_completed.join(',')
-          : metadata.phases_completed,
+        phases_completed: phasesCompleted,
         stack_choice: metadata.stack_choice,
         stack_approved: metadata.stack_approved,
         dependencies_approved: metadata.dependencies_approved,
