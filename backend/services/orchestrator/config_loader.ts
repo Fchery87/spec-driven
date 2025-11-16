@@ -39,9 +39,18 @@ export class ConfigLoader {
   private normalizeSpec(parsed: Record<string, any>): OrchestratorSpec {
     // If parsed data exists, use it directly (it's already in the correct format from YAML)
     if (parsed && Object.keys(parsed).length > 0) {
-      return parsed as OrchestratorSpec;
+      console.log('[ConfigLoader] Successfully parsed YAML with keys:', Object.keys(parsed));
+      const spec = parsed as OrchestratorSpec;
+      // Validate that phases exist
+      if (!spec.phases) {
+        console.warn('[ConfigLoader] Warning: Parsed YAML does not have phases object');
+        return this.getDefaultSpec();
+      }
+      console.log('[ConfigLoader] Found phases:', Object.keys(spec.phases));
+      return spec;
     }
 
+    console.log('[ConfigLoader] Parsed YAML is empty, using defaults');
     // Otherwise return hardcoded defaults as fallback
     return {
       phases: {
