@@ -3,6 +3,8 @@ import { getProjectMetadata, saveProjectMetadata, writeArtifact, persistProjectT
 import { ProjectDBService } from '@/backend/services/database/project_db_service';
 import { logger } from '@/lib/logger';
 
+export const runtime = 'nodejs';
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { slug: string } }

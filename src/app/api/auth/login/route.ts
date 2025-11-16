@@ -5,6 +5,8 @@ import { validateInput, LoginSchema } from '@/backend/lib/validation_schemas';
 import { sanitizeRequest } from '@/backend/lib/sanitizer';
 import { formatErrorResponse } from '@/backend/lib/error_handler';
 
+export const runtime = 'nodejs';
+
 /**
  * POST /api/auth/login
  *

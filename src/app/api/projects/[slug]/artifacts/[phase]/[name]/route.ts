@@ -4,6 +4,8 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { logger } from '@/lib/logger';
 
+export const runtime = 'nodejs';
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { slug: string; phase: string; name: string } }

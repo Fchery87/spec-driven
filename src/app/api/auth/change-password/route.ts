@@ -3,6 +3,8 @@ import { logger } from '@/lib/logger';
 import { withAuth, AuthenticatedRequest } from '@/backend/middleware/auth_middleware';
 import { authService } from '@/backend/services/auth/auth_service';
 
+export const runtime = 'nodejs';
+
 /**
  * POST /api/auth/change-password
  *

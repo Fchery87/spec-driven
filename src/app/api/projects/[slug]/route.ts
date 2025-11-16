@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getProjectMetadata, saveProjectMetadata, deleteProject, deleteProjectFromDB, persistProjectToDB } from '@/app/api/lib/project-utils';
 import { logger } from '@/lib/logger';
 
+export const runtime = 'nodejs';
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { slug: string } }

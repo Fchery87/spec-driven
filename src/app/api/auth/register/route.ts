@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { authService } from '@/backend/services/auth/auth_service';
 
+export const runtime = 'nodejs';
+
 /**
  * POST /api/auth/register
  *

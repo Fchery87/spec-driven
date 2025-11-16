@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getProjectMetadata, saveProjectMetadata, listArtifacts, persistProjectToDB } from '@/app/api/lib/project-utils';
 import { logger } from '@/lib/logger';
 
+export const runtime = 'nodejs';
+
 const PHASES = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'DONE'];
 
 const getPhaseOutputs = (phase: string): string[] => {

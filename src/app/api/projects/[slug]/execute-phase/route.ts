@@ -11,6 +11,8 @@ import { withLLMRateLimit } from '@/app/api/middleware/rate-limit';
 // Increase timeout for LLM operations (in seconds)
 export const maxDuration = 300; // 5 minutes
 
+export const runtime = 'nodejs';
+
 const handler = async (
   request: NextRequest,
   { params }: { params: { slug: string } }

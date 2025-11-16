@@ -5,6 +5,8 @@ import { readFileSync } from 'fs';
 import { resolve as pathResolve } from 'path';
 import { logger } from '@/lib/logger';
 
+export const runtime = 'nodejs';
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { slug: string } }
@@ -49,7 +51,7 @@ export async function GET(
     // Create ZIP archive in memory
     const chunks: Buffer[] = [];
 
-    return new Promise((resolve) => {
+    return new Promise<Response>((resolve) => {
       const archive = archiver('zip', {
         zlib: { level: 9 }
       });
@@ -98,7 +100,8 @@ export async function GET(
             const content = readFileSync(artifactPath, 'utf8');
             archive.append(content, { name: `${slug}/specs/${phase}/${artifact.name}` });
           } catch (err) {
-            logger.error(`Warning: Failed to read artifact ${artifact.name}:`, err);
+            const error = err instanceof Error ? err : new Error(String(err));
+            logger.error(`Warning: Failed to read artifact ${artifact.name}:`, error);
             // Continue with empty content rather than failing entire ZIP
             archive.append('', { name: `${slug}/specs/${phase}/${artifact.name}` });
           }

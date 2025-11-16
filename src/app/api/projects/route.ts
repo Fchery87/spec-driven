@@ -9,6 +9,8 @@ import { logger } from '@/lib/logger';
 import { withCorrelationId } from '@/lib/correlation-id';
 import { generalLimiter, getRateLimitKey, createRateLimitResponse } from '@/lib/rate-limiter';
 
+export const runtime = 'nodejs';
+
 /**
  * GET /api/projects
  * List all projects from database
