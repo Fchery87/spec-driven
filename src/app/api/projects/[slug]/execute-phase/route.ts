@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProjectMetadata, saveProjectMetadata, listArtifacts, persistProjectToDB } from '@/app/api/lib/project-utils';
 import { OrchestratorEngine } from '@/backend/services/orchestrator/orchestrator_engine';
+import { ProjectDBService } from '@/backend/services/database/project_db_service';
 
 // Increase timeout for LLM operations (in seconds)
 export const maxDuration = 300; // 5 minutes
@@ -93,6 +94,19 @@ export async function POST(
     const result = await orchestrator.runPhaseAgent(project, previousArtifacts);
 
     if (!result.success) {
+      // Record phase execution failure in database
+      try {
+        const dbService = new ProjectDBService();
+        await dbService.recordPhaseHistory(
+          project.id,
+          metadata.current_phase,
+          'failed',
+          result.message
+        );
+      } catch (dbError) {
+        console.error('Warning: Failed to record phase failure:', dbError);
+      }
+
       return NextResponse.json(
         { success: false, error: result.message },
         { status: 500 }
@@ -110,6 +124,19 @@ export async function POST(
 
     // Persist to database
     await persistProjectToDB(slug, updated);
+
+    // Record phase execution success in database
+    try {
+      const dbService = new ProjectDBService();
+      await dbService.recordPhaseHistory(
+        project.id,
+        metadata.current_phase,
+        'completed'
+      );
+    } catch (dbError) {
+      console.error('Warning: Failed to record phase completion:', dbError);
+      // Don't fail the request if database logging fails
+    }
 
     return NextResponse.json({
       success: true,
