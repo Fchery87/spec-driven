@@ -197,16 +197,15 @@ export class OrchestratorEngine {
     logger.info('[OrchestratorEngine] this.spec.phases type: ' + typeof this.spec?.phases);
     logger.info('[OrchestratorEngine] this.spec.phases keys: ' + (this.spec?.phases ? Object.keys(this.spec.phases).join(', ') : 'N/A'));
 
-    if (!this.spec || !this.spec.phases) {
-      logger.error('[OrchestratorEngine] ERROR: spec or phases is undefined!');
-      logger.error('[OrchestratorEngine] spec: ' + JSON.stringify(this.spec));
-      logger.error('[OrchestratorEngine] spec.phases: ' + JSON.stringify(this.spec?.phases));
-      throw new Error('OrchestratorEngine spec not properly initialized');
+    let spec = this.spec;
+    if (!spec || !spec.phases) {
+      logger.warn('[OrchestratorEngine] spec missing in runPhaseAgent, reloading spec from disk');
+      spec = new ConfigLoader().loadSpec();
+      this.spec = spec;
     }
 
     // Store references to instance properties BEFORE async operations
     // This prevents context loss in Next.js RSC environment after awaits
-    const spec = this.spec;
     const llmClient = this.llmClient;
     const artifactManager = this.artifactManager;
 
