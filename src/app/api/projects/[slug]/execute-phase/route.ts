@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProjectMetadata, saveProjectMetadata, listArtifacts, persistProjectToDB } from '@/app/api/lib/project-utils';
 import { OrchestratorEngine } from '@/backend/services/orchestrator/orchestrator_engine';
-import { ProjectDBService } from '@/backend/services/database/project_db_service';
+import { ProjectDBService } from '@/backend/services/database/drizzle_project_db_service';
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { logger } from '@/lib/logger';
@@ -64,11 +64,11 @@ const handler = async (
           const content = readFileSync(artifactPath, 'utf8');
           previousArtifacts[`${allPhases[i]}/${artifact.name}`] = content;
         } catch (err) {
-          logger.warn(`Failed to read artifact for context`, {
+          logger.warn(`Failed to read artifact for context: ${err instanceof Error ? err.message : String(err)}`, {
             project: slug,
             phase: allPhases[i],
             artifact: artifact.name,
-          }, err instanceof Error ? err : undefined);
+          });
           previousArtifacts[`${allPhases[i]}/${artifact.name}`] = '';
         }
       }
@@ -121,10 +121,10 @@ const handler = async (
           );
         }
       } catch (dbError) {
-        logger.warn('Failed to record phase execution failure to database', {
+        logger.warn(`Failed to record phase execution failure to database: ${dbError instanceof Error ? dbError.message : String(dbError)}`, {
           project: slug,
           phase: metadata.current_phase,
-        }, dbError instanceof Error ? dbError : undefined);
+        });
       }
 
       return NextResponse.json(
@@ -157,10 +157,10 @@ const handler = async (
         );
       }
     } catch (dbError) {
-      logger.warn('Failed to record phase completion to database', {
+      logger.warn(`Failed to record phase completion to database: ${dbError instanceof Error ? dbError.message : String(dbError)}`, {
         project: slug,
         phase: metadata.current_phase,
-      }, dbError instanceof Error ? dbError : undefined);
+      });
       // Don't fail the request if database logging fails
     }
 

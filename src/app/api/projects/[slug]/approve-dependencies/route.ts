@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProjectMetadata, saveProjectMetadata, writeArtifact, persistProjectToDB } from '@/app/api/lib/project-utils';
-import { ProjectDBService } from '@/backend/services/database/project_db_service';
+import { ProjectDBService } from '@/backend/services/database/drizzle_project_db_service';
 import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';

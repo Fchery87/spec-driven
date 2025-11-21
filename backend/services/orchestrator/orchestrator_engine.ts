@@ -39,7 +39,7 @@ export class OrchestratorEngine {
       // Defensive validation: ensure spec is properly initialized
       if (!this.spec || !this.spec.phases || Object.keys(this.spec.phases).length === 0) {
         logger.error('[OrchestratorEngine] Constructor validation failed!');
-        logger.error('[OrchestratorEngine] this.spec:', this.spec);
+        logger.error('[OrchestratorEngine] this.spec: ' + JSON.stringify(this.spec));
         throw new Error(
           'OrchestratorEngine failed to load spec with phases. ' +
           'Check that orchestrator_spec.yml exists, is valid YAML, and has a phases section defined.'
@@ -191,16 +191,16 @@ export class OrchestratorEngine {
     artifacts: Record<string, string>;
     message: string;
   }> {
-    logger.info('[OrchestratorEngine] runPhaseAgent called for phase:', project.current_phase);
-    logger.info('[OrchestratorEngine] this.spec exists?', !!this.spec);
-    logger.info('[OrchestratorEngine] this.spec.phases exists?', !!this.spec?.phases);
-    logger.info('[OrchestratorEngine] this.spec.phases type:', typeof this.spec?.phases);
-    logger.info('[OrchestratorEngine] this.spec.phases keys:', this.spec?.phases ? Object.keys(this.spec.phases) : 'N/A');
+    logger.info('[OrchestratorEngine] runPhaseAgent called for phase: ' + project.current_phase);
+    logger.info('[OrchestratorEngine] this.spec exists? ' + !!this.spec);
+    logger.info('[OrchestratorEngine] this.spec.phases exists? ' + !!this.spec?.phases);
+    logger.info('[OrchestratorEngine] this.spec.phases type: ' + typeof this.spec?.phases);
+    logger.info('[OrchestratorEngine] this.spec.phases keys: ' + (this.spec?.phases ? Object.keys(this.spec.phases).join(', ') : 'N/A'));
 
     if (!this.spec || !this.spec.phases) {
       logger.error('[OrchestratorEngine] ERROR: spec or phases is undefined!');
-      logger.error('[OrchestratorEngine] spec:', this.spec);
-      logger.error('[OrchestratorEngine] spec.phases:', this.spec?.phases);
+      logger.error('[OrchestratorEngine] spec: ' + JSON.stringify(this.spec));
+      logger.error('[OrchestratorEngine] spec.phases: ' + JSON.stringify(this.spec?.phases));
       throw new Error('OrchestratorEngine spec not properly initialized');
     }
 
@@ -231,7 +231,7 @@ export class OrchestratorEngine {
             this.llmClient,
             project.id,
             artifacts,
-            project.orchestration_state.stack_choice
+            project.stack_choice
           );
 
           // Then generate data model and API spec with Architect
@@ -268,7 +268,7 @@ export class OrchestratorEngine {
             this.llmClient,
             project.id,
             artifacts,
-            project.orchestration_state.stack_choice
+            project.stack_choice
           );
           break;
 

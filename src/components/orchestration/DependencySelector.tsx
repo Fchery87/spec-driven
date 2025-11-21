@@ -53,9 +53,9 @@ const dependencyOptions: Record<Exclude<PlatformSelection, "custom">, Dependency
       summary: "Single Next.js codebase powering UI + APIs with Prisma/Postgres",
       frontend: "Next.js 14 App Router + Tailwind",
       backend: "Next.js API routes / tRPC",
-      database: "PostgreSQL + Prisma",
+      database: "PostgreSQL + Drizzle",
       deployment: "Vercel",
-      dependencies: ["next", "react", "next-auth", "prisma", "@prisma/client", "tailwindcss", "zod"],
+      dependencies: ["next", "react", "better-auth", "drizzle-orm", "@neondatabase/serverless", "tailwindcss", "zod"],
       highlights: ["Unified TypeScript codebase", "Fast iteration", "Minimal DevOps footprint"],
     },
     {
@@ -77,9 +77,9 @@ const dependencyOptions: Record<Exclude<PlatformSelection, "custom">, Dependency
       summary: "Shared TypeScript stack for web + mobile via Expo Router",
       frontend: "Next.js 14 (web) + Expo (mobile)",
       backend: "Next.js API routes / tRPC",
-      database: "PostgreSQL + Prisma",
+      database: "PostgreSQL + Drizzle",
       deployment: "Vercel + Expo Application Services",
-      dependencies: ["next", "react-native", "expo", "expo-router", "prisma", "@prisma/client", "nativewind"],
+      dependencies: ["next", "react-native", "expo", "expo-router", "drizzle-orm", "@neondatabase/serverless", "nativewind"],
       highlights: ["Single codebase", "Fast prototyping", "OTA updates via Expo"],
     },
     {

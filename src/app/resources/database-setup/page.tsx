@@ -24,15 +24,15 @@ const databaseSteps = [
     title: "3. Apply Prisma migrations",
     details: [
       "Install dependencies first with `npm install`.",
-      "Run `npx prisma migrate deploy` to apply the committed migrations to your target database.",
-      "If you are iterating locally, you can also use `npx prisma migrate dev` to create new migrations as needed.",
+      "Run `npm run db:migrate` to apply the committed migrations to your target database.",
+      "If you are iterating locally, you can also use `npm run db:push` to create new migrations as needed.",
     ],
   },
   {
     title: "4. Seed reference data (optional)",
     details: [
       "To insert the sample workflow records described in the documentation, run `npm run db:seed`.",
-      "The seed script lives in `prisma/seed.ts` and is safe to rerun - duplicate entries are skipped.",
+      "The seed script lives in `drizzle/seed.ts` and is safe to rerun - duplicate entries are skipped.",
     ],
   },
   {
@@ -40,7 +40,7 @@ const databaseSteps = [
     details: [
       "Start the development server with `npm run dev`.",
       "Visit `http://localhost:3001` and create a project to confirm reads/writes succeed.",
-      "Use `npx prisma studio` if you want to inspect the database tables directly.",
+      "Use `npm run db:studio` if you want to inspect the database tables directly.",
     ],
   },
 ]

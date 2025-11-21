@@ -52,7 +52,7 @@ export async function GET(
       );
     }
   } catch (error) {
-    logger.error('Error fetching artifact:', error);
+    logger.error('Error fetching artifact:', error instanceof Error ? error : undefined);
     return NextResponse.json(
       {
         success: false,

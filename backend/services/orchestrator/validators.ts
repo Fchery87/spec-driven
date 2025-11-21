@@ -68,28 +68,28 @@ export class Validators {
         return this.validateFrontmatter(project);
       
       case 'content_length_check':
-        return this.validateContentLength(project, validator.min_length || 100);
-      
+        return this.validateContentLength(project, (validator.min_length as number) || 100);
+
       case 'coverage_analysis':
-        return this.validateCoverage(project, validator.requirements || {});
-      
+        return this.validateCoverage(project, (validator.requirements as Record<string, string>) || {});
+
       case 'openapi_validator':
         return this.validateOpenAPI(project);
-      
+
       case 'database_field_check':
-        return this.validateDatabaseField(project, validator.field, validator.expected_value);
-      
+        return this.validateDatabaseField(project, validator.field as string, validator.expected_value);
+
       case 'script_execution':
-        return this.validateScripts(project, validator.scripts || []);
-      
+        return this.validateScripts(project, (validator.scripts as string[]) || []);
+
       case 'dependency_graph_analysis':
         return this.validateTaskDependencies(project);
-      
+
       case 'handoff_validator':
-        return this.validateHandoff(project, validator.required_sections || []);
-      
+        return this.validateHandoff(project, (validator.required_sections as string[]) || []);
+
       case 'zip_validation':
-        return this.validateZip(project, validator.required_files || []);
+        return this.validateZip(project, (validator.required_files as string[]) || []);
       
       default:
         return {
@@ -800,37 +800,37 @@ export class Validators {
   }
 
   private getArtifactContent(projectId: string, artifactName: string, phase?: string): string {
+    // Extract phase from artifactName if provided in format "PHASE/artifact.md"
+    let targetPhase = phase;
+    let targetName = artifactName;
+
+    if (artifactName.includes('/')) {
+      const [phaseFromName, nameFromArtifact] = artifactName.split('/');
+      targetPhase = phaseFromName;
+      targetName = nameFromArtifact;
+    }
+
+    // Construct artifact path: /projects/{projectId}/specs/{phase}/v1/{artifactName}
+    const artifactPath = resolve(
+      this.projectsBasePath,
+      projectId,
+      'specs',
+      targetPhase || 'ANALYSIS',
+      'v1',
+      targetName
+    );
+
     try {
-      // Extract phase from artifactName if provided in format "PHASE/artifact.md"
-      let targetPhase = phase;
-      let targetName = artifactName;
-
-      if (artifactName.includes('/')) {
-        const [phaseFromName, nameFromArtifact] = artifactName.split('/');
-        targetPhase = phaseFromName;
-        targetName = nameFromArtifact;
-      }
-
-      // Construct artifact path: /projects/{projectId}/specs/{phase}/v1/{artifactName}
-      const artifactPath = resolve(
-        this.projectsBasePath,
-        projectId,
-        'specs',
-        targetPhase || 'ANALYSIS',
-        'v1',
-        targetName
-      );
-
       if (!existsSync(artifactPath)) {
         return '';
       }
 
       return readFileSync(artifactPath, 'utf8');
     } catch (error) {
-      logger.warn(`Error reading artifact ${artifactName}`, {
+      logger.warn(`Error reading artifact ${artifactName}: ${error instanceof Error ? error.message : String(error)}`, {
         artifact: artifactName,
         path: artifactPath,
-      }, error instanceof Error ? error : undefined);
+      });
       return '';
     }
   }

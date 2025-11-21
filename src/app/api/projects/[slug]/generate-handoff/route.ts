@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProjectMetadata, saveProjectMetadata, saveArtifact, persistProjectToDB } from '@/app/api/lib/project-utils';
 import { HandoffGenerator } from '@/backend/services/file_system/handoff_generator';
-import { ProjectDBService } from '@/backend/services/database/project_db_service';
+import { ProjectDBService } from '@/backend/services/database/drizzle_project_db_service';
 import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';

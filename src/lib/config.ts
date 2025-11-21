@@ -145,5 +145,5 @@ export function isValidPhase(phase: string): phase is (typeof PHASE_CONFIG.phase
 export function getRequiredFilesForPhase(
   phase: (typeof PHASE_CONFIG.phases)[number]
 ): string[] {
-  return PHASE_CONFIG.requiredFiles[phase] || [];
+  return [...(PHASE_CONFIG.requiredFiles[phase] || [])];
 }

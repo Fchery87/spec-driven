@@ -61,9 +61,10 @@ User Input (project idea)
 
 **Backend:**
 - Node.js + TypeScript
-- Prisma ORM
+- Drizzle ORM
 - PostgreSQL (Neon)
 - Google Gemini API
+- Better-Auth for authentication
 
 **Testing & Quality:**
 - Vitest for unit testing
@@ -91,7 +92,8 @@ spec-driven/
 │
 ├── backend/                         # Backend services
 │   ├── lib/
-│   │   ├── prisma.ts               # Prisma client instance
+│   │   ├── drizzle.ts              # Drizzle database client
+│   │   ├── schema.ts               # Database schema definition
 │   │   ├── error_handler.ts        # Error handling utilities
 │   │   ├── sanitizer.ts            # Input sanitization
 │   │   └── validation_schemas.ts   # Zod validation schemas
@@ -106,9 +108,11 @@ spec-driven/
 │       ├── auth/                   # Authentication services
 │       └── database/               # Database operations
 │
-├── prisma/
-│   ├── schema.prisma               # Database schema
+├── drizzle/
+│   ├── migrations/                 # Database migrations
 │   └── seed.ts                     # Database seeding
+│
+├── drizzle.config.ts               # Drizzle configuration
 │
 ├── docs/                           # Documentation
 │   ├── ORCHESTRATOR_DESIGN.md
@@ -169,16 +173,16 @@ npm run test:ui
 ### Database
 
 ```bash
-# Set up database (migrate + seed)
-npm run db:setup
+# Generate migrations from schema changes
+npm run db:generate
 
-# Run migrations
-npm run db:migrate
-
-# Push schema to database (for new projects)
+# Push schema to database (development)
 npm run db:push
 
-# Open Prisma Studio (visual database browser)
+# Run migrations (production)
+npm run db:migrate
+
+# Open Drizzle Studio (visual database browser)
 npm run db:studio
 
 # Seed database with example data

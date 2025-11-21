@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { writeFileSync } from 'fs';
 import { resolve } from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { ProjectDBService } from '@/backend/services/database/project_db_service';
+import { ProjectDBService } from '@/backend/services/database/drizzle_project_db_service';
 import { ProjectStorage } from '@/backend/services/file_system/project_storage';
 import { saveProjectMetadata } from '@/app/api/lib/project-utils';
 import { logger } from '@/lib/logger';
@@ -35,13 +35,13 @@ export const GET = withCorrelationId(async (request: NextRequest) => {
       slug: project.slug,
       name: project.name,
       description: project.description,
-      current_phase: project.current_phase,
-      stack_choice: project.stack_choice,
-      stack_approved: project.stack_approved,
-      dependencies_approved: project.dependencies_approved,
-      created_at: project.created_at,
-      updated_at: project.updated_at,
-      artifact_count: project._count?.artifacts || 0
+      current_phase: project.currentPhase,
+      stack_choice: project.stackChoice,
+      stack_approved: project.stackApproved,
+      dependencies_approved: project.dependenciesApproved,
+      created_at: project.createdAt,
+      updated_at: project.updatedAt,
+      artifact_count: 0 // TODO: Add proper count from relations
     }));
 
     logger.info('GET /api/projects - success', { count: result.total });
@@ -117,13 +117,13 @@ export const POST = withCorrelationId(async (request: NextRequest) => {
       slug: dbProject.slug,
       name: dbProject.name,
       description: dbProject.description || null,
-      current_phase: dbProject.current_phase,
-      phases_completed: dbProject.phases_completed,
-      stack_choice: dbProject.stack_choice,
-      stack_approved: dbProject.stack_approved,
-      dependencies_approved: dbProject.dependencies_approved,
-      created_at: dbProject.created_at,
-      updated_at: dbProject.updated_at,
+      current_phase: dbProject.currentPhase,
+      phases_completed: dbProject.phasesCompleted,
+      stack_choice: dbProject.stackChoice,
+      stack_approved: dbProject.stackApproved,
+      dependencies_approved: dbProject.dependenciesApproved,
+      created_at: dbProject.createdAt.toISOString(),
+      updated_at: dbProject.updatedAt.toISOString(),
       orchestration_state: {}
     };
     saveProjectMetadata(slug, metadata);
@@ -136,13 +136,13 @@ export const POST = withCorrelationId(async (request: NextRequest) => {
         slug: dbProject.slug,
         name: dbProject.name,
         description: dbProject.description,
-        current_phase: dbProject.current_phase,
-        phases_completed: dbProject.phases_completed,
-        stack_choice: dbProject.stack_choice,
-        stack_approved: dbProject.stack_approved,
-        dependencies_approved: dbProject.dependencies_approved,
-        created_at: dbProject.created_at,
-        updated_at: dbProject.updated_at
+        current_phase: dbProject.currentPhase,
+        phases_completed: dbProject.phasesCompleted,
+        stack_choice: dbProject.stackChoice,
+        stack_approved: dbProject.stackApproved,
+        dependencies_approved: dbProject.dependenciesApproved,
+        created_at: dbProject.createdAt,
+        updated_at: dbProject.updatedAt
       }
     });
   } catch (error) {

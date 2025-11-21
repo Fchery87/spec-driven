@@ -182,11 +182,11 @@ export const ErrorList: React.FC<ErrorListProps> = ({ errors, onDismissAll }) =>
  * Hook to manage error state
  */
 export function useError() {
-  const [errors, setErrors] = React.useState<ErrorDisplayProps[]>([]);
+  const [errors, setErrors] = React.useState<(ErrorDisplayProps & { id?: number })[]>([]);
 
   const addError = (error: Omit<ErrorDisplayProps, 'onDismiss'>) => {
     const id = Math.random();
-    setErrors(prev => [...prev, { ...error, onDismiss: () => removeError(id) }]);
+    setErrors(prev => [...prev, { ...error, id, onDismiss: () => removeError(id) }]);
 
     // Auto-dismiss after 5 seconds if no actions
     if (!error.actions) {
@@ -198,7 +198,7 @@ export function useError() {
     setErrors(prev =>
       prev.filter(e =>
         typeof id === 'number'
-          ? e.onDismiss !== id
+          ? e.id !== id
           : e !== id
       )
     );

@@ -68,14 +68,15 @@ export class GeminiClient {
 
         if (!response.ok) {
           const errorText = await response.text();
-          logger.error('Gemini API error details:', {
+          const error = new Error(`Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
+          logger.error('Gemini API error details:', error, {
             status: response.status,
             statusText: response.statusText,
             errorText,
             model: this.config.model,
             attempt: attempt + 1
           });
-          throw new Error(`Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
+          throw error;
         }
 
         const data = await response.json();
@@ -88,10 +89,9 @@ export class GeminiClient {
         return this.parseResponse(data);
       } catch (error) {
         lastError = error as Error;
-        logger.error('Gemini API call error:', {
+        logger.error('Gemini API call error:', error instanceof Error ? error : new Error(String(error)), {
           attempt: attempt + 1,
-          maxRetries: retries,
-          error: error instanceof Error ? error.message : String(error)
+          maxRetries: retries
         });
 
         // If it's a rate limit error and we have retries left, continue

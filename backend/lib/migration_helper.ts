@@ -5,7 +5,7 @@
  * This is useful during development when switching backends
  */
 
-import { ProjectDBService } from '@/backend/services/database/project_db_service';
+import { ProjectDBService } from '@/backend/services/database/drizzle_project_db_service';
 import { listArtifacts, getProjectMetadata } from '@/app/api/lib/project-utils';
 import { readdirSync, existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
@@ -142,12 +142,12 @@ export async function verifyMigration(slug: string) {
 
   logger.info(`\nVerification Report for: ${project.name}`);
   logger.info(`Project ID: ${project.id}`);
-  logger.info(`Current Phase: ${project.current_phase}`);
-  logger.info(`Phases Completed: ${project.phases_completed || 'none'}`);
+  logger.info(`Current Phase: ${project.currentPhase}`);
+  logger.info(`Phases Completed: ${project.phasesCompleted || 'none'}`);
   logger.info(`Total Artifacts: ${project.artifacts.length}`);
-  logger.info(`Stack Approved: ${project.stack_approved}`);
-  logger.info(`Dependencies Approved: ${project.dependencies_approved}`);
-  logger.info(`Handoff Generated: ${project.handoff_generated}`);
+  logger.info(`Stack Approved: ${project.stackApproved}`);
+  logger.info(`Dependencies Approved: ${project.dependenciesApproved}`);
+  logger.info(`Handoff Generated: ${project.handoffGenerated}`);
 
   // Count artifacts by phase
   const artifactsByPhase: Record<string, number> = {};

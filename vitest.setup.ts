@@ -9,7 +9,7 @@ afterEach(() => {
 
 // Mock environment variables for tests
 process.env.JWT_SECRET = 'test-secret-key-for-testing-only-do-not-use-in-production';
-process.env.NODE_ENV = 'test';
+// Note: NODE_ENV is read-only, it's set by vitest automatically
 process.env.DATABASE_URL = 'file:./test.db';
 process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
 

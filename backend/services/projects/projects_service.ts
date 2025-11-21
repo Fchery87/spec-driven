@@ -1,9 +1,9 @@
-import { 
 import { logger } from '@/lib/logger';
-  Project, 
-  OrchestrationState, 
-  PhaseHistory, 
-  ProjectArtifact 
+import {
+  Project,
+  OrchestrationState,
+  PhaseHistory,
+  ProjectArtifact
 } from '@/types/orchestrator';
 import { ProjectStorage } from '../file_system/project_storage';
 

@@ -57,7 +57,7 @@ export class ConfigLoader {
   private normalizeSpec(parsed: Record<string, any>): OrchestratorSpec {
     // If parsed data exists, use it directly (it's already in the correct format from YAML)
     if (parsed && Object.keys(parsed).length > 0) {
-      logger.info('[ConfigLoader] Successfully parsed YAML with keys:', Object.keys(parsed));
+      logger.info('[ConfigLoader] Successfully parsed YAML with keys: ' + Object.keys(parsed).join(', '));
       const spec = parsed as OrchestratorSpec;
       // Validate that phases exist
       if (!spec.phases) {
@@ -79,7 +79,7 @@ export class ConfigLoader {
         }
       }
 
-      logger.info('[ConfigLoader] Found phases:', Object.keys(spec.phases));
+      logger.info('[ConfigLoader] Found phases: ' + Object.keys(spec.phases).join(', '));
       return spec;
     }
 

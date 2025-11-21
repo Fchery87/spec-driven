@@ -1,13 +1,15 @@
-"use client"
+import { createAuthClient } from "better-auth/react";
+import { logger } from "./logger";
 
-import { createAuthClient } from "better-auth/react"
+// Initialize the auth client
+const authClient = createAuthClient({
+  fetchOptions: {
+    onError: (ctx) => {
+      logger.error("Auth client error:", ctx.error);
+    },
+  },
+});
 
-const baseURL =
-  process.env.NEXT_PUBLIC_APP_URL ||
-  (typeof window !== "undefined" ? window.location.origin : undefined)
-
-export const authClient = createAuthClient({
-  baseURL,
-})
-
-export const { signIn, signOut, signUp, useSession } = authClient
+// Destructure and export individual methods
+// Note: useAuth was removed in newer Better-Auth versions
+export const { signIn, signOut, signUp, useSession } = authClient;

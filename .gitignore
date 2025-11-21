@@ -185,22 +185,33 @@ debug/
 *.trace
 
 # ============================================================================
-# DATABASE & PRISMA
+# DATABASE & ORM
 # ============================================================================
 
-# Prisma
-prisma/migrations/
-prisma/seed-data/
-.prisma/
+# Drizzle ORM
+drizzle/migrations/
+.drizzle/
+
+# Prisma (legacy - removed from project)
+# Keep commented for reference during migration
+# prisma/
+# .prisma/
 
 # ============================================================================
 # DOCUMENTATION
 # ============================================================================
 
-# All .md files except README.md and docs/
+# Ignore all .md files except specific ones
 *.md
+
+# But DO track these important docs
 !README.md
 !docs/**/*.md
+!MIGRATION_STATUS.md
+!PRISMA_CLEANUP_COMPLETE.md
+!UUID_FIX_COMPLETE.md
+!TYPESCRIPT_FIXES_COMPLETE.md
+!CLEANUP_SUMMARY.md
 
 # ============================================================================
 # TEMPORARY & CACHE
@@ -225,9 +236,10 @@ dist-cache/
 # NEON & PLATFORM SPECIFIC
 # ============================================================================
 
-# Neon configuration
+# Neon PostgreSQL configuration
 .neon/
 neon.json
+postgresql:/
 
 # Vercel
 .vercel/
@@ -236,6 +248,9 @@ neon.json
 # Docker
 .dockerignore
 docker-compose.override.yml
+
+# Drizzle Studio artifacts
+.drizzle-studio/
 
 # ============================================================================
 # CUSTOM PROJECT SPECIFIC
