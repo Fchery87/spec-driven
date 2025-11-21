@@ -331,17 +331,12 @@ export class OrchestratorEngine {
     projectId: string,
     artifacts: Record<string, string>
   ): Promise<Record<string, string>> {
-    const executor = new (await import('../llm/agent_executors')).AgentExecutor();
-    const brief = artifacts['ANALYSIS/project-brief.md'] || '';
-    const prd = artifacts['SPEC/PRD.md'] || '';
-
-    const result = await executor.runArchitectAgent(brief, {
-      project_id: projectId,
-      phase: 'SPEC',
+    // Use the getArchitectExecutor wrapper function which properly handles the agent
+    return await getArchitectExecutor(
+      this.llmClient,
+      projectId,
       artifacts
-    }, prd);
-
-    return result.artifacts;
+    );
   }
 
   /**
