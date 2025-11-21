@@ -210,6 +210,11 @@ export class OrchestratorEngine {
     const llmClient = this.llmClient;
     const artifactManager = this.artifactManager;
 
+    // Double-check spec is still available
+    if (!spec || !spec.phases) {
+      throw new Error('[CRITICAL] spec was lost after variable capture');
+    }
+
     const currentPhase = spec.phases[project.current_phase];
     if (!currentPhase) {
       throw new Error(`Unknown phase: ${project.current_phase}`);
@@ -228,6 +233,10 @@ export class OrchestratorEngine {
             project.id,
             artifacts
           );
+          // Safety check after async
+          if (!spec || !spec.phases) {
+            throw new Error('[CRITICAL] spec was lost after ANALYSIS executor');
+          }
           break;
 
         case 'SPEC':
@@ -239,6 +248,10 @@ export class OrchestratorEngine {
             artifacts,
             project.stack_choice
           );
+          // Safety check after async
+          if (!spec || !spec.phases) {
+            throw new Error('[CRITICAL] spec was lost after PM executor');
+          }
 
           // Then generate data model and API spec with Architect
           // Add the newly generated PRD to artifacts for Architect to use
@@ -252,6 +265,10 @@ export class OrchestratorEngine {
             project.id,
             artifactsWithPRD
           );
+          // Safety check after async
+          if (!spec || !spec.phases) {
+            throw new Error('[CRITICAL] spec was lost after Architect executor');
+          }
 
           // Combine all artifacts
           generatedArtifacts = {
@@ -268,6 +285,10 @@ export class OrchestratorEngine {
             ...arch,
             ...scrum
           }));
+          // Safety check after async
+          if (!spec || !spec.phases) {
+            throw new Error('[CRITICAL] spec was lost after SOLUTIONING executors');
+          }
           break;
 
         case 'DEPENDENCIES':
@@ -277,6 +298,10 @@ export class OrchestratorEngine {
             artifacts,
             project.stack_choice
           );
+          // Safety check after async
+          if (!spec || !spec.phases) {
+            throw new Error('[CRITICAL] spec was lost after DEPENDENCIES executor');
+          }
           break;
 
         case 'STACK_SELECTION':
