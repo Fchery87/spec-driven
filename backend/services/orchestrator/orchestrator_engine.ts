@@ -199,35 +199,36 @@ export class OrchestratorEngine {
 
     logger.info('[OrchestratorEngine] runPhaseAgent called for phase: ' + currentPhaseName);
 
-    // Load a fresh spec each call to avoid any context loss between awaits
-    // Store ALL references locally BEFORE any async operations to prevent Next.js RSC context loss
-    const spec = new ConfigLoader().loadSpec();
-    const validators = new Validators(spec.validators);
-    const artifactManager = new ArtifactManager();
-
-    // Create GeminiClient locally to avoid context loss (don't use this.llmClient)
-    const llmConfig = {
-      provider: spec.llm_config.provider as string,
-      model: spec.llm_config.model as string,
-      max_tokens: spec.llm_config.max_tokens as number,
-      temperature: spec.llm_config.temperature as number,
-      timeout_seconds: spec.llm_config.timeout_seconds as number,
-      api_key: process.env.GEMINI_API_KEY
-    };
-    const llmClient = new GeminiClient(llmConfig as any);
-
-    // Validate spec is loaded
-    if (!spec || !spec.phases) {
-      throw new Error('[CRITICAL] Failed to load orchestrator spec with phases');
-    }
-
-    // Validate phase exists (inline to avoid context loss)
-    if (!spec.phases || !spec.phases[currentPhaseName]) {
-      throw new Error(`Unknown phase: ${currentPhaseName}`);
-    }
-
     try {
       logger.info(`Executing agent for phase: ${currentPhaseName}`);
+
+      // Load spec fresh right before using it (lazy load to avoid context loss)
+      const spec = new ConfigLoader().loadSpec();
+
+      // Validate spec is loaded
+      if (!spec || !spec.phases) {
+        throw new Error('[CRITICAL] Failed to load orchestrator spec with phases');
+      }
+
+      // Validate phase exists
+      if (!spec.phases[currentPhaseName]) {
+        throw new Error(`Unknown phase: ${currentPhaseName}`);
+      }
+
+      // Create all dependencies fresh right before using them
+      const validators = new Validators(spec.validators);
+      const artifactManager = new ArtifactManager();
+
+      // Create GeminiClient locally from spec config
+      const llmConfig = {
+        provider: spec.llm_config.provider as string,
+        model: spec.llm_config.model as string,
+        max_tokens: spec.llm_config.max_tokens as number,
+        temperature: spec.llm_config.temperature as number,
+        timeout_seconds: spec.llm_config.timeout_seconds as number,
+        api_key: process.env.GEMINI_API_KEY
+      };
+      const llmClient = new GeminiClient(llmConfig as any);
 
       let generatedArtifacts: Record<string, string> = {};
 
