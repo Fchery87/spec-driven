@@ -64,12 +64,21 @@ export async function GET(
       archive.on('end', () => {
         const zipBuffer = Buffer.concat(chunks);
 
+        // Use project title for filename, fallback to slug if empty
+        const filename = metadata.name || slug;
+        // Sanitize filename (remove/replace special characters)
+        const sanitizedFilename = filename
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '');
+        const zipFilename = `${sanitizedFilename}-specs.zip`;
+
         resolve(
           new NextResponse(zipBuffer, {
             status: 200,
             headers: {
               'Content-Type': 'application/zip',
-              'Content-Disposition': `attachment; filename="${slug}-specs-${new Date().toISOString().split('T')[0]}.zip"`,
+              'Content-Disposition': `attachment; filename="${zipFilename}"`,
               'Content-Length': zipBuffer.length.toString()
             }
           })
