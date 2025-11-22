@@ -1,7 +1,5 @@
 'use client';
 
-export const dynamic = 'force-dynamic';
-
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -53,7 +51,7 @@ export default function Dashboard() {
   const fetchProjects = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/projects');
+      const response = await fetch('/api/projects', { cache: 'no-store' });
       const result = await response.json();
 
       if (result.success) {
@@ -90,7 +88,8 @@ export default function Dashboard() {
     try {
       const response = await fetch(`/api/projects/${selectedProjectToDelete.slug}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store'
       });
 
       const result = await response.json();

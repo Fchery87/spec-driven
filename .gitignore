@@ -86,7 +86,6 @@ pnpm-lock.yaml
 
 # Testing
 /coverage
-/test-results
 *.lcov
 .nyc_output/
 
@@ -272,3 +271,31 @@ fixtures/
 # Local development
 .local/
 .dev/
+
+# ============================================================================
+# PLAYWRIGHT E2E TESTS - IGNORE ALL
+# ============================================================================
+
+# E2E test directory (source code)
+e2e/
+
+# E2E test configuration
+playwright.config.ts
+
+# E2E test reports and artifacts
+playwright-report/
+test-results/
+/playwright-report
+/test-results
+.playwright/
+*.webm
+
+# E2E test documentation
+QUICK_START_E2E.md
+E2E_TEST_SUMMARY.md
+E2E_MANIFEST.md
+E2E_DOCUMENTATION_INDEX.md
+E2E_FAILURES_ANALYSIS.md
+SETUP_VERIFICATION.md
+.playwrightrc.example
+validate-e2e-setup.sh

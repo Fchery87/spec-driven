@@ -1,7 +1,5 @@
 'use client';
 
-export const dynamic = 'force-dynamic'
-
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -77,7 +75,7 @@ export default function ProjectPage() {
 
   const fetchProject = useCallback(async () => {
     try {
-      const response = await fetch(`/api/projects/${slug}`);
+      const response = await fetch(`/api/projects/${slug}`, { cache: 'no-store' });
       const result = await response.json();
 
       if (result.success) {
@@ -107,7 +105,7 @@ export default function ProjectPage() {
 
   const fetchArtifacts = useCallback(async () => {
     try {
-      const response = await fetch(`/api/projects/${slug}/artifacts`);
+      const response = await fetch(`/api/projects/${slug}/artifacts`, { cache: 'no-store' });
       const result = await response.json();
 
       if (result.success) {
@@ -138,7 +136,8 @@ export default function ProjectPage() {
     try {
       const response = await fetch(`/api/projects/${slug}/execute-phase`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store'
       });
 
       const result = await response.json();
@@ -168,7 +167,8 @@ export default function ProjectPage() {
       const response = await fetch(`/api/projects/${slug}/phase`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'advance' })
+        body: JSON.stringify({ action: 'advance' }),
+        cache: 'no-store'
       });
 
       const result = await response.json();
@@ -196,7 +196,8 @@ export default function ProjectPage() {
       const response = await fetch(`/api/projects/${slug}/approve-stack`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stack_choice: stackChoice, reasoning, platform })
+        body: JSON.stringify({ stack_choice: stackChoice, reasoning, platform }),
+        cache: 'no-store'
       });
 
       const result = await response.json();
@@ -265,6 +266,7 @@ ${notes || 'N/A'}
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ approvalNotes }),
+        cache: 'no-store'
       })
 
       const result = await response.json()
@@ -291,7 +293,7 @@ ${notes || 'N/A'}
   const handleViewArtifact = async (artifact: Artifact, phase: string) => {
     try {
       // Fetch the actual artifact content from the file system
-      const response = await fetch(`/api/projects/${slug}/artifacts/${phase}/${artifact.name}`);
+      const response = await fetch(`/api/projects/${slug}/artifacts/${phase}/${artifact.name}`, { cache: 'no-store' });
 
       if (!response.ok) {
         throw new Error('Failed to fetch artifact content');
@@ -315,7 +317,7 @@ ${notes || 'N/A'}
   const handleArtifactDownload = async (artifact: Artifact, phase: string) => {
     try {
       // Fetch the actual artifact content from the file system
-      const response = await fetch(`/api/projects/${slug}/artifacts/${phase}/${artifact.name}`);
+      const response = await fetch(`/api/projects/${slug}/artifacts/${phase}/${artifact.name}`, { cache: 'no-store' });
 
       if (!response.ok) {
         throw new Error('Failed to fetch artifact content');

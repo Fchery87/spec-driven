@@ -19,13 +19,20 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        ...metadata,
-        stats: { total_artifacts: 0, total_size: 0 }
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          ...metadata,
+          stats: { total_artifacts: 0, total_size: 0 }
+        }
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+        }
       }
-    });
+    );
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error('Error getting project:', err);
@@ -64,10 +71,17 @@ export async function PUT(
     // Persist changes to database
     await persistProjectToDB(slug, updated);
 
-    return NextResponse.json({
-      success: true,
-      data: updated
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        data: updated
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+        }
+      }
+    );
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error('Error updating project:', err);

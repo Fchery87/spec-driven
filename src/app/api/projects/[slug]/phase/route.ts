@@ -43,15 +43,22 @@ export async function POST(
         artifacts.some(a => a.name === file)
       );
 
-      return NextResponse.json({
-        success: true,
-        data: {
-          phase: metadata.current_phase,
-          artifacts: artifacts,
-          required: requiredFiles,
-          is_complete: hasAllFiles
+      return NextResponse.json(
+        {
+          success: true,
+          data: {
+            phase: metadata.current_phase,
+            artifacts: artifacts,
+            required: requiredFiles,
+            is_complete: hasAllFiles
+          }
+        },
+        {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+          }
         }
-      });
+      );
     }
 
     if (action === 'advance') {

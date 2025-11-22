@@ -45,11 +45,18 @@ export const GET = withCorrelationId(async (request: NextRequest) => {
     }));
 
     logger.info('GET /api/projects - success', { count: result.total });
-    return NextResponse.json({
-      success: true,
-      data: projectDetails,
-      total: result.total
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        data: projectDetails,
+        total: result.total
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+        }
+      }
+    );
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error('GET /api/projects - failed', err);
@@ -129,22 +136,30 @@ export const POST = withCorrelationId(async (request: NextRequest) => {
     saveProjectMetadata(slug, metadata);
 
     logger.info('POST /api/projects - project created successfully', { slug, projectId: dbProject.id });
-    return NextResponse.json({
-      success: true,
-      data: {
-        id: dbProject.id,
-        slug: dbProject.slug,
-        name: dbProject.name,
-        description: dbProject.description,
-        current_phase: dbProject.currentPhase,
-        phases_completed: dbProject.phasesCompleted,
-        stack_choice: dbProject.stackChoice,
-        stack_approved: dbProject.stackApproved,
-        dependencies_approved: dbProject.dependenciesApproved,
-        created_at: dbProject.createdAt,
-        updated_at: dbProject.updatedAt
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          id: dbProject.id,
+          slug: dbProject.slug,
+          name: dbProject.name,
+          description: dbProject.description,
+          current_phase: dbProject.currentPhase,
+          phases_completed: dbProject.phasesCompleted,
+          stack_choice: dbProject.stackChoice,
+          stack_approved: dbProject.stackApproved,
+          dependencies_approved: dbProject.dependenciesApproved,
+          created_at: dbProject.createdAt,
+          updated_at: dbProject.updatedAt
+        }
+      },
+      {
+        status: 201,
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+        }
       }
-    });
+    );
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error('POST /api/projects - failed', err);

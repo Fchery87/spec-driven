@@ -20,7 +20,11 @@
     "db:setup:sqlite": "drizzle-kit migrate && npm run db:seed",
     "db:generate": "drizzle-kit generate",
     "db:migrate:sqlite": "drizzle-kit migrate",
-    "db:push:sqlite": "drizzle-kit push"
+    "db:push:sqlite": "drizzle-kit push",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
     "@libsql/client": "^0.15.15",
@@ -50,6 +54,7 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^14.1.2",
     "@types/archiver": "^7.0.0",
