@@ -221,9 +221,8 @@ export class OrchestratorEngine {
       throw new Error('[CRITICAL] Failed to load orchestrator spec with phases');
     }
 
-    const phases = spec.phases;
-    const currentPhase = phases[currentPhaseName];
-    if (!currentPhase) {
+    // Validate phase exists (inline to avoid context loss)
+    if (!spec.phases || !spec.phases[currentPhaseName]) {
       throw new Error(`Unknown phase: ${currentPhaseName}`);
     }
 
