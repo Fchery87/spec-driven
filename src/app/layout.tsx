@@ -14,6 +14,9 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'Spec-Driven Platform',
   description: 'Spec-first orchestrator for production-ready projects',
+  icons: {
+    icon: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({
