@@ -2,16 +2,7 @@
 
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useSession, signIn, signOut } from '@/lib/auth-client';
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// Define the context type
-interface AuthContextType {
-  session: any; // Better Auth session type
-  signIn: any; // Better Auth signIn function
-  signOut: any; // Better Auth signOut function
-  isLoading: boolean;
-}
-/* eslint-enable @typescript-eslint/no-explicit-any */
+import type { AuthContextType } from '@/types/auth';
 
 // Create the context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,13 +15,15 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const { data: session, isPending: isLoading } = useSession();
 
+  const value: AuthContextType = {
+    session: session ?? null,
+    signIn,
+    signOut,
+    isLoading,
+  };
+
   return (
-    <AuthContext.Provider value={{
-      session,
-      signIn,
-      signOut,
-      isLoading
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
