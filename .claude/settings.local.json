@@ -6,7 +6,9 @@
       "Bash(cd:*)",
       "Bash(cd /home/nochaserz/Documents/Coding\\ Projects/spec-driven && npm install:*)",
       "Bash(npx tsc:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(pkill:*)",
+      "Bash(kill:*)"
     ],
     "deny": [],
     "ask": []

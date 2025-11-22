@@ -326,14 +326,17 @@ export class OrchestratorEngine {
         normalizedArtifacts[key] = content;
       }
 
-      // Reload orchestrationState from database to prevent context loss after long async operations
-      const updatedProject = await this.projectService.getProject(projectId);
-      if (!updatedProject || !updatedProject.orchestration_state) {
-        throw new Error(`[CRITICAL] Failed to reload project orchestration_state after artifact generation`);
-      }
-      const freshOrchestrationState = updatedProject.orchestration_state;
+      // Use the orchestrationState that was captured at the start of this method
+      // to prevent context loss after long async operations
+      const freshOrchestrationState = orchestrationState || {
+        artifact_versions: {},
+        phase_history: []
+      };
 
       // Update artifact versions with fresh orchestration state
+      if (!freshOrchestrationState.artifact_versions) {
+        freshOrchestrationState.artifact_versions = {};
+      }
       if (!freshOrchestrationState.artifact_versions[currentPhaseName]) {
         freshOrchestrationState.artifact_versions[currentPhaseName] = 1;
       } else {
