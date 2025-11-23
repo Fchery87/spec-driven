@@ -13,7 +13,8 @@ export class ArtifactManager {
   private archiver: Archiver;
 
   constructor() {
-    this.projectStorage = new ProjectStorage({ base_path: this.basePath });
+    // Don't create directory on init - ProjectStorage will only try if explicitly configured
+    this.projectStorage = new ProjectStorage({ base_path: this.basePath, create_if_missing: false });
     this.archiver = new Archiver(this.projectStorage);
   }
 
@@ -82,13 +83,32 @@ export class ArtifactManager {
   ): Promise<void> {
     const artifactPath = this.getArtifactPath(projectId, artifactName, phase);
 
-    // Ensure directory exists
+    // Ensure directory exists (only if the parent directory is writable)
     const dir = dirname(artifactPath);
     if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
+      try {
+        mkdirSync(dir, { recursive: true });
+      } catch (error) {
+        // On serverless environments like Vercel, the filesystem may be read-only
+        // In this case, we skip local write since artifacts are stored in R2
+        logger.debug('Unable to create artifact directory on filesystem, skipping local write', {
+          artifactPath,
+          error: error instanceof Error ? error.message : String(error)
+        });
+        return;
+      }
     }
 
-    writeFileSync(artifactPath, content, 'utf8');
+    try {
+      writeFileSync(artifactPath, content, 'utf8');
+    } catch (error) {
+      // Filesystem write failed - this is expected on Vercel
+      // R2 storage is handled separately in the route handler
+      logger.debug('Unable to write artifact to filesystem, continuing without local copy', {
+        artifactPath,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
   }
 
   /**

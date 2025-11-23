@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getProjectMetadata, saveProjectMetadata, listArtifacts, persistProjectToDB } from '@/app/api/lib/project-utils';
+import { getProjectMetadata, saveProjectMetadata, listArtifacts, persistProjectToDB, writeArtifact } from '@/app/api/lib/project-utils';
 import { OrchestratorEngine } from '@/backend/services/orchestrator/orchestrator_engine';
 import { ProjectDBService } from '@/backend/services/database/drizzle_project_db_service';
 import { readFileSync, existsSync } from 'fs';
@@ -144,16 +144,21 @@ const executePhaseHandler = withAuth(
       );
     }
 
-    // DB-primary artifact persistence: save all artifacts to database
+    // Save artifacts to R2 and database
     const dbService = new ProjectDBService();
     const dbProject = await dbService.getProjectBySlug(slug);
 
     if (dbProject) {
       try {
-        // Persist all generated artifacts to database
+        // Persist all generated artifacts to R2 and database
         for (const [key, content] of Object.entries(result.artifacts)) {
           // Extract filename from key (e.g., "ANALYSIS/analysis_report.md" -> "analysis_report.md")
           const filename = key.split('/').pop() || key;
+
+          // Save to R2 (with local filesystem fallback)
+          await writeArtifact(slug, metadata.current_phase, filename, content);
+
+          // Also persist to database for indexing and redundancy
           await dbService.saveArtifact(
             dbProject.id,
             metadata.current_phase,
@@ -169,17 +174,17 @@ const executePhaseHandler = withAuth(
           'completed'
         );
 
-        logger.info('Phase artifacts persisted to database', {
+        logger.info('Phase artifacts persisted to R2 and database', {
           project: slug,
           phase: metadata.current_phase,
           artifactCount: Object.keys(result.artifacts).length,
         });
       } catch (dbError) {
-        logger.warn(`Failed to persist artifacts to database: ${dbError instanceof Error ? dbError.message : String(dbError)}`, {
+        logger.warn(`Failed to persist artifacts: ${dbError instanceof Error ? dbError.message : String(dbError)}`, {
           project: slug,
           phase: metadata.current_phase,
         });
-        // Don't fail the request; artifacts are still in filesystem
+        // Don't fail the request; artifacts may still be in R2
       }
     }
 
