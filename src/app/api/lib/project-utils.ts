@@ -188,15 +188,25 @@ export const readArtifact = async (slug: string, phase: string, name: string): P
   if (process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_ACCESS_KEY_ID) {
     try {
       const buffer = await downloadFromR2(slug, phase, name);
+      logger.debug('Artifact read from R2', { slug, phase, name });
       return buffer.toString('utf-8');
-    } catch {
-      logger.debug('Failed to read artifact from R2, trying local file system', { slug, phase, name });
+    } catch (r2Error) {
+      const err = r2Error instanceof Error ? r2Error : new Error(String(r2Error));
+      logger.debug('Failed to read artifact from R2, trying local file system', {
+        slug,
+        phase,
+        name,
+        r2Error: err.message
+      });
     }
+  } else {
+    logger.debug('R2 not configured, trying local filesystem', { slug, phase, name });
   }
 
   // Fallback to local file system
   try {
     const path = resolve(getProjectsPath(), slug, 'specs', phase, 'v1', name);
+    logger.debug('Artifact read from local filesystem', { slug, phase, name, path });
     return readFileSync(path, 'utf-8');
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));

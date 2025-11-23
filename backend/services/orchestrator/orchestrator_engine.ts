@@ -246,6 +246,11 @@ export class OrchestratorEngine {
             projectId,
             artifacts
           );
+          logger.debug('[OrchestratorEngine] Generated artifacts from executor', {
+            phase: currentPhaseName,
+            artifactKeys: Object.keys(generatedArtifacts),
+            artifactCount: Object.keys(generatedArtifacts).length
+          });
           break;
 
         case 'SPEC':
@@ -319,18 +324,43 @@ export class OrchestratorEngine {
       }
 
       // Save artifacts to storage and normalize artifact keys with phase prefix
+      logger.debug('[OrchestratorEngine] About to save artifacts', {
+        phase: currentPhaseName,
+        artifactCount: Object.keys(generatedArtifacts).length,
+        artifactKeys: Object.keys(generatedArtifacts)
+      });
+
       const normalizedArtifacts: Record<string, string> = {};
       for (const [filename, content] of Object.entries(generatedArtifacts)) {
-        await artifactManager.saveArtifact(
-          projectId,
-          currentPhaseName,
+        logger.debug('[OrchestratorEngine] Saving artifact to local storage', {
+          phase: currentPhaseName,
           filename,
-          content
-        );
+          contentLength: content.length
+        });
+        try {
+          await artifactManager.saveArtifact(
+            projectId,
+            currentPhaseName,
+            filename,
+            content
+          );
+        } catch (saveError) {
+          logger.debug('[OrchestratorEngine] Local artifact save failed (expected on Vercel)', {
+            phase: currentPhaseName,
+            filename,
+            error: saveError instanceof Error ? saveError.message : String(saveError)
+          });
+          // Don't throw - local save failure is expected on serverless
+        }
         // Normalize artifact keys to include phase prefix for downstream executors
         const key = `${currentPhaseName}/${filename}`;
         normalizedArtifacts[key] = content;
       }
+
+      logger.debug('[OrchestratorEngine] Normalized artifacts for return', {
+        phase: currentPhaseName,
+        artifactCount: Object.keys(normalizedArtifacts).length
+      });
 
       // Use the orchestrationState that was captured at the start of this method
       // to prevent context loss after long async operations
