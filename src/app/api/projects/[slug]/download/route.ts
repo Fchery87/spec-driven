@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getProjectMetadata, listArtifacts } from '@/app/api/lib/project-utils';
+import { getProjectMetadata, listArtifacts, readArtifact } from '@/app/api/lib/project-utils';
 import archiver from 'archiver';
 import { readFileSync } from 'fs';
 import { resolve as pathResolve } from 'path';
@@ -36,7 +36,7 @@ export async function GET(
 
     // Verify HANDOFF.md exists
     const doneArtifacts = await listArtifacts(slug, 'DONE');
-    const hasHandoff = doneArtifacts.some(a => a.name === 'HANDOFF.md');
+    const hasHandoff = doneArtifacts.some((a: { name: string }) => a.name === 'HANDOFF.md');
 
     if (!hasHandoff) {
       return NextResponse.json(
@@ -105,8 +105,8 @@ export async function GET(
         const artifacts = await listArtifacts(slug, phase);
         for (const artifact of artifacts) {
           try {
-            const artifactPath = pathResolve(process.cwd(), 'projects', slug, 'specs', phase, 'v1', artifact.name);
-            const content = readFileSync(artifactPath, 'utf8');
+            // Read from R2 or filesystem; falls back to DB in project-utils
+            const content = await readArtifact(slug, phase, artifact.name);
             archive.append(content, { name: `${slug}/specs/${phase}/${artifact.name}` });
           } catch (err) {
             const error = err instanceof Error ? err : new Error(String(err));
