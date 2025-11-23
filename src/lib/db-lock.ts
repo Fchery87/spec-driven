@@ -227,6 +227,7 @@ export async function initializeLocking(): Promise<boolean> {
   try {
     const result = await db.execute(sql`SELECT version()`);
     logger.info('Database initialized for advisory locking', {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       version: (result.rows[0] as any)?.version?.substring(0, 50) || 'unknown',
     });
     return true;

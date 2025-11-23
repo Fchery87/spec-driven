@@ -261,7 +261,9 @@ describe('Projects API Routes', () => {
 
     it('should save project metadata to filesystem', async () => {
       const saveMetadataSpy = vi.spyOn(projectUtils, 'saveProjectMetadata');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (ProjectDBService.prototype.createProject as any).mockResolvedValue(mockProjectData);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (ProjectStorage.prototype.createProjectDirectory as any).mockImplementation(() => {});
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects'), {
@@ -418,6 +420,7 @@ describe('Projects API Routes', () => {
       const persistSpy = vi.spyOn(projectUtils, 'persistProjectToDB');
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug'), {
@@ -436,6 +439,7 @@ describe('Projects API Routes', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
       const saveSpy = vi.spyOn(projectUtils, 'saveProjectMetadata');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug'), {
@@ -497,6 +501,7 @@ describe('Projects API Routes', () => {
       const deleteDBSpy = vi.spyOn(projectUtils, 'deleteProjectFromDB');
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.deleteProject as any).mockReturnValue(true);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug'), {
@@ -512,6 +517,7 @@ describe('Projects API Routes', () => {
       const deleteSpy = vi.spyOn(projectUtils, 'deleteProject');
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.deleteProjectFromDB as any).mockResolvedValue(undefined);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug'), {
@@ -662,6 +668,7 @@ describe('Projects API Routes', () => {
       const saveSpy = vi.spyOn(projectUtils, 'saveProjectMetadata');
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.writeArtifact as any).mockImplementation(() => {});
@@ -692,6 +699,7 @@ describe('Projects API Routes', () => {
       const saveSpy = vi.spyOn(projectUtils, 'saveProjectMetadata');
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.writeArtifact as any).mockImplementation(() => {});
@@ -764,6 +772,7 @@ describe('Projects API Routes', () => {
 
     it('should log errors to logger', async () => {
       const { logger } = await import('@/lib/logger');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (ProjectDBService.prototype.listProjects as any).mockRejectedValue(
         new Error('Test error')
       );

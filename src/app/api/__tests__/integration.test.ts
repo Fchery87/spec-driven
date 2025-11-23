@@ -364,6 +364,7 @@ describe('Integration: Auth → Validation → DB Flow', () => {
 
   describe('Authentication & Authorization', () => {
     it('should include user ID in logged operations for audit trail', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (ProjectDBService.prototype.createProject as any).mockResolvedValue(mockProjectData);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -391,6 +392,7 @@ describe('Integration: Auth → Validation → DB Flow', () => {
     });
 
     it('should maintain session information throughout request lifecycle', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (ProjectDBService.prototype.createProject as any).mockResolvedValue(mockProjectData);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -459,6 +461,7 @@ describe('Integration: Auth → Validation → DB Flow', () => {
   describe('Database Persistence', () => {
     it('should call database service with validated data', async () => {
       const createProjectSpy = vi.spyOn(ProjectDBService.prototype, 'createProject');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (ProjectDBService.prototype.createProject as any).mockResolvedValue(mockProjectData);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -489,6 +492,7 @@ describe('Integration: Auth → Validation → DB Flow', () => {
       const persistSpy = vi.spyOn(projectUtils, 'persistProjectToDB');
       const saveSpy = vi.spyOn(projectUtils, 'saveProjectMetadata');
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (ProjectDBService.prototype.createProject as any).mockResolvedValue(mockProjectData);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);

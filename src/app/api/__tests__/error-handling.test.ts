@@ -256,6 +256,7 @@ describe('API Error Handling', () => {
 
   describe('Filesystem Errors', () => {
     it('should handle filesystem write errors during project creation', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (ProjectDBService.prototype.createProject as any).mockResolvedValue({
         id: 'test-id',
         slug: 'test-slug',
@@ -263,6 +264,7 @@ describe('API Error Handling', () => {
         createdAt: new Date(),
         updatedAt: new Date()
       });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {
         throw new Error('EACCES: Permission denied');
       });
@@ -382,6 +384,7 @@ describe('API Error Handling', () => {
     });
 
     it('should handle multiple simultaneous POST requests safely', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (ProjectDBService.prototype.createProject as any).mockResolvedValue({
         id: 'test-id',
         slug: 'test-slug',
@@ -389,6 +392,7 @@ describe('API Error Handling', () => {
         createdAt: new Date(),
         updatedAt: new Date()
       });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
 
       const requests = Array(3).fill(null).map(() =>
@@ -578,6 +582,7 @@ describe('API Error Handling', () => {
 
     it('should include error context in logs', async () => {
       const error = new Error('Test error');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (ProjectDBService.prototype.listProjects as any).mockRejectedValue(error);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects'));

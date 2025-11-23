@@ -70,6 +70,7 @@ export function withAuth(
     context: any,
     session: AuthSession
   ) => Promise<Response | NextResponse>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): (request: NextRequest, context: any) => Promise<Response | NextResponse> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return async (request: NextRequest, context: any) => {

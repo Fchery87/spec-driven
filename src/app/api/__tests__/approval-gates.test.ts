@@ -69,6 +69,7 @@ describe('Approval Gates and Phase Execution', () => {
     (withAuth as any).mockImplementation(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (handler: (req: NextRequest, context: any, session: any) => Promise<Response>) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         async (req: NextRequest, context?: any) => handler(req, context, mockSession)
     );
   });

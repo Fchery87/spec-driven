@@ -165,6 +165,7 @@ export async function listArtifacts(
   phase: string
 ): Promise<Array<{ filename: string; version: number; createdAt: Date }>> {
   const artifacts = await dbService.getArtifactsByPhase(projectId, phase);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return artifacts.map((a: any) => ({
     filename: a.filename,
     version: a.version,
