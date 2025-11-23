@@ -132,6 +132,8 @@ export const listAllProjects = () => {
  * Falls back to database if R2 returns empty or fails
  */
 export const listArtifacts = async (slug: string, phase: string) => {
+  logger.info('listArtifacts called', { slug, phase, r2Configured: !!(process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_ACCESS_KEY_ID) });
+
   let r2Artifacts: Array<{ name: string; size: number }> = [];
 
   // Try R2 first if configured
@@ -145,13 +147,17 @@ export const listArtifacts = async (slug: string, phase: string) => {
 
       // If R2 returns artifacts, use them
       if (r2Artifacts.length > 0) {
-        logger.debug('Artifacts listed from R2', { slug, phase, count: r2Artifacts.length });
+        logger.info('Artifacts listed from R2', { slug, phase, count: r2Artifacts.length });
         return r2Artifacts;
       }
 
-      logger.debug('R2 returned empty results, trying database fallback', { slug, phase });
-    } catch {
-      logger.debug('Failed to list artifacts from R2, trying database fallback', { slug, phase });
+      logger.info('R2 returned empty results, trying database fallback', { slug, phase });
+    } catch (r2Error) {
+      logger.warn('Failed to list artifacts from R2, trying database fallback', {
+        slug,
+        phase,
+        error: r2Error instanceof Error ? r2Error.message : String(r2Error)
+      });
     }
   }
 
@@ -162,17 +168,22 @@ export const listArtifacts = async (slug: string, phase: string) => {
     const project = await dbService.getProjectBySlug(slug);
 
     if (project) {
+      logger.info('Project found in database, fetching artifacts', { slug, phase, projectId: project.id });
       const dbArtifacts = await dbService.getArtifactsByPhase(project.id, phase);
+      logger.info('Database artifacts query result', { slug, phase, count: dbArtifacts.length });
+
       if (dbArtifacts.length > 0) {
-        logger.debug('Artifacts listed from database', { slug, phase, count: dbArtifacts.length });
+        logger.info('Artifacts listed from database', { slug, phase, count: dbArtifacts.length });
         return dbArtifacts.map((artifact: { filename: string; content: string | null }) => ({
           name: artifact.filename,
           size: artifact.content ? Buffer.byteLength(artifact.content, 'utf8') : 0
         }));
       }
+    } else {
+      logger.warn('Project not found in database', { slug, phase });
     }
   } catch (dbError) {
-    logger.debug('Failed to list artifacts from database', { slug, phase, error: dbError instanceof Error ? dbError.message : String(dbError) });
+    logger.error('Failed to list artifacts from database', dbError instanceof Error ? dbError : new Error(String(dbError)), { slug, phase });
   }
 
   // Fallback to local file system (development only)
@@ -183,14 +194,14 @@ export const listArtifacts = async (slug: string, phase: string) => {
         name,
         size: statSync(resolve(phasePath, name)).size
       }));
-      logger.debug('Artifacts listed from local filesystem', { slug, phase, count: localArtifacts.length });
+      logger.info('Artifacts listed from local filesystem', { slug, phase, count: localArtifacts.length });
       return localArtifacts;
     } catch {
       // Fall through to empty array
     }
   }
 
-  logger.debug('No artifacts found in any storage layer', { slug, phase });
+  logger.warn('No artifacts found in any storage layer', { slug, phase });
   return [];
 };
 
