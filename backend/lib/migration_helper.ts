@@ -21,7 +21,7 @@ export async function migrateProjectToDatabase(slug: string) {
 
   try {
     // Get project metadata from file system
-    const metadata = getProjectMetadata(slug);
+    const metadata = await getProjectMetadata(slug);
     if (!metadata) {
       throw new Error(`Project not found: ${slug}`);
     }
@@ -46,7 +46,7 @@ export async function migrateProjectToDatabase(slug: string) {
     ];
 
     for (const phase of allPhases) {
-      const artifacts = listArtifacts(slug, phase);
+      const artifacts = await listArtifacts(slug, phase);
       for (const artifact of artifacts) {
         try {
           // Read file content from filesystem
