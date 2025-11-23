@@ -40,7 +40,7 @@ export async function POST(
       const artifacts = await listArtifacts(slug, metadata.current_phase);
       const requiredFiles = getPhaseOutputs(metadata.current_phase);
       const hasAllFiles = requiredFiles.every(file =>
-        artifacts.some(a => a.name === file)
+        artifacts.some((a: { name: string; size: number }) => a.name === file)
       );
 
       return NextResponse.json(
