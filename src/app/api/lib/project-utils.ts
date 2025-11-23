@@ -129,49 +129,69 @@ export const listAllProjects = () => {
 
 /**
  * List artifacts for a phase from R2 or local file system
+ * Falls back to database if R2 returns empty or fails
  */
 export const listArtifacts = async (slug: string, phase: string) => {
+  let r2Artifacts: Array<{ name: string; size: number }> = [];
+
   // Try R2 first if configured
   if (process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_ACCESS_KEY_ID) {
     try {
       const artifacts = await listR2Artifacts(slug, phase);
-      return artifacts.map(artifact => ({
+      r2Artifacts = artifacts.map(artifact => ({
         name: artifact.name,
         size: artifact.size,
       }));
+
+      // If R2 returns artifacts, use them
+      if (r2Artifacts.length > 0) {
+        logger.debug('Artifacts listed from R2', { slug, phase, count: r2Artifacts.length });
+        return r2Artifacts;
+      }
+
+      logger.debug('R2 returned empty results, trying database fallback', { slug, phase });
     } catch {
-      logger.debug('Failed to list artifacts from R2, trying local file system', { slug, phase });
+      logger.debug('Failed to list artifacts from R2, trying database fallback', { slug, phase });
     }
   }
 
-  // Fallback to local file system
-  const phasePath = resolve(getProjectsPath(), slug, 'specs', phase, 'v1');
-  if (!existsSync(phasePath)) {
-    // Try database as a final fallback so UI can still show artifacts
-    try {
-      const { ProjectDBService } = await import('@/backend/services/database/drizzle_project_db_service');
-      const dbService = new ProjectDBService();
-      const project = await dbService.getProjectBySlug(slug);
-      if (!project) return [];
-
-      const dbArtifacts = await dbService.getArtifactsByPhase(project.id, phase);
-      return dbArtifacts.map((artifact: { filename: string; content: string | null }) => ({
-        name: artifact.filename,
-        size: artifact.content ? Buffer.byteLength(artifact.content, 'utf8') : 0
-      }));
-    } catch (dbError) {
-      logger.debug('Failed to list artifacts from database fallback', { slug, phase, error: dbError instanceof Error ? dbError.message : String(dbError) });
-      return [];
-    }
-  }
+  // Try database fallback (important for Vercel where R2 might have consistency delays)
   try {
-    return readdirSync(phasePath).map(name => ({
-      name,
-      size: statSync(resolve(phasePath, name)).size
-    }));
-  } catch {
-    return [];
+    const { ProjectDBService } = await import('@/backend/services/database/drizzle_project_db_service');
+    const dbService = new ProjectDBService();
+    const project = await dbService.getProjectBySlug(slug);
+
+    if (project) {
+      const dbArtifacts = await dbService.getArtifactsByPhase(project.id, phase);
+      if (dbArtifacts.length > 0) {
+        logger.debug('Artifacts listed from database', { slug, phase, count: dbArtifacts.length });
+        return dbArtifacts.map((artifact: { filename: string; content: string | null }) => ({
+          name: artifact.filename,
+          size: artifact.content ? Buffer.byteLength(artifact.content, 'utf8') : 0
+        }));
+      }
+    }
+  } catch (dbError) {
+    logger.debug('Failed to list artifacts from database', { slug, phase, error: dbError instanceof Error ? dbError.message : String(dbError) });
   }
+
+  // Fallback to local file system (development only)
+  const phasePath = resolve(getProjectsPath(), slug, 'specs', phase, 'v1');
+  if (existsSync(phasePath)) {
+    try {
+      const localArtifacts = readdirSync(phasePath).map(name => ({
+        name,
+        size: statSync(resolve(phasePath, name)).size
+      }));
+      logger.debug('Artifacts listed from local filesystem', { slug, phase, count: localArtifacts.length });
+      return localArtifacts;
+    } catch {
+      // Fall through to empty array
+    }
+  }
+
+  logger.debug('No artifacts found in any storage layer', { slug, phase });
+  return [];
 };
 
 /**
