@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFileSync } from 'fs';
-import { resolve } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { ProjectDBService } from '@/backend/services/database/drizzle_project_db_service';
-import { ProjectStorage } from '@/backend/services/file_system/project_storage';
 import { saveProjectMetadata } from '@/app/api/lib/project-utils';
+import { uploadProjectIdea } from '@/lib/r2-storage';
 import { logger } from '@/lib/logger';
 import { withCorrelationId } from '@/lib/correlation-id';
 import { generalLimiter, getRateLimitKey, createRateLimitResponse } from '@/lib/rate-limiter';
@@ -129,20 +127,8 @@ const postHandler = withAuth(
         slug,
       });
 
-      // Also create filesystem structure for artifacts
-      const projectStorage = new ProjectStorage({
-        base_path: resolve(process.cwd(), 'projects'),
-      });
-      projectStorage.createProjectDirectory(slug);
-
-      // Store the project idea as initial context for the Analyst agent
-      const projectIdeaPath = resolve(
-        process.cwd(),
-        'projects',
-        slug,
-        'project_idea.txt'
-      );
-      writeFileSync(projectIdeaPath, description || name, 'utf8');
+      // Store the project idea as initial context for the Analyst agent in R2
+      await uploadProjectIdea(slug, description || name);
 
       // Save project metadata to filesystem for retrieval
       const metadata = {
