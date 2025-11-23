@@ -24,7 +24,7 @@ const executePhaseHandler = withAuth(
     try {
       const { slug } = context.params;
 
-      const metadata = getProjectMetadata(slug);
+      const metadata = await getProjectMetadata(slug);
 
       if (!metadata) {
         return NextResponse.json(

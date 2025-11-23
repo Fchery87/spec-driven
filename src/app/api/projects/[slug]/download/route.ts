@@ -14,7 +14,7 @@ export async function GET(
   try {
     const { slug } = params;
 
-    const metadata = getProjectMetadata(slug);
+    const metadata = await getProjectMetadata(slug);
 
     if (!metadata) {
       return NextResponse.json(
@@ -35,7 +35,7 @@ export async function GET(
     }
 
     // Verify HANDOFF.md exists
-    const doneArtifacts = listArtifacts(slug, 'DONE');
+    const doneArtifacts = await listArtifacts(slug, 'DONE');
     const hasHandoff = doneArtifacts.some(a => a.name === 'HANDOFF.md');
 
     if (!hasHandoff) {
@@ -51,7 +51,7 @@ export async function GET(
     // Create ZIP archive in memory
     const chunks: Buffer[] = [];
 
-    return new Promise<Response>((resolve) => {
+    return new Promise<Response>(async (resolve) => {
       const archive = archiver('zip', {
         zlib: { level: 9 }
       });
@@ -102,7 +102,7 @@ export async function GET(
       const allPhases = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'DONE'];
 
       for (const phase of allPhases) {
-        const artifacts = listArtifacts(slug, phase);
+        const artifacts = await listArtifacts(slug, phase);
         for (const artifact of artifacts) {
           try {
             const artifactPath = pathResolve(process.cwd(), 'projects', slug, 'specs', phase, 'v1', artifact.name);

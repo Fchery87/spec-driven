@@ -152,7 +152,7 @@ export async function downloadFromR2(slug: string, phase: string, name: string):
     });
 
     const response = await r2Client.send(command);
-    const chunks: Uint8Array[] = [];
+    const chunks: (Uint8Array | string | Buffer)[] = [];
 
     if (response.Body) {
       const reader = response.Body as NodeJS.ReadableStream;
@@ -161,7 +161,7 @@ export async function downloadFromR2(slug: string, phase: string, name: string):
       }
     }
 
-    return Buffer.concat(chunks);
+    return Buffer.concat(chunks as Buffer[]);
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error('Failed to download file from R2', err, { key, slug, phase, name });

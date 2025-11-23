@@ -65,7 +65,7 @@ export const saveProjectMetadata = async (slug: string, metadata: ProjectMetadat
   // Try R2 first if configured
   if (process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_ACCESS_KEY_ID) {
     try {
-      await uploadMetadataToR2(slug, metadata);
+      await uploadMetadataToR2(slug, metadata as unknown as Record<string, unknown>);
       return;
     } catch {
       logger.debug('Failed to save project metadata to R2, trying local file system', { slug });

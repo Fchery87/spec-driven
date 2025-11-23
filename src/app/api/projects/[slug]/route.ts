@@ -10,7 +10,7 @@ export async function GET(
 ) {
   try {
     const { slug } = params;
-    const metadata = getProjectMetadata(slug);
+    const metadata = await getProjectMetadata(slug);
 
     if (!metadata) {
       return NextResponse.json(
@@ -51,7 +51,7 @@ export async function PUT(
     const { slug } = params;
     const body = await request.json();
 
-    const metadata = getProjectMetadata(slug);
+    const metadata = await getProjectMetadata(slug);
 
     if (!metadata) {
       return NextResponse.json(
@@ -100,7 +100,7 @@ export async function DELETE(
     const { slug } = params;
 
     // Verify project exists before deletion
-    const metadata = getProjectMetadata(slug);
+    const metadata = await getProjectMetadata(slug);
     if (!metadata) {
       return NextResponse.json(
         { success: false, error: 'Project not found' },

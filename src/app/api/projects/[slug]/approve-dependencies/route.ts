@@ -38,7 +38,7 @@ export const POST = withAuth(
 
       const { notes: approvalNotes } = validationResult.data;
 
-      const metadata = getProjectMetadata(slug);
+      const metadata = await getProjectMetadata(slug);
 
       if (!metadata) {
         return NextResponse.json(
