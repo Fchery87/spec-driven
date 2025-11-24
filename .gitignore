@@ -257,8 +257,8 @@ docker-compose.override.yml
 
 # Project artifacts
 /projects/
-artifacts/
-generated/
+/artifacts/
+/generated/
 
 # Downloaded files
 downloads/
