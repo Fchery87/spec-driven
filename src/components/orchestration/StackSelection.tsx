@@ -5,28 +5,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle2, AlertCircle, Zap, Shield, Cpu, Sparkles, Smartphone, Globe } from "lucide-react"
+import { CheckCircle2, AlertCircle, Zap, Shield, Cpu, Sparkles } from "lucide-react"
 
-interface Stack {
+interface ArchitecturePattern {
   id: string
   name: string
   description: string
-  composition: {
-    frontend: string
-    mobile: string
-    backend: string
-    database: string
-    deployment: string
+  pattern_type: string
+  characteristics: {
+    codebase: string
+    scaling: string
+    ops_complexity: string
+    team_size: string
   }
   best_for: string[]
   strengths: string[]
   tradeoffs: string[]
-  scaling: string
+  dau_range: string
+  supports_mobile: boolean
 }
 
 interface StackSelectionProps {
   selectedStack?: string
-  onStackSelect: (stackId: string, reasoning?: string, platform?: string) => void
+  onStackSelect: (stackId: string, reasoning?: string) => void
   isLoading?: boolean
 }
 
@@ -35,114 +36,76 @@ export function StackSelection({
   onStackSelect,
   isLoading = false
 }: StackSelectionProps) {
-  const [platform, setPlatform] = useState<'web' | 'mobile' | null>(null)
   const [customStack, setCustomStack] = useState('')
   const [showCustom, setShowCustom] = useState(false)
   const [reasoning, setReasoning] = useState('')
 
-  // Define stacks for each platform
-  const WEB_STACKS: Stack[] = [
+  // Define architecture patterns
+  const ARCHITECTURE_PATTERNS: ArchitecturePattern[] = [
     {
-      id: 'nextjs_only_web',
-      name: 'Next.js Full-Stack',
-      description: 'Unified TypeScript codebase with Next.js App Router for web applications',
-      composition: {
-        frontend: 'Next.js 14 (App Router)',
-        mobile: 'N/A',
-        backend: 'Next.js API routes / tRPC',
-        database: 'PostgreSQL with Prisma',
-        deployment: 'Vercel'
+      id: 'monolithic_fullstack',
+      name: 'Monolithic Full-Stack',
+      description: 'Single unified codebase with integrated API layer',
+      pattern_type: 'Monolithic',
+      characteristics: {
+        codebase: 'Single unified repository',
+        scaling: 'Vertical scaling, managed services',
+        ops_complexity: 'Low - single deployment target',
+        team_size: 'Small to medium (1-5 engineers)'
       },
-      best_for: ['MVPs', 'dashboards', 'CRUD SaaS', 'low ops footprint', 'web apps'],
-      strengths: ['Single language', 'unified codebase', 'fast iteration', 'integrated API', 'easy deployment'],
-      tradeoffs: ['Web-only', 'less suitable for heavy backend compute'],
-      scaling: 'Good for <10k DAU, existing managed infra'
+      best_for: ['MVPs', 'startups', 'CRUD SaaS', 'dashboards', 'rapid iteration'],
+      strengths: ['Single language ecosystem', 'unified codebase', 'fast iteration', 'integrated API layer', 'low operational overhead', 'easy debugging'],
+      tradeoffs: ['Less suitable for heavy background compute', 'tightly coupled frontend/backend', 'harder to scale independent components'],
+      dau_range: '<10k DAU',
+      supports_mobile: false
     },
     {
-      id: 'hybrid_nextjs_fastapi_web',
-      name: 'Hybrid Next.js + FastAPI',
-      description: 'Decoupled services with Python backend for heavy compute on web',
-      composition: {
-        frontend: 'Next.js 14',
-        mobile: 'N/A',
-        backend: 'FastAPI (Python)',
-        database: 'PostgreSQL with SQLAlchemy',
-        deployment: 'Separate infra'
+      id: 'decoupled_services',
+      name: 'Decoupled Services',
+      description: 'Separate frontend and backend services with independent scaling',
+      pattern_type: 'Microservices',
+      characteristics: {
+        codebase: 'Separate repositories per service',
+        scaling: 'Horizontal scaling, independent service scaling',
+        ops_complexity: 'Medium - multiple deployment targets',
+        team_size: 'Medium to large (3-10+ engineers)'
       },
-      best_for: ['AI/ETL/OCR', 'long-running jobs', 'heavier backend compute', 'data pipelines'],
-      strengths: ['Decoupled services', 'Python for data science/ML', 'flexibility', 'async workers'],
-      tradeoffs: ['More operational complexity', 'separate deployments', 'web-only'],
-      scaling: 'Good for 10k-100k DAU, complex backend logic'
+      best_for: ['AI/ML workloads', 'ETL pipelines', 'heavy compute', 'complex backend logic', 'teams with Python expertise'],
+      strengths: ['Independent scaling', 'technology flexibility', 'specialized backend (Python/Go/Rust)', 'async job processing', 'better for data-heavy operations'],
+      tradeoffs: ['Increased operational complexity', 'separate deployments required', 'API contract management', 'higher latency between services'],
+      dau_range: '10k-100k+ DAU',
+      supports_mobile: false
     }
   ]
 
-  const MOBILE_STACKS: Stack[] = [
-    {
-      id: 'nextjs_only_expo',
-      name: 'Next.js + Expo',
-      description: 'Unified TypeScript codebase with Next.js App Router and Expo mobile',
-      composition: {
-        frontend: 'Next.js 14 (App Router)',
-        mobile: 'Expo with React Native',
-        backend: 'Next.js API routes / tRPC',
-        database: 'PostgreSQL with Prisma',
-        deployment: 'Vercel'
-      },
-      best_for: ['MVPs', 'dashboards', 'CRUD SaaS', 'low ops footprint', 'cross-platform apps'],
-      strengths: ['Single language', 'unified codebase', 'fast iteration', 'integrated API', 'web + mobile'],
-      tradeoffs: ['Less suitable for heavy backend compute', 'long-running jobs'],
-      scaling: 'Good for <10k DAU, existing managed infra'
-    },
-    {
-      id: 'hybrid_nextjs_fastapi_expo',
-      name: 'Hybrid Next.js + FastAPI + Expo',
-      description: 'Decoupled services with Python backend and cross-platform mobile with Expo',
-      composition: {
-        frontend: 'Next.js 14',
-        mobile: 'Expo with React Native',
-        backend: 'FastAPI (Python)',
-        database: 'PostgreSQL with SQLAlchemy',
-        deployment: 'Separate infra'
-      },
-      best_for: ['AI/ETL/OCR', 'long-running jobs', 'heavier backend compute', 'cross-platform apps'],
-      strengths: ['Decoupled services', 'Python for data science/ML', 'flexibility', 'async workers', 'web + mobile'],
-      tradeoffs: ['More operational complexity', 'separate deployments'],
-      scaling: 'Good for 10k-100k DAU, complex backend logic'
-    }
-  ]
-
-  const stacks = platform === 'web' ? WEB_STACKS : platform === 'mobile' ? MOBILE_STACKS : []
+  const patterns = ARCHITECTURE_PATTERNS
 
   const handleStackSelect = (stackId: string) => {
-    onStackSelect(stackId, reasoning, platform || undefined)
+    onStackSelect(stackId, reasoning)
   }
 
   const handleCustomStack = () => {
     if (customStack.trim()) {
-      onStackSelect('custom', reasoning, platform || undefined)
+      onStackSelect('custom', reasoning)
     }
   }
 
-  const getStackIcon = (stackId: string) => {
-    switch (stackId) {
-      case 'nextjs_only_web':
-      case 'nextjs_only_expo':
+  const getPatternIcon = (patternId: string) => {
+    switch (patternId) {
+      case 'monolithic_fullstack':
         return <Zap className="h-6 w-6 text-primary" />
-      case 'hybrid_nextjs_fastapi_web':
-      case 'hybrid_nextjs_fastapi_expo':
+      case 'decoupled_services':
         return <Cpu className="h-6 w-6 text-[hsl(var(--chart-3))]" />
       default:
         return <Shield className="h-6 w-6 text-muted-foreground" />
     }
   }
 
-  const getStackColor = (stackId: string) => {
-    switch (stackId) {
-      case 'nextjs_only_web':
-      case 'nextjs_only_expo':
+  const getPatternColor = (patternId: string) => {
+    switch (patternId) {
+      case 'monolithic_fullstack':
         return 'border-[hsl(var(--chart-2))]/40 bg-[hsl(var(--chart-2))]/10'
-      case 'hybrid_nextjs_fastapi_web':
-      case 'hybrid_nextjs_fastapi_expo':
+      case 'decoupled_services':
         return 'border-[hsl(var(--chart-3))]/40 bg-[hsl(var(--chart-3))]/10'
       default:
         return 'border-border bg-muted'
@@ -151,256 +114,209 @@ export function StackSelection({
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6">
-      {/* Platform Selector */}
+      {/* Architecture Pattern Selector */}
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold mb-4 flex items-center justify-center gap-2">
           <Sparkles className="h-6 w-6 text-[hsl(var(--chart-2))]" />
-          Choose Your Project Type
+          Choose Your Architecture Pattern
         </h2>
         <p className="text-muted-foreground max-w-2xl mx-auto mb-8">
-          First, let&apos;s determine whether you&apos;re building a web application, mobile application, or both.
+          Select the architectural approach that best matches your project scale, team size, and technical requirements. Specific technology choices will be made in the next phase.
         </p>
-
-        <div className="flex gap-4 justify-center mb-8 flex-wrap">
-          <Button
-            onClick={() => {
-              setPlatform('web')
-              setShowCustom(false)
-              setCustomStack('')
-            }}
-            variant={platform === 'web' ? 'default' : 'outline'}
-            className="flex items-center gap-2 px-6 h-12"
-          >
-            <Globe className="h-5 w-5" />
-            Web App Only
-          </Button>
-          <Button
-            onClick={() => {
-              setPlatform('mobile')
-              setShowCustom(false)
-              setCustomStack('')
-            }}
-            variant={platform === 'mobile' ? 'default' : 'outline'}
-            className="flex items-center gap-2 px-6 h-12"
-          >
-            <Smartphone className="h-5 w-5" />
-            Mobile App (with Web)
-          </Button>
-        </div>
       </div>
 
-      {platform && (
-        <>
-          <div className="text-center mb-6">
-            <h3 className="text-xl font-bold text-foreground mb-2">
-              Choose Your Technology Stack
-            </h3>
-            <p className="text-muted-foreground">
-              Select the technology stack that best fits your {platform === 'web' ? 'web application' : 'cross-platform'} requirements.
-            </p>
-          </div>
-
-          {/* Stack Options */}
-          <div className="grid gap-6 lg:grid-cols-2">
-            {stacks.map((stack) => (
-              <Card
-                key={stack.id}
-                className={`
-                  cursor-pointer transition-all hover:shadow-lg
-                  ${selectedStack === stack.id ? 'ring-2 ring-primary ' + getStackColor(stack.id) : 'hover:scale-105'}
-                `}
-                onClick={() => handleStackSelect(stack.id)}
-              >
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {getStackIcon(stack.id)}
-                      <CardTitle className="text-xl">{stack.name}</CardTitle>
-                    </div>
-                    {selectedStack === stack.id && (
-                      <CheckCircle2 className="h-6 w-6 text-[hsl(var(--chart-4))]" />
-                    )}
-                  </div>
-                  <CardDescription className="text-base">
-                    {stack.description}
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="space-y-4">
-                  {/* Best For */}
-                  <div>
-                    <h4 className="font-semibold text-sm mb-2">Best For:</h4>
-                    <div className="flex flex-wrap gap-1">
-                      {stack.best_for.map((item) => (
-                        <Badge key={item} variant="secondary" className="text-xs">
-                          {item}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Composition */}
-                  <div>
-                    <h4 className="font-semibold text-sm mb-2">Technology Composition:</h4>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div><strong>Frontend:</strong> {stack.composition.frontend}</div>
-                      {stack.composition.mobile !== 'N/A' && (
-                        <div><strong>Mobile:</strong> {stack.composition.mobile}</div>
-                      )}
-                      <div><strong>Backend:</strong> {stack.composition.backend}</div>
-                      <div><strong>Database:</strong> {stack.composition.database}</div>
-                      <div className="col-span-2"><strong>Deployment:</strong> {stack.composition.deployment}</div>
-                    </div>
-                  </div>
-
-                  {/* Strengths */}
-                  <div>
-                    <h4 className="font-semibold text-sm mb-2">Strengths:</h4>
-                    <ul className="text-sm space-y-1">
-                      {stack.strengths.map((strength, index) => (
-                        <li key={index} className="flex items-start gap-2">
-                          <CheckCircle2 className="h-3 w-3 text-[hsl(var(--chart-4))] mt-0.5 flex-shrink-0" />
-                          {strength}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {/* Tradeoffs */}
-                  <div>
-                    <h4 className="font-semibold text-sm mb-2">Trade-offs:</h4>
-                    <ul className="text-sm space-y-1">
-                      {stack.tradeoffs.map((tradeoff, index) => (
-                        <li key={index} className="flex items-start gap-2">
-                          <AlertCircle className="h-3 w-3 text-[hsl(var(--chart-3))] mt-0.5 flex-shrink-0" />
-                          {tradeoff}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {/* Scaling */}
-                  <div className="text-sm">
-                    <strong>Scaling:</strong> {stack.scaling}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {/* Custom Stack Option */}
-          <Card className="border-dashed border-border">
+      {/* Architecture Pattern Options */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {patterns.map((pattern) => (
+          <Card
+            key={pattern.id}
+            className={`
+              cursor-pointer transition-all hover:shadow-lg
+              ${selectedStack === pattern.id ? 'ring-2 ring-primary ' + getPatternColor(pattern.id) : 'hover:scale-105'}
+            `}
+            onClick={() => handleStackSelect(pattern.id)}
+          >
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-6 w-6 text-muted-foreground" />
-                Custom Stack
-              </CardTitle>
-              <CardDescription>
-                Define your own technology stack if the predefined options don&apos;t fit your needs.
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {getPatternIcon(pattern.id)}
+                  <CardTitle className="text-xl">{pattern.name}</CardTitle>
+                </div>
+                {selectedStack === pattern.id && (
+                  <CheckCircle2 className="h-6 w-6 text-[hsl(var(--chart-4))]" />
+                )}
+              </div>
+              <CardDescription className="text-base">
+                {pattern.description}
               </CardDescription>
             </CardHeader>
 
             <CardContent className="space-y-4">
-              {!showCustom ? (
-                <Button
-                  variant="outline"
-                  onClick={() => setShowCustom(true)}
-                  className="w-full"
-                >
-                  Define Custom Stack
-                </Button>
-              ) : (
-                <div className="space-y-4">
-                  <Input
-                    placeholder={`Describe your custom ${platform} stack (e.g., React + Django + PostgreSQL)`}
-                    value={customStack}
-                    onChange={(e) => setCustomStack(e.target.value)}
-                    className="w-full"
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={handleCustomStack}
-                      disabled={!customStack.trim() || isLoading}
-                      className="flex-1"
-                    >
-                      Use Custom Stack
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setShowCustom(false)
-                        setCustomStack('')
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
+              {/* Best For */}
+              <div>
+                <h4 className="font-semibold text-sm mb-2">Best For:</h4>
+                <div className="flex flex-wrap gap-1">
+                  {pattern.best_for.map((item) => (
+                    <Badge key={item} variant="secondary" className="text-xs">
+                      {item}
+                    </Badge>
+                  ))}
                 </div>
-              )}
+              </div>
+
+              {/* Characteristics */}
+              <div>
+                <h4 className="font-semibold text-sm mb-2">Architecture Characteristics:</h4>
+                <div className="grid grid-cols-1 gap-2 text-sm">
+                  <div><strong>Codebase:</strong> {pattern.characteristics.codebase}</div>
+                  <div><strong>Scaling:</strong> {pattern.characteristics.scaling}</div>
+                  <div><strong>Ops Complexity:</strong> {pattern.characteristics.ops_complexity}</div>
+                  <div><strong>Team Size:</strong> {pattern.characteristics.team_size}</div>
+                  <div><strong>Scale Range:</strong> {pattern.dau_range}</div>
+                </div>
+              </div>
+
+              {/* Strengths */}
+              <div>
+                <h4 className="font-semibold text-sm mb-2">Strengths:</h4>
+                <ul className="text-sm space-y-1">
+                  {pattern.strengths.map((strength, index) => (
+                    <li key={index} className="flex items-start gap-2">
+                      <CheckCircle2 className="h-3 w-3 text-[hsl(var(--chart-4))] mt-0.5 flex-shrink-0" />
+                      {strength}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Tradeoffs */}
+              <div>
+                <h4 className="font-semibold text-sm mb-2">Trade-offs:</h4>
+                <ul className="text-sm space-y-1">
+                  {pattern.tradeoffs.map((tradeoff, index) => (
+                    <li key={index} className="flex items-start gap-2">
+                      <AlertCircle className="h-3 w-3 text-[hsl(var(--chart-3))] mt-0.5 flex-shrink-0" />
+                      {tradeoff}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </CardContent>
           </Card>
+        ))}
+      </div>
 
-          {/* Reasoning Input */}
-          {(selectedStack || showCustom) && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Why did you choose this stack?</CardTitle>
-                <CardDescription>
-                  Help us understand your reasoning to better tailor the specifications.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <textarea
-                  className="w-full p-3 border rounded-md resize-none h-24"
-                  placeholder="e.g., I chose this because our team has extensive experience with TypeScript and we want fast iteration for our MVP..."
-                  value={reasoning}
-                  onChange={(e) => setReasoning(e.target.value)}
-                />
+      {/* Custom Pattern Option */}
+      <Card className="border-dashed border-border">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-6 w-6 text-muted-foreground" />
+            Custom Architecture
+          </CardTitle>
+          <CardDescription>
+            Define your own architecture pattern if the predefined options don&apos;t match your needs.
+          </CardDescription>
+        </CardHeader>
 
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => {
-                      if (selectedStack) {
-                        handleStackSelect(selectedStack)
-                      } else if (showCustom) {
-                        handleCustomStack()
-                      }
-                    }}
-                    disabled={isLoading}
-                    className="flex-1"
-                  >
-                    {isLoading ? 'Confirming...' : 'Confirm Stack Choice'}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      onStackSelect('')
-                      setReasoning('')
-                      setShowCustom(false)
-                      setCustomStack('')
-                    }}
-                  >
-                    Clear Selection
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+        <CardContent className="space-y-4">
+          {!showCustom ? (
+            <Button
+              variant="outline"
+              onClick={() => setShowCustom(true)}
+              className="w-full"
+            >
+              Define Custom Architecture
+            </Button>
+          ) : (
+            <div className="space-y-4">
+              <Input
+                placeholder="Describe your custom architecture pattern (e.g., Custom monolithic with message queues, specialized microservices)"
+                value={customStack}
+                onChange={(e) => setCustomStack(e.target.value)}
+                className="w-full"
+              />
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleCustomStack}
+                  disabled={!customStack.trim() || isLoading}
+                  className="flex-1"
+                >
+                  Use Custom Architecture
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowCustom(false)
+                    setCustomStack('')
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
           )}
+        </CardContent>
+      </Card>
 
-          {/* Selection Summary */}
-          {selectedStack && !showCustom && (
-            <Card className="bg-[hsl(var(--chart-4))]/10 border border-[hsl(var(--chart-4))]/30">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2 text-[hsl(var(--chart-4))]">
-                  <CheckCircle2 className="h-5 w-5 text-[hsl(var(--chart-4))]" />
-                  <span className="font-semibold">
-                    Selected: {stacks.find(s => s.id === selectedStack)?.name} for {platform} apps
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </>
+      {/* Reasoning Input */}
+      {(selectedStack || showCustom) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Why did you choose this architecture?</CardTitle>
+            <CardDescription>
+              Help us understand your reasoning so we can recommend the best specific technologies for your needs.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <textarea
+              className="w-full p-3 border rounded-md resize-none h-24"
+              placeholder="e.g., We chose monolithic because our team is small and we want fast iteration. We can scale later when needed..."
+              value={reasoning}
+              onChange={(e) => setReasoning(e.target.value)}
+            />
+
+            <div className="flex gap-2">
+              <Button
+                onClick={() => {
+                  if (selectedStack) {
+                    handleStackSelect(selectedStack)
+                  } else if (showCustom) {
+                    handleCustomStack()
+                  }
+                }}
+                disabled={isLoading}
+                className="flex-1"
+              >
+                {isLoading ? 'Confirming...' : 'Confirm Architecture Choice'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  onStackSelect('')
+                  setReasoning('')
+                  setShowCustom(false)
+                  setCustomStack('')
+                }}
+              >
+                Clear Selection
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Selection Summary */}
+      {selectedStack && !showCustom && (
+        <Card className="bg-[hsl(var(--chart-4))]/10 border border-[hsl(var(--chart-4))]/30">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-[hsl(var(--chart-4))]">
+              <CheckCircle2 className="h-5 w-5 text-[hsl(var(--chart-4))]" />
+              <span className="font-semibold">
+                Selected: {patterns.find(p => p.id === selectedStack)?.name} architecture
+              </span>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   )

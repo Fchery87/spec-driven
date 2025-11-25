@@ -28,11 +28,11 @@ const PHASES = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTION
 
 const REQUIRED_ARTIFACTS: Record<string, string[]> = {
   ANALYSIS: ['constitution.md', 'project-brief.md', 'personas.md'],
-  STACK_SELECTION: ['plan.md', 'README.md'],
+  STACK_SELECTION: ['stack-decision.md'],
   SPEC: ['PRD.md', 'data-model.md', 'api-spec.json'],
-  DEPENDENCIES: ['DEPENDENCIES.md', 'dependency-proposal.md'],
-  SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md'],
-  DONE: ['HANDOFF.md']
+  DEPENDENCIES: ['DEPENDENCIES.md', 'dependency-proposal.md', 'approval.md'],
+  SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],
+  DONE: ['README.md', 'HANDOFF.md']
 }
 
 const APPROVAL_GATES: Record<string, { field: string; displayName: string }> = {
@@ -42,11 +42,11 @@ const APPROVAL_GATES: Record<string, { field: string; displayName: string }> = {
 
 const PHASE_DESCRIPTIONS: Record<string, string> = {
   ANALYSIS: 'Analyze and clarify project requirements. AI agents will generate your project constitution, brief, and user personas.',
-  STACK_SELECTION: 'Select and approve the technology stack for your project. Choose between predefined stacks optimized for different scenarios.',
+  STACK_SELECTION: 'Choose your architecture pattern (Monolithic or Decoupled Services). This strategic decision guides specific technology choices.',
   SPEC: 'Generate detailed product and technical specifications including PRD, data model, and API specifications.',
-  DEPENDENCIES: 'Define and approve all project dependencies including npm packages, Python libraries, and system requirements.',
-  SOLUTIONING: 'Create architecture diagrams, break down work into epics and tasks, and plan implementation sequence.',
-  DONE: 'Generate final handoff document with HANDOFF.md prompt for LLM-based code generation.'
+  DEPENDENCIES: 'Review and approve the DevOps-generated dependency plan based on your architecture. Specific packages are automatically generated from your architecture choice.',
+  SOLUTIONING: 'Create architecture diagrams, break down work into epics and tasks, and generate an implementation roadmap.',
+  DONE: 'Generate final handoff document with comprehensive project README and HANDOFF.md prompt for LLM-based code generation.'
 }
 
 /**

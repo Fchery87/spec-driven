@@ -216,7 +216,7 @@ async function executeArchitectAgent(
 
 /**
  * Execute Scrum Master Agent (SOLUTIONING phase)
- * Generates: epics.md, tasks.md
+ * Generates: epics.md, tasks.md, plan.md
  */
 async function executeScrumMasterAgent(
   llmClient: GeminiClient,
@@ -235,7 +235,7 @@ async function executeScrumMasterAgent(
   });
 
   const response = await llmClient.generateCompletion(prompt);
-  const artifacts = parseArtifacts(response.content, ['epics.md', 'tasks.md']);
+  const artifacts = parseArtifacts(response.content, ['epics.md', 'tasks.md', 'plan.md']);
 
   logger.info('[SOLUTIONING] Scrum Master Agent completed', { artifacts: Object.keys(artifacts) });
   return artifacts;

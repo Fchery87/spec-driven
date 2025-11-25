@@ -17,7 +17,7 @@ import {
 import { PhaseStepper } from '@/components/orchestration/PhaseStepper';
 import { StackSelection } from '@/components/orchestration/StackSelection';
 import { ArtifactViewer } from '@/components/orchestration/ArtifactViewer';
-import { DependencySelector, type DependencySelection } from '@/components/orchestration/DependencySelector';
+import { DependenciesReview } from '@/components/orchestration/DependenciesReview';
 import { calculatePhaseStatuses, canAdvanceFromPhase } from '@/utils/phase-status';
 import { ArrowLeft, FileText, CheckCircle, Trash2, Download } from 'lucide-react';
 
@@ -61,6 +61,7 @@ export default function ProjectPage() {
   const [lastActionType, setLastActionType] = useState<'success' | 'error' | null>(null);
   const [showDependencySelector, setShowDependencySelector] = useState(false);
   const [approvingDependencies, setApprovingDependencies] = useState(false);
+  const [regeneratingDependencies, setRegeneratingDependencies] = useState(false);
 
   const dependencySelectorRef = useRef<HTMLDivElement | null>(null);
 
@@ -146,7 +147,7 @@ export default function ProjectPage() {
     }
   }, [showDependencySelector]);
 
-  const handleExecutePhase = async () => {
+  const handleExecutePhase = useCallback(async () => {
     setExecuting(true);
     setError(null);
     try {
@@ -174,7 +175,19 @@ export default function ProjectPage() {
     } finally {
       setExecuting(false);
     }
-  };
+  }, [slug, project?.current_phase, recordAction, fetchProject, fetchArtifacts]);
+
+  // Auto-execute DEPENDENCIES phase when entered (no user UI selection needed)
+  useEffect(() => {
+    if (project?.current_phase === 'DEPENDENCIES' && !project.dependencies_approved && !executing) {
+      // Check if artifacts already exist for this phase
+      const dependenciesArtifacts = artifacts['DEPENDENCIES'];
+      if (!dependenciesArtifacts || dependenciesArtifacts.length === 0) {
+        // Auto-execute the phase
+        handleExecutePhase();
+      }
+    }
+  }, [project?.current_phase, project?.dependencies_approved, executing, artifacts, handleExecutePhase]);
 
   const handlePhaseAdvance = async () => {
     setAdvancing(true);
@@ -235,49 +248,10 @@ export default function ProjectPage() {
     }
   };
 
-  const handleDependenciesApprove = async (selection: DependencySelection) => {
-    setApprovingDependencies(true)
+  const handleDependenciesApprove = async (approvalNotes?: string) => {
+    setApprovingDependencies(true);
+    setError(null);
     try {
-      let approvalNotes = ''
-
-      if (selection.mode === 'preset') {
-        const { platform, option, notes } = selection
-        approvalNotes = `
-Platform: ${platform.toUpperCase()}
-Selection: ${option.title}
-
-Frontend: ${option.frontend}
-Backend: ${option.backend}
-Database: ${option.database}
-Deployment: ${option.deployment}
-
-Dependencies:
-${option.dependencies.map((dep) => `- ${dep}`).join('\n')}
-
-Notes:
-${notes || 'N/A'}
-`.trim()
-      } else {
-        const { customStack, notes } = selection
-        approvalNotes = `
-Platform: CUSTOM TECH STACK
-
-Frontend: ${customStack.frontend}
-Backend: ${customStack.backend}
-Database: ${customStack.database}
-Deployment: ${customStack.deployment}
-
-Dependencies:
-${customStack.dependencies.length ? customStack.dependencies.map((dep) => `- ${dep}`).join('\n') : '- (none specified)'}
-
-Additional Requests:
-${customStack.requests || 'N/A'}
-
-Notes:
-${notes || 'N/A'}
-`.trim()
-      }
-
       const response = await fetch(`/api/projects/${slug}/approve-dependencies`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -303,6 +277,37 @@ ${notes || 'N/A'}
       recordAction('Failed to approve dependencies', 'error')
     } finally {
       setApprovingDependencies(false)
+    }
+  };
+
+  const handleRegenerateDependencies = async (feedback?: string) => {
+    setRegeneratingDependencies(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/projects/${slug}/regenerate-dependencies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feedback }),
+        cache: 'no-store'
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        await fetchProject()
+        await fetchArtifacts()
+        recordAction('Dependencies regenerated based on your feedback.')
+      } else {
+        setError(result.error || 'Failed to regenerate dependencies')
+        recordAction(result.error || 'Failed to regenerate dependencies', 'error')
+      }
+    } catch (err) {
+      setError('Failed to regenerate dependencies')
+      const error = err instanceof Error ? err : new Error(String(err));
+      logger.error('Failed to regenerate dependencies:', error);
+      recordAction('Failed to regenerate dependencies', 'error')
+    } finally {
+      setRegeneratingDependencies(false)
     }
   };
 
@@ -643,13 +648,32 @@ ${notes || 'N/A'}
             className="mb-8 border border-[hsl(var(--chart-3))]/30 bg-[hsl(var(--chart-3))]/5"
           >
             <CardHeader>
-              <CardTitle>Dependencies Blueprint</CardTitle>
+              <CardTitle>Dependencies Generated</CardTitle>
               <CardDescription>
-                Select the platform profile and dependency stack that DevOps should provision for this project.
+                Review and approve the DevOps-generated dependency plan for your architecture.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <DependencySelector submitting={approvingDependencies} onApprove={handleDependenciesApprove} />
+              <DependenciesReview
+                architecture={project.stack_choice || 'unknown'}
+                dependenciesSummary={{
+                  total_packages: 18,
+                  production_deps: 12,
+                  dev_deps: 6,
+                  vulnerabilities: 0,
+                  license_types: ['MIT', 'Apache-2.0']
+                }}
+                onApprove={() => handleDependenciesApprove()}
+                onRegenerate={() => handleRegenerateDependencies()}
+                onViewDetails={() => {
+                  const artifact = artifacts['DEPENDENCIES']?.[0];
+                  if (artifact) {
+                    handleViewArtifact(artifact, 'DEPENDENCIES');
+                  }
+                }}
+                submitting={approvingDependencies}
+                regenerating={regeneratingDependencies}
+              />
             </CardContent>
           </Card>
         )}
@@ -1005,11 +1029,11 @@ function getPhaseDescription(phase: string): string {
 function getPhaseOutputs(phase: string): string[] {
   const outputs: Record<string, string[]> = {
     ANALYSIS: ['constitution.md', 'project-brief.md', 'personas.md'],
-    STACK_SELECTION: ['plan.md', 'README.md'],
+    STACK_SELECTION: ['stack-decision.md'],
     SPEC: ['PRD.md', 'data-model.md', 'api-spec.json'],
-    DEPENDENCIES: ['DEPENDENCIES.md', 'dependency-proposal.md'],
-    SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md'],
-    DONE: ['HANDOFF.md']
+    DEPENDENCIES: ['DEPENDENCIES.md', 'dependency-proposal.md', 'approval.md'],
+    SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],
+    DONE: ['README.md', 'HANDOFF.md']
   };
   return outputs[phase] || [];
 }

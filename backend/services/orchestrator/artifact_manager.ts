@@ -226,8 +226,7 @@ export class ArtifactManager {
       'constitution.md': 'ANALYSIS',
       'project-brief.md': 'ANALYSIS',
       'personas.md': 'ANALYSIS',
-      'plan.md': 'STACK_SELECTION',
-      'README.md': 'STACK_SELECTION',
+      'stack-decision.md': 'STACK_SELECTION',
       'PRD.md': 'SPEC',
       'data-model.md': 'SPEC',
       'api-spec.json': 'SPEC',
@@ -236,6 +235,8 @@ export class ArtifactManager {
       'architecture.md': 'SOLUTIONING',
       'epics.md': 'SOLUTIONING',
       'tasks.md': 'SOLUTIONING',
+      'plan.md': 'SOLUTIONING',
+      'README.md': 'DONE',
       'HANDOFF.md': 'DONE'
     };
 

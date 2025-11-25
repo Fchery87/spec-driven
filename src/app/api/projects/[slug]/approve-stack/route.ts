@@ -45,40 +45,31 @@ export const POST = withAuth(
       }
 
       // Generate stack approval artifacts
-      const stackContent = `---
-title: "Technology Stack Selection"
+      const stackDecisionContent = `---
+title: "Architecture Decision"
 owner: "architect"
 version: "1"
 date: "${new Date().toISOString().split('T')[0]}"
 status: "approved"
 ---
 
-# Technology Stack Selection
+# Architecture Decision
 
-## Selected Stack
+## Selected Pattern
 **${stack_choice}**
 
 ## Rationale
-${reasoning || 'Stack selection approved.'}
+${reasoning || 'Architecture pattern approved.'}
 
 ## Date Approved
 ${new Date().toISOString()}
-`;
 
-      const readmeContent = `# Stack Selection Documentation
-
-This folder contains documentation about the approved technology stack for this project.
-
-## Approved Stack
-**${stack_choice}**
-
-## Selection Details
-See plan.md for the full rationale and decision documentation.
+## Next Steps
+This architectural decision will guide the selection of specific technologies in the DEPENDENCIES phase.
 `;
 
       // Write artifacts to filesystem
-      await writeArtifact(slug, 'STACK_SELECTION', 'plan.md', stackContent);
-      await writeArtifact(slug, 'STACK_SELECTION', 'README.md', readmeContent);
+      await writeArtifact(slug, 'STACK_SELECTION', 'stack-decision.md', stackDecisionContent);
 
       // DB-primary: persist artifacts to database
       const dbService = new ProjectDBService();
@@ -89,14 +80,8 @@ See plan.md for the full rationale and decision documentation.
           await dbService.saveArtifact(
             dbProject.id,
             'STACK_SELECTION',
-            'plan.md',
-            stackContent
-          );
-          await dbService.saveArtifact(
-            dbProject.id,
-            'STACK_SELECTION',
-            'README.md',
-            readmeContent
+            'stack-decision.md',
+            stackDecisionContent
           );
 
           logger.info('Stack approval artifacts persisted to database', {

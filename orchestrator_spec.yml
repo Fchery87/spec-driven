@@ -16,11 +16,11 @@ phases:
     
   STACK_SELECTION:
     name: "STACK_SELECTION"
-    description: "Select and approve technology stack"
+    description: "Select and approve architecture pattern"
     owner: "architect"
     duration_minutes: 20
     inputs: ["project-brief.md", "personas.md"]
-    outputs: ["plan.md", "README.md"]
+    outputs: ["stack-decision.md"]
     depends_on: ["ANALYSIS"]
     gates: ["stack_approved"]
     next_phase: "SPEC"
@@ -55,7 +55,7 @@ phases:
     owner: ["architect", "scrummaster"]
     duration_minutes: 60
     inputs: ["PRD.md", "data-model.md", "api-spec.json", "DEPENDENCIES.md"]
-    outputs: ["architecture.md", "epics.md", "tasks.md"]
+    outputs: ["architecture.md", "epics.md", "tasks.md", "plan.md"]
     depends_on: ["SPEC", "DEPENDENCIES"]
     next_phase: "DONE"
     validators: ["markdown_frontmatter", "tasks_dag", "presence", "content_coverage"]
@@ -66,7 +66,7 @@ phases:
     owner: "orchestrator"
     duration_minutes: 10
     inputs: ["all_previous_artifacts"]
-    outputs: ["HANDOFF.md", "project.zip"]
+    outputs: ["README.md", "HANDOFF.md", "project.zip"]
     depends_on: ["SOLUTIONING"]
     validators: ["handoff_complete", "zip_created"]
 
@@ -464,6 +464,18 @@ agents:
       - All tasks must have clear, testable acceptance criteria
       - No task should be blocked by circular dependencies
 
+      ### 3. plan.md
+      Create a high-level execution plan including:
+      - **Project Timeline**: Estimated phases and milestones
+      - **Sprint Structure**: Recommended sprint length and capacity planning
+      - **MVP Scope**: What's included in the MVP (Phase 1)
+      - **Phase 2 Scope**: What comes after MVP
+      - **Risk Assessment**: Key technical and execution risks
+      - **Resource Requirements**: Team composition and skill requirements
+      - **Success Metrics**: How to measure project success
+      - **Go-Live Strategy**: Deployment and rollout plan
+      - **Support and Maintenance**: Post-launch support model
+
       **Output Format for epics.md:**
       ```
       filename: epics.md
@@ -492,7 +504,26 @@ agents:
       <content here>
       ```
 
-      Generate both files now, ensuring comprehensive coverage of all requirements and a clear execution path.
+      **Output Format for plan.md:**
+      ```
+      filename: plan.md
+      ---
+      title: Execution Plan
+      owner: scrummaster
+      version: 1.0
+      date: <current-date>
+      status: draft
+      ---
+
+      <content here>
+      ```
+
+      ## CRITICAL INSTRUCTIONS:
+      - Generate ALL THREE files: epics.md, tasks.md, AND plan.md
+      - Each file MUST use the exact output format shown above (with filename: marker and markdown code block)
+      - Do NOT truncate or skip any files
+      - plan.md is REQUIRED and must contain substantial content about timeline, sprints, MVP scope, risks, resources, metrics, and go-live strategy
+      - Generate now, ensuring comprehensive coverage of all requirements and a clear execution path.
       
   devops:
     role: "DevOps Engineer"
@@ -503,14 +534,17 @@ agents:
       - "Create deployment and monitoring setup"
     prompt_template: |
       You are a DevOps Engineer (Infrastructure & SRE perspective).
-      Your task: Define all project dependencies for the approved technology stack.
+      Your task: Define all project dependencies for the approved technology architecture.
 
       ## Context:
       - PRD.md is provided as a context document
-      - Stack information (from stack choice: {{stackChoice}}) is provided as context
+      - Architecture pattern (from stack choice: {{stackChoice}}) is provided as context
+      - Your dependency choices will be reviewed by stakeholders before implementation
 
       ## Your Task:
-      Generate comprehensive dependency documentation for the approved stack.
+      Generate comprehensive and well-reasoned dependency documentation for the approved architecture.
+      Focus on QUALITY OVER QUANTITY: Select battle-tested, widely-adopted packages that are actively maintained.
+      Minimize total dependency count while ensuring all critical functionality is covered.
 
       ### For Next.js-Only + Expo Stack:
       Generate **DEPENDENCIES.md** listing:
@@ -576,11 +610,23 @@ agents:
 
       ## For Each Dependency:
       Provide:
-      1. **Name and Version**: Exact or range
-      2. **Rationale**: WHY this dependency was chosen
-      3. **Security**: License type (MIT, Apache 2.0, etc.) and any security considerations
-      4. **Constraints**: Version constraints and compatibility notes
-      5. **Status**: Note if deprecated, outdated, or has known issues
+      1. **Name and Version**: Exact version or range (prefer exact for production)
+      2. **Rationale**: WHY this dependency was chosen (tie to requirements from PRD)
+      3. **Security**:
+         - License type (MIT, Apache 2.0, GPL, etc.)
+         - Known vulnerabilities status (NONE / LOW / MEDIUM / HIGH / CRITICAL)
+         - Maintenance status (Active/Stable/Deprecated)
+      4. **Constraints**: Version constraints and compatibility requirements
+      5. **Alternatives**: 1-2 alternative packages briefly mentioned with trade-offs
+      6. **Status**: Production-ready, Stable, Actively maintained, etc.
+
+      ## Important Guidelines:
+      - Flag any HIGH or CRITICAL vulnerabilities explicitly
+      - Prefer packages with MIT, Apache 2.0, or BSD licenses
+      - Verify maintenance status (updated within last 6 months)
+      - Include only packages that are truly necessary
+      - Group related packages and explain their relationships
+      - For each category, explain the architectural need
 
       ## Output Format:
       ```
@@ -595,31 +641,41 @@ agents:
 
       # Project Dependencies
 
-      ## Dependency Policy
-      - No deprecated packages
-      - No packages with HIGH or CRITICAL vulnerabilities
-      - Regular security audits required
-      - Keep dependencies up to date
+      ## Executive Summary
+      - **Total Packages**: [count] (Production: [X], Development: [Y])
+      - **Security Status**: [GREEN/YELLOW/RED - all clear/minor issues/critical issues]
+      - **License Compliance**: [All MIT/Apache/BSD/Mixed]
+      - **Maintenance**: All packages actively maintained
+
+      ## Dependency Policy & Compliance
+      - ✓ No deprecated packages
+      - ✓ No HIGH or CRITICAL vulnerabilities
+      - ✓ All licenses compatible with project goals
+      - ✓ Regular security updates recommended (quarterly minimum)
+      - ✓ Keep dependencies up to date with patch versions
 
       ## [Category Name]
       ### Package Name (version)
-      - **Rationale**: Why we need this
-      - **License**: MIT/Apache/etc
-      - **Security**: Notes
-      - **Constraints**: Version requirements
-      - **Status**: Active/Stable
+      - **Rationale**: Why we need this for [specific feature/requirement]
+      - **License**: MIT / Apache 2.0 / etc
+      - **Security**: Actively maintained, last update [timeframe], no known vulnerabilities
+      - **Constraints**: Compatible with [other packages]
+      - **Alternatives**: [Alternative 1] (pros/cons), [Alternative 2] (pros/cons)
+      - **Status**: Production-ready, Stable
 
       ...
       ```
 
       Also generate **dependency-proposal.md** with:
-      - Summary of dependency count by category
-      - Total bundle size estimate
-      - Security audit summary
-      - Recommended update schedule
-      - Alternative options considered
+      - **Summary**: Total dependency count by type (production/dev)
+      - **Security Audit**: Vulnerability count by severity, compliance status
+      - **Licenses**: Summary of license types used
+      - **Bundle Impact**: Estimated bundle size, performance implications
+      - **Update Strategy**: Recommended upgrade/patch schedule (e.g., patch weekly, minor monthly, major quarterly)
+      - **Risk Assessment**: Any dependencies to monitor closely
+      - **Alternatives Considered**: High-level comparison with alternative stacks
 
-      Generate both files now based on stack choice: {{stackChoice}}
+      Generate both files now based on architecture choice: {{stackChoice}}
 
 # Validation rules
 validators:
