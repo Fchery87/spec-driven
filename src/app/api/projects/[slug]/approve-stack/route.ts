@@ -35,9 +35,9 @@ export const POST = withAuth(
 
       const { stack_choice, reasoning, platform } = validationResult.data;
 
-      const metadata = await getProjectMetadata(slug);
+      const metadata = await getProjectMetadata(slug, session.user.id);
 
-      if (!metadata) {
+      if (!metadata || metadata.created_by_id !== session.user.id) {
         return NextResponse.json(
           { success: false, error: 'Project not found' },
           { status: 404 }
@@ -73,7 +73,7 @@ This architectural decision will guide the selection of specific technologies in
 
       // DB-primary: persist artifacts to database
       const dbService = new ProjectDBService();
-      const dbProject = await dbService.getProjectBySlug(slug);
+      const dbProject = await dbService.getProjectBySlug(slug, session.user.id);
 
       if (dbProject) {
         try {
@@ -105,6 +105,7 @@ This architectural decision will guide the selection of specific technologies in
         stack_approved: true,
         stack_approval_date: new Date().toISOString(),
         stack_reasoning: reasoning,
+        created_by_id: metadata.created_by_id || session.user.id,
         updated_at: new Date().toISOString(),
       };
 

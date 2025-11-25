@@ -21,32 +21,34 @@ export interface ProjectData {
   dependencies_approved?: boolean;
   handoff_generated?: boolean;
   handoff_generated_at?: Date | string | null;
+  owner_id?: string;
 }
 
 /**
  * Create a new project in the database
  */
-export async function createProject(data: ProjectData): Promise<Project> {
+export async function createProject(data: ProjectData & { owner_id: string }): Promise<Project> {
   return dbService.createProject({
     slug: data.slug,
     name: data.name,
     description: data.description || undefined,
+    ownerId: data.owner_id,
   });
 }
 
 /**
  * Get a project by slug
  */
-export async function getProjectBySlug(slug: string): Promise<Project | null> {
-  const project = await dbService.getProjectBySlug(slug);
+export async function getProjectBySlug(slug: string, ownerId?: string): Promise<Project | null> {
+  const project = await dbService.getProjectBySlug(slug, ownerId);
   return project || null;
 }
 
 /**
  * Get a project by ID
  */
-export async function getProjectById(id: string): Promise<Project | null> {
-  const project = await dbService.getProjectById(id);
+export async function getProjectById(id: string, ownerId?: string): Promise<Project | null> {
+  const project = await dbService.getProjectById(id, ownerId);
   return project || null;
 }
 
@@ -57,14 +59,18 @@ export async function updateProject(
   id: string,
   data: Partial<ProjectData>
 ): Promise<Project> {
-  const project = await getProjectById(id);
+  const project = await getProjectById(id, data.owner_id);
   if (!project) {
     throw new Error(`Project not found: ${id}`);
   }
 
   // Use the drizzle service to update
   // For now, we'll need to update by slug since our service uses slug
-  return dbService.updateProjectPhase(project.slug, data.current_phase || project.currentPhase);
+  return dbService.updateProjectPhase(
+    project.slug,
+    data.current_phase || project.currentPhase,
+    data.owner_id
+  );
 }
 
 /**
@@ -74,7 +80,8 @@ export async function updateProjectMetadata(
   slug: string,
   metadata: Record<string, unknown>
 ): Promise<Project> {
-  const project = await getProjectBySlug(slug);
+  const ownerId = typeof metadata.owner_id === 'string' ? metadata.owner_id : undefined;
+  const project = await getProjectBySlug(slug, ownerId);
   if (!project) {
     throw new Error(`Project not found: ${slug}`);
   }
@@ -84,23 +91,28 @@ export async function updateProjectMetadata(
   // we'll update specific fields as needed
 
   if (metadata.current_phase && typeof metadata.current_phase === 'string') {
-    return dbService.updateProjectPhase(slug, metadata.current_phase);
+    return dbService.updateProjectPhase(slug, metadata.current_phase, ownerId);
   }
 
   if (metadata.stack_choice && metadata.stack_approved) {
     return dbService.approveStackSelection(
       slug,
       String(metadata.stack_choice),
-      String(metadata.stack_reasoning || '')
+      String(metadata.stack_reasoning || ''),
+      ownerId
     );
   }
 
   if (metadata.dependencies_approved) {
-    return dbService.approveDependencies(slug, String(metadata.dependencies_approval_notes || ''));
+    return dbService.approveDependencies(
+      slug,
+      String(metadata.dependencies_approval_notes || ''),
+      ownerId
+    );
   }
 
   if (metadata.handoff_generated) {
-    return dbService.markHandoffGenerated(slug);
+    return dbService.markHandoffGenerated(slug, ownerId);
   }
 
   // If no specific update, just return the project as-is
@@ -110,9 +122,9 @@ export async function updateProjectMetadata(
 /**
  * Delete a project and all related artifacts
  */
-export async function deleteProject(slug: string): Promise<boolean> {
+export async function deleteProject(slug: string, ownerId?: string): Promise<boolean> {
   try {
-    await dbService.deleteProject(slug);
+    await dbService.deleteProject(slug, ownerId);
     return true;
   } catch (error) {
     logger.error(`Error deleting project ${slug}`, error instanceof Error ? error : new Error(String(error)), { slug });
@@ -125,9 +137,10 @@ export async function deleteProject(slug: string): Promise<boolean> {
  */
 export async function listProjects(
   skip: number = 0,
-  take: number = 50
+  take: number = 50,
+  ownerId?: string
 ): Promise<{ projects: Project[]; total: number }> {
-  return dbService.listProjects(skip, take);
+  return dbService.listProjects(skip, take, ownerId);
 }
 
 /**

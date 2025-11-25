@@ -1,58 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProjectMetadata, listArtifacts, readArtifact } from '@/app/api/lib/project-utils';
 import archiver from 'archiver';
+import { withAuth, type AuthSession } from '@/app/api/middleware/auth-guard';
 import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ slug: string }> }
-): Promise<Response> {
-  try {
-    const { slug } = await params;
+export const GET = withAuth(
+  async (
+    _request: NextRequest,
+    { params }: { params: Promise<{ slug: string }> },
+    session: AuthSession
+  ): Promise<Response> => {
+    try {
+      const { slug } = await params;
 
-    const metadata = await getProjectMetadata(slug);
+      const metadata = await getProjectMetadata(slug, session.user.id);
 
-    if (!metadata) {
-      return NextResponse.json(
-        { success: false, error: 'Project not found' },
-        { status: 404 }
-      );
-    }
+      if (!metadata || metadata.created_by_id !== session.user.id) {
+        return NextResponse.json(
+          { success: false, error: 'Project not found' },
+          { status: 404 }
+        );
+      }
 
-    // Only allow download in DONE phase
-    if (metadata.current_phase !== 'DONE') {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Cannot download incomplete project. Current phase: ${metadata.current_phase}`
-        },
-        { status: 400 }
-      );
-    }
+      // Only allow download in DONE phase
+      if (metadata.current_phase !== 'DONE') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Cannot download incomplete project. Current phase: ${metadata.current_phase}`
+          },
+          { status: 400 }
+        );
+      }
 
-    // Verify HANDOFF.md exists
-    const doneArtifacts = await listArtifacts(slug, 'DONE');
-    const hasHandoff = doneArtifacts.some((a: { name: string }) => a.name === 'HANDOFF.md');
+      // Verify HANDOFF.md exists
+      const doneArtifacts = await listArtifacts(slug, 'DONE');
+      const hasHandoff = doneArtifacts.some((a: { name: string }) => a.name === 'HANDOFF.md');
 
-    if (!hasHandoff) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'HANDOFF.md not generated. Call /generate-handoff endpoint first.'
-        },
-        { status: 400 }
-      );
-    }
+      if (!hasHandoff) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'HANDOFF.md not generated. Call /generate-handoff endpoint first.'
+          },
+          { status: 400 }
+        );
+      }
 
-    // Create ZIP archive in memory
-    const chunks: Buffer[] = [];
+      // Create ZIP archive in memory
+      const chunks: Buffer[] = [];
 
-    return new Promise<Response>(async (resolve) => {
-      const archive = archiver('zip', {
-        zlib: { level: 9 }
-      });
+      return new Promise<Response>(async (resolve) => {
+        const archive = archiver('zip', {
+          zlib: { level: 9 }
+        });
 
       // Collect data
       archive.on('data', (chunk: Buffer) => {
@@ -171,17 +174,18 @@ Project: ${metadata.name}
 `;
       archive.append(readmeContent, { name: `${slug}/README.md` });
 
-      archive.finalize();
-    });
-  } catch (error) {
-    const err = error instanceof Error ? error : new Error(String(error));
-    logger.error('Error creating download:', err);
-    return NextResponse.json(
-      {
-        success: false,
-        error: `Failed to create download: ${err.message}`
-      },
-      { status: 500 }
-    );
+        archive.finalize();
+      });
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      logger.error('Error creating download:', err);
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Failed to create download: ${err.message}`
+        },
+        { status: 500 }
+      );
+    }
   }
-}
+);

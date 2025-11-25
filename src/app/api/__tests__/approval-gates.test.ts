@@ -26,6 +26,7 @@ describe('Approval Gates and Phase Execution', () => {
     stack_choice: 'Node.js + React',
     stack_approved: true,
     dependencies_approved: false,
+    created_by_id: 'test-user-123',
     created_at: '2025-01-01T00:00:00Z',
     updated_at: '2025-01-01T00:00:00Z',
     orchestration_state: {}
@@ -41,6 +42,7 @@ describe('Approval Gates and Phase Execution', () => {
     stackChoice: 'Node.js + React',
     stackApproved: true,
     dependenciesApproved: false,
+    ownerId: 'test-user-123',
     createdAt: new Date('2025-01-01'),
     updatedAt: new Date('2025-01-01')
   };

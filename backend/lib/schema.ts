@@ -15,6 +15,7 @@ export const projects = pgTable('Project', {
   stackApproved: boolean('stack_approved').notNull().default(false),
   dependenciesApproved: boolean('dependencies_approved').notNull().default(false),
   handoffGenerated: boolean('handoff_generated').notNull().default(false),
+  ownerId: uuid('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
 
   // Timestamps
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -23,6 +24,7 @@ export const projects = pgTable('Project', {
 }, (table) => ({
   slugIdx: index('Project_slug_idx').on(table.slug),
   createdAtIdx: index('Project_created_at_idx').on(table.createdAt),
+  ownerIdx: index('Project_owner_id_idx').on(table.ownerId),
 }));
 
 // Artifact model - stores generated specifications

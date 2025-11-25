@@ -22,6 +22,7 @@ export interface ProjectMetadata {
   stack_choice?: string | null;
   stack_approved: boolean;
   dependencies_approved: boolean;
+  created_by_id?: string;
   handoff_generated?: boolean;
   handoff_generated_at?: string;
   orchestration_state?: Record<string, unknown>;
@@ -35,12 +36,23 @@ export const getProjectsPath = () => resolve(process.cwd(), 'projects');
  * Get project metadata from R2 or local file system
  * Tries R2 first if configured, falls back to local file system
  */
-export const getProjectMetadata = async (slug: string) => {
+export const getProjectMetadata = async (slug: string, ownerId?: string) => {
   // Try R2 first if configured
   if (process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_ACCESS_KEY_ID) {
     try {
       const buffer = await downloadFromR2(slug, 'metadata', 'metadata.json');
-      return JSON.parse(buffer.toString('utf-8'));
+      const metadata = JSON.parse(buffer.toString('utf-8'));
+      if (ownerId) {
+        if (!metadata.created_by_id) {
+          logger.warn('Metadata missing owner in R2 payload', { slug, ownerId });
+          return null;
+        }
+        if (metadata.created_by_id !== ownerId) {
+          logger.warn('Metadata ownership mismatch from R2', { slug, ownerId, createdBy: metadata.created_by_id });
+          return null;
+        }
+      }
+      return metadata;
     } catch {
       logger.debug('Failed to get project metadata from R2, trying local file system', { slug });
     }
@@ -50,7 +62,18 @@ export const getProjectMetadata = async (slug: string) => {
   try {
     const path = resolve(getProjectsPath(), slug, 'metadata.json');
     if (existsSync(path)) {
-      return JSON.parse(readFileSync(path, 'utf8'));
+      const metadata = JSON.parse(readFileSync(path, 'utf8'));
+      if (ownerId) {
+        if (!metadata.created_by_id) {
+          logger.warn('Metadata missing owner in filesystem payload', { slug, ownerId });
+          return null;
+        }
+        if (metadata.created_by_id !== ownerId) {
+          logger.warn('Metadata ownership mismatch from filesystem', { slug, ownerId, createdBy: metadata.created_by_id });
+          return null;
+        }
+      }
+      return metadata;
     }
   } catch {
     // ignore and fall through to DB lookup
@@ -60,7 +83,7 @@ export const getProjectMetadata = async (slug: string) => {
   try {
     const { ProjectDBService } = await import('@/backend/services/database/drizzle_project_db_service');
     const dbService = new ProjectDBService();
-    const project = await dbService.getProjectBySlug(slug);
+    const project = await dbService.getProjectBySlug(slug, ownerId);
     if (project) {
       return {
         id: project.id,
@@ -74,6 +97,7 @@ export const getProjectMetadata = async (slug: string) => {
         dependencies_approved: project.dependenciesApproved,
         handoff_generated: project.handoffGenerated,
         handoff_generated_at: project.handoffGeneratedAt?.toISOString?.(),
+        created_by_id: project.ownerId,
         orchestration_state: project.orchestrationState || { artifact_versions: {}, phase_history: [], approval_gates: {} },
         created_at: project.createdAt?.toISOString?.(),
         updated_at: project.updatedAt?.toISOString?.()
@@ -351,7 +375,14 @@ export const deleteProject = (slug: string): boolean => {
 export async function persistProjectToDB(slug: string, metadata: ProjectMetadata) {
   try {
     const db = await import('@/lib/db');
-    const project = await db.getProjectBySlug(slug);
+    const ownerId = metadata.created_by_id;
+
+    if (!ownerId) {
+      logger.warn('Skipping database persistence because owner is missing', { slug });
+      return;
+    }
+
+    const project = await db.getProjectBySlug(slug, ownerId);
 
     // Ensure phases_completed is a string (comma-separated, not an array)
     const phasesCompleted = Array.isArray(metadata.phases_completed)
@@ -361,6 +392,7 @@ export async function persistProjectToDB(slug: string, metadata: ProjectMetadata
     if (project) {
       await db.updateProjectMetadata(slug, {
         ...metadata,
+        owner_id: ownerId,
         phases_completed: phasesCompleted,
       });
     } else {
@@ -375,6 +407,7 @@ export async function persistProjectToDB(slug: string, metadata: ProjectMetadata
         dependencies_approved: metadata.dependencies_approved,
         handoff_generated: metadata.handoff_generated,
         handoff_generated_at: metadata.handoff_generated_at,
+        owner_id: ownerId,
       });
     }
   } catch (error) {
@@ -383,10 +416,10 @@ export async function persistProjectToDB(slug: string, metadata: ProjectMetadata
   }
 }
 
-export async function deleteProjectFromDB(slug: string): Promise<boolean> {
+export async function deleteProjectFromDB(slug: string, ownerId?: string): Promise<boolean> {
   try {
     const db = await import('@/lib/db');
-    return await db.deleteProject(slug);
+    return await db.deleteProject(slug, ownerId);
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error(`Error deleting project ${slug} from database:`, err);

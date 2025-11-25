@@ -38,9 +38,9 @@ export const POST = withAuth(
 
       const { feedback } = validationResult.data;
 
-      const metadata = await getProjectMetadata(slug);
+      const metadata = await getProjectMetadata(slug, session.user.id);
 
-      if (!metadata) {
+      if (!metadata || metadata.created_by_id !== session.user.id) {
         return NextResponse.json(
           { success: false, error: 'Project not found' },
           { status: 404 }

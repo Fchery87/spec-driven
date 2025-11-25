@@ -15,58 +15,65 @@ export const runtime = 'nodejs';
  * GET /api/projects
  * List all projects from database
  */
-export const GET = withCorrelationId(async (request: NextRequest) => {
-  // Rate limiting
-  const rateLimitKey = getRateLimitKey(request);
-  const isAllowed = await generalLimiter.isAllowed(rateLimitKey);
+const getHandler = withAuth(
+  async (request: NextRequest, _context: unknown, session: AuthSession) => {
+    // Rate limiting
+    const rateLimitKey = getRateLimitKey(request);
+    const isAllowed = await generalLimiter.isAllowed(rateLimitKey);
 
-  if (!isAllowed) {
-    const remaining = generalLimiter.getRemainingPoints(rateLimitKey);
-    return createRateLimitResponse(remaining, Date.now() + 60000, 60);
-  }
+    if (!isAllowed) {
+      const remaining = generalLimiter.getRemainingPoints(rateLimitKey);
+      return createRateLimitResponse(remaining, Date.now() + 60000, 60);
+    }
 
-  try {
-    logger.debug('GET /api/projects - fetching projects list');
-    const dbService = new ProjectDBService();
-    const result = await dbService.listProjects();
+    try {
+      logger.debug('GET /api/projects - fetching projects list', {
+        ownerId: session.user.id,
+      });
+      const dbService = new ProjectDBService();
+      const result = await dbService.listProjects(0, 20, session.user.id);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const projectDetails = result.projects.map((project: any) => ({
-      id: project.id,
-      slug: project.slug,
-      name: project.name,
-      description: project.description,
-      current_phase: project.currentPhase,
-      stack_choice: project.stackChoice,
-      stack_approved: project.stackApproved,
-      dependencies_approved: project.dependenciesApproved,
-      created_at: project.createdAt,
-      updated_at: project.updatedAt,
-      artifact_count: 0 // TODO: Add proper count from relations
-    }));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const projectDetails = result.projects.map((project: any) => ({
+        id: project.id,
+        slug: project.slug,
+        name: project.name,
+        description: project.description,
+        current_phase: project.currentPhase,
+        stack_choice: project.stackChoice,
+        stack_approved: project.stackApproved,
+        dependencies_approved: project.dependenciesApproved,
+        created_at: project.createdAt,
+        updated_at: project.updatedAt,
+        artifact_count: 0, // TODO: Add proper count from relations
+        created_by_id: project.ownerId,
+      }));
 
-    logger.info('GET /api/projects - success', { count: result.total });
-    return NextResponse.json(
-      {
-        success: true,
-        data: projectDetails,
-        total: result.total
-      },
-      {
-        headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      logger.info('GET /api/projects - success', { count: result.total, ownerId: session.user.id });
+      return NextResponse.json(
+        {
+          success: true,
+          data: projectDetails,
+          total: result.total
+        },
+        {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+          }
         }
-      }
-    );
-  } catch (error) {
-    const err = error instanceof Error ? error : new Error(String(error));
-    logger.error('GET /api/projects - failed', err);
-    return NextResponse.json(
-      { success: false, error: 'Failed to list projects' },
-      { status: 500 }
-    );
+      );
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      logger.error('GET /api/projects - failed', err);
+      return NextResponse.json(
+        { success: false, error: 'Failed to list projects' },
+        { status: 500 }
+      );
+    }
   }
-});
+);
+
+export const GET = withCorrelationId((request: NextRequest) => getHandler(request, {}));
 
 const postHandler = withAuth(
   async (
@@ -121,11 +128,19 @@ const postHandler = withAuth(
 
       // Create project in database with initialized orchestration state
       const dbService = new ProjectDBService();
-      const dbProject = await dbService.createProjectWithState({
+      const dbProject =
+        (await dbService.createProjectWithState({
         name,
         description: description || undefined,
         slug,
-      });
+        ownerId: session.user.id,
+      })) ||
+        (await dbService.createProject({
+          name,
+          description: description || undefined,
+          slug,
+          ownerId: session.user.id,
+        }));
 
       // Store the project idea as initial context for the Analyst agent in R2
       await uploadProjectIdea(slug, description || name);
@@ -143,7 +158,12 @@ const postHandler = withAuth(
         dependencies_approved: dbProject.dependenciesApproved,
         created_at: dbProject.createdAt.toISOString(),
         updated_at: dbProject.updatedAt.toISOString(),
-        orchestration_state: dbProject.orchestrationState,
+        orchestration_state: dbProject.orchestrationState || {
+          artifact_versions: {},
+          phase_history: [],
+          approval_gates: {},
+        },
+        created_by_id: session.user.id,
       };
       await saveProjectMetadata(slug, metadata);
 

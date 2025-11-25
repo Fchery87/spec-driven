@@ -23,7 +23,7 @@ const executePhaseHandler = withAuth(
     try {
       const { slug } = await context.params;
 
-      const metadata = await getProjectMetadata(slug);
+      const metadata = await getProjectMetadata(slug, session.user.id);
 
       if (!metadata) {
         return NextResponse.json(
@@ -31,6 +31,12 @@ const executePhaseHandler = withAuth(
           { status: 404 }
         );
       }
+    if (metadata.created_by_id !== session.user.id) {
+      return NextResponse.json(
+        { success: false, error: 'Project not found' },
+        { status: 404 }
+      );
+    }
 
     // Skip execution for user-driven phases
     if (metadata.current_phase === 'STACK_SELECTION') {
@@ -95,7 +101,7 @@ const executePhaseHandler = withAuth(
       slug,
       name: metadata.name,
       description: metadata.description || '',
-      created_by_id: metadata.created_by_id || '',
+      created_by_id: metadata.created_by_id || session.user.id,
       current_phase: metadata.current_phase,
       phases_completed: Array.isArray(metadata.phases_completed)
         ? metadata.phases_completed
@@ -120,7 +126,7 @@ const executePhaseHandler = withAuth(
       // Record phase execution failure in database
       try {
         const dbService = new ProjectDBService();
-        const dbProject = await dbService.getProjectBySlug(slug);
+        const dbProject = await dbService.getProjectBySlug(slug, session.user.id);
         if (dbProject) {
           await dbService.recordPhaseHistory(
             dbProject.id,
@@ -144,7 +150,7 @@ const executePhaseHandler = withAuth(
 
     // Save artifacts to R2 and database
     const dbService = new ProjectDBService();
-    const dbProject = await dbService.getProjectBySlug(slug);
+    const dbProject = await dbService.getProjectBySlug(slug, session.user.id);
 
     logger.debug('Orchestrator result artifacts', {
       project: slug,

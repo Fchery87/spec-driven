@@ -26,11 +26,17 @@ export async function migrateProjectToDatabase(slug: string) {
       throw new Error(`Project not found: ${slug}`);
     }
 
+    const ownerId = metadata.created_by_id;
+    if (!ownerId) {
+      throw new Error(`Project owner missing for ${slug}`);
+    }
+
     // Create project in database
     const project = await dbService.createProject({
       name: metadata.name,
       description: metadata.description,
-      slug
+      slug,
+      ownerId
     });
 
     logger.info(`Created database project: ${project.id}`);
@@ -80,7 +86,8 @@ export async function migrateProjectToDatabase(slug: string) {
       await dbService.approveStackSelection(
         slug,
         metadata.stack_choice,
-        'Migrated from file-based storage'
+        'Migrated from file-based storage',
+        ownerId
       );
     }
 
@@ -88,7 +95,8 @@ export async function migrateProjectToDatabase(slug: string) {
     if (metadata.dependencies_approved) {
       await dbService.approveDependencies(
         slug,
-        'Migrated from file-based storage'
+        'Migrated from file-based storage',
+        ownerId
       );
     }
 

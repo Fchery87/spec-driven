@@ -541,6 +541,12 @@
           "notNull": true,
           "default": false
         },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
         "handoff_generated": {
           "name": "handoff_generated",
           "type": "boolean",
@@ -599,9 +605,41 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "Project_owner_id_idx": {
+          "name": "Project_owner_id_idx",
+          "columns": [
+            {
+              "expression": "owner_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
-      "foreignKeys": {},
+      "foreignKeys": {
+        "Project_owner_id_User_id_fk": {
+          "name": "Project_owner_id_User_id_fk",
+          "tableFrom": "Project",
+          "tableTo": "User",
+          "schemaFrom": "",
+          "schemaTo": "",
+          "columnsFrom": [
+            "owner_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action",
+          "matchType": "simple"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
         "Project_slug_unique": {

@@ -26,12 +26,14 @@ export class ProjectDBService {
     name: string;
     description?: string;
     slug: string;
+    ownerId: string;
   }) {
     const result = await db.insert(projects).values({
       id: uuidv4(),
       slug: data.slug,
       name: data.name,
       description: data.description || null,
+      ownerId: data.ownerId,
       currentPhase: 'ANALYSIS',
       phasesCompleted: ''
     }).returning();
@@ -46,6 +48,7 @@ export class ProjectDBService {
     name: string;
     description?: string;
     slug: string;
+    ownerId: string;
   }) {
     // First create the project
     const project = await this.createProject(data);
@@ -69,9 +72,11 @@ export class ProjectDBService {
   /**
    * Get project by slug
    */
-  async getProjectBySlug(slug: string) {
+  async getProjectBySlug(slug: string, ownerId?: string) {
     const project = await db.query.projects.findFirst({
-      where: eq(projects.slug, slug),
+      where: ownerId
+        ? and(eq(projects.slug, slug), eq(projects.ownerId, ownerId))
+        : eq(projects.slug, slug),
       with: {
         artifacts: true,
         phaseHistory: {
@@ -87,9 +92,11 @@ export class ProjectDBService {
   /**
    * Get project by ID
    */
-  async getProjectById(id: string) {
+  async getProjectById(id: string, ownerId?: string) {
     const project = await db.query.projects.findFirst({
-      where: eq(projects.id, id),
+      where: ownerId
+        ? and(eq(projects.id, id), eq(projects.ownerId, ownerId))
+        : eq(projects.id, id),
       with: {
         artifacts: true,
         phaseHistory: {
@@ -104,14 +111,19 @@ export class ProjectDBService {
   /**
    * List all projects
    */
-  async listProjects(skip = 0, take = 20) {
+  async listProjects(skip = 0, take = 20, ownerId?: string) {
+    const ownerWhere = ownerId ? eq(projects.ownerId, ownerId) : undefined;
+
     const projectsResult = await db.query.projects.findMany({
       offset: skip,
       limit: take,
-      orderBy: [desc(projects.createdAt)]
+      orderBy: [desc(projects.createdAt)],
+      where: ownerWhere
     });
 
-    const total = await db.select({ count: count() }).from(projects);
+    const total = ownerWhere
+      ? await db.select({ count: count() }).from(projects).where(ownerWhere)
+      : await db.select({ count: count() }).from(projects);
     const totalValue = total[0].count;
 
     return { 
@@ -125,8 +137,8 @@ export class ProjectDBService {
   /**
    * Update project phase
    */
-  async updateProjectPhase(slug: string, newPhase: string) {
-    const project = await this.getProjectBySlug(slug);
+  async updateProjectPhase(slug: string, newPhase: string, ownerId?: string) {
+    const project = await this.getProjectBySlug(slug, ownerId);
     if (!project) throw new Error('Project not found');
 
     const phasesCompleted = project.phasesCompleted
@@ -143,7 +155,7 @@ export class ProjectDBService {
         phasesCompleted: phasesCompleted.join(','),
         updatedAt: new Date()
       })
-      .where(eq(projects.slug, slug))
+      .where(ownerId ? and(eq(projects.slug, slug), eq(projects.ownerId, ownerId)) : eq(projects.slug, slug))
       .returning();
     
     return result[0];
@@ -152,8 +164,8 @@ export class ProjectDBService {
   /**
    * Approve stack selection
    */
-  async approveStackSelection(slug: string, stackChoice: string, reasoning: string) {
-    const project = await this.getProjectBySlug(slug);
+  async approveStackSelection(slug: string, stackChoice: string, reasoning: string, ownerId?: string) {
+    const project = await this.getProjectBySlug(slug, ownerId);
     if (!project) throw new Error('Project not found');
 
     // Create or update stack choice record
@@ -178,7 +190,7 @@ export class ProjectDBService {
         stackApproved: true,
         updatedAt: new Date()
       })
-      .where(eq(projects.slug, slug))
+      .where(ownerId ? and(eq(projects.slug, slug), eq(projects.ownerId, ownerId)) : eq(projects.slug, slug))
       .returning();
     
     return result[0];
@@ -187,8 +199,8 @@ export class ProjectDBService {
   /**
    * Approve dependencies
    */
-  async approveDependencies(slug: string, notes?: string) {
-    const project = await this.getProjectBySlug(slug);
+  async approveDependencies(slug: string, notes?: string, ownerId?: string) {
+    const project = await this.getProjectBySlug(slug, ownerId);
     if (!project) throw new Error('Project not found');
 
     // Create or update approval record
@@ -210,7 +222,7 @@ export class ProjectDBService {
         dependenciesApproved: true,
         updatedAt: new Date()
       })
-      .where(eq(projects.slug, slug))
+      .where(ownerId ? and(eq(projects.slug, slug), eq(projects.ownerId, ownerId)) : eq(projects.slug, slug))
       .returning();
     
     return result[0];
@@ -315,12 +327,12 @@ export class ProjectDBService {
   /**
    * Delete project
    */
-  async deleteProject(slug: string) {
-    const project = await this.getProjectBySlug(slug);
+  async deleteProject(slug: string, ownerId?: string) {
+    const project = await this.getProjectBySlug(slug, ownerId);
     if (!project) throw new Error('Project not found');
 
     const result = await db.delete(projects)
-      .where(eq(projects.id, project.id))
+      .where(ownerId ? and(eq(projects.id, project.id), eq(projects.ownerId, ownerId)) : eq(projects.id, project.id))
       .returning();
 
     return result[0];
@@ -329,14 +341,14 @@ export class ProjectDBService {
   /**
    * Mark handoff as generated
    */
-  async markHandoffGenerated(slug: string) {
+  async markHandoffGenerated(slug: string, ownerId?: string) {
     const result = await db.update(projects)
       .set({
         handoffGenerated: true,
         handoffGeneratedAt: new Date(),
         updatedAt: new Date()
       })
-      .where(eq(projects.slug, slug))
+      .where(ownerId ? and(eq(projects.slug, slug), eq(projects.ownerId, ownerId)) : eq(projects.slug, slug))
       .returning();
 
     return result[0];
@@ -345,8 +357,8 @@ export class ProjectDBService {
   /**
    * Get project statistics
    */
-  async getProjectStats(slug: string) {
-    const project = await this.getProjectBySlug(slug);
+  async getProjectStats(slug: string, ownerId?: string) {
+    const project = await this.getProjectBySlug(slug, ownerId);
     if (!project) throw new Error('Project not found');
 
     const artifactsResult = await db.select({ count: count() })

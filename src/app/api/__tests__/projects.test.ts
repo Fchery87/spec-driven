@@ -32,6 +32,7 @@ describe('Projects API Routes', () => {
     stackChoice: null,
     stackApproved: false,
     dependenciesApproved: false,
+    ownerId: 'test-user-123',
     createdAt: new Date('2025-01-01'),
     updatedAt: new Date('2025-01-01')
   };
@@ -46,6 +47,7 @@ describe('Projects API Routes', () => {
     stack_choice: null,
     stack_approved: false,
     dependencies_approved: false,
+    created_by_id: 'test-user-123',
     created_at: '2025-01-01T00:00:00Z',
     updated_at: '2025-01-01T00:00:00Z',
     orchestration_state: {}
@@ -510,7 +512,7 @@ describe('Projects API Routes', () => {
 
       await deleteProject(request, { params: Promise.resolve({ slug: 'test-slug' }) });
 
-      expect(deleteDBSpy).toHaveBeenCalledWith('test-slug');
+      expect(deleteDBSpy).toHaveBeenCalledWith('test-slug', mockSession.user.id);
     });
 
     it('should delete project directory', async () => {
