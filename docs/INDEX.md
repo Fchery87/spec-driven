@@ -1,179 +1,339 @@
-# Documentation Index
+# Spec-Driven Documentation Index
 
-Welcome to the Spec-Driven Platform documentation. All documentation has been organized into this folder for easy access.
+Welcome to the Spec-Driven Platform documentation! This index will guide you through all available documentation to help you understand, develop, and deploy the project.
 
----
+## 🚀 Quick Navigation
 
-## 🚀 Quick Start
+### New to the Project?
+Start here for a complete introduction:
+1. **[README.md](../README.md)** - Project overview and quick start
+2. **[SETUP.md](SETUP.md)** - Environment setup and installation
+3. **[PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)** - Codebase layout and architecture
 
-**New to the project?** Start here:
-1. Read [README.md](../README.md) in the root directory
-2. Check [QUICK_REFERENCE.md](QUICK_REFERENCE.md) for essential commands
-3. Review [USAGE_GUIDE.md](USAGE_GUIDE.md) for how to use the system
+### Running the Application
+- **[SETUP.md](SETUP.md)** - Installation, environment variables, database setup
+- **[DATABASE_SETUP.md](DATABASE_SETUP.md)** - Database configuration and migrations
+- **[S3_SETUP_GUIDE.md](S3_SETUP_GUIDE.md)** - R2/S3 storage configuration
+- **[VERCEL_DEPLOYMENT_CHECKLIST.md](VERCEL_DEPLOYMENT_CHECKLIST.md)** - Production deployment
 
----
+### Understanding the Architecture
+- **[ORCHESTRATOR_DESIGN.md](ORCHESTRATOR_DESIGN.md)** - Complete workflow orchestration design (2200+ lines)
+- **[PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)** - Code organization and module breakdown
+- **[API.md](API.md)** - Complete API endpoint reference
 
-## 📋 Latest Status & Fixes
+### Building Features
+- **[AUTHENTICATION.md](AUTHENTICATION.md)** - Auth system details and implementation
+- **[ERROR_HANDLING.md](ERROR_HANDLING.md)** - Error codes and handling patterns
+- **[SECURITY_AUDIT.md](SECURITY_AUDIT.md)** - Security analysis and recommendations
+- **[SECURITY_IMPLEMENTATION.md](SECURITY_IMPLEMENTATION.md)** - Security features and patterns
 
-### Production Ready
-- [FINAL_STATUS.md](FINAL_STATUS.md) - Executive summary of system completion
-- [SYSTEM_STATUS_COMPLETE.md](SYSTEM_STATUS_COMPLETE.md) - Production readiness checklist
+### Testing & Quality
+- **[TESTING.md](TESTING.md)** - Unit testing strategy and examples
+- **[QUICK_START_E2E.md](QUICK_START_E2E.md)** - End-to-end testing quick start (5 minutes)
+- **[E2E_TEST_SUMMARY.md](E2E_TEST_SUMMARY.md)** - E2E test implementation details
+- **[E2E_MANIFEST.md](E2E_MANIFEST.md)** - E2E test files and structure
+- **[E2E_DOCUMENTATION_INDEX.md](E2E_DOCUMENTATION_INDEX.md)** - E2E test navigation guide
 
-### Bug Fixes & Verification
-- [CONTEXT_LOSS_FIX_VERIFICATION.md](CONTEXT_LOSS_FIX_VERIFICATION.md) - Context loss bug fix with test results
-- [ORCHESTRATOR_CONTEXT_FIX.md](ORCHESTRATOR_CONTEXT_FIX.md) - Technical deep-dive on the fix
-- [TYPESCRIPT_FIXES_COMPLETE.md](TYPESCRIPT_FIXES_COMPLETE.md) - Type safety improvements
-
-### Phase System
-- [PHASE_EXECUTION_VALIDATION.md](PHASE_EXECUTION_VALIDATION.md) - Complete audit of all 6 phases
-
----
-
-## 🏗️ Architecture & Design
-
-### Core Documentation
-- [ORCHESTRATOR_DESIGN.md](ORCHESTRATOR_DESIGN.md) - **KEEP** - Complete system architecture design
-- [IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md) - Implementation details
-
-### Technical Areas
-- [DATABASE_SETUP.md](DATABASE_SETUP.md) - Database configuration with Drizzle ORM
-- [ERROR_HANDLING.md](ERROR_HANDLING.md) - Error handling patterns
-- [SECURITY_AUDIT.md](SECURITY_AUDIT.md) - Security considerations
-
----
-
-## 🔐 Authentication & Database
-
-### Authentication
-- [AUTHENTICATION.md](AUTHENTICATION.md) - Authentication system overview
-- [auth-setup.md](auth-setup.md) - Auth setup guide
-- [auth-integration-complete.md](auth-integration-complete.md) - Auth integration status
-
-### Database
-- [DATABASE_SETUP.md](DATABASE_SETUP.md) - Database initialization and setup
-- [MIGRATION_COMPLETE.md](MIGRATION_COMPLETE.md) - Prisma to Drizzle migration documentation
+### Advanced Topics
+- **[ENHANCEMENT_PLAN.md](ENHANCEMENT_PLAN.md)** - Future improvements and roadmap (57KB)
+- **[OWNER_IMPLEMENTATION_SUMMARY.md](OWNER_IMPLEMENTATION_SUMMARY.md)** - Project ownership and security model
+- **[AWS_S3_QUICK_REFERENCE.md](AWS_S3_QUICK_REFERENCE.md)** - AWS/R2 quick reference
+- **[USAGE_GUIDE.md](USAGE_GUIDE.md)** - User guide for platform features
 
 ---
 
-## 📚 Guides & Reference
+## 📚 Documentation by Category
 
-- [USAGE_GUIDE.md](USAGE_GUIDE.md) - Complete usage guide with examples
-- [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - Quick lookup for commands and endpoints
-- [TESTING.md](TESTING.md) - Testing strategies and examples
+### Getting Started (Read in this order)
+| Document | Purpose | Time |
+|----------|---------|------|
+| [README.md](../README.md) | Project overview | 10 min |
+| [SETUP.md](SETUP.md) | Installation & setup | 15 min |
+| [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) | Codebase layout | 10 min |
+
+### Core Functionality
+| Document | Purpose | Time |
+|----------|---------|------|
+| [ORCHESTRATOR_DESIGN.md](ORCHESTRATOR_DESIGN.md) | Workflow orchestration (MUST READ) | 30 min |
+| [API.md](API.md) | API reference | 20 min |
+| [AUTHENTICATION.md](AUTHENTICATION.md) | Auth system | 15 min |
+| [DATABASE_SETUP.md](DATABASE_SETUP.md) | Database operations | 15 min |
+
+### Operations & Deployment
+| Document | Purpose | Time |
+|----------|---------|------|
+| [S3_SETUP_GUIDE.md](S3_SETUP_GUIDE.md) | Cloud storage setup | 15 min |
+| [VERCEL_DEPLOYMENT_CHECKLIST.md](VERCEL_DEPLOYMENT_CHECKLIST.md) | Production deployment | 20 min |
+| [AWS_S3_QUICK_REFERENCE.md](AWS_S3_QUICK_REFERENCE.md) | Quick AWS/R2 reference | 5 min |
+
+### Quality & Testing
+| Document | Purpose | Time |
+|----------|---------|------|
+| [TESTING.md](TESTING.md) | Unit testing strategy | 15 min |
+| [QUICK_START_E2E.md](QUICK_START_E2E.md) | E2E testing quickstart | 5 min |
+| [ERROR_HANDLING.md](ERROR_HANDLING.md) | Error patterns | 15 min |
+
+### Security
+| Document | Purpose | Time |
+|----------|---------|------|
+| [SECURITY_AUDIT.md](SECURITY_AUDIT.md) | Security analysis | 20 min |
+| [SECURITY_IMPLEMENTATION.md](SECURITY_IMPLEMENTATION.md) | Security implementation | 20 min |
+| [OWNER_IMPLEMENTATION_SUMMARY.md](OWNER_IMPLEMENTATION_SUMMARY.md) | Data ownership model | 15 min |
+
+### Future Development
+| Document | Purpose | Time |
+|----------|---------|------|
+| [ENHANCEMENT_PLAN.md](ENHANCEMENT_PLAN.md) | v2.0 roadmap | 60+ min |
+| [USAGE_GUIDE.md](USAGE_GUIDE.md) | Platform user guide | 20 min |
 
 ---
 
-## 📁 File Organization
-
-```
-spec-driven/
-├── README.md ..................... Project overview (root)
-└── docs/
-    ├── INDEX.md .................. This file
-    │
-    ├── QUICK_REFERENCE.md ........ Quick command lookup
-    ├── USAGE_GUIDE.md ............ Complete usage guide
-    │
-    ├── FINAL_STATUS.md ........... Executive summary
-    ├── SYSTEM_STATUS_COMPLETE.md . Production checklist
-    │
-    ├── CONTEXT_LOSS_FIX_VERIFICATION.md .. Bug fix verification
-    ├── ORCHESTRATOR_CONTEXT_FIX.md ....... Technical details
-    ├── PHASE_EXECUTION_VALIDATION.md .... Phase audit
-    ├── TYPESCRIPT_FIXES_COMPLETE.md ..... Type safety
-    ├── MIGRATION_COMPLETE.md ............ DB migration
-    │
-    ├── ORCHESTRATOR_DESIGN.md .......... Architecture (KEEP)
-    ├── IMPLEMENTATION_PROGRESS.md ...... Implementation
-    ├── DATABASE_SETUP.md ............... DB setup
-    ├── ERROR_HANDLING.md ............... Error patterns
-    ├── SECURITY_AUDIT.md ............... Security
-    ├── TESTING.md ...................... Testing guide
-    │
-    ├── AUTHENTICATION.md ............... Auth overview
-    ├── auth-setup.md ................... Auth setup
-    └── auth-integration-complete.md .... Auth status
-```
-
----
-
-## 🎯 By Use Case
+## 🎯 Documentation by Task
 
 ### I want to...
 
-**...understand the system architecture**
-→ Start with [ORCHESTRATOR_DESIGN.md](ORCHESTRATOR_DESIGN.md)
+#### Set Up the Project
+→ Read: [SETUP.md](SETUP.md) → [DATABASE_SETUP.md](DATABASE_SETUP.md) → [S3_SETUP_GUIDE.md](S3_SETUP_GUIDE.md)
 
-**...learn how to use the system**
-→ Read [USAGE_GUIDE.md](USAGE_GUIDE.md) and [QUICK_REFERENCE.md](QUICK_REFERENCE.md)
+#### Understand the Workflow System
+→ Read: [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) → [ORCHESTRATOR_DESIGN.md](ORCHESTRATOR_DESIGN.md)
 
-**...understand the context loss bug that was fixed**
-→ Read [CONTEXT_LOSS_FIX_VERIFICATION.md](CONTEXT_LOSS_FIX_VERIFICATION.md) and [ORCHESTRATOR_CONTEXT_FIX.md](ORCHESTRATOR_CONTEXT_FIX.md)
+#### Integrate with APIs
+→ Read: [API.md](API.md) → [AUTHENTICATION.md](AUTHENTICATION.md) → [ERROR_HANDLING.md](ERROR_HANDLING.md)
 
-**...verify all phases are working**
-→ Check [PHASE_EXECUTION_VALIDATION.md](PHASE_EXECUTION_VALIDATION.md)
+#### Add New Features
+→ Read: [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) → [TESTING.md](TESTING.md) → [SECURITY_AUDIT.md](SECURITY_AUDIT.md)
 
-**...set up the database**
-→ Follow [DATABASE_SETUP.md](DATABASE_SETUP.md)
+#### Deploy to Production
+→ Read: [VERCEL_DEPLOYMENT_CHECKLIST.md](VERCEL_DEPLOYMENT_CHECKLIST.md) → [S3_SETUP_GUIDE.md](S3_SETUP_GUIDE.md) → [SECURITY_IMPLEMENTATION.md](SECURITY_IMPLEMENTATION.md)
 
-**...understand authentication**
-→ Review [AUTHENTICATION.md](AUTHENTICATION.md) and [auth-integration-complete.md](auth-integration-complete.md)
+#### Write Tests
+→ Read: [TESTING.md](TESTING.md) → [QUICK_START_E2E.md](QUICK_START_E2E.md) → [E2E_TEST_SUMMARY.md](E2E_TEST_SUMMARY.md)
 
-**...understand error handling**
-→ Read [ERROR_HANDLING.md](ERROR_HANDLING.md)
+#### Understand Security
+→ Read: [SECURITY_AUDIT.md](SECURITY_AUDIT.md) → [SECURITY_IMPLEMENTATION.md](SECURITY_IMPLEMENTATION.md) → [OWNER_IMPLEMENTATION_SUMMARY.md](OWNER_IMPLEMENTATION_SUMMARY.md)
 
-**...verify production readiness**
-→ Check [SYSTEM_STATUS_COMPLETE.md](SYSTEM_STATUS_COMPLETE.md)
-
----
-
-## 🔄 Documentation Status
-
-### Current (Production Ready)
-- ✅ FINAL_STATUS.md
-- ✅ SYSTEM_STATUS_COMPLETE.md
-- ✅ CONTEXT_LOSS_FIX_VERIFICATION.md
-- ✅ PHASE_EXECUTION_VALIDATION.md
-- ✅ ORCHESTRATOR_CONTEXT_FIX.md
-- ✅ TYPESCRIPT_FIXES_COMPLETE.md
-- ✅ MIGRATION_COMPLETE.md
-
-### Reference (Keep for Architecture)
-- ✅ ORCHESTRATOR_DESIGN.md - **PRESERVED**
-- ✅ USAGE_GUIDE.md
-- ✅ QUICK_REFERENCE.md
-
-### Foundational (Original Design)
-- ✅ AUTHENTICATION.md
-- ✅ DATABASE_SETUP.md
-- ✅ ERROR_HANDLING.md
-- ✅ SECURITY_AUDIT.md
-- ✅ TESTING.md
-- ✅ IMPLEMENTATION_PROGRESS.md
+#### Plan Next Phase
+→ Read: [ENHANCEMENT_PLAN.md](ENHANCEMENT_PLAN.md)
 
 ---
 
-## 📝 Recent Changes
+## 📖 Document Descriptions
 
-**November 21, 2025**
-- Verified context loss bug fix with live testing
-- Created CONTEXT_LOSS_FIX_VERIFICATION.md with test results
-- Created SYSTEM_STATUS_COMPLETE.md for production readiness
-- Reorganized all documentation to docs/ folder
-- Kept ORCHESTRATOR_DESIGN.md as architectural reference
-- Deleted 12 outdated session notes and intermediate documentation
+### Core Reference Documents (Must Read)
+- **ORCHESTRATOR_DESIGN.md** (74KB, 2200+ lines)
+  - Complete specification of the 6-phase workflow
+  - Multi-agent orchestration details
+  - State machine implementation
+  - API specifications and examples
+  - Data models and database schema
+  - **Must read to understand the project core**
 
-**November 20, 2025**
-- Fixed context loss in Next.js RSC (Commit 29eaf59)
-- Added safety checks after async operations (Commit f1b60c3)
-- Created comprehensive phase execution audit
-- System verified production-ready
+- **API.md** (New - Complete API reference)
+  - All HTTP endpoints documented
+  - Request/response schemas
+  - Authentication requirements
+  - Error codes and examples
+  - Rate limits and pagination
+
+- **PROJECT_STRUCTURE.md** (New - Codebase layout)
+  - Directory tree with descriptions
+  - Module responsibilities
+  - Key files and their purposes
+  - Architecture patterns
+  - Dependency graph
+
+### Setup & Configuration
+- **SETUP.md** (New - Consolidated setup guide)
+  - Installation steps
+  - Environment configuration
+  - Database initialization
+  - Development server startup
+  - Troubleshooting
+
+- **DATABASE_SETUP.md**
+  - Database connection setup
+  - Migration procedures
+  - Schema overview
+  - Development vs production
+  - Backup and restore
+
+- **S3_SETUP_GUIDE.md**
+  - R2/S3 bucket configuration
+  - Access credentials
+  - Upload/download procedures
+  - CDN configuration
+  - Cost optimization
+
+### Feature Documentation
+- **AUTHENTICATION.md**
+  - Better Auth setup
+  - Session management
+  - JWT tokens
+  - User registration and login flows
+  - Security patterns
+
+- **ERROR_HANDLING.md**
+  - Error code reference
+  - Custom error types
+  - Logging patterns
+  - Recovery strategies
+  - User-facing error messages
+
+- **SECURITY_AUDIT.md**
+  - Security assessment
+  - Vulnerability analysis
+  - Recommendations
+  - Compliance checklist
+  - Third-party audit results
+
+- **SECURITY_IMPLEMENTATION.md**
+  - Authentication guards
+  - Input validation
+  - DB-primary artifact strategy
+  - State initialization
+  - Deployment security
+
+### Testing Documentation
+- **TESTING.md**
+  - Unit test patterns
+  - Test utilities and fixtures
+  - Coverage targets
+  - Running tests locally
+  - CI/CD integration
+
+- **QUICK_START_E2E.md**
+  - 5-minute E2E test setup
+  - Common commands
+  - Running and debugging tests
+  - Viewing reports
+
+- **E2E_TEST_SUMMARY.md**
+  - Complete E2E test implementation
+  - Test file structure
+  - 61 total test cases
+  - Configuration details
+
+### Deployment & Operations
+- **VERCEL_DEPLOYMENT_CHECKLIST.md**
+  - Pre-deployment checklist
+  - Environment setup
+  - Build configuration
+  - Deployment steps
+  - Post-deployment verification
+  - Monitoring and logging
+
+- **AWS_S3_QUICK_REFERENCE.md**
+  - AWS console navigation
+  - Common S3 operations
+  - Bucket configuration
+  - Cost analysis
+
+### Advanced Topics
+- **ENHANCEMENT_PLAN.md** (57KB)
+  - Phase 1: Security hardening (API keys, secrets, headers, CSRF, dependencies)
+  - Phase 2: Architecture refactoring (storage, type safety, transactions)
+  - Phase 3: Testing & observability
+  - Risk mitigation strategies
+  - Implementation roadmap
+
+- **OWNER_IMPLEMENTATION_SUMMARY.md**
+  - Project ownership model
+  - Three-tier validation
+  - Database constraints
+  - API ownership checks
+  - Security architecture
+
+- **USAGE_GUIDE.md**
+  - User-facing feature documentation
+  - Workflow walkthrough
+  - Best practices
+  - FAQs
 
 ---
 
-## 🤔 Questions?
+## 🔍 Key Files Reference
 
-All documentation is organized and indexed here. For specific topics, use the "By Use Case" section above to find the right document quickly.
+### Must-Read Files
+1. **[ORCHESTRATOR_DESIGN.md](ORCHESTRATOR_DESIGN.md)** - Core design document
+2. **[SECURITY_AUDIT.md](SECURITY_AUDIT.md)** - Security baseline
+3. **[API.md](API.md)** - API reference
+4. **[PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)** - Code organization
 
-**Last Updated**: November 21, 2025
-**Status**: ✅ Production Ready
+### Important References
+- **[../orchestrator_spec.yml](../orchestrator_spec.yml)** - Workflow configuration (SSOT)
+- **[../package.json](../package.json)** - Dependencies and scripts
+- **[../README.md](../README.md)** - Project README
+
+---
+
+## 📊 Statistics
+
+- **Total Documentation Files**: 20
+- **Total Documentation Size**: 400+ KB
+- **Lines of Documentation**: 15,000+
+- **Code Examples**: 200+
+- **Diagrams & Tables**: 50+
+
+---
+
+## 🔄 Documentation Maintenance
+
+### File Conventions
+- File naming: `UPPERCASE_WITH_UNDERSCORES.md` for core docs
+- Table of contents at top of longer files
+- Cross-references using relative links
+- Code examples with language highlighting
+- Updated dates in footers
+
+### When Adding New Docs
+1. Add to this INDEX.md
+2. Use clear naming convention
+3. Include table of contents for files >2000 lines
+4. Link to related documents
+5. Update the statistics section
+
+### Review Cycle
+- Core docs reviewed annually
+- Feature docs updated with each release
+- Security docs reviewed with security patches
+- API docs updated with version bumps
+
+---
+
+## 🆘 Need Help?
+
+### Common Questions
+- **"How do I get started?"** → [SETUP.md](SETUP.md)
+- **"How does the workflow work?"** → [ORCHESTRATOR_DESIGN.md](ORCHESTRATOR_DESIGN.md)
+- **"What APIs are available?"** → [API.md](API.md)
+- **"How do I test?"** → [TESTING.md](TESTING.md)
+- **"How do I deploy?"** → [VERCEL_DEPLOYMENT_CHECKLIST.md](VERCEL_DEPLOYMENT_CHECKLIST.md)
+- **"What's the roadmap?"** → [ENHANCEMENT_PLAN.md](ENHANCEMENT_PLAN.md)
+
+### Support Resources
+- GitHub Issues: For bug reports and feature requests
+- GitHub Discussions: For questions and community help
+- Documentation: You're reading it!
+- Code Examples: In `src/__tests__/` and `e2e/` directories
+
+---
+
+## 📋 Checklist for New Team Members
+
+- [ ] Read [README.md](../README.md) (10 min)
+- [ ] Complete [SETUP.md](SETUP.md) (15 min)
+- [ ] Skim [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) (10 min)
+- [ ] Read [ORCHESTRATOR_DESIGN.md](ORCHESTRATOR_DESIGN.md) (30 min)
+- [ ] Read [SECURITY_AUDIT.md](SECURITY_AUDIT.md) (20 min)
+- [ ] Run [QUICK_START_E2E.md](QUICK_START_E2E.md) tests (45 min)
+- [ ] Review [API.md](API.md) (20 min)
+- [ ] Bookmark this INDEX.md for future reference
+
+**Total onboarding time**: ~2.5 hours
+
+---
+
+**Last Updated**: November 26, 2025
+**Status**: Complete and Current
+**Next Review**: Q1 2026
