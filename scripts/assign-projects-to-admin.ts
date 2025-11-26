@@ -34,7 +34,7 @@ async function main() {
 
     console.log(`\n✅ Successfully assigned ${updated.length} projects to ${adminUser.email}`);
     console.log('\nAssigned projects:');
-    updated.forEach(project => {
+    updated.forEach((project: typeof projects.$inferSelect) => {
       console.log(`  ✓ ${project.name}`);
       console.log(`    Slug: ${project.slug}`);
     });
