@@ -40,7 +40,7 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: env.NODE_ENV === "production", // Enforce in production
+    requireEmailVerification: false, // Disabled for now - enable after email system setup
     autoSignIn: true,
     async sendResetPassword(data) {
       logger.info("Password reset requested", { data });
