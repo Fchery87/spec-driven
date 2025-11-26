@@ -115,6 +115,12 @@ export async function updateProjectMetadata(
     return dbService.markHandoffGenerated(slug, ownerId);
   }
 
+  // Handle description updates
+  if ('description' in metadata) {
+    const description = metadata.description === null ? null : (typeof metadata.description === 'string' ? metadata.description : String(metadata.description));
+    return dbService.updateProjectDescription(slug, description, ownerId);
+  }
+
   // If no specific update, just return the project as-is
   return project;
 }

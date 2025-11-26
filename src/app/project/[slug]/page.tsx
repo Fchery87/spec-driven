@@ -29,6 +29,7 @@ interface Artifact {
 interface Project {
   slug: string;
   name: string;
+  description?: string | null;
   current_phase: string;
   phases_completed: string[];
   stack_choice?: string;
@@ -63,6 +64,9 @@ export default function ProjectPage() {
   const [approvingDependencies, setApprovingDependencies] = useState(false);
   const [regeneratingDependencies, setRegeneratingDependencies] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [descriptionInput, setDescriptionInput] = useState('');
+  const [savingDescription, setSavingDescription] = useState(false);
 
   const dependencySelectorRef = useRef<HTMLDivElement | null>(null);
 
@@ -138,6 +142,12 @@ export default function ProjectPage() {
     fetchProject();
     fetchArtifacts();
   }, [fetchProject, fetchArtifacts]);
+
+  useEffect(() => {
+    if (project?.description !== undefined && !editingDescription) {
+      setDescriptionInput(project.description || '');
+    }
+  }, [project?.description, editingDescription]);
 
   useEffect(() => {
     console.log('[artifacts state changed]', {
@@ -397,6 +407,38 @@ export default function ProjectPage() {
     }
   };
 
+  const handleSaveDescription = async () => {
+    if (!project) return;
+    setSavingDescription(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/projects/${slug}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: descriptionInput }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setProject(result.data);
+        setEditingDescription(false);
+        recordAction('Project description updated.');
+      } else {
+        const message = result.error || 'Failed to update description';
+        setError(message);
+        recordAction(message, 'error');
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      logger.error('Failed to update description:', error);
+      setError('Failed to update description');
+      recordAction('Failed to update description', 'error');
+    } finally {
+      setSavingDescription(false);
+    }
+  };
+
   const handleDownloadSpecs = async () => {
     try {
       const response = await fetch(`/api/projects/${slug}/download`);
@@ -528,6 +570,61 @@ export default function ProjectPage() {
             </p>
           </div>
         </div>
+
+        <Card className="mb-6 border border-border/70 bg-card/80">
+          <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle className="text-lg">Project Description</CardTitle>
+              <CardDescription className="text-sm text-muted-foreground">
+                Provide a succinct summary so stakeholders understand scope.
+              </CardDescription>
+            </div>
+            {!editingDescription && (
+              <Button variant="outline" size="sm" onClick={() => setEditingDescription(true)}>
+                Edit
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {editingDescription ? (
+              <>
+                <textarea
+                  className="w-full rounded-lg border border-border bg-background p-3 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  rows={3}
+                  value={descriptionInput}
+                  onChange={(e) => setDescriptionInput(e.target.value)}
+                  placeholder="Describe the goal, audience, and constraints for this project."
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    onClick={handleSaveDescription}
+                    disabled={savingDescription}
+                    className="min-w-[120px]"
+                  >
+                    {savingDescription ? 'Saving...' : 'Save'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setEditingDescription(false);
+                      setDescriptionInput(project.description || '');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {project.description?.trim()
+                  ? project.description
+                  : 'No description yet. Add a short overview to align stakeholders.'}
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
         {lastAction && (
           <div

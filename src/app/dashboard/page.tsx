@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Trash2, Filter, Search, Sparkles, MoreHorizontal, ArrowUpRight } from 'lucide-react';
+import { Trash2, Filter, Search, Sparkles, MoreHorizontal, ArrowUpRight, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Project {
   slug: string;
@@ -43,6 +43,7 @@ export default function Dashboard() {
   const [deleting, setDeleting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [phaseFilter, setPhaseFilter] = useState<string>('ALL');
+  const [activityOpen, setActivityOpen] = useState(true);
 
   useEffect(() => {
     fetchProjects();
@@ -236,21 +237,48 @@ export default function Dashboard() {
         {/* Insights */}
         {insights.length > 0 && (
           <Card className="border border-border/70">
-            <CardHeader>
-              <CardDescription>Recent activity</CardDescription>
-              <CardTitle>What changed lately</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {insights.map((insight) => (
-                <div key={insight.title} className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/40 px-4 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{insight.title}</p>
-                    <p className="text-xs text-muted-foreground">{insight.subtitle}</p>
-                  </div>
-                  <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+            <CardHeader className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardDescription>Recent activity</CardDescription>
+                  <CardTitle>What changed lately</CardTitle>
                 </div>
-              ))}
-            </CardContent>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center gap-1"
+                  onClick={() => setActivityOpen((prev) => !prev)}
+                >
+                  {activityOpen ? (
+                    <>
+                      Hide
+                      <ChevronUp className="h-4 w-4" />
+                    </>
+                  ) : (
+                    <>
+                      Show
+                      <ChevronDown className="h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                The latest updates across your projects.
+              </p>
+            </CardHeader>
+            {activityOpen && (
+              <CardContent className="space-y-3">
+                {insights.map((insight) => (
+                  <div key={insight.title} className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/40 px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{insight.title}</p>
+                      <p className="text-xs text-muted-foreground">{insight.subtitle}</p>
+                    </div>
+                    <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                ))}
+              </CardContent>
+            )}
           </Card>
         )}
 

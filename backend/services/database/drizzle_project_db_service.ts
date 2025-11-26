@@ -355,6 +355,21 @@ export class ProjectDBService {
   }
 
   /**
+   * Update project description
+   */
+  async updateProjectDescription(slug: string, description: string | null, ownerId?: string) {
+    const result = await db.update(projects)
+      .set({
+        description: description,
+        updatedAt: new Date()
+      })
+      .where(ownerId ? and(eq(projects.slug, slug), eq(projects.ownerId, ownerId)) : eq(projects.slug, slug))
+      .returning();
+
+    return result[0];
+  }
+
+  /**
    * Get project statistics
    */
   async getProjectStats(slug: string, ownerId?: string) {
