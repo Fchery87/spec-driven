@@ -11,7 +11,7 @@ async function main() {
     if (allUsers.length === 0) {
       console.log('   ⚠️  WARNING: No users found');
     } else {
-      allUsers.forEach(u => {
+      allUsers.forEach((u: typeof users.$inferSelect) => {
         console.log(`   ✅ ${u.email} (${u.id})`);
       });
     }
@@ -20,8 +20,8 @@ async function main() {
     const allProjects = await db.select().from(projects);
     console.log(`\n2️⃣  Projects in database: ${allProjects.length}`);
     let orphanedProjects = 0;
-    allProjects.forEach(p => {
-      const ownerExists = allUsers.some(u => u.id === p.ownerId);
+    allProjects.forEach((p: typeof projects.$inferSelect) => {
+      const ownerExists = allUsers.some((u: typeof users.$inferSelect) => u.id === p.ownerId);
       const status = ownerExists ? '✅' : '❌';
       console.log(`   ${status} ${p.name} → Owner: ${p.ownerId}`);
       if (!ownerExists) orphanedProjects++;
@@ -35,8 +35,8 @@ async function main() {
     const allArtifacts = await db.select().from(artifacts);
     console.log(`\n3️⃣  Artifacts in database: ${allArtifacts.length}`);
     let orphanedArtifacts = 0;
-    const projectIds = new Set(allProjects.map(p => p.id));
-    allArtifacts.forEach(a => {
+    const projectIds = new Set(allProjects.map((p: typeof projects.$inferSelect) => p.id));
+    allArtifacts.forEach((a: typeof artifacts.$inferSelect) => {
       if (!projectIds.has(a.projectId)) {
         console.log(`   ❌ Artifact orphaned: ${a.id}`);
         orphanedArtifacts++;
@@ -50,7 +50,7 @@ async function main() {
     const allPhaseHistory = await db.select().from(phaseHistory);
     console.log(`\n4️⃣  Phase history records: ${allPhaseHistory.length}`);
     let orphanedHistory = 0;
-    allPhaseHistory.forEach(h => {
+    allPhaseHistory.forEach((h: typeof phaseHistory.$inferSelect) => {
       if (!projectIds.has(h.projectId)) {
         console.log(`   ❌ History orphaned: ${h.id}`);
         orphanedHistory++;
