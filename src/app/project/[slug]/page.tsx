@@ -75,23 +75,28 @@ export default function ProjectPage() {
     }, 5000);
   };
 
-  const fetchProject = useCallback(async () => {
+  const fetchProject = useCallback(async (skipGateChecks: boolean = false) => {
     try {
       const response = await fetch(`/api/projects/${slug}`, { cache: 'no-store' });
       const result = await response.json();
 
       if (result.success) {
         setProject(result.data);
-        // Show stack selection if current phase is STACK_SELECTION and not approved
-        if (result.data.current_phase === 'STACK_SELECTION' && !result.data.stack_approved) {
-          setShowStackSelection(true);
-        } else {
-          setShowStackSelection(false);
-        }
-        if (result.data.current_phase === 'DEPENDENCIES' && !result.data.dependencies_approved) {
-          setShowDependencySelector(true);
-        } else {
-          setShowDependencySelector(false);
+
+        // Skip gate checks during approval flows to prevent race conditions
+        // where the server state hasn't updated yet but we've already closed the gate UI
+        if (!skipGateChecks) {
+          // Show stack selection if current phase is STACK_SELECTION and not approved
+          if (result.data.current_phase === 'STACK_SELECTION' && !result.data.stack_approved) {
+            setShowStackSelection(true);
+          } else {
+            setShowStackSelection(false);
+          }
+          if (result.data.current_phase === 'DEPENDENCIES' && !result.data.dependencies_approved) {
+            setShowDependencySelector(true);
+          } else {
+            setShowDependencySelector(false);
+          }
         }
       } else {
         setError(result.error || 'Failed to fetch project');
@@ -234,7 +239,7 @@ export default function ProjectPage() {
 
       if (result.success) {
         setShowStackSelection(false);
-        fetchProject();
+        fetchProject(true); // Skip gate checks to prevent race conditions
         fetchArtifacts();
         recordAction('Stack selection approved.');
       } else {
@@ -256,7 +261,7 @@ export default function ProjectPage() {
       const response = await fetch(`/api/projects/${slug}/approve-dependencies`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approvalNotes }),
+        body: JSON.stringify({ notes: approvalNotes }), // API expects 'notes' field
         cache: 'no-store'
       })
 
@@ -264,9 +269,9 @@ export default function ProjectPage() {
 
       if (result.success) {
         setShowDependencySelector(false)
-        await fetchProject()
+        await fetchProject(true) // Skip gate checks to prevent race conditions
         await fetchArtifacts()
-        recordAction('Dependencies approved.')
+        recordAction('Dependencies approved. Click "Advance to Next Phase" to continue.')
       } else {
         setError(result.error || 'Failed to approve dependencies')
         recordAction(result.error || 'Failed to approve dependencies', 'error')
@@ -295,7 +300,7 @@ export default function ProjectPage() {
       const result = await response.json()
 
       if (result.success) {
-        await fetchProject()
+        await fetchProject(true) // Skip gate checks during regeneration
         await fetchArtifacts()
         recordAction('Dependencies regenerated based on your feedback.')
       } else {
