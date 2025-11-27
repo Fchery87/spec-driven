@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { logger } from '@/lib/logger';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -58,8 +59,6 @@ export default function ProjectPage() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [selectedArtifact, setSelectedArtifact] = useState<{ filename: string; content: string; phase: string } | null>(null);
   const [generatingHandoff, setGeneratingHandoff] = useState(false);
-  const [lastAction, setLastAction] = useState<string | null>(null);
-  const [lastActionType, setLastActionType] = useState<'success' | 'error' | null>(null);
   const [showDependencySelector, setShowDependencySelector] = useState(false);
   const [approvingDependencies, setApprovingDependencies] = useState(false);
   const [regeneratingDependencies, setRegeneratingDependencies] = useState(false);
@@ -71,12 +70,11 @@ export default function ProjectPage() {
   const dependencySelectorRef = useRef<HTMLDivElement | null>(null);
 
   const recordAction = (message: string, type: 'success' | 'error' = 'success') => {
-    setLastAction(message);
-    setLastActionType(type);
-    setTimeout(() => {
-      setLastAction(null);
-      setLastActionType(null);
-    }, 5000);
+    if (type === 'error') {
+      toast.error(message);
+    } else {
+      toast.success(message);
+    }
   };
 
   const fetchProject = useCallback(async (skipGateChecks: boolean = false) => {
@@ -625,18 +623,6 @@ export default function ProjectPage() {
             )}
           </CardContent>
         </Card>
-
-        {lastAction && (
-          <div
-            className={`mb-6 rounded-2xl border px-4 py-3 text-sm ${
-              lastActionType === 'error'
-                ? 'border-destructive/40 bg-destructive/10 text-destructive'
-                : 'border-[hsl(var(--chart-4))]/40 bg-[hsl(var(--chart-4))]/10 text-[hsl(var(--chart-4))]'
-            }`}
-          >
-            {lastAction}
-          </div>
-        )}
 
         <div className="mb-8 grid gap-4 md:grid-cols-3">
           <Card className="border border-border/70 bg-card/70">

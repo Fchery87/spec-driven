@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import './globals.css'
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
+import { Toaster } from 'sonner'
 
 import { ClientLayout } from '@/components/layout/ClientLayout'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -32,6 +33,18 @@ export default function RootLayout({
             <ClientLayout>{children}</ClientLayout>
           </AuthProvider>
         </ErrorBoundary>
+        <Toaster 
+          position="bottom-right" 
+          richColors 
+          closeButton
+          toastOptions={{
+            style: {
+              background: 'hsl(var(--card))',
+              border: '1px solid hsl(var(--border))',
+              color: 'hsl(var(--foreground))',
+            },
+          }}
+        />
       </body>
     </html>
   )

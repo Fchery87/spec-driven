@@ -339,19 +339,46 @@ Output the complete OpenAPI JSON now:`;
   // Fallback: If data-model.md is too short, try to regenerate
   if (phase === 'SPEC' && (!artifacts['data-model.md'] || artifacts['data-model.md'].trim().length < 500)) {
     logger.warn('[SPEC] data-model.md missing or too short, triggering fallback generation');
-    const fallbackPrompt = `You are a Chief Architect. Generate ONLY a comprehensive data-model.md based on the following PRD.
+    
+    // Extract key entities from PRD to focus the generation
+    const prdSummary = prd.slice(0, 6000);
+    
+    const fallbackPrompt = `You are a Chief Architect. Generate a CONCISE but complete data-model.md.
 
-## PRD Summary:
-${prd.slice(0, 8000)}
+## PRD Context:
+${prdSummary}
 
-## Requirements:
-1. Include a Mermaid ER diagram showing all entity relationships
-2. For EACH table, provide a complete schema with columns, types, constraints
-3. Include indexes with rationale
-4. Include enums and custom types
-5. Include migration strategy notes
+## CRITICAL INSTRUCTIONS:
+- Be CONCISE - focus on core entities only (5-10 tables max for MVP)
+- Use compact table format, not verbose descriptions
+- Keep the total output under 3000 words
 
-Output format:
+## Required Sections (keep each brief):
+
+### 1. ER Diagram (Mermaid)
+\`\`\`mermaid
+erDiagram
+    USER ||--o{ POST : creates
+    (add 5-10 key relationships)
+\`\`\`
+
+### 2. Table Schemas (use this compact format):
+**users**
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | UUID | PK |
+| email | VARCHAR(255) | UNIQUE, NOT NULL |
+(continue for each table)
+
+### 3. Key Indexes (one-liners)
+- \`idx_users_email\` on users(email)
+
+### 4. Enums (if needed)
+\`\`\`sql
+CREATE TYPE status AS ENUM ('active', 'inactive');
+\`\`\`
+
+## Output format:
 \`\`\`
 filename: data-model.md
 ---
@@ -362,34 +389,27 @@ date: ${new Date().toISOString().split('T')[0]}
 status: draft
 ---
 
-# Data Model
-
-## Entity-Relationship Diagram
-(Mermaid diagram here)
-
-## Table Definitions
-(Complete table schemas here)
-
-## Indexes
-(Index definitions here)
-
-## Enums and Custom Types
-(Type definitions here)
-
-## Migration Strategy
-(Migration notes here)
+(content here - keep it focused and concise)
 \`\`\`
 
-Generate the complete data model now:`;
+Generate now:`;
 
-    const dataModelResponse = await llmClient.generateCompletion(fallbackPrompt, undefined, 3, phase);
+    // Use SOLUTIONING phase config for fallback (has 32768 tokens vs 16384 for SPEC)
+    const dataModelResponse = await llmClient.generateCompletion(fallbackPrompt, undefined, 3, 'SOLUTIONING');
     const fallbackArtifacts = parseArtifacts(dataModelResponse.content, ['data-model.md']);
     
     if (fallbackArtifacts['data-model.md'] && fallbackArtifacts['data-model.md'].trim().length > 500) {
       artifacts['data-model.md'] = fallbackArtifacts['data-model.md'];
       logger.info('[SPEC] data-model.md fallback generation successful', { length: artifacts['data-model.md'].length });
     } else {
-      logger.error('[SPEC] data-model.md fallback generation failed to produce sufficient content');
+      // If still too short, use the response content directly if it looks like a data model
+      const rawContent = dataModelResponse.content;
+      if (rawContent.includes('erDiagram') || rawContent.includes('Table') || rawContent.includes('Column')) {
+        artifacts['data-model.md'] = rawContent;
+        logger.info('[SPEC] data-model.md using raw response', { length: rawContent.length });
+      } else {
+        logger.error('[SPEC] data-model.md fallback generation failed to produce sufficient content');
+      }
     }
   }
 

@@ -280,14 +280,14 @@ export class OrchestratorEngine {
 
           // Then generate data model and API spec with Architect
           // Add the newly generated PRD to artifacts for Architect to use
-          const artifactsWithPRD = {
+          const artifactsWithPRD: Record<string, string> = {
             ...artifacts,
             'SPEC/PRD.md': prdArtifacts['PRD.md'] || ''
           };
 
           logger.debug('[SPEC] Calling Architect with PRD', {
             prdLength: artifactsWithPRD['SPEC/PRD.md']?.length || 0,
-            briefLength: artifactsWithPRD['ANALYSIS/project-brief.md']?.length || 0
+            briefLength: artifacts['ANALYSIS/project-brief.md']?.length || 0
           });
 
           const architectArtifacts = await getArchitectExecutor(
