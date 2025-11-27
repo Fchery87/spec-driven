@@ -21,7 +21,13 @@ import { logger } from '@/lib/logger';
 function buildPrompt(template: string, variables: Record<string, any>): string {
   let prompt = template;
 
-  for (const [key, value] of Object.entries(variables)) {
+  // Add standard variables that should always be available
+  const standardVars = {
+    currentDate: new Date().toISOString().split('T')[0],
+    ...variables
+  };
+
+  for (const [key, value] of Object.entries(standardVars)) {
     const placeholder = `{{${key}}}`;
     const replacement = value || '';
     prompt = prompt.replace(new RegExp(placeholder, 'g'), String(replacement));
@@ -133,16 +139,18 @@ function parseArtifacts(content: string, expectedFiles: string[]): Record<string
 async function executeAnalystAgent(
   llmClient: GeminiClient,
   configLoader: ConfigLoader,
-  projectIdea: string
+  projectIdea: string,
+  projectName?: string
 ): Promise<Record<string, string>> {
   logger.info('[ANALYSIS] Executing Analyst Agent');
 
   const agentConfig = configLoader.getSection('agents').analyst;
   const prompt = buildPrompt(agentConfig.prompt_template, {
-    projectIdea
+    projectIdea,
+    projectName: projectName || 'Untitled Project'
   });
 
-  const response = await llmClient.generateCompletion(prompt);
+  const response = await llmClient.generateCompletion(prompt, undefined, 3, 'ANALYSIS');
   const artifacts = parseArtifacts(response.content, [
     'constitution.md',
     'project-brief.md',
@@ -161,17 +169,19 @@ async function executePMAgent(
   llmClient: GeminiClient,
   configLoader: ConfigLoader,
   projectBrief: string,
-  personas: string
+  personas: string,
+  projectName?: string
 ): Promise<Record<string, string>> {
   logger.info('[SPEC] Executing PM Agent for PRD generation');
 
   const agentConfig = configLoader.getSection('agents').pm;
   const prompt = buildPrompt(agentConfig.prompt_template, {
     brief: projectBrief,
-    personas: personas
+    personas: personas,
+    projectName: projectName || 'Untitled Project'
   });
 
-  const response = await llmClient.generateCompletion(prompt);
+  const response = await llmClient.generateCompletion(prompt, undefined, 3, 'SPEC');
   const artifacts = parseArtifacts(response.content, ['PRD.md']);
 
   logger.info('[SPEC] PM Agent completed', { artifacts: Object.keys(artifacts) });
@@ -189,7 +199,9 @@ async function executeArchitectAgent(
   configLoader: ConfigLoader,
   phase: 'SPEC' | 'SOLUTIONING',
   projectBrief: string,
-  prd: string = ''
+  prd: string = '',
+  stackChoice?: string,
+  projectName?: string
 ): Promise<Record<string, string>> {
   logger.info(`[${phase}] Executing Architect Agent`);
 
@@ -204,19 +216,23 @@ async function executeArchitectAgent(
     variables = {
       brief: projectBrief,
       prd: prd,
-      phase: 'spec'
+      phase: 'spec',
+      stackChoice: stackChoice || 'nextjs_only_expo',
+      projectName: projectName || 'Untitled Project'
     };
   } else {
     expectedFiles = ['architecture.md'];
     variables = {
       brief: projectBrief,
       prd: prd,
-      phase: 'solutioning'
+      phase: 'solutioning',
+      stackChoice: stackChoice || 'nextjs_only_expo',
+      projectName: projectName || 'Untitled Project'
     };
   }
 
   const prompt = buildPrompt(agentConfig.prompt_template, variables);
-  const response = await llmClient.generateCompletion(prompt);
+  const response = await llmClient.generateCompletion(prompt, undefined, 3, phase);
   const artifacts = parseArtifacts(response.content, expectedFiles);
 
   logger.info(`[${phase}] Architect Agent completed`, { artifacts: Object.keys(artifacts) });
@@ -232,7 +248,8 @@ async function executeScrumMasterAgent(
   configLoader: ConfigLoader,
   prd: string,
   dataModel: string,
-  apiSpec: string
+  apiSpec: string,
+  projectName?: string
 ): Promise<Record<string, string>> {
   logger.info('[SOLUTIONING] Executing Scrum Master Agent');
 
@@ -240,10 +257,11 @@ async function executeScrumMasterAgent(
   const prompt = buildPrompt(agentConfig.prompt_template, {
     prd: prd,
     dataModel: dataModel,
-    apiSpec: apiSpec
+    apiSpec: apiSpec,
+    projectName: projectName || 'Untitled Project'
   });
 
-  const response = await llmClient.generateCompletion(prompt);
+  const response = await llmClient.generateCompletion(prompt, undefined, 3, 'SOLUTIONING');
   const artifacts = parseArtifacts(response.content, ['epics.md', 'tasks.md', 'plan.md']);
 
   // If plan.md is missing/empty (often due to model truncation), regenerate plan only
@@ -294,17 +312,19 @@ async function executeDevOpsAgent(
   llmClient: GeminiClient,
   configLoader: ConfigLoader,
   prd: string,
-  stackChoice: string = 'nextjs_only_expo'
+  stackChoice: string = 'nextjs_only_expo',
+  projectName?: string
 ): Promise<Record<string, string>> {
   logger.info('[DEPENDENCIES] Executing DevOps Agent');
 
   const agentConfig = configLoader.getSection('agents').devops;
   const prompt = buildPrompt(agentConfig.prompt_template, {
     prd: prd,
-    stackChoice: stackChoice
+    stackChoice: stackChoice,
+    projectName: projectName || 'Untitled Project'
   });
 
-  const response = await llmClient.generateCompletion(prompt);
+  const response = await llmClient.generateCompletion(prompt, undefined, 3, 'DEPENDENCIES');
   const artifacts = parseArtifacts(response.content, [
     'DEPENDENCIES.md',
     'dependency-proposal.md'
@@ -323,11 +343,12 @@ async function executeDevOpsAgent(
 export async function getAnalystExecutor(
   llmClient: GeminiClient,
   projectId: string,
-  artifacts: Record<string, string>
+  artifacts: Record<string, string>,
+  projectName?: string
 ): Promise<Record<string, string>> {
   const configLoader = new ConfigLoader();
   const projectIdea = artifacts['project_idea'] || 'Project for analysis';
-  return executeAnalystAgent(llmClient, configLoader, projectIdea);
+  return executeAnalystAgent(llmClient, configLoader, projectIdea, projectName);
 }
 
 export async function getPMExecutor(
@@ -335,45 +356,50 @@ export async function getPMExecutor(
   projectId: string,
   artifacts: Record<string, string>,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  stackChoice?: string
+  stackChoice?: string,
+  projectName?: string
 ): Promise<Record<string, string>> {
   const configLoader = new ConfigLoader();
   const brief = artifacts['ANALYSIS/project-brief.md'] || '';
   const personas = artifacts['ANALYSIS/personas.md'] || '';
-  return executePMAgent(llmClient, configLoader, brief, personas);
+  return executePMAgent(llmClient, configLoader, brief, personas, projectName);
 }
 
 export async function getArchitectExecutor(
   llmClient: GeminiClient,
   projectId: string,
   artifacts: Record<string, string>,
-  phase: 'SPEC' | 'SOLUTIONING' = 'SOLUTIONING'
+  phase: 'SPEC' | 'SOLUTIONING' = 'SOLUTIONING',
+  stackChoice?: string,
+  projectName?: string
 ): Promise<Record<string, string>> {
   const configLoader = new ConfigLoader();
   const brief = artifacts['ANALYSIS/project-brief.md'] || '';
   const prd = artifacts['SPEC/PRD.md'] || '';
-  return executeArchitectAgent(llmClient, configLoader, phase, brief, prd);
+  return executeArchitectAgent(llmClient, configLoader, phase, brief, prd, stackChoice, projectName);
 }
 
 export async function getScruMasterExecutor(
   llmClient: GeminiClient,
   projectId: string,
-  artifacts: Record<string, string>
+  artifacts: Record<string, string>,
+  projectName?: string
 ): Promise<Record<string, string>> {
   const configLoader = new ConfigLoader();
   const prd = artifacts['SPEC/PRD.md'] || '';
   const dataModel = artifacts['SPEC/data-model.md'] || '';
   const apiSpec = artifacts['SPEC/api-spec.json'] || '';
-  return executeScrumMasterAgent(llmClient, configLoader, prd, dataModel, apiSpec);
+  return executeScrumMasterAgent(llmClient, configLoader, prd, dataModel, apiSpec, projectName);
 }
 
 export async function getDevOpsExecutor(
   llmClient: GeminiClient,
   projectId: string,
   artifacts: Record<string, string>,
-  stackChoice?: string
+  stackChoice?: string,
+  projectName?: string
 ): Promise<Record<string, string>> {
   const configLoader = new ConfigLoader();
   const prd = artifacts['SPEC/PRD.md'] || '';
-  return executeDevOpsAgent(llmClient, configLoader, prd, stackChoice || 'nextjs_only_expo');
+  return executeDevOpsAgent(llmClient, configLoader, prd, stackChoice || 'nextjs_only_expo', projectName);
 }

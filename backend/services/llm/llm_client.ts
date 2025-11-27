@@ -1,31 +1,78 @@
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { LLMConfig, LLMResponse, AgentContext, AgentOutput } from '@/types/llm';
+import { LLMConfig, LLMResponse, AgentContext, AgentOutput, LLMConfigWithOverrides, PhaseOverride } from '@/types/llm';
 import { logger } from '@/lib/logger';
 
 export class GeminiClient {
-  private config: LLMConfig;
+  private config: LLMConfigWithOverrides;
   private baseUrl: string = 'https://generativelanguage.googleapis.com/v1beta';
 
-  constructor(config: LLMConfig) {
+  constructor(config: LLMConfigWithOverrides) {
     this.config = config;
+  }
+
+  /**
+   * Get effective config with phase-specific overrides applied
+   */
+  private getEffectiveConfig(phase?: string): LLMConfig {
+    const targetPhase = phase || this.config.phase;
+    
+    if (!targetPhase || !this.config.phase_overrides) {
+      return this.config;
+    }
+
+    const override = this.config.phase_overrides[targetPhase];
+    if (!override) {
+      return this.config;
+    }
+
+    return {
+      ...this.config,
+      temperature: override.temperature ?? this.config.temperature,
+      max_tokens: override.max_tokens ?? this.config.max_tokens,
+      top_p: override.top_p ?? this.config.top_p,
+    };
+  }
+
+  /**
+   * Set the current phase for config overrides
+   */
+  setPhase(phase: string): void {
+    this.config.phase = phase;
   }
 
   /**
    * Generate completion from Gemini API with retry logic
    */
-  async generateCompletion(prompt: string, context?: string[], retries = 3): Promise<LLMResponse> {
+  async generateCompletion(prompt: string, context?: string[], retries = 3, phase?: string): Promise<LLMResponse> {
     if (!this.config.api_key) {
       throw new Error('Gemini API key not configured');
     }
 
+    // Get effective config with phase-specific overrides
+    const effectiveConfig = this.getEffectiveConfig(phase);
+
     const fullPrompt = this.buildPrompt(prompt, context);
     logger.info('Generating completion with Gemini:', {
-      model: this.config.model,
+      model: effectiveConfig.model,
       promptLength: fullPrompt.length,
-      temperature: this.config.temperature,
-      maxTokens: this.config.max_tokens,
+      temperature: effectiveConfig.temperature,
+      maxTokens: effectiveConfig.max_tokens,
+      topP: effectiveConfig.top_p,
+      phase: phase || this.config.phase || 'default',
       contextDocsCount: context?.length || 0
     });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const generationConfig: Record<string, any> = {
+      temperature: effectiveConfig.temperature,
+      maxOutputTokens: effectiveConfig.max_tokens,
+      candidateCount: 1
+    };
+
+    // Add top_p if specified
+    if (effectiveConfig.top_p !== undefined) {
+      generationConfig.topP = effectiveConfig.top_p;
+    }
 
     const requestBody = {
       contents: [
@@ -37,11 +84,7 @@ export class GeminiClient {
           ]
         }
       ],
-      generationConfig: {
-        temperature: this.config.temperature,
-        maxOutputTokens: this.config.max_tokens,
-        candidateCount: 1
-      }
+      generationConfig
     };
 
     let lastError: Error | null = null;
@@ -118,9 +161,9 @@ export class GeminiClient {
   /**
    * Generate completion with context documents
    */
-  async generateWithContext(prompt: string, artifacts: Record<string, string>): Promise<LLMResponse> {
+  async generateWithContext(prompt: string, artifacts: Record<string, string>, phase?: string): Promise<LLMResponse> {
     const context = Object.values(artifacts);
-    return this.generateCompletion(prompt, context);
+    return this.generateCompletion(prompt, context, 3, phase);
   }
 
   /**

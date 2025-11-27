@@ -5,6 +5,18 @@ export interface LLMConfig {
   temperature: number;
   timeout_seconds: number;
   api_key?: string;
+  top_p?: number;
+  phase?: string;  // Current phase for applying overrides
+}
+
+export interface PhaseOverride {
+  temperature?: number;
+  max_tokens?: number;
+  top_p?: number;
+}
+
+export interface LLMConfigWithOverrides extends LLMConfig {
+  phase_overrides?: Record<string, PhaseOverride>;
 }
 
 export interface LLMResponse {

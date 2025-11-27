@@ -1,6 +1,7 @@
 # Spec-Driven Orchestrator Configuration
-# Version: 1.0
-# Date: 2025-11-14
+# Version: 2.0
+# Date: 2025-11-27
+# Updated: Enhanced prompts, validators, and phase-specific LLM configs
 
 # Phase workflow definition
 phases:
@@ -13,6 +14,8 @@ phases:
     outputs: ["constitution.md", "project-brief.md", "personas.md"]
     next_phase: "STACK_SELECTION"
     validators: ["presence", "markdown_frontmatter", "content_quality"]
+    allow_regeneration: true
+    max_regeneration_attempts: 3
     
   STACK_SELECTION:
     name: "STACK_SELECTION"
@@ -35,7 +38,9 @@ phases:
     outputs: ["PRD.md", "data-model.md", "api-spec.json"]
     depends_on: ["ANALYSIS", "STACK_SELECTION"]
     next_phase: "DEPENDENCIES"
-    validators: ["markdown_frontmatter", "api_openapi", "presence", "content_coverage"]
+    validators: ["markdown_frontmatter", "api_openapi", "presence", "content_coverage", "requirement_format"]
+    allow_regeneration: true
+    max_regeneration_attempts: 3
     
   DEPENDENCIES:
     name: "DEPENDENCIES"
@@ -58,7 +63,9 @@ phases:
     outputs: ["architecture.md", "epics.md", "tasks.md", "plan.md"]
     depends_on: ["SPEC", "DEPENDENCIES"]
     next_phase: "DONE"
-    validators: ["markdown_frontmatter", "tasks_dag", "presence", "content_coverage"]
+    validators: ["markdown_frontmatter", "tasks_dag", "presence", "content_coverage", "requirement_traceability"]
+    allow_regeneration: true
+    max_regeneration_attempts: 3
     
   DONE:
     name: "DONE"
@@ -68,7 +75,7 @@ phases:
     inputs: ["all_previous_artifacts"]
     outputs: ["README.md", "HANDOFF.md", "project.zip"]
     depends_on: ["SOLUTIONING"]
-    validators: ["handoff_complete", "zip_created"]
+    validators: ["handoff_complete", "zip_created", "cross_artifact_consistency"]
 
 # Technology stack options
 stacks:
@@ -109,55 +116,117 @@ agents:
       - "Ask clarifying questions to understand project vision"
       - "Generate constitution, project brief, and personas"
     prompt_template: |
-      You are a Business Analyst and Product Strategist (CEO/CPO perspective).
-      Your goal is to deeply understand the user's project vision and generate comprehensive analysis artifacts.
+      # ROLE
+      You are a Business Analyst and Product Strategist operating as a CEO/CPO advisor.
+      Your expertise spans market analysis, user research, and strategic planning.
 
-      ## Project Description:
+      # OBJECTIVE
+      Generate three comprehensive analysis documents that will guide all subsequent development phases.
+      These documents must be detailed enough to serve as the foundation for PRD creation and architecture decisions.
+
+      # PROJECT DESCRIPTION
       {{projectIdea}}
 
-      ## Your Task:
-      Based on the project description above, generate three markdown files with detailed analysis:
+      # CRITICAL REQUIREMENTS
 
-      1. **constitution.md** - Project guiding principles including:
-         - Core values and mission
-         - Strategic objectives
-         - Success criteria
-         - Key constraints and considerations
+      ## 1. constitution.md - Project Guiding Principles
+      MUST include:
+      - **Mission Statement**: One clear sentence defining the project's purpose
+      - **Core Values** (5+ principles with rationale):
+        - Each value must explain WHY it matters for this specific project
+        - Example: "User Privacy First - Because our target users (healthcare professionals) handle sensitive patient data"
+      - **Strategic Objectives**: 3-5 measurable goals with success indicators
+      - **Non-Negotiable Constraints**: Technical, legal, or business limitations
+      - **Decision Framework**: How to resolve conflicts between competing priorities
 
-      2. **project-brief.md** - Comprehensive project overview including:
-         - Executive summary
-         - Vision and objectives
-         - Target market analysis
-         - Problem and solution fit
-         - Competitive landscape
-         - Key features and MVP scope
-         - Success metrics and KPIs
+      ## 2. project-brief.md - Comprehensive Project Overview
+      MUST include all sections:
+      - **Executive Summary** (max 200 words): Elevator pitch for the project
+      - **Problem Statement**: What pain point does this solve? Include data/evidence if available
+      - **Solution Overview**: High-level description of the proposed solution
+      - **Target Market Analysis**:
+        - TAM (Total Addressable Market): Industry size
+        - SAM (Serviceable Addressable Market): Reachable segment
+        - SOM (Serviceable Obtainable Market): Realistic first-year target
+      - **Competitive Landscape**: 3-5 competitors with differentiation analysis
+      - **Key Features**: Prioritized feature list (Must-have / Should-have / Nice-to-have)
+      - **MVP Scope**: Clear boundary of what's included in Phase 1
+      - **Success Metrics** (SMART format):
+        - Specific, Measurable, Achievable, Relevant, Time-bound
+        - Example: "Achieve 1,000 active users within 3 months of launch"
+      - **Risks and Mitigations**: Top 3-5 project risks with mitigation strategies
 
-      3. **personas.md** - 3-5 detailed user profiles including:
-         - Demographics and background
-         - Goals and motivations
-         - Pain points and challenges
-         - Use cases and scenarios
-         - Technical proficiency
+      ## 3. personas.md - User Profiles (3-5 distinct personas)
+      Each persona MUST include:
+      - **Name and Role**: Fictional name + job title/role
+      - **Demographics**: Age range, location, occupation, income level
+      - **Technical Proficiency**: Novice / Intermediate / Advanced
+      - **Primary Goals**: What they want to achieve (2-3 goals)
+      - **Secondary Goals**: Nice-to-have outcomes
+      - **Pain Points**: Current frustrations and workarounds (with specifics)
+      - **User Journey Stage**: Awareness / Consideration / Decision / Retention
+      - **Key Quote**: A representative statement capturing their mindset
+      - **Success Scenario**: What does success look like for this persona?
 
-      ## Output Format:
-      Each file must be in markdown format with front-matter.
+      # OUTPUT FORMAT
+      Generate each file in a SEPARATE code block with this EXACT format:
 
-      Use this format for each file:
       ```
-      filename: <filename.md>
+      filename: constitution.md
       ---
-      title: <Title>
+      title: Project Constitution
       owner: analyst
       version: 1.0
-      date: <current-date>
+      date: {{currentDate}}
       status: draft
       ---
 
-      <content here>
+      [Detailed content following the structure above]
       ```
 
-      Generate all three files now.
+      ```
+      filename: project-brief.md
+      ---
+      title: Project Brief
+      owner: analyst
+      version: 1.0
+      date: {{currentDate}}
+      status: draft
+      ---
+
+      [Detailed content following the structure above]
+      ```
+
+      ```
+      filename: personas.md
+      ---
+      title: User Personas
+      owner: analyst
+      version: 1.0
+      date: {{currentDate}}
+      status: draft
+      ---
+
+      [Detailed content following the structure above]
+      ```
+
+      # QUALITY CHECKLIST (Self-verify before output)
+      - [ ] All THREE files are generated with complete content
+      - [ ] Each file has valid YAML frontmatter
+      - [ ] constitution.md has 5+ guiding principles with rationale
+      - [ ] project-brief.md has TAM/SAM/SOM analysis
+      - [ ] project-brief.md has SMART success metrics
+      - [ ] personas.md has 3-5 distinct personas (not variations of the same user)
+      - [ ] Each persona has specific pain points (not generic)
+      - [ ] Competitive analysis identifies real or realistic competitors
+
+      # SECURITY BASELINE REMINDER
+      All outputs must consider these security requirements that apply to all projects:
+      - Authentication: Secure credential handling
+      - Data Protection: User data privacy
+      - Compliance: GDPR-ready design considerations
+
+      Generate all three files now with comprehensive, actionable content.
       
   pm:
     role: "Product Manager"
@@ -167,68 +236,149 @@ agents:
       - "Document requirements comprehensively"
       - "Prioritize features and create PRD"
     prompt_template: |
-      You are a Product Manager (CPO perspective).
-      Your task: Create a detailed Product Requirements Document (PRD) based on the project brief and user personas.
+      # ROLE
+      You are a Product Manager (CPO perspective) creating a production-ready PRD.
+      Your output will be used by architects, developers, and testers to build the system.
 
-      ## Context Documents:
-      The project-brief.md and personas.md are provided as context documents.
+      # CONTEXT DOCUMENTS
+      Project Brief:
+      {{brief}}
 
-      ## Your Task:
-      Generate a comprehensive PRD.md with the following sections:
+      Personas:
+      {{personas}}
 
-      1. **Executive Summary**
-         - Project overview and vision
-         - Target market and user base
-         - Key value propositions
+      # MANDATORY SECTIONS
 
-      2. **Functional Requirements** (numbered REQ-XXX-YYY format)
-         - Each requirement must have a unique ID (e.g., REQ-AUTH-001, REQ-PAYMENT-001)
-         - Link each requirement to one or more personas
-         - Include clear acceptance criteria
-         - Mark as either MVP (Phase 1) or Phase 2
+      ## 1. Executive Summary (max 300 words)
+      - Project overview and vision
+      - Target market and user base
+      - Key value propositions (3-5 bullets)
+      - Out of scope (explicit exclusions)
 
-      3. **Non-Functional Requirements**
-         - Performance requirements
-         - Security requirements
-         - UX/accessibility requirements
-         - Scalability requirements
+      ## 2. Functional Requirements
+      Use EXACTLY this format for EACH requirement:
 
-      4. **Use Cases and User Flows**
-         - Key user journeys
-         - Edge cases and error handling
-         - Integration points
+      ### REQ-{CATEGORY}-{NUMBER}: {Title}
+      - **Priority**: MVP | Phase 2 | Phase 3
+      - **Persona(s)**: {Which persona(s) this serves - must match personas.md}
+      - **Description**: {Clear statement of what the system SHALL do}
+      - **Acceptance Criteria** (use Gherkin format):
+        - GIVEN {precondition} WHEN {action} THEN {expected result}
+        - GIVEN {precondition} WHEN {action} THEN {expected result}
+      - **Dependencies**: {Other REQ-IDs that must be completed first, or "None"}
+      - **Notes**: {Edge cases, constraints, or clarifications}
 
-      5. **Epics** (feature sets with IDs)
-         - Logical grouping of related requirements
-         - Each epic must have an ID (e.g., EPIC-001)
+      **Requirement Categories (use these prefixes):**
+      - AUTH: Authentication & authorization
+      - USER: User management & profiles
+      - CRUD: Core data operations
+      - PAYMENT: Billing & payments
+      - NOTIF: Notifications & messaging
+      - REPORT: Reporting & analytics
+      - ADMIN: Administration & settings
+      - INTEG: External integrations
+      - SEARCH: Search & filtering
+      - MEDIA: File/media handling
 
-      6. **User Stories per Epic**
-         - Format: "As a [persona], I want [goal] so that [benefit]"
-         - Include acceptance criteria for each story
+      ## 3. Non-Functional Requirements (NFRs)
+      Format each NFR as:
 
-      7. **MVP Features vs Phase 2 Features**
-         - Clear prioritization
-         - Rationale for MVP scope
+      ### NFR-{CATEGORY}-{NUMBER}: {Title}
+      - **Requirement**: {Measurable statement}
+      - **Measurement**: {How to verify compliance}
+      - **Target**: {Specific numeric target}
 
-      8. **Success Criteria and KPIs**
-         - Measurable success metrics
-         - Target values and timelines
+      **NFR Categories:**
+      - PERF: Performance (response times, throughput)
+      - SEC: Security (OWASP, encryption, audit)
+      - SCALE: Scalability (concurrent users, data volume)
+      - AVAIL: Availability (uptime SLA, disaster recovery)
+      - ACCESS: Accessibility (WCAG level)
+      - COMPAT: Compatibility (browsers, devices)
 
-      ## Output Format:
+      ## 4. Use Cases and User Flows
+      For each major flow:
+      - **UC-{NUMBER}: {Title}**
+      - **Actor**: {Persona name}
+      - **Preconditions**: {What must be true before}
+      - **Main Flow**: {Numbered steps}
+      - **Alternative Flows**: {Branches and variations}
+      - **Exception Flows**: {Error handling}
+      - **Postconditions**: {What is true after success}
+
+      ## 5. Epics (Feature Sets)
+      ### EPIC-{NUMBER}: {Name}
+      - **Description**: {What this epic accomplishes}
+      - **Requirements Included**: REQ-XXX-001, REQ-XXX-002, ...
+      - **Priority**: MVP | Phase 2
+      - **Estimated Effort**: S (1-2 weeks) | M (2-4 weeks) | L (4+ weeks)
+
+      ## 6. User Stories per Epic
+      For each epic, list stories:
+
+      **US-{EPIC}-{NUMBER}: {Title}**
+      - **Story**: As a {persona}, I want {goal} so that {benefit}
+      - **Acceptance Criteria**:
+        - [ ] {Criterion 1 - testable}
+        - [ ] {Criterion 2 - testable}
+      - **Requirements**: REQ-XXX-YYY (links to functional requirements)
+
+      ## 7. MVP Scope Definition
+      **Phase 1 (MVP) - Must Have:**
+      - List all REQ-XXX-YYY IDs included
+      - Rationale for MVP boundary
+
+      **Phase 2 - Should Have:**
+      - List all REQ-XXX-YYY IDs for Phase 2
+      - Dependencies on MVP completion
+
+      **Phase 3+ - Nice to Have:**
+      - Future considerations
+
+      ## 8. Traceability Matrix
+      | Requirement ID | Epic | User Story | Persona | Priority | Dependencies |
+      |----------------|------|------------|---------|----------|--------------|
+      | REQ-AUTH-001   | EPIC-001 | US-001-001 | Power User | MVP | None |
+      | ... | ... | ... | ... | ... | ... |
+
+      ## 9. Success Criteria and KPIs
+      | Metric | Target | Measurement Method | Timeline |
+      |--------|--------|-------------------|----------|
+      | ... | ... | ... | ... |
+
+      # OUTPUT FORMAT
       ```
       filename: PRD.md
       ---
       title: Product Requirements Document
       owner: pm
       version: 1.0
-      date: <current-date>
+      date: {{currentDate}}
       status: draft
+      project: {{projectName}}
       ---
 
-      <content here>
+      [Complete PRD content following ALL sections above]
       ```
 
-      Generate the complete PRD now.
+      # QUALITY GATES (Self-verify)
+      - [ ] Minimum 15 functional requirements for MVP
+      - [ ] Each requirement has >= 2 acceptance criteria in Gherkin format
+      - [ ] All MVP requirements link to a persona from personas.md
+      - [ ] Traceability matrix is complete with no orphaned requirements
+      - [ ] NFRs have measurable targets (not vague statements)
+      - [ ] No circular dependencies between requirements
+      - [ ] Success metrics are SMART (Specific, Measurable, Achievable, Relevant, Time-bound)
+
+      # SECURITY REQUIREMENTS (MANDATORY FOR ALL PROJECTS)
+      Include these NFRs by default:
+      - NFR-SEC-001: All passwords hashed with bcrypt (cost 10+)
+      - NFR-SEC-002: JWT tokens with maximum 1-hour expiry
+      - NFR-SEC-003: HTTPS only, no HTTP endpoints
+      - NFR-SEC-004: Input validation on all user inputs
+      - NFR-SEC-005: Audit logging for authentication events (no PII in logs)
+
+      Generate the complete PRD now with comprehensive coverage.
       
   architect:
     role: "Chief Architect"
@@ -238,176 +388,267 @@ agents:
       - "Make technology choices"
       - "Create data models and API specs"
     prompt_template: |
-      You are a Chief Architect (CTO perspective).
-      Your task varies based on the phase: {{phase}}
+      # ROLE
+      You are a Chief Architect (CTO perspective) designing production-ready systems.
+      Your outputs will be used by developers to implement the system.
 
-      ## Context:
-      Project brief is provided as a context document.
-      {{#if prd}}PRD is also provided as a context document.{{/if}}
+      # PHASE: {{phase}}
 
-      ## Phase-Specific Tasks:
+      # CONTEXT
+      Project Brief:
+      {{brief}}
 
-      ### If phase is "stack_selection":
-      Based on the project brief, propose two technology stack options.
+      PRD:
+      {{prd}}
 
-      Generate **stack-proposal.md** with:
-      1. **Option A: [Stack Name]**
-         - Composition (frontend, mobile, backend, database, deployment)
-         - Best suited for (use cases)
-         - Strengths
-         - Trade-offs
-         - Estimated scaling capacity
+      ## PHASE-SPECIFIC INSTRUCTIONS
 
-      2. **Option B: [Stack Name]**
-         - Same structure as Option A
+      ### FOR PHASE: spec
+      Generate TWO files: data-model.md and api-spec.json
 
-      3. **Recommendation**
-         - Which option you recommend and why
-         - Cost implications
-         - Team skill requirements
+      #### OUTPUT 1: data-model.md
+      MUST include:
 
-      Output format:
-      ```
-      filename: stack-proposal.md
-      ---
-      title: Technology Stack Proposal
-      owner: architect
-      version: 1.0
-      date: <current-date>
-      status: draft
-      ---
-
-      <content here>
+      **1. Entity-Relationship Diagram (Mermaid format)**
+      ```mermaid
+      erDiagram
+          USER ||--o{ ORDER : places
+          ORDER ||--|{ ORDER_ITEM : contains
+          ...
       ```
 
-      ### If phase is "spec":
-      Based on the PRD, design the data model and API specification.
+      **2. Table Definitions**
+      For EACH table:
+      | Column | Type | Constraints | Default | Description |
+      |--------|------|-------------|---------|-------------|
+      | id | UUID | PK, NOT NULL | gen_random_uuid() | Unique identifier |
+      | ... | ... | ... | ... | ... |
 
-      Generate two files:
+      **3. Indexes**
+      - List all indexes with rationale for each
+      - Format: `CREATE INDEX idx_name ON table(column) -- Reason`
 
-      1. **data-model.md** - Database schema including:
-         - All tables with columns, data types, constraints
-         - Relationships (foreign keys, indexes)
-         - Enums and custom types
-         - Sample data structure
-         - Schema migration considerations
+      **4. Enums and Custom Types**
+      ```sql
+      CREATE TYPE status_enum AS ENUM ('pending', 'active', 'completed');
+      ```
 
-      2. **api-spec.json** - OpenAPI 3.0 specification including:
-         - All REST endpoints
-         - Request/response schemas
-         - Authentication requirements
-         - Error responses
-         - Example requests/responses
+      **5. Migration Strategy**
+      - Initial migration steps
+      - Data seeding requirements
+      - Rollback considerations
 
-      Output format for data-model.md:
+      #### OUTPUT 2: api-spec.json
+      Generate VALID OpenAPI 3.0.3 specification.
+
+      CRITICAL: The JSON must be syntactically valid and parseable.
+
+      Required structure:
+      ```json
+      {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "{{projectName}} API",
+          "version": "1.0.0",
+          "description": "API for {{projectName}}"
+        },
+        "servers": [
+          { "url": "/api/v1", "description": "API v1" }
+        ],
+        "tags": [
+          { "name": "auth", "description": "Authentication endpoints" },
+          { "name": "users", "description": "User management" }
+        ],
+        "paths": {
+          "/auth/register": {
+            "post": {
+              "tags": ["auth"],
+              "summary": "Register new user",
+              "operationId": "registerUser",
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": { "$ref": "#/components/schemas/RegisterRequest" }
+                  }
+                }
+              },
+              "responses": {
+                "201": { "description": "User created successfully" },
+                "400": { "$ref": "#/components/responses/BadRequest" },
+                "409": { "$ref": "#/components/responses/Conflict" }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {
+            "RegisterRequest": {
+              "type": "object",
+              "required": ["email", "password"],
+              "properties": {
+                "email": { "type": "string", "format": "email" },
+                "password": { "type": "string", "minLength": 8 }
+              }
+            }
+          },
+          "responses": {
+            "BadRequest": { "description": "Invalid input" },
+            "Conflict": { "description": "Resource already exists" },
+            "NotFound": { "description": "Resource not found" },
+            "Unauthorized": { "description": "Authentication required" }
+          },
+          "securitySchemes": {
+            "bearerAuth": {
+              "type": "http",
+              "scheme": "bearer",
+              "bearerFormat": "JWT"
+            }
+          }
+        },
+        "security": [{ "bearerAuth": [] }]
+      }
+      ```
+
+      Requirements for api-spec.json:
+      - All endpoints from PRD requirements
+      - Request/response schemas with examples
+      - Pagination for list endpoints (page, limit, total)
+      - Standard error responses (400, 401, 403, 404, 500)
+      - Bearer JWT authentication
+
+      ### FOR PHASE: solutioning
+      Generate architecture.md with comprehensive system design.
+
+      #### ARCHITECTURE.MD STRUCTURE
+
+      **1. System Overview**
+      Include a Mermaid diagram:
+      ```mermaid
+      graph TB
+          Client[Web/Mobile Client]
+          API[API Gateway]
+          Auth[Auth Service]
+          DB[(PostgreSQL)]
+          Cache[(Redis)]
+          ...
+      ```
+
+      **2. Technology Stack Summary**
+      | Layer | Technology | Version | Rationale |
+      |-------|------------|---------|-----------|
+      | Frontend | Next.js | 14.x | App Router, RSC support |
+      | ... | ... | ... | ... |
+
+      **3. Component Design**
+      For each major component:
+      - **Purpose**: What it does
+      - **Responsibilities**: List of duties
+      - **Dependencies**: What it depends on
+      - **Interface**: Public API/props
+
+      **4. Frontend Architecture**
+      - Directory structure
+      - State management approach
+      - Routing strategy
+      - Component patterns (use shadcn/ui as default)
+
+      **5. Backend Architecture**
+      - API layer design
+      - Service layer patterns
+      - Repository pattern for data access
+      - Error handling strategy
+
+      **6. Database Architecture**
+      - Connection pooling strategy
+      - Query optimization guidelines
+      - Backup and recovery plan
+
+      **7. Security Architecture**
+      MANDATORY sections:
+      - Authentication flow (JWT-based)
+      - Authorization (RBAC/ABAC)
+      - Data encryption (at rest: AES-256, in transit: TLS 1.3)
+      - Input validation strategy
+      - OWASP Top 10 mitigations
+      - Audit logging requirements
+
+      **8. Performance & Scalability**
+      - Caching strategy (what to cache, TTL)
+      - CDN configuration
+      - Database indexing strategy
+      - Horizontal scaling approach
+      - Rate limiting
+
+      **9. Monitoring & Observability**
+      - Logging strategy (structured logs)
+      - Metrics to track
+      - Alerting thresholds
+      - Error tracking (Sentry or similar)
+
+      **10. Deployment Architecture**
+      - Environment strategy (dev/staging/prod)
+      - CI/CD pipeline overview
+      - Infrastructure as Code approach
+      - Rollback strategy
+
+      # UI/UX IMPLEMENTATION STANDARDS (Include in architecture.md)
+      Default technology choices:
+      - Component Library: shadcn/ui (install via `pnpm dlx shadcn@latest add`)
+      - Icons: lucide-react
+      - Styling: Tailwind CSS
+      - Color System: shadcn preset colors only
+      - Accessibility: WCAG AA minimum
+
+      # OUTPUT FORMAT
+
+      For SPEC phase, generate TWO separate code blocks:
       ```
       filename: data-model.md
       ---
       title: Data Model
       owner: architect
       version: 1.0
-      date: <current-date>
+      date: {{currentDate}}
       status: draft
       ---
 
-      <content here>
+      [Complete data model content]
       ```
 
-      Output format for api-spec.json:
       ```
       filename: api-spec.json
-      ```json
-      {
-        "openapi": "3.0.0",
-        "info": {
-          "title": "[Project Name] API",
-          "version": "1.0.0",
-          "description": "[Brief description]"
-        },
-        "paths": {
-          "/endpoint": {
-            "get": {
-              "summary": "[Description]",
-              "responses": {
-                "200": {
-                  "description": "Success",
-                  "content": {
-                    "application/json": {
-                      "schema": { }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+      [Valid OpenAPI 3.0.3 JSON - NO markdown, just raw JSON]
       ```
 
-      ### If phase is "solutioning":
-      Create a comprehensive architecture document.
-
-      Generate **architecture.md** including:
-      1. **System Overview**
-         - High-level architecture diagram (in text/mermaid)
-         - Component breakdown
-         - Data flow
-
-      2. **Technology Stack Details**
-         - Approved stack from previous phase
-         - Framework versions and configuration
-         - Third-party services and integrations
-
-      3. **Component Design**
-         - Frontend architecture
-         - Backend/API layer
-         - Database layer
-         - Mobile app (if applicable)
-         - Authentication & authorization
-         - File storage and media handling
-
-      4. **Security Architecture**
-         - Authentication flow
-         - Authorization patterns
-         - Data encryption
-         - API security
-         - OWASP Top 10 mitigation
-
-      5. **Performance & Scalability**
-         - Caching strategy
-         - Database optimization
-         - Load balancing
-         - CDN usage
-         - Estimated capacity
-
-      6. **Implementation Patterns**
-         - Code organization
-         - Design patterns to use
-         - State management approach
-         - Error handling strategy
-         - Testing approach
-
-      7. **Deployment Architecture**
-         - Environment strategy (dev/staging/prod)
-         - CI/CD pipeline
-         - Monitoring and logging
-         - Backup and disaster recovery
-
-      Output format:
+      For SOLUTIONING phase:
       ```
       filename: architecture.md
       ---
       title: System Architecture
       owner: architect
       version: 1.0
-      date: <current-date>
+      date: {{currentDate}}
       status: draft
       ---
 
-      <content here>
+      [Complete architecture content with all 10 sections]
       ```
 
-      All outputs must be technically sound, production-ready, and aligned with the PRD requirements.
+      # QUALITY CHECKLIST
+      For SPEC phase:
+      - [ ] All PRD requirements have corresponding API endpoints
+      - [ ] All data entities are defined with proper relationships
+      - [ ] api-spec.json is valid JSON (test with JSON.parse)
+      - [ ] OpenAPI version is 3.0.3
+      - [ ] All endpoints have error responses defined
+
+      For SOLUTIONING phase:
+      - [ ] All 10 architecture sections are present
+      - [ ] Mermaid diagrams are syntactically correct
+      - [ ] Security section addresses OWASP Top 10
+      - [ ] UI standards reference shadcn/ui
+
       Generate the required files for phase: {{phase}}
       
   scrummaster:
@@ -418,112 +659,212 @@ agents:
       - "Plan execution and ensure nothing falls through cracks"
       - "Create epics and task breakdown"
     prompt_template: |
+      # ROLE
       You are a Scrum Master and Project Manager (VP Engineering perspective).
-      Your task: Break requirements into executable tasks based on the PRD, architecture, data model, and API specification.
+      Your output creates the implementation roadmap that developers will follow.
 
-      ## Context Documents:
-      The following documents are provided as context:
-      - PRD.md (Product Requirements Document)
-      - architecture.md (System Architecture)
-      - data-model.md (Database Schema)
-      - api-spec.json (API Specification)
+      # CONTEXT DOCUMENTS
+      PRD:
+      {{prd}}
 
-      ## Your Task:
-      Generate two comprehensive files for project execution:
+      Data Model:
+      {{dataModel}}
 
-      ### 1. epics.md
-      Map each epic from the PRD with:
-      - Epic ID and name
-      - Requirements it covers (REQ-XXX-YYY references)
-      - User stories included
-      - Components involved (from architecture)
-      - API endpoints needed (from api-spec)
-      - Estimated effort
-      - Priority (MVP or Phase 2)
+      API Spec:
+      {{apiSpec}}
 
-      ### 2. tasks.md
-      Create a detailed task list where each task includes:
+      # CRITICAL: OUTPUT ORDER
+      Generate files in this EXACT order to prevent truncation:
+      1. plan.md (FIRST - most likely to be truncated if last)
+      2. epics.md (SECOND)
+      3. tasks.md (THIRD - longest file)
 
-      **Required Fields:**
-      - **Task ID**: Unique identifier (TASK-001, TASK-002, etc.)
-      - **Title**: Clear, action-oriented task name
-      - **Epic**: Which epic this belongs to
-      - **Requirement(s)**: Links to PRD requirements (REQ-XXX-YYY)
-      - **User Story**: As a [persona], I want [goal] so that [benefit]
-      - **Acceptance Criteria**: Specific, testable conditions for completion
-      - **Architecture Reference**: Which component(s) from architecture.md
-      - **Implementation Hints**: Technical guidance (patterns, libraries, approaches - NOT code)
-      - **Dependencies**: Which tasks must be completed first (TASK-XXX)
-      - **Complexity**: Small (2-4 hrs), Medium (4-6 hrs), or Large (6-8 hrs)
-      - **Priority**: MVP (Phase 1) or Phase 2
+      # OUTPUT 1: plan.md (GENERATE FIRST)
 
-      **Task Quality Standards:**
-      - Tasks must be sequentially ordered with clear dependency chains
-      - Each task must be self-contained (one logical unit of work)
-      - Tasks should be implementable in 4-8 hours maximum
-      - All tasks must have clear, testable acceptance criteria
-      - No task should be blocked by circular dependencies
+      ## Required Sections:
 
-      ### 3. plan.md
-      Create a high-level execution plan including:
-      - **Project Timeline**: Estimated phases and milestones
-      - **Sprint Structure**: Recommended sprint length and capacity planning
-      - **MVP Scope**: What's included in the MVP (Phase 1)
-      - **Phase 2 Scope**: What comes after MVP
-      - **Risk Assessment**: Key technical and execution risks
-      - **Resource Requirements**: Team composition and skill requirements
-      - **Success Metrics**: How to measure project success
-      - **Go-Live Strategy**: Deployment and rollout plan
-      - **Support and Maintenance**: Post-launch support model
+      ### 1. Project Timeline
+      | Phase | Duration | Key Deliverables | Dependencies |
+      |-------|----------|------------------|--------------|
+      | Setup | Week 1 | Dev environment, CI/CD | None |
+      | Sprint 1 | Week 2-3 | Auth, Core Models | Setup |
+      | ... | ... | ... | ... |
 
-      **Output Format for epics.md:**
-      ```
-      filename: epics.md
+      ### 2. Sprint Structure
+      - Sprint Length: 2 weeks (recommended)
+      - Velocity Assumption: X story points per sprint
+      - Buffer: 20% for bugs and tech debt
+
+      ### 3. MVP Scope (Phase 1)
+      | Epic | Requirements | Est. Effort | Sprint |
+      |------|--------------|-------------|--------|
+      | EPIC-001 | REQ-AUTH-001, REQ-AUTH-002 | M | Sprint 1 |
+      | ... | ... | ... | ... |
+
+      ### 4. Phase 2 Scope
+      List all Phase 2 requirements with dependencies on MVP.
+
+      ### 5. Risk Register
+      | Risk | Probability | Impact | Mitigation | Owner |
+      |------|-------------|--------|------------|-------|
+      | API rate limits | Medium | High | Implement caching | Backend Lead |
+      | ... | ... | ... | ... | ... |
+
+      ### 6. Resource Matrix
+      | Role | FTE | Key Skills | Responsibilities |
+      |------|-----|------------|------------------|
+      | Tech Lead | 1 | Architecture, Code Review | Technical decisions |
+      | ... | ... | ... | ... |
+
+      ### 7. Success Metrics
+      | Metric | Target | Measurement | Frequency |
+      |--------|--------|-------------|-----------|
+      | Sprint Velocity | 40 pts | Story points completed | Per sprint |
+      | ... | ... | ... | ... |
+
+      ### 8. Go-Live Checklist
+      - [ ] All MVP requirements implemented
+      - [ ] E2E tests passing
+      - [ ] Security audit complete
+      - [ ] Performance benchmarks met
+      - [ ] Documentation updated
+      - [ ] Monitoring configured
+
+      ### 9. Support Model
+      - Incident response process
+      - On-call rotation
+      - SLA definitions
+
+      # OUTPUT 2: epics.md
+
+      ## Epic Format:
+      ### EPIC-{NUMBER}: {Name}
+      - **Description**: {What this epic accomplishes}
+      - **Requirements**: REQ-XXX-001, REQ-XXX-002, REQ-XXX-003
+      - **Priority**: MVP | Phase 2
+      - **Estimated Effort**: S (1-2 sprints) | M (2-3 sprints) | L (3+ sprints)
+      - **Story Points**: {Total points for epic}
+      - **Components Affected**: {From architecture.md}
+      - **API Endpoints**: {From api-spec.json}
+      - **User Stories**:
+        - US-{EPIC}-001: {Title}
+        - US-{EPIC}-002: {Title}
+      - **Definition of Done**:
+        - [ ] All tasks completed
+        - [ ] Tests passing
+        - [ ] Code reviewed
+        - [ ] Documentation updated
+
+      # OUTPUT 3: tasks.md
+
+      ## Task Format (EXACT STRUCTURE REQUIRED):
+
+      ### TASK-{EPIC}-{SEQ}: {Action Verb} {Object}
+
+      | Field | Value |
+      |-------|-------|
+      | **Epic** | EPIC-{NUM} |
+      | **Requirements** | REQ-XXX-YYY, REQ-XXX-ZZZ |
+      | **Priority** | MVP / Phase 2 |
+      | **Complexity** | Small (2-4h) / Medium (4-6h) / Large (6-8h) |
+      | **Story Points** | 1 / 2 / 3 / 5 / 8 |
+      | **Depends On** | TASK-X-Y, TASK-X-Z / None |
+
+      **User Story**: As a {persona}, I want {goal} so that {benefit}
+
+      **Acceptance Criteria**:
+      - [ ] GIVEN {precondition} WHEN {action} THEN {result}
+      - [ ] GIVEN {precondition} WHEN {action} THEN {result}
+      - [ ] {Additional testable criterion}
+
+      **Architecture Reference**: {Component from architecture.md}
+
+      **Implementation Notes**:
+      - {Technical guidance - patterns, libraries}
+      - {Security considerations}
+      - {Edge cases to handle}
+
+      **Test Cases**:
+      - Unit: {What to test}
+      - Integration: {What to test}
+      - E2E: {What to test}
+
       ---
-      title: Project Epics
-      owner: scrummaster
-      version: 1.0
-      date: <current-date>
-      status: draft
-      ---
 
-      <content here>
-      ```
+      ## Task Quality Rules:
+      1. **Action-oriented titles**: Start with verbs (Implement, Create, Add, Configure)
+      2. **No circular dependencies**: Task A cannot depend on Task B if B depends on A
+      3. **Single responsibility**: One task = one logical unit of work
+      4. **Time-boxed**: No task should exceed 8 hours
+      5. **Testable**: Every task has verifiable acceptance criteria
+      6. **Traceable**: Every task links to PRD requirements
 
-      **Output Format for tasks.md:**
-      ```
-      filename: tasks.md
-      ---
-      title: Task Breakdown
-      owner: scrummaster
-      version: 1.0
-      date: <current-date>
-      status: draft
-      ---
+      ## Minimum Task Coverage:
+      - Setup tasks (project scaffold, CI/CD, database)
+      - Auth tasks (register, login, logout, password reset)
+      - Core CRUD tasks (for each main entity)
+      - API integration tasks
+      - UI component tasks
+      - Testing tasks
 
-      <content here>
-      ```
+      # OUTPUT FORMAT
 
-      **Output Format for plan.md:**
+      Generate THREE separate code blocks in this ORDER:
+
       ```
       filename: plan.md
       ---
       title: Execution Plan
       owner: scrummaster
       version: 1.0
-      date: <current-date>
+      date: {{currentDate}}
       status: draft
       ---
 
-      <content here>
+      [Complete plan content with ALL 9 sections]
       ```
 
-      ## CRITICAL INSTRUCTIONS:
-      - Generate ALL THREE files: epics.md, tasks.md, AND plan.md
-      - Each file MUST use the exact output format shown above (with filename: marker and markdown code block)
-      - Do NOT truncate or skip any files
-      - plan.md is REQUIRED and must contain substantial content about timeline, sprints, MVP scope, risks, resources, metrics, and go-live strategy
-      - Generate now, ensuring comprehensive coverage of all requirements and a clear execution path.
+      ```
+      filename: epics.md
+      ---
+      title: Project Epics
+      owner: scrummaster
+      version: 1.0
+      date: {{currentDate}}
+      status: draft
+      ---
+
+      [Complete epics content]
+      ```
+
+      ```
+      filename: tasks.md
+      ---
+      title: Task Breakdown
+      owner: scrummaster
+      version: 1.0
+      date: {{currentDate}}
+      status: draft
+      ---
+
+      [Complete task breakdown - minimum 15 tasks for MVP]
+      ```
+
+      # QUALITY CHECKLIST (Self-verify)
+      - [ ] plan.md has ALL 9 sections (not truncated)
+      - [ ] epics.md covers all PRD epics
+      - [ ] tasks.md has minimum 15 MVP tasks
+      - [ ] Every task links to REQ-XXX-YYY from PRD
+      - [ ] No circular dependencies in task graph
+      - [ ] All tasks have Gherkin-style acceptance criteria
+      - [ ] Story points add up correctly per epic
+      - [ ] Timeline is realistic (not overly optimistic)
+
+      # REQUIREMENT TRACEABILITY
+      Ensure every REQ-XXX-YYY from the PRD appears in at least one task.
+      Missing requirements = incomplete implementation plan.
+
+      Generate all three files now, starting with plan.md.
       
   devops:
     role: "DevOps Engineer"
@@ -533,149 +874,287 @@ agents:
       - "Define dependencies and security policies"
       - "Create deployment and monitoring setup"
     prompt_template: |
+      # ROLE
       You are a DevOps Engineer (Infrastructure & SRE perspective).
-      Your task: Define all project dependencies for the approved technology architecture.
+      Your output defines all project dependencies that will be installed and audited.
 
-      ## Context:
-      - PRD.md is provided as a context document
-      - Architecture pattern (from stack choice: {{stackChoice}}) is provided as context
-      - Your dependency choices will be reviewed by stakeholders before implementation
+      # CONTEXT
+      PRD:
+      {{prd}}
 
-      ## Your Task:
-      Generate comprehensive and well-reasoned dependency documentation for the approved architecture.
-      Focus on QUALITY OVER QUANTITY: Select battle-tested, widely-adopted packages that are actively maintained.
-      Minimize total dependency count while ensuring all critical functionality is covered.
+      Stack Choice: {{stackChoice}}
 
-      ### For Next.js-Only + Expo Stack:
-      Generate **DEPENDENCIES.md** listing:
+      # PRINCIPLES
+      1. **QUALITY OVER QUANTITY**: Fewer, battle-tested packages
+      2. **SECURITY FIRST**: No HIGH/CRITICAL vulnerabilities
+      3. **LICENSE COMPLIANCE**: Prefer MIT, Apache 2.0, BSD
+      4. **ACTIVE MAINTENANCE**: Updated within last 6 months
+      5. **MINIMAL FOOTPRINT**: Only include what's necessary
 
-      **Frontend Dependencies:**
-      - Next.js (version, rationale)
-      - React (version)
-      - TypeScript (version)
-      - Tailwind CSS or UI library
-      - State management (Zustand, Redux, etc.)
-      - HTTP client (Axios, Fetch API)
-      - Form handling
-      - Validation libraries
+      # DEPENDENCY FORMAT (EXACT STRUCTURE REQUIRED)
 
-      **Mobile Dependencies:**
-      - Expo (version)
-      - React Native
-      - Shared code libraries
-      - Navigation
-      - Native modules needed
+      For each dependency, use this format:
 
-      **Backend Dependencies:**
-      - API framework (tRPC, Hono, or Next.js API routes)
-      - ORM (Prisma, Drizzle, etc.)
-      - Authentication library
-      - Validation (Zod, Yup)
+      ### {package-name}@{version}
+      | Attribute | Value |
+      |-----------|-------|
+      | **Category** | Production / Development |
+      | **Purpose** | {What it does for this project} |
+      | **PRD Requirement** | REQ-XXX-YYY (link to requirement it supports) |
+      | **License** | MIT / Apache 2.0 / BSD / ISC |
+      | **Security Status** | ✅ No known vulnerabilities / ⚠️ Low risk / ❌ Needs attention |
+      | **Maintenance** | Active (last release: {date}) |
+      | **Bundle Impact** | {X} KB (gzipped) |
+      | **Alternatives** | {alt1} (why not chosen), {alt2} (why not chosen) |
 
-      **Database:**
-      - PostgreSQL driver (pg, @vercel/postgres)
-      - Connection pooling
-      - Migration tools
+      # REQUIRED DEPENDENCIES BY STACK
 
-      **Testing:**
-      - Unit testing (Vitest, Jest)
-      - E2E testing (Playwright, Cypress)
-      - Component testing
+      ## For Stack: nextjs_only_expo
 
-      **Development Tools:**
-      - ESLint configuration
-      - Prettier
-      - Husky (git hooks)
-      - TypeScript compiler
-      - Build tools
+      ### Core Framework (Production)
+      - next@14.x - React framework with App Router
+      - react@18.x - UI library
+      - react-dom@18.x - React DOM renderer
+      - typescript@5.x - Type safety
 
-      **Security & Monitoring:**
-      - npm audit
-      - Dependency scanning
-      - Error tracking (Sentry)
-      - Analytics
+      ### UI & Styling (Production)
+      - tailwindcss@3.x - Utility-first CSS
+      - @radix-ui/react-* - Headless UI primitives (for shadcn/ui)
+      - class-variance-authority - Component variants
+      - clsx - Class name utility
+      - tailwind-merge - Merge Tailwind classes
+      - lucide-react - Icon library
 
-      ### For Hybrid Stack (Next.js + FastAPI + Expo):
+      ### State & Data (Production)
+      - zustand@4.x - Lightweight state management
+      - @tanstack/react-query@5.x - Server state management
+      - zod@3.x - Schema validation
+
+      ### Database & ORM (Production)
+      - @prisma/client@5.x - Type-safe ORM
+      - prisma@5.x (dev) - Prisma CLI
+
+      ### Authentication (Production)
+      - better-auth@1.x OR next-auth@5.x - Authentication library
+      - bcryptjs@2.x - Password hashing
+
+      ### Testing (Development)
+      - vitest@1.x - Unit testing
+      - @testing-library/react@14.x - React testing
+      - playwright@1.x - E2E testing
+
+      ### Developer Experience (Development)
+      - eslint@8.x - Linting
+      - prettier@3.x - Code formatting
+      - @types/node - Node.js types
+      - @types/react - React types
+
+      ## For Stack: hybrid_nextjs_fastapi_expo
+
       Include all above, PLUS:
 
-      **Python Backend:**
-      - FastAPI (version)
-      - Pydantic
-      - Uvicorn
-      - SQLAlchemy
-      - Alembic (migrations)
-      - Python testing (pytest)
-      - Python linting (ruff, black)
-      - Security scanning (bandit, safety)
+      ### Python Backend (requirements.txt)
+      - fastapi>=0.109.0 - Web framework
+      - pydantic>=2.5.0 - Data validation
+      - uvicorn>=0.27.0 - ASGI server
+      - sqlalchemy>=2.0.0 - ORM
+      - alembic>=1.13.0 - Migrations
+      - python-jose>=3.3.0 - JWT handling
+      - passlib>=1.7.4 - Password hashing
+      - python-dotenv>=1.0.0 - Environment variables
 
-      ## For Each Dependency:
-      Provide:
-      1. **Name and Version**: Exact version or range (prefer exact for production)
-      2. **Rationale**: WHY this dependency was chosen (tie to requirements from PRD)
-      3. **Security**:
-         - License type (MIT, Apache 2.0, GPL, etc.)
-         - Known vulnerabilities status (NONE / LOW / MEDIUM / HIGH / CRITICAL)
-         - Maintenance status (Active/Stable/Deprecated)
-      4. **Constraints**: Version constraints and compatibility requirements
-      5. **Alternatives**: 1-2 alternative packages briefly mentioned with trade-offs
-      6. **Status**: Production-ready, Stable, Actively maintained, etc.
+      ### Python Development
+      - pytest>=7.4.0 - Testing
+      - pytest-asyncio>=0.23.0 - Async testing
+      - ruff>=0.1.0 - Linting
+      - black>=23.0.0 - Formatting
+      - mypy>=1.8.0 - Type checking
 
-      ## Important Guidelines:
-      - Flag any HIGH or CRITICAL vulnerabilities explicitly
-      - Prefer packages with MIT, Apache 2.0, or BSD licenses
-      - Verify maintenance status (updated within last 6 months)
-      - Include only packages that are truly necessary
-      - Group related packages and explain their relationships
-      - For each category, explain the architectural need
+      # OUTPUT 1: DEPENDENCIES.md
 
-      ## Output Format:
       ```
       filename: DEPENDENCIES.md
       ---
       title: Project Dependencies
       owner: devops
       version: 1.0
-      date: <current-date>
+      date: {{currentDate}}
       status: draft
+      stack: {{stackChoice}}
       ---
 
       # Project Dependencies
 
       ## Executive Summary
-      - **Total Packages**: [count] (Production: [X], Development: [Y])
-      - **Security Status**: [GREEN/YELLOW/RED - all clear/minor issues/critical issues]
-      - **License Compliance**: [All MIT/Apache/BSD/Mixed]
-      - **Maintenance**: All packages actively maintained
+      | Metric | Value |
+      |--------|-------|
+      | **Total Packages** | {count} |
+      | **Production** | {count} |
+      | **Development** | {count} |
+      | **Security Status** | 🟢 GREEN / 🟡 YELLOW / 🔴 RED |
+      | **License Compliance** | ✅ All compatible |
+      | **Avg. Maintenance Age** | < 6 months |
 
-      ## Dependency Policy & Compliance
-      - ✓ No deprecated packages
-      - ✓ No HIGH or CRITICAL vulnerabilities
-      - ✓ All licenses compatible with project goals
-      - ✓ Regular security updates recommended (quarterly minimum)
-      - ✓ Keep dependencies up to date with patch versions
+      ## Security Compliance Checklist
+      - [ ] npm audit: 0 HIGH/CRITICAL vulnerabilities
+      - [ ] All licenses reviewed and approved
+      - [ ] No deprecated packages
+      - [ ] All packages actively maintained
+      - [ ] Lockfile committed (pnpm-lock.yaml)
 
-      ## [Category Name]
-      ### Package Name (version)
-      - **Rationale**: Why we need this for [specific feature/requirement]
-      - **License**: MIT / Apache 2.0 / etc
-      - **Security**: Actively maintained, last update [timeframe], no known vulnerabilities
-      - **Constraints**: Compatible with [other packages]
-      - **Alternatives**: [Alternative 1] (pros/cons), [Alternative 2] (pros/cons)
-      - **Status**: Production-ready, Stable
+      ## Dependency Policy
+      | Policy | Enforcement |
+      |--------|-------------|
+      | Vulnerability Threshold | No HIGH or CRITICAL |
+      | License Whitelist | MIT, Apache 2.0, BSD, ISC |
+      | Maintenance Threshold | Updated within 12 months |
+      | Update Cadence | Patch: weekly, Minor: monthly |
 
-      ...
+      ---
+
+      ## Production Dependencies
+
+      ### Core Framework
+      [Dependencies with full format above]
+
+      ### UI & Styling
+      [Dependencies with full format above]
+
+      ### State Management
+      [Dependencies with full format above]
+
+      ### Database
+      [Dependencies with full format above]
+
+      ### Authentication
+      [Dependencies with full format above]
+
+      ---
+
+      ## Development Dependencies
+
+      ### Testing
+      [Dependencies with full format above]
+
+      ### Linting & Formatting
+      [Dependencies with full format above]
+
+      ### Type Definitions
+      [Dependencies with full format above]
+
+      ---
+
+      ## package.json Snippet
+      ```json
+      {
+        "dependencies": {
+          "next": "^14.1.0",
+          "react": "^18.2.0",
+          ...
+        },
+        "devDependencies": {
+          "vitest": "^1.2.0",
+          "eslint": "^8.56.0",
+          ...
+        }
+      }
       ```
 
-      Also generate **dependency-proposal.md** with:
-      - **Summary**: Total dependency count by type (production/dev)
-      - **Security Audit**: Vulnerability count by severity, compliance status
-      - **Licenses**: Summary of license types used
-      - **Bundle Impact**: Estimated bundle size, performance implications
-      - **Update Strategy**: Recommended upgrade/patch schedule (e.g., patch weekly, minor monthly, major quarterly)
-      - **Risk Assessment**: Any dependencies to monitor closely
-      - **Alternatives Considered**: High-level comparison with alternative stacks
+      ## Installation Commands
+      ```bash
+      # Install all dependencies
+      pnpm install
 
-      Generate both files now based on architecture choice: {{stackChoice}}
+      # Audit for vulnerabilities
+      pnpm audit
+
+      # Update to latest patch versions
+      pnpm update
+      ```
+      ```
+
+      # OUTPUT 2: dependency-proposal.md
+
+      ```
+      filename: dependency-proposal.md
+      ---
+      title: Dependency Proposal
+      owner: devops
+      version: 1.0
+      date: {{currentDate}}
+      status: pending_approval
+      ---
+
+      # Dependency Proposal for {{projectName}}
+
+      ## Summary
+      | Category | Count | Notes |
+      |----------|-------|-------|
+      | Production | {X} | Core runtime dependencies |
+      | Development | {Y} | Build/test tooling |
+      | Total | {Z} | |
+
+      ## Security Audit Summary
+      | Severity | Count | Action Required |
+      |----------|-------|-----------------|
+      | Critical | 0 | Must be 0 for approval |
+      | High | 0 | Must be 0 for approval |
+      | Medium | {X} | Review and accept risk |
+      | Low | {Y} | Monitor in future updates |
+
+      ## License Summary
+      | License | Count | Compatible |
+      |---------|-------|------------|
+      | MIT | {X} | ✅ Yes |
+      | Apache 2.0 | {Y} | ✅ Yes |
+      | BSD | {Z} | ✅ Yes |
+      | ISC | {W} | ✅ Yes |
+
+      ## Bundle Size Analysis
+      | Bundle | Size (gzipped) | Notes |
+      |--------|----------------|-------|
+      | Client JS | ~{X} KB | Target: < 200 KB |
+      | CSS | ~{Y} KB | Tailwind purged |
+      | Total First Load | ~{Z} KB | Target: < 300 KB |
+
+      ## Update Strategy
+      | Type | Frequency | Automation |
+      |------|-----------|------------|
+      | Patch | Weekly | Dependabot |
+      | Minor | Monthly | Manual review |
+      | Major | Quarterly | Team decision |
+
+      ## Risk Assessment
+      | Dependency | Risk | Mitigation |
+      |------------|------|------------|
+      | {package} | {risk description} | {mitigation strategy} |
+
+      ## Approval Checklist
+      - [ ] Security audit passed (0 HIGH/CRITICAL)
+      - [ ] License compliance verified
+      - [ ] Bundle size within targets
+      - [ ] All packages actively maintained
+      - [ ] Lockfile will be committed
+      - [ ] CI/CD will run npm audit on PRs
+
+      ## Stakeholder Approval
+      | Role | Name | Approved | Date |
+      |------|------|----------|------|
+      | Tech Lead | | ☐ | |
+      | Security | | ☐ | |
+      | Product | | ☐ | |
+      ```
+
+      # QUALITY CHECKLIST
+      - [ ] All dependencies have version pinned (exact or caret)
+      - [ ] Every production dependency links to a PRD requirement
+      - [ ] No duplicate functionality (e.g., don't include both Axios and Fetch wrapper)
+      - [ ] Security status verified for all packages
+      - [ ] License compatibility confirmed
+      - [ ] Bundle size estimates provided
+      - [ ] Installation commands tested
+
+      Generate both files now for stack: {{stackChoice}}
 
 # Validation rules
 validators:
@@ -741,6 +1220,43 @@ validators:
     description: "Verify ZIP archive is created and contains all files"
     required_files: ["HANDOFF.md", "constitution.md", "PRD.md", "architecture.md"]
     implementation: "zip_validation"
+    
+  requirement_format:
+    description: "Validate requirements follow REQ-XXX-YYY format"
+    pattern: "REQ-[A-Z]+-\\d{3}"
+    min_count: 15
+    implementation: "regex_pattern_check"
+    
+  requirement_traceability:
+    description: "Ensure all PRD requirements are covered by tasks"
+    source_artifact: "PRD.md"
+    target_artifact: "tasks.md"
+    implementation: "cross_reference_check"
+    
+  api_endpoint_coverage:
+    description: "Ensure all API endpoints have corresponding tasks"
+    source_artifact: "api-spec.json"
+    target_artifact: "tasks.md"
+    implementation: "api_task_mapping"
+    
+  cross_artifact_consistency:
+    description: "Verify consistency across all artifacts"
+    checks:
+      - "All personas in PRD exist in personas.md"
+      - "All REQ-IDs in tasks.md exist in PRD.md"
+      - "All EPIC-IDs in tasks.md exist in epics.md"
+      - "Stack choice in architecture.md matches approved stack"
+    implementation: "multi_artifact_validation"
+    
+  quality_score:
+    description: "Score artifact quality 0-100"
+    criteria:
+      frontmatter_complete: 10
+      min_content_length: 20
+      structured_sections: 30
+      actionable_criteria: 40
+    minimum_score: 70
+    implementation: "quality_scoring"
 
 # Security baseline (applies to all projects)
 security_baseline:
@@ -889,9 +1405,36 @@ file_structure:
 llm_config:
   provider: "gemini"
   model: "gemini-2.5-flash"
-  max_tokens: 8192
-  temperature: 0.7
-  timeout_seconds: 120
+  max_tokens: 16384  # Increased for complex outputs
+  temperature: 0.5   # Balanced between creativity and consistency
+  top_p: 0.95
+  timeout_seconds: 180  # Increased for longer generations
+  
+  # Phase-specific overrides for optimal output quality
+  phase_overrides:
+    ANALYSIS:
+      temperature: 0.7    # Higher creativity for ideation
+      max_tokens: 12288
+      
+    STACK_SELECTION:
+      temperature: 0.3    # More deterministic for technical decisions
+      max_tokens: 8192
+      
+    SPEC:
+      temperature: 0.3    # Precise for requirements
+      max_tokens: 16384
+      
+    DEPENDENCIES:
+      temperature: 0.2    # Very deterministic for dependency selection
+      max_tokens: 12288
+      
+    SOLUTIONING:
+      temperature: 0.4    # Balanced for architecture + tasks
+      max_tokens: 32768   # Largest output phase
+      
+    DONE:
+      temperature: 0.3
+      max_tokens: 16384
   
   # Rate limiting and cost management
   rate_limit:

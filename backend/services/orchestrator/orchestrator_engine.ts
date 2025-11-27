@@ -62,13 +62,16 @@ export class OrchestratorEngine {
     }
 
     // Initialize Gemini client with LLM config from orchestrator spec
+    // Include phase_overrides for phase-specific temperature/token settings
     const llmConfig = {
       provider: this.spec.llm_config.provider as string,
       model: this.spec.llm_config.model as string,
       max_tokens: this.spec.llm_config.max_tokens as number,
       temperature: this.spec.llm_config.temperature as number,
       timeout_seconds: this.spec.llm_config.timeout_seconds as number,
-      api_key: process.env.GEMINI_API_KEY
+      api_key: process.env.GEMINI_API_KEY,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      phase_overrides: (this.spec.llm_config as any).phase_overrides || {}
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.llmClient = new GeminiClient(llmConfig as any);
@@ -224,17 +227,22 @@ export class OrchestratorEngine {
       const validators = this.validators;
       const artifactManager = new ArtifactManager();
 
-      // Create GeminiClient locally from spec config
+      // Create GeminiClient locally from spec config with phase overrides
       const llmConfig = {
         provider: spec.llm_config.provider as string,
         model: spec.llm_config.model as string,
         max_tokens: spec.llm_config.max_tokens as number,
         temperature: spec.llm_config.temperature as number,
         timeout_seconds: spec.llm_config.timeout_seconds as number,
-        api_key: process.env.GEMINI_API_KEY
+        api_key: process.env.GEMINI_API_KEY,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        phase_overrides: (spec.llm_config as any).phase_overrides || {}
       };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const llmClient = new GeminiClient(llmConfig as any);
+      
+      // Get project name for template variables
+      const projectName = project.name || 'Untitled Project';
 
       let generatedArtifacts: Record<string, string> = {};
 
@@ -244,7 +252,8 @@ export class OrchestratorEngine {
           generatedArtifacts = await getAnalystExecutor(
             llmClient,
             projectId,
-            artifacts
+            artifacts,
+            projectName
           );
           logger.debug('[OrchestratorEngine] Generated artifacts from executor', {
             phase: currentPhaseName,
@@ -260,7 +269,8 @@ export class OrchestratorEngine {
             llmClient,
             projectId,
             artifacts,
-            stackChoice
+            stackChoice,
+            projectName
           );
 
           // Then generate data model and API spec with Architect
@@ -274,7 +284,9 @@ export class OrchestratorEngine {
             llmClient,
             projectId,
             artifactsWithPRD,
-            'SPEC'
+            'SPEC',
+            stackChoice,
+            projectName
           );
 
           // Combine all artifacts
@@ -286,8 +298,8 @@ export class OrchestratorEngine {
 
         case 'SOLUTIONING':
           generatedArtifacts = await Promise.all([
-            getArchitectExecutor(llmClient, projectId, artifacts),
-            getScruMasterExecutor(llmClient, projectId, artifacts)
+            getArchitectExecutor(llmClient, projectId, artifacts, 'SOLUTIONING', stackChoice, projectName),
+            getScruMasterExecutor(llmClient, projectId, artifacts, projectName)
           ]).then(([arch, scrum]) => ({
             ...arch,
             ...scrum
@@ -299,7 +311,8 @@ export class OrchestratorEngine {
             llmClient,
             projectId,
             artifacts,
-            stackChoice
+            stackChoice,
+            projectName
           );
           break;
 

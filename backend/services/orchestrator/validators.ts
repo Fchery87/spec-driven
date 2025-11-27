@@ -91,6 +91,40 @@ export class Validators {
 
       case 'zip_validation':
         return this.validateZip(project, (validator.required_files as string[]) || []);
+
+      case 'regex_pattern_check':
+        return this.validateRequirementFormat(
+          project,
+          validator.pattern as string,
+          validator.min_count as number
+        );
+
+      case 'cross_reference_check':
+        return this.validateRequirementTraceability(
+          project,
+          validator.source_artifact as string,
+          validator.target_artifact as string
+        );
+
+      case 'api_task_mapping':
+        return this.validateAPIEndpointCoverage(
+          project,
+          validator.source_artifact as string,
+          validator.target_artifact as string
+        );
+
+      case 'multi_artifact_validation':
+        return this.validateCrossArtifactConsistency(
+          project,
+          validator.checks as string[]
+        );
+
+      case 'quality_scoring':
+        return this.validateQualityScore(
+          project,
+          validator.criteria as Record<string, number>,
+          validator.minimum_score as number
+        );
       
       default:
         return {
@@ -798,6 +832,415 @@ export class Validators {
       checks,
       warnings: warnings.length > 0 ? warnings : undefined
     };
+  }
+
+  /**
+   * Validate requirements follow REQ-XXX-YYY format
+   */
+  private validateRequirementFormat(
+    project: Project,
+    pattern: string,
+    minCount: number
+  ): ValidationResult {
+    const checks: Record<string, boolean> = {};
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    try {
+      const prdContent = this.getArtifactContent(project.id, 'PRD.md', 'SPEC');
+      
+      if (!prdContent) {
+        return {
+          status: 'warn',
+          checks: { 'prd_exists': false },
+          warnings: ['PRD.md not found - skipping requirement format validation']
+        };
+      }
+
+      // Use the pattern from the validator config or default
+      const regex = new RegExp(pattern || 'REQ-[A-Z]+-\\d{3}', 'g');
+      const matches = prdContent.match(regex) || [];
+      const uniqueReqs = Array.from(new Set(matches));
+
+      checks['has_requirements'] = uniqueReqs.length > 0;
+      checks['meets_minimum'] = uniqueReqs.length >= (minCount || 15);
+      checks['valid_format'] = true;
+
+      if (uniqueReqs.length < (minCount || 15)) {
+        errors.push(`Found only ${uniqueReqs.length} requirements (minimum: ${minCount || 15})`);
+      }
+
+      // Check for proper categories
+      const validCategories = ['AUTH', 'USER', 'CRUD', 'PAYMENT', 'NOTIF', 'REPORT', 'ADMIN', 'INTEG', 'SEARCH', 'MEDIA'];
+      const invalidReqs = uniqueReqs.filter(req => {
+        const category = req.split('-')[1];
+        return !validCategories.includes(category);
+      });
+
+      if (invalidReqs.length > 0) {
+        warnings.push(`Found requirements with non-standard categories: ${invalidReqs.slice(0, 5).join(', ')}`);
+      }
+
+      return {
+        status: errors.length > 0 ? 'fail' : (warnings.length > 0 ? 'warn' : 'pass'),
+        checks,
+        errors: errors.length > 0 ? errors : undefined,
+        warnings: warnings.length > 0 ? warnings : undefined
+      };
+    } catch (error) {
+      return {
+        status: 'fail',
+        checks: {},
+        errors: [`Failed to validate requirement format: ${error instanceof Error ? error.message : String(error)}`]
+      };
+    }
+  }
+
+  /**
+   * Validate requirement traceability - all PRD requirements covered by tasks
+   */
+  private validateRequirementTraceability(
+    project: Project,
+    sourceArtifact: string,
+    targetArtifact: string
+  ): ValidationResult {
+    const checks: Record<string, boolean> = {};
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    try {
+      const prdContent = this.getArtifactContent(project.id, sourceArtifact || 'PRD.md', 'SPEC');
+      const tasksContent = this.getArtifactContent(project.id, targetArtifact || 'tasks.md', 'SOLUTIONING');
+
+      if (!prdContent || !tasksContent) {
+        return {
+          status: 'warn',
+          checks: {},
+          warnings: ['PRD.md or tasks.md not found - skipping traceability validation']
+        };
+      }
+
+      // Extract requirements from PRD
+      const reqRegex = /REQ-[A-Z]+-\d{3}/g;
+      const prdReqs = Array.from(new Set(prdContent.match(reqRegex) || []));
+      const taskReqs = Array.from(new Set(tasksContent.match(reqRegex) || []));
+
+      // Find uncovered requirements
+      const uncoveredReqs = prdReqs.filter(req => !taskReqs.includes(req));
+
+      checks['all_requirements_covered'] = uncoveredReqs.length === 0;
+      checks['prd_requirements_count'] = prdReqs.length > 0;
+      checks['tasks_reference_requirements'] = taskReqs.length > 0;
+
+      if (uncoveredReqs.length > 0) {
+        const mvpUncovered = uncoveredReqs.filter(req => {
+          // Check if this is an MVP requirement by looking at context in PRD
+          const reqIndex = prdContent.indexOf(req);
+          if (reqIndex === -1) return false;
+          const contextStart = Math.max(0, reqIndex - 200);
+          const contextEnd = Math.min(prdContent.length, reqIndex + 200);
+          const context = prdContent.slice(contextStart, contextEnd);
+          return context.toLowerCase().includes('mvp') || context.toLowerCase().includes('phase 1');
+        });
+
+        if (mvpUncovered.length > 0) {
+          errors.push(`${mvpUncovered.length} MVP requirements not covered by tasks: ${mvpUncovered.slice(0, 5).join(', ')}`);
+        } else {
+          warnings.push(`${uncoveredReqs.length} Phase 2+ requirements not covered by tasks: ${uncoveredReqs.slice(0, 5).join(', ')}`);
+        }
+      }
+
+      return {
+        status: errors.length > 0 ? 'fail' : (warnings.length > 0 ? 'warn' : 'pass'),
+        checks,
+        errors: errors.length > 0 ? errors : undefined,
+        warnings: warnings.length > 0 ? warnings : undefined
+      };
+    } catch (error) {
+      return {
+        status: 'fail',
+        checks: {},
+        errors: [`Failed to validate requirement traceability: ${error instanceof Error ? error.message : String(error)}`]
+      };
+    }
+  }
+
+  /**
+   * Validate API endpoint coverage - all endpoints have tasks
+   */
+  private validateAPIEndpointCoverage(
+    project: Project,
+    sourceArtifact: string,
+    targetArtifact: string
+  ): ValidationResult {
+    const checks: Record<string, boolean> = {};
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    try {
+      const apiSpecContent = this.getArtifactContent(project.id, sourceArtifact || 'api-spec.json', 'SPEC');
+      const tasksContent = this.getArtifactContent(project.id, targetArtifact || 'tasks.md', 'SOLUTIONING');
+
+      if (!apiSpecContent || !tasksContent) {
+        return {
+          status: 'warn',
+          checks: {},
+          warnings: ['api-spec.json or tasks.md not found - skipping API coverage validation']
+        };
+      }
+
+      // Parse API spec to extract endpoints
+      let apiSpec;
+      try {
+        apiSpec = JSON.parse(apiSpecContent);
+      } catch {
+        return {
+          status: 'warn',
+          checks: { 'valid_json': false },
+          warnings: ['api-spec.json is not valid JSON - skipping API coverage validation']
+        };
+      }
+
+      const endpoints: string[] = [];
+      for (const [path, methods] of Object.entries(apiSpec.paths || {})) {
+        for (const method of Object.keys(methods as object)) {
+          if (['get', 'post', 'put', 'patch', 'delete'].includes(method.toLowerCase())) {
+            endpoints.push(`${method.toUpperCase()} ${path}`);
+          }
+        }
+      }
+
+      // Check which endpoints are mentioned in tasks
+      const tasksLower = tasksContent.toLowerCase();
+      const uncoveredEndpoints = endpoints.filter(endpoint => {
+        const [method, path] = endpoint.split(' ');
+        // Check if endpoint path or method+path is mentioned
+        return !tasksLower.includes(path.toLowerCase()) && 
+               !tasksLower.includes(endpoint.toLowerCase());
+      });
+
+      checks['has_endpoints'] = endpoints.length > 0;
+      checks['endpoints_covered'] = uncoveredEndpoints.length === 0;
+
+      if (uncoveredEndpoints.length > 0) {
+        warnings.push(`${uncoveredEndpoints.length} API endpoints not explicitly referenced in tasks: ${uncoveredEndpoints.slice(0, 5).join(', ')}`);
+      }
+
+      return {
+        status: errors.length > 0 ? 'fail' : (warnings.length > 0 ? 'warn' : 'pass'),
+        checks,
+        errors: errors.length > 0 ? errors : undefined,
+        warnings: warnings.length > 0 ? warnings : undefined
+      };
+    } catch (error) {
+      return {
+        status: 'fail',
+        checks: {},
+        errors: [`Failed to validate API endpoint coverage: ${error instanceof Error ? error.message : String(error)}`]
+      };
+    }
+  }
+
+  /**
+   * Validate cross-artifact consistency
+   */
+  private validateCrossArtifactConsistency(
+    project: Project,
+    checksConfig: string[]
+  ): ValidationResult {
+    const checks: Record<string, boolean> = {};
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    try {
+      // Load all relevant artifacts
+      const personasContent = this.getArtifactContent(project.id, 'personas.md', 'ANALYSIS');
+      const prdContent = this.getArtifactContent(project.id, 'PRD.md', 'SPEC');
+      const tasksContent = this.getArtifactContent(project.id, 'tasks.md', 'SOLUTIONING');
+      const epicsContent = this.getArtifactContent(project.id, 'epics.md', 'SOLUTIONING');
+      const architectureContent = this.getArtifactContent(project.id, 'architecture.md', 'SOLUTIONING');
+
+      for (const checkName of checksConfig || []) {
+        if (checkName.includes('personas in PRD exist in personas.md')) {
+          // Extract persona names from both documents
+          const personaNameRegex = /##\s*(?:Persona\s*\d+:?\s*)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/g;
+          const personasMatches = Array.from(personasContent.matchAll(personaNameRegex) || []);
+          const personaNames = personasMatches.map(m => m[1]?.toLowerCase()).filter(Boolean);
+
+          // Check if PRD references personas not in personas.md
+          const prdPersonaRefs = prdContent.match(/(?:persona|user|as a)\s*:?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi) || [];
+          const unknownPersonas = prdPersonaRefs.filter(ref => {
+            const name = ref.replace(/(?:persona|user|as a)\s*:?\s*/i, '').toLowerCase();
+            return name.length > 2 && !personaNames.some(p => name.includes(p) || p.includes(name));
+          });
+
+          checks['personas_consistent'] = unknownPersonas.length < 3; // Allow some flexibility
+          if (unknownPersonas.length >= 3) {
+            warnings.push(`PRD references personas not clearly defined in personas.md`);
+          }
+        }
+
+        if (checkName.includes('REQ-IDs in tasks.md exist in PRD.md')) {
+          const prdReqs = Array.from(new Set(prdContent.match(/REQ-[A-Z]+-\d{3}/g) || []));
+          const taskReqs = Array.from(new Set(tasksContent.match(/REQ-[A-Z]+-\d{3}/g) || []));
+          
+          const orphanedTaskReqs = taskReqs.filter(req => !prdReqs.includes(req));
+          checks['task_reqs_valid'] = orphanedTaskReqs.length === 0;
+          
+          if (orphanedTaskReqs.length > 0) {
+            errors.push(`Tasks reference non-existent requirements: ${orphanedTaskReqs.slice(0, 5).join(', ')}`);
+          }
+        }
+
+        if (checkName.includes('EPIC-IDs in tasks.md exist in epics.md')) {
+          const epicIds = Array.from(new Set(epicsContent.match(/EPIC-\d{3}/g) || []));
+          const taskEpicRefs = Array.from(new Set(tasksContent.match(/EPIC-\d{3}/g) || []));
+          
+          const orphanedEpicRefs = taskEpicRefs.filter(epic => !epicIds.includes(epic));
+          checks['task_epics_valid'] = orphanedEpicRefs.length === 0;
+          
+          if (orphanedEpicRefs.length > 0) {
+            errors.push(`Tasks reference non-existent epics: ${orphanedEpicRefs.join(', ')}`);
+          }
+        }
+
+        if (checkName.includes('Stack choice in architecture.md matches approved stack')) {
+          const approvedStack = project.stack_choice;
+          if (approvedStack && architectureContent) {
+            const stackMentioned = architectureContent.toLowerCase().includes(approvedStack.toLowerCase().replace(/_/g, ' ')) ||
+                                  architectureContent.toLowerCase().includes(approvedStack.toLowerCase());
+            checks['stack_consistent'] = stackMentioned;
+            
+            if (!stackMentioned) {
+              warnings.push(`Architecture document may not reflect approved stack: ${approvedStack}`);
+            }
+          }
+        }
+      }
+
+      return {
+        status: errors.length > 0 ? 'fail' : (warnings.length > 0 ? 'warn' : 'pass'),
+        checks,
+        errors: errors.length > 0 ? errors : undefined,
+        warnings: warnings.length > 0 ? warnings : undefined
+      };
+    } catch (error) {
+      return {
+        status: 'fail',
+        checks: {},
+        errors: [`Failed to validate cross-artifact consistency: ${error instanceof Error ? error.message : String(error)}`]
+      };
+    }
+  }
+
+  /**
+   * Validate artifact quality score
+   */
+  private validateQualityScore(
+    project: Project,
+    criteria: Record<string, number>,
+    minimumScore: number
+  ): ValidationResult {
+    const checks: Record<string, boolean> = {};
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    try {
+      let totalScore = 0;
+      let maxScore = 0;
+      const scoreBreakdown: Record<string, number> = {};
+
+      const artifacts = [
+        { name: 'constitution.md', phase: 'ANALYSIS' },
+        { name: 'project-brief.md', phase: 'ANALYSIS' },
+        { name: 'personas.md', phase: 'ANALYSIS' },
+        { name: 'PRD.md', phase: 'SPEC' },
+        { name: 'data-model.md', phase: 'SPEC' },
+        { name: 'architecture.md', phase: 'SOLUTIONING' },
+        { name: 'tasks.md', phase: 'SOLUTIONING' },
+        { name: 'epics.md', phase: 'SOLUTIONING' }
+      ];
+
+      for (const artifact of artifacts) {
+        const content = this.getArtifactContent(project.id, artifact.name, artifact.phase);
+        if (!content) continue;
+
+        let artifactScore = 0;
+        const artifactMax = Object.values(criteria || {}).reduce((a, b) => a + b, 0);
+
+        // frontmatter_complete (check for YAML frontmatter)
+        if (criteria?.frontmatter_complete) {
+          const hasFrontmatter = content.startsWith('---') && content.includes('---\n', 4);
+          if (hasFrontmatter) {
+            const frontmatter = this.extractFrontmatter(content);
+            const requiredFields = ['title', 'owner', 'version', 'date', 'status'];
+            const hasAllFields = frontmatter && requiredFields.every(f => frontmatter[f]);
+            artifactScore += hasAllFields ? criteria.frontmatter_complete : criteria.frontmatter_complete / 2;
+          }
+        }
+
+        // min_content_length (check minimum content length)
+        if (criteria?.min_content_length) {
+          const contentWithoutFrontmatter = content.replace(/^---[\s\S]*?---\n/, '');
+          const wordCount = contentWithoutFrontmatter.split(/\s+/).filter(Boolean).length;
+          if (wordCount >= 500) {
+            artifactScore += criteria.min_content_length;
+          } else if (wordCount >= 200) {
+            artifactScore += criteria.min_content_length / 2;
+          }
+        }
+
+        // structured_sections (check for proper section headers)
+        if (criteria?.structured_sections) {
+          const sectionHeaders = content.match(/^#{1,3}\s+.+$/gm) || [];
+          if (sectionHeaders.length >= 5) {
+            artifactScore += criteria.structured_sections;
+          } else if (sectionHeaders.length >= 3) {
+            artifactScore += criteria.structured_sections / 2;
+          }
+        }
+
+        // actionable_criteria (check for actionable content like acceptance criteria)
+        if (criteria?.actionable_criteria) {
+          const hasGherkin = content.includes('GIVEN') && content.includes('WHEN') && content.includes('THEN');
+          const hasCheckboxes = (content.match(/- \[ \]/g) || []).length >= 3;
+          const hasRequirements = (content.match(/REQ-[A-Z]+-\d{3}/g) || []).length >= 3;
+          
+          if (hasGherkin || hasCheckboxes || hasRequirements) {
+            artifactScore += criteria.actionable_criteria;
+          } else if (content.includes('acceptance') || content.includes('criteria')) {
+            artifactScore += criteria.actionable_criteria / 2;
+          }
+        }
+
+        scoreBreakdown[artifact.name] = Math.round((artifactScore / artifactMax) * 100);
+        totalScore += artifactScore;
+        maxScore += artifactMax;
+      }
+
+      const finalScore = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
+      checks['quality_score'] = finalScore >= (minimumScore || 70);
+      checks['score_value'] = finalScore as unknown as boolean; // Store score for reporting
+
+      if (finalScore < (minimumScore || 70)) {
+        errors.push(`Quality score ${finalScore}/100 is below minimum ${minimumScore || 70}`);
+      } else if (finalScore < 85) {
+        warnings.push(`Quality score ${finalScore}/100 could be improved`);
+      }
+
+      return {
+        status: errors.length > 0 ? 'fail' : (warnings.length > 0 ? 'warn' : 'pass'),
+        checks: { ...checks, ...scoreBreakdown },
+        errors: errors.length > 0 ? errors : undefined,
+        warnings: warnings.length > 0 ? warnings : undefined
+      };
+    } catch (error) {
+      return {
+        status: 'fail',
+        checks: {},
+        errors: [`Failed to calculate quality score: ${error instanceof Error ? error.message : String(error)}`]
+      };
+    }
   }
 
   // Helper methods
