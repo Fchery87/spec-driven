@@ -150,6 +150,9 @@ export const verifications = pgTable('Verification', {
   value: text('value').notNull(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  // Timestamps required by Better Auth
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   userIdIdx: index('Verification_user_id_idx').on(table.userId),
   identifierValueIdx: index('Verification_identifier_value_idx').on(table.identifier, table.value),

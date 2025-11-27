@@ -32,13 +32,18 @@ export interface ProjectMetadata {
 
 export const getProjectsPath = () => resolve(process.cwd(), 'projects');
 
+// Helper to check if R2 is configured (supports both naming conventions)
+const isR2Configured = () => 
+  (process.env.R2_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID) && 
+  (process.env.R2_ACCESS_KEY_ID || process.env.CLOUDFLARE_ACCESS_KEY_ID);
+
 /**
  * Get project metadata from R2 or local file system
  * Tries R2 first if configured, falls back to local file system
  */
 export const getProjectMetadata = async (slug: string, ownerId?: string) => {
   // Try R2 first if configured
-  if (process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_ACCESS_KEY_ID) {
+  if (isR2Configured()) {
     try {
       const buffer = await downloadFromR2(slug, 'metadata', 'metadata.json');
       const metadata = JSON.parse(buffer.toString('utf-8'));
@@ -128,7 +133,7 @@ export const getProjectMetadata = async (slug: string, ownerId?: string) => {
  */
 export const saveProjectMetadata = async (slug: string, metadata: ProjectMetadata) => {
   // Try R2 first if configured
-  if (process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_ACCESS_KEY_ID) {
+  if (isR2Configured()) {
     try {
       await uploadMetadataToR2(slug, metadata as unknown as Record<string, unknown>);
       return;
@@ -168,12 +173,12 @@ export const listAllProjects = () => {
  * Falls back to database if R2 returns empty or fails
  */
 export const listArtifacts = async (slug: string, phase: string) => {
-  logger.info('listArtifacts called', { slug, phase, r2Configured: !!(process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_ACCESS_KEY_ID) });
+  logger.info('listArtifacts called', { slug, phase, r2Configured: !!isR2Configured() });
 
   let r2Artifacts: Array<{ name: string; size: number }> = [];
 
   // Try R2 first if configured
-  if (process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_ACCESS_KEY_ID) {
+  if (isR2Configured()) {
     try {
       const artifacts = await listR2Artifacts(slug, phase);
       r2Artifacts = artifacts.map(artifact => ({
@@ -248,7 +253,7 @@ export const writeArtifact = async (slug: string, phase: string, name: string, c
   const isProduction = process.env.NODE_ENV === 'production';
 
   // Try R2 first if configured
-  if (process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_ACCESS_KEY_ID) {
+  if (isR2Configured()) {
     try {
       const key = await uploadToR2(slug, phase, name, content, {
         contentType: 'application/octet-stream',
@@ -306,7 +311,7 @@ export const saveArtifact = async (slug: string, phase: string, name: string, co
  */
 export const readArtifact = async (slug: string, phase: string, name: string): Promise<string> => {
   // Try R2 first if configured
-  if (process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_ACCESS_KEY_ID) {
+  if (isR2Configured()) {
     try {
       const buffer = await downloadFromR2(slug, phase, name);
       logger.debug('Artifact read from R2', { slug, phase, name });
