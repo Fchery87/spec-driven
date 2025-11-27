@@ -4,13 +4,15 @@ import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { Loader2, ShieldPlus, X } from "lucide-react"
+import { Loader2, ShieldPlus, X, User, Mail, KeyRound, UserPlus } from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -74,116 +76,146 @@ export default function SignUpPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted px-4 py-16">
-      <div className="mx-auto flex max-w-6xl flex-col items-center gap-10">
-        <div className="text-center space-y-3">
-          <BadgeCreateLabel />
-          <h1 className="text-3xl font-semibold text-foreground">Create your workspace</h1>
-          <p className="text-muted-foreground">
-            Join the Spec-Driven Platform to generate secure specs and guided handoffs.
-          </p>
-        </div>
+    <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted">
+      <div className="mx-auto max-w-6xl px-4 py-12 md:px-6">
+        <div className="flex flex-col items-center gap-8">
+          <div className="gradient-header dark:gradient-header-dark rounded-2xl p-8 border border-border/50 w-full max-w-lg text-center">
+            <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 border px-3 py-1 mb-4">
+              <ShieldPlus className="h-3.5 w-3.5 mr-1.5" />
+              New Profile
+            </Badge>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">
+              Create your workspace
+            </h1>
+            <p className="text-muted-foreground">
+              Join the Spec-Driven Platform to generate secure specs and guided handoffs.
+            </p>
+          </div>
 
-        <Card className="w-full max-w-lg border border-border/70 bg-card/80">
-          <CardHeader>
-            <CardTitle className="text-xl">Sign Up</CardTitle>
-            <CardDescription>Enter your details to create an account.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {error && (
-              <p className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
-              </p>
-            )}
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="grid gap-2">
-                <Label htmlFor="first-name">First name</Label>
-                <Input
-                  id="first-name"
-                  placeholder="Jordan"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="last-name">Last name</Label>
-                <Input
-                  id="last-name"
-                  placeholder="Sloan"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="password_confirmation">Confirm password</Label>
-              <Input
-                id="password_confirmation"
-                type="password"
-                value={passwordConfirmation}
-                onChange={(e) => setPasswordConfirmation(e.target.value)}
-                placeholder="••••••••"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="image">Profile image (optional)</Label>
-              <div className="flex items-center gap-4">
-                {imagePreview && (
-                  <div className="relative h-16 w-16 overflow-hidden rounded-full border border-border/70">
-                    <Image src={imagePreview} alt="Profile preview" fill className="object-cover" />
-                  </div>
-                )}
-                <div className="flex flex-1 items-center gap-2">
-                  <Input id="image" type="file" accept="image/*" onChange={handleImageChange} />
-                  {imagePreview && (
-                    <button
-                      type="button"
-                      aria-label="Remove image"
-                      className="rounded-full border border-border p-1 text-muted-foreground"
-                      onClick={() => {
-                        setImage(null)
-                        setImagePreview(null)
-                      }}
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
+          <Card className="w-full max-w-lg border-border/50 bg-card/50 shadow-lg">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="h-9 w-9 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                  <UserPlus className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Sign Up</CardTitle>
+                  <CardDescription className="text-sm">Enter your details to create an account.</CardDescription>
                 </div>
               </div>
-            </div>
-            <Button className="w-full" disabled={loading} type="button" onClick={handleSignUp}>
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Create account
-            </Button>
-            <div className="flex items-center gap-3 text-xs uppercase tracking-wide text-muted-foreground">
-              <span className="h-px flex-1 bg-border" />
-              or continue with
-              <span className="h-px flex-1 bg-border" />
-            </div>
-            <div className="flex flex-col gap-2">
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {error && (
+                <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-destructive" />
+                  {error}
+                </div>
+              )}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="first-name">First name</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="first-name"
+                      placeholder="Jordan"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      className="pl-10 bg-background"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="last-name">Last name</Label>
+                  <Input
+                    id="last-name"
+                    placeholder="Sloan"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="bg-background"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="you@company.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-10 bg-background"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="pl-10 bg-background"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="password_confirmation">Confirm password</Label>
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="password_confirmation"
+                    type="password"
+                    value={passwordConfirmation}
+                    onChange={(e) => setPasswordConfirmation(e.target.value)}
+                    placeholder="••••••••"
+                    className="pl-10 bg-background"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="image">Profile image (optional)</Label>
+                <div className="flex items-center gap-4">
+                  {imagePreview && (
+                    <div className="relative h-14 w-14 overflow-hidden rounded-xl border border-border/50 shadow-sm">
+                      <Image src={imagePreview} alt="Profile preview" fill className="object-cover" />
+                    </div>
+                  )}
+                  <div className="flex flex-1 items-center gap-2">
+                    <Input id="image" type="file" accept="image/*" onChange={handleImageChange} className="bg-background" />
+                    {imagePreview && (
+                      <button
+                        type="button"
+                        aria-label="Remove image"
+                        className="rounded-lg border border-border/50 p-1.5 text-muted-foreground hover:bg-muted transition-colors"
+                        onClick={() => {
+                          setImage(null)
+                          setImagePreview(null)
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <Button className="w-full h-11" disabled={loading} type="button" onClick={handleSignUp}>
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
+                Create account
+              </Button>
+              <div className="flex items-center gap-3 text-xs uppercase tracking-wide text-muted-foreground">
+                <span className="h-px flex-1 bg-border" />
+                or continue with
+                <span className="h-px flex-1 bg-border" />
+              </div>
               <Button
                 variant="outline"
-                className="w-full gap-2"
+                className="w-full h-11 gap-2"
                 disabled={loading}
                 type="button"
                 onClick={() =>
@@ -200,26 +232,19 @@ export default function SignUpPage() {
                 <GoogleIcon />
                 Continue with Google
               </Button>
-            </div>
-            <p className="text-center text-sm text-muted-foreground">
-              Already have an account?{" "}
-              <Link href="/sign-in" className="text-primary underline-offset-4 hover:underline">
-                Sign in
-              </Link>
-            </p>
-          </CardContent>
-        </Card>
+            </CardContent>
+            <CardFooter className="flex flex-col gap-2 text-sm text-muted-foreground pt-2 border-t border-border/50">
+              <p className="text-center py-2">
+                Already have an account?{" "}
+                <Link href="/sign-in" className="text-primary font-medium underline-offset-4 hover:underline">
+                  Sign in
+                </Link>
+              </p>
+            </CardFooter>
+          </Card>
+        </div>
       </div>
     </main>
-  )
-}
-
-function BadgeCreateLabel() {
-  return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/80 px-3 py-1 text-xs font-medium uppercase tracking-[0.3em] text-muted-foreground">
-      <ShieldPlus className="h-4 w-4 text-primary" />
-      New Profile
-    </div>
   )
 }
 

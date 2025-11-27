@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { logger } from '@/lib/logger';
 import { toast } from 'sonner';
 import {
@@ -15,12 +14,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { PhaseStepper } from '@/components/orchestration/PhaseStepper';
 import { StackSelection } from '@/components/orchestration/StackSelection';
 import { ArtifactViewer } from '@/components/orchestration/ArtifactViewer';
 import { DependenciesReview } from '@/components/orchestration/DependenciesReview';
+import { ProjectHeader } from '@/components/orchestration/ProjectHeader';
+import { PhaseTimeline } from '@/components/orchestration/PhaseTimeline';
+import { ArtifactSidebar } from '@/components/orchestration/ArtifactSidebar';
+import { ActionBar } from '@/components/orchestration/ActionBar';
 import { calculatePhaseStatuses, canAdvanceFromPhase } from '@/utils/phase-status';
-import { ArrowLeft, FileText, CheckCircle, Trash2, Download } from 'lucide-react';
+import { CheckCircle, Trash2, Download, FileText, AlertCircle } from 'lucide-react';
 
 interface Artifact {
   name: string;
@@ -85,10 +87,7 @@ export default function ProjectPage() {
       if (result.success) {
         setProject(result.data);
 
-        // Skip gate checks during approval flows to prevent race conditions
-        // where the server state hasn't updated yet but we've already closed the gate UI
         if (!skipGateChecks) {
-          // Show stack selection if current phase is STACK_SELECTION and not approved
           if (result.data.current_phase === 'STACK_SELECTION' && !result.data.stack_approved) {
             setShowStackSelection(true);
           } else {
@@ -114,24 +113,15 @@ export default function ProjectPage() {
 
   const fetchArtifacts = useCallback(async () => {
     try {
-      console.log('[fetchArtifacts] Starting fetch for slug:', slug);
       const response = await fetch(`/api/projects/${slug}/artifacts`, { cache: 'no-store' });
       const result = await response.json();
-      console.log('[fetchArtifacts] API response:', result);
 
       if (result.success) {
-        // API returns: { artifacts: { ANALYSIS: [...], SPEC: [...], etc } }
         const allArtifacts = result.data.artifacts;
-        console.log('[fetchArtifacts] Setting artifacts:', allArtifacts);
-        console.log('[fetchArtifacts] Artifact phases:', Object.keys(allArtifacts || {}));
-        console.log('[fetchArtifacts] Total artifacts:', Object.values(allArtifacts || {}).flat().length);
         setArtifacts(allArtifacts || {});
-      } else {
-        console.error('[fetchArtifacts] API returned success: false', result);
       }
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
-      console.error('[fetchArtifacts] Error fetching artifacts:', error);
       logger.error('Failed to fetch artifacts:', error);
     }
   }, [slug]);
@@ -146,14 +136,6 @@ export default function ProjectPage() {
       setDescriptionInput(project.description || '');
     }
   }, [project?.description, editingDescription]);
-
-  useEffect(() => {
-    console.log('[artifacts state changed]', {
-      phases: Object.keys(artifacts),
-      counts: Object.entries(artifacts).map(([phase, arts]) => `${phase}: ${arts.length}`),
-      total: Object.values(artifacts).flat().length
-    });
-  }, [artifacts]);
 
   useEffect(() => {
     if (showDependencySelector) {
@@ -189,15 +171,12 @@ export default function ProjectPage() {
     } finally {
       setExecuting(false);
     }
-  }, [slug, project?.current_phase, recordAction, fetchProject, fetchArtifacts]);
+  }, [slug, project?.current_phase, fetchProject, fetchArtifacts]);
 
-  // Auto-execute DEPENDENCIES phase when entered (no user UI selection needed)
   useEffect(() => {
     if (project?.current_phase === 'DEPENDENCIES' && !project.dependencies_approved && !executing) {
-      // Check if artifacts already exist for this phase
       const dependenciesArtifacts = artifacts['DEPENDENCIES'];
       if (!dependenciesArtifacts || dependenciesArtifacts.length === 0) {
-        // Auto-execute the phase
         handleExecutePhase();
       }
     }
@@ -247,7 +226,7 @@ export default function ProjectPage() {
 
       if (result.success) {
         setShowStackSelection(false);
-        fetchProject(true); // Skip gate checks to prevent race conditions
+        fetchProject(true);
         fetchArtifacts();
         recordAction('Stack selection approved.');
       } else {
@@ -269,7 +248,7 @@ export default function ProjectPage() {
       const response = await fetch(`/api/projects/${slug}/approve-dependencies`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes: approvalNotes }), // API expects 'notes' field
+        body: JSON.stringify({ notes: approvalNotes }),
         cache: 'no-store'
       })
 
@@ -277,9 +256,9 @@ export default function ProjectPage() {
 
       if (result.success) {
         setShowDependencySelector(false)
-        await fetchProject(true) // Skip gate checks to prevent race conditions
+        await fetchProject(true)
         await fetchArtifacts()
-        recordAction('Dependencies approved. Click "Advance to Next Phase" to continue.')
+        recordAction('Dependencies approved. Click "Next Phase" to continue.')
       } else {
         setError(result.error || 'Failed to approve dependencies')
         recordAction(result.error || 'Failed to approve dependencies', 'error')
@@ -308,7 +287,7 @@ export default function ProjectPage() {
       const result = await response.json()
 
       if (result.success) {
-        await fetchProject(true) // Skip gate checks during regeneration
+        await fetchProject(true)
         await fetchArtifacts()
         recordAction('Dependencies regenerated based on your feedback.')
       } else {
@@ -327,7 +306,6 @@ export default function ProjectPage() {
 
   const handleViewArtifact = async (artifact: Artifact, phase: string) => {
     try {
-      // Fetch the actual artifact content from the file system
       const response = await fetch(`/api/projects/${slug}/artifacts/${phase}/${artifact.name}`, { cache: 'no-store' });
 
       if (!response.ok) {
@@ -351,7 +329,6 @@ export default function ProjectPage() {
 
   const handleArtifactDownload = async (artifact: Artifact, phase: string) => {
     try {
-      // Fetch the actual artifact content from the file system
       const response = await fetch(`/api/projects/${slug}/artifacts/${phase}/${artifact.name}`, { cache: 'no-store' });
 
       if (!response.ok) {
@@ -477,7 +454,6 @@ export default function ProjectPage() {
 
       if (result.success) {
         setShowDeleteDialog(false);
-        // Redirect to dashboard after successful deletion
         router.push('/dashboard');
       } else {
         setError(result.error || 'Failed to delete project');
@@ -493,13 +469,21 @@ export default function ProjectPage() {
     }
   };
 
-  const handleViewArtifactsForPhase = (phase: string) => {
+  const handlePhaseClick = (phase: string) => {
     const phaseArtifacts = artifacts[phase];
-    if (!phaseArtifacts || phaseArtifacts.length === 0) {
+    if (phaseArtifacts && phaseArtifacts.length > 0) {
+      handleViewArtifact(phaseArtifacts[0], phase);
+    } else {
       recordAction('No artifacts available for this phase yet.', 'error');
-      return;
     }
-    handleViewArtifact(phaseArtifacts[0], phase);
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchProject();
+    await fetchArtifacts();
+    setRefreshing(false);
+    recordAction('Refreshed project and artifacts.');
   };
 
   if (loading) {
@@ -513,14 +497,10 @@ export default function ProjectPage() {
     );
   }
 
-  if (error || !project) {
+  if (error && !project) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted p-8">
         <div className="max-w-4xl mx-auto">
-          <Button variant="ghost" onClick={() => router.back()} className="mb-8 flex items-center gap-2">
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Button>
           <Card className="border border-destructive/30 bg-destructive/10">
             <CardHeader>
               <CardTitle className="text-destructive">Project unavailable</CardTitle>
@@ -529,9 +509,9 @@ export default function ProjectPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Return to the dashboard and select another project or create a new one.
-              </p>
+              <Button variant="outline" onClick={() => router.push('/dashboard')}>
+                Back to Dashboard
+              </Button>
             </CardContent>
           </Card>
         </div>
@@ -539,197 +519,68 @@ export default function ProjectPage() {
     );
   }
 
+  if (!project) return null;
+
   const completedCount = project.phases_completed.length;
-  const progress = Math.round((completedCount / PHASES.length) * 100);
-  const stackStatus = project.stack_choice
-    ? project.stack_approved
-      ? 'Approved'
-      : 'Awaiting approval'
-    : 'Not selected';
-  const dependencyStatus = project.dependencies_approved ? 'Approved' : 'Pending review';
+  const calculatedPhases = calculatePhaseStatuses({
+    current_phase: project.current_phase,
+    phases_completed: project.phases_completed || [],
+    stack_approved: project.stack_approved,
+    dependencies_approved: project.dependencies_approved,
+    artifacts: artifacts
+  });
+
+  const canAdvance = canAdvanceFromPhase(
+    project.current_phase,
+    project.phases_completed || [],
+    project.stack_approved,
+    project.dependencies_approved
+  );
+
+  const canExecutePhase = shouldShowExecuteButton(project.current_phase);
+  const hasCurrentArtifacts = hasArtifactsForPhase(project.current_phase, artifacts);
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted p-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-start mb-8">
-          <div>
-            <Button variant="ghost" onClick={() => router.push('/dashboard')} className="mb-4 flex items-center gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Back to Projects
-            </Button>
-            <h1 className="text-4xl font-bold text-foreground">{project.name}</h1>
-            <p className="text-muted-foreground mt-2">Project slug: {project.slug}</p>
-          </div>
-          <div className="text-right">
-            <Badge className="mb-2">{project.current_phase}</Badge>
-            <p className="text-sm text-muted-foreground">
-              {project.phases_completed.length} of {PHASES.length} phases completed
-            </p>
-          </div>
-        </div>
+    <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted pb-24">
+      <div className="max-w-6xl mx-auto px-6 pt-6">
+        <ProjectHeader
+          name={project.name}
+          slug={project.slug}
+          description={project.description}
+          currentPhase={project.current_phase}
+          completedCount={completedCount}
+          totalPhases={PHASES.length}
+          stackChoice={project.stack_choice}
+          createdAt={project.created_at}
+          onBack={() => router.push('/dashboard')}
+          onEditDescription={() => setEditingDescription(true)}
+        />
 
-        <Card className="mb-6 border border-border/70 bg-card/80">
-          <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>
-              <CardTitle className="text-lg">Project Description</CardTitle>
-              <CardDescription className="text-sm text-muted-foreground">
-                Provide a succinct summary so stakeholders understand scope.
-              </CardDescription>
-            </div>
-            {!editingDescription && (
-              <Button variant="outline" size="sm" onClick={() => setEditingDescription(true)}>
-                Edit
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {editingDescription ? (
-              <>
-                <textarea
-                  className="w-full rounded-lg border border-border bg-background p-3 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                  rows={3}
-                  value={descriptionInput}
-                  onChange={(e) => setDescriptionInput(e.target.value)}
-                  placeholder="Describe the goal, audience, and constraints for this project."
-                />
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    onClick={handleSaveDescription}
-                    disabled={savingDescription}
-                    className="min-w-[120px]"
-                  >
-                    {savingDescription ? 'Saving...' : 'Save'}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setEditingDescription(false);
-                      setDescriptionInput(project.description || '');
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                {project.description?.trim()
-                  ? project.description
-                  : 'No description yet. Add a short overview to align stakeholders.'}
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        <PhaseTimeline
+          phases={calculatedPhases.map(p => ({
+            name: p.name,
+            status: p.status,
+            blockedReason: p.blockedReason
+          }))}
+          currentPhase={project.current_phase}
+          onPhaseClick={handlePhaseClick}
+        />
 
-        <div className="mb-8 grid gap-4 md:grid-cols-3">
-          <Card className="border border-border/70 bg-card/70">
-            <CardHeader className="pb-3">
-              <CardDescription>Progress</CardDescription>
-              <CardTitle className="text-3xl">{progress}%</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                {completedCount} of {PHASES.length} phases complete
-              </p>
-              <div className="mt-2 h-2 w-full rounded-full bg-muted">
-                <div
-                  className="h-2 rounded-full bg-primary transition-all"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border border-border/70 bg-card/70">
-            <CardHeader className="pb-3">
-              <CardDescription>Stack</CardDescription>
-              <CardTitle className="text-lg">
-                {project.stack_choice ? project.stack_choice.replace(/_/g, ' ') : 'Not selected'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">{stackStatus}</p>
-            </CardContent>
-          </Card>
-          <Card className="border border-border/70 bg-card/70">
-            <CardHeader className="pb-3">
-              <CardDescription>Dependencies</CardDescription>
-              <CardTitle className="text-lg">{dependencyStatus}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Created {new Date(project.created_at).toLocaleDateString()}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Error alert */}
         {error && (
-          <Card className="mb-8 border border-destructive/30 bg-destructive/10">
-            <CardContent className="pt-6">
-              <p className="text-destructive">{error}</p>
+          <Card className="mb-6 border border-destructive/30 bg-destructive/10">
+            <CardContent className="pt-4 pb-4 flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              <p className="text-destructive text-sm">{error}</p>
             </CardContent>
           </Card>
         )}
 
-        {/* Phase stepper */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Project Workflow</CardTitle>
-            <CardDescription>
-              Follow the phases to generate your complete project specification
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {(() => {
-              const calculatedPhases = calculatePhaseStatuses({
-                current_phase: project.current_phase,
-                phases_completed: project.phases_completed || [],
-                stack_approved: project.stack_approved,
-                dependencies_approved: project.dependencies_approved,
-                artifacts: artifacts
-              });
-
-              const canAdvance = canAdvanceFromPhase(
-                project.current_phase,
-                project.phases_completed || [],
-                project.stack_approved,
-                project.dependencies_approved
-              );
-
-              const canExecutePhase = shouldShowExecuteButton(project.current_phase);
-              const hasCurrentArtifacts = hasArtifactsForPhase(project.current_phase, artifacts);
-              const executeLabel = hasCurrentArtifacts
-                ? `Rebuild ${project.current_phase} Phase`
-                : `Execute ${project.current_phase} Phase`;
-
-              return (
-                <PhaseStepper
-                  currentPhase={project.current_phase}
-                  phases={calculatedPhases}
-                  canAdvance={canAdvance}
-                  onAdvance={handlePhaseAdvance}
-                  onPhaseClick={handleViewArtifactsForPhase}
-                  canExecute={canExecutePhase}
-                  onExecute={handleExecutePhase}
-                  executing={executing}
-                  executeLabel={executeLabel}
-                />
-              );
-            })()}
-          </CardContent>
-        </Card>
-
-        {/* Stack selection modal/section */}
         {showStackSelection && (
-          <Card className="mb-8 border border-[hsl(var(--chart-2))]/30 bg-[hsl(var(--chart-2))]/10">
+          <Card className="mb-6 border border-primary/30 bg-primary/5">
             <CardHeader>
               <CardTitle>Select Technology Stack</CardTitle>
               <CardDescription>
-                Choose a platform type and technology stack for this project. This decision will guide all future specifications.
+                Choose a platform type and technology stack for this project.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -744,12 +595,12 @@ export default function ProjectPage() {
         {showDependencySelector && (
           <Card
             ref={dependencySelectorRef}
-            className="mb-8 border border-[hsl(var(--chart-3))]/30 bg-[hsl(var(--chart-3))]/5"
+            className="mb-6 border border-amber-500/30 bg-amber-500/5"
           >
             <CardHeader>
-              <CardTitle>Dependencies Generated</CardTitle>
+              <CardTitle>Review Dependencies</CardTitle>
               <CardDescription>
-                Review and approve the DevOps-generated dependency plan for your architecture.
+                Review and approve the generated dependency plan for your architecture.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -777,279 +628,217 @@ export default function ProjectPage() {
           </Card>
         )}
 
-        {/* Current phase details */}
-        <div className="grid lg:grid-cols-3 gap-8 mb-8">
-          {/* Phase info */}
-          <div className="lg:col-span-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Current Phase: {project.current_phase}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <h3 className="font-semibold text-foreground mb-2">Phase Description</h3>
-                  <p className="text-muted-foreground">{getPhaseDescription(project.current_phase)}</p>
-                </div>
+        {editingDescription && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="text-lg">Edit Description</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <textarea
+                className="w-full rounded-lg border border-border bg-background p-3 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                rows={3}
+                value={descriptionInput}
+                onChange={(e) => setDescriptionInput(e.target.value)}
+                placeholder="Describe the goal, audience, and constraints for this project."
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleSaveDescription}
+                  disabled={savingDescription}
+                >
+                  {savingDescription ? 'Saving...' : 'Save'}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setEditingDescription(false);
+                    setDescriptionInput(project.description || '');
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-                <div>
-                  <h3 className="font-semibold text-foreground mb-2">Expected Outputs</h3>
-                  <div className="space-y-2">
-                    {getPhaseOutputs(project.current_phase).map((output) => {
-                      const complete = isOutputComplete(project.current_phase, output, artifacts);
-                      return (
-                        <div
-                          key={output}
-                          className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/50 px-3 py-2 text-sm text-muted-foreground"
-                        >
-                          <span>{output}</span>
-                          {complete ? (
-                            <span className="flex items-center gap-1 text-[hsl(var(--chart-4))]">
-                              <CheckCircle className="h-4 w-4" />
-                              Ready
-                            </span>
-                          ) : (
-                            <span className="text-xs uppercase tracking-wide">Pending</span>
-                          )}
-                        </div>
-                      )
-                    })}
+        <div className="grid lg:grid-cols-5 gap-6">
+          <div className="lg:col-span-3">
+            {project.current_phase === 'DONE' ? (
+              <Card className="bg-emerald-500/10 border border-emerald-500/30">
+                <CardContent className="pt-6">
+                  <div className="text-center mb-6">
+                    <div className="flex items-center justify-center gap-2 mb-4">
+                      <CheckCircle className="h-6 w-6 text-emerald-500" />
+                      <p className="text-emerald-600 dark:text-emerald-400 font-semibold text-lg">
+                        Project Complete!
+                      </p>
+                    </div>
+                    <p className="text-muted-foreground text-sm max-w-md mx-auto">
+                      All specifications are ready. Generate the HANDOFF.md document for LLM-based code generation.
+                    </p>
                   </div>
-                </div>
 
-                {/* Gate information */}
-                {getPhaseGates(project.current_phase).length > 0 && (
-                  <div className="pt-4 border-t border-border">
-                    <h3 className="font-semibold text-foreground mb-2">Approval Gates</h3>
+                  <div className="space-y-4">
+                    {artifacts['DONE']?.some((a: Artifact) => a.name === 'HANDOFF.md') ? (
+                      <div className="space-y-3">
+                        <div className="bg-emerald-500/15 border border-emerald-500/30 rounded-lg p-4 text-center">
+                          <p className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center justify-center gap-2">
+                            <CheckCircle className="h-4 w-4" />
+                            HANDOFF.md Generated
+                          </p>
+                        </div>
+                        <Button
+                          onClick={handleDownloadSpecs}
+                          className="w-full flex items-center justify-center gap-2 h-12"
+                        >
+                          <Download className="h-4 w-4" />
+                          Download All Specifications (ZIP)
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        onClick={handleGenerateHandoff}
+                        disabled={generatingHandoff}
+                        className="w-full flex items-center justify-center gap-2 h-12"
+                      >
+                        {generatingHandoff ? (
+                          <>
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="h-4 w-4" />
+                            Generate HANDOFF.md
+                          </>
+                        )}
+                      </Button>
+                    )}
+
+                    <div className="flex gap-3 justify-center pt-4 border-t border-emerald-500/30">
+                      <Button
+                        onClick={() => router.push('/dashboard')}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        Back to Dashboard
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={() => setShowDeleteDialog(true)}
+                        className="flex items-center gap-2"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <span className="text-primary">Current Phase:</span> {project.current_phase}
+                  </CardTitle>
+                  <CardDescription>
+                    {getPhaseDescription(project.current_phase)}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-medium mb-3">Expected Outputs</h4>
                     <div className="space-y-2">
+                      {getPhaseOutputs(project.current_phase).map((output) => {
+                        const complete = isOutputComplete(project.current_phase, output, artifacts);
+                        return (
+                          <div
+                            key={output}
+                            className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/30 px-4 py-2.5"
+                          >
+                            <div className="flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm">{output}</span>
+                            </div>
+                            {complete ? (
+                              <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 text-sm">
+                                <CheckCircle className="h-4 w-4" />
+                                Ready
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground uppercase tracking-wide">
+                                Pending
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {getPhaseGates(project.current_phase).length > 0 && (
+                    <div className="pt-4 border-t border-border">
+                      <h4 className="text-sm font-medium mb-3">Approval Gates</h4>
                       {getPhaseGates(project.current_phase).map((gate) => {
                         const approved =
                           (gate === 'stack_approved' && project.stack_approved) ||
                           (gate === 'dependencies_approved' && project.dependencies_approved);
                         return (
-                          <div key={gate} className="rounded-lg border border-border/70 bg-muted/40 p-3">
+                          <div
+                            key={gate}
+                            className={`rounded-lg border p-3 ${
+                              approved
+                                ? 'border-emerald-500/30 bg-emerald-500/5'
+                                : 'border-amber-500/30 bg-amber-500/5'
+                            }`}
+                          >
                             <div className="flex items-center gap-2">
-                              <span className={`w-2 h-2 rounded-full ${approved ? 'bg-[hsl(var(--chart-4))]' : 'bg-destructive'}`}></span>
-                              <span className="text-sm text-muted-foreground capitalize">
+                              <span
+                                className={`w-2 h-2 rounded-full ${
+                                  approved ? 'bg-emerald-500' : 'bg-amber-500'
+                                }`}
+                              />
+                              <span className="text-sm font-medium capitalize">
                                 {gate.replace(/_/g, ' ')}
                               </span>
+                              <span
+                                className={`text-xs ml-auto ${
+                                  approved ? 'text-emerald-600' : 'text-amber-600'
+                                }`}
+                              >
+                                {approved ? 'Approved' : 'Pending'}
+                              </span>
                             </div>
-                            {!approved && (
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                Waiting for stakeholder approval before advancing.
-                              </p>
-                            )}
                           </div>
-                        )
+                        );
                       })}
                     </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
 
-          {/* Artifacts summary */}
-          <div>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Artifacts</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {PHASES.map((phase) => (
-                    <div key={phase}>
-                      <h4 className="font-medium text-sm text-foreground mb-2">{phase}</h4>
-                      {artifacts[phase] && artifacts[phase].length > 0 ? (
-                        <div className="space-y-2">
-                          {artifacts[phase].map((artifact: Artifact) => (
-                            <div
-                              key={artifact.name}
-                              className="rounded-xl border border-border/80 bg-muted/50 p-3 text-xs text-muted-foreground"
-                            >
-                              <div className="mb-2 flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2 truncate">
-                                  <FileText className="h-3.5 w-3.5 text-primary" />
-                                  <span className="truncate text-foreground">{artifact.name}</span>
-                                </div>
-                                <span className="text-[10px] uppercase tracking-wide">Phase {phase}</span>
-                              </div>
-                              <div className="flex items-center justify-end gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 px-2 text-xs"
-                                  onClick={() => handleViewArtifact(artifact, phase)}
-                                >
-                                  View
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 px-2 text-xs"
-                                  onClick={() => handleArtifactDownload(artifact, phase)}
-                                >
-                                  Download
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">No artifacts yet</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+          <div className="lg:col-span-2">
+            <ArtifactSidebar
+              artifacts={artifacts}
+              phases={PHASES}
+              currentPhase={project.current_phase}
+              onViewArtifact={handleViewArtifact}
+              onDownloadArtifact={handleArtifactDownload}
+            />
           </div>
         </div>
 
-        {/* Actions */}
-        {!showStackSelection && project.current_phase !== 'DONE' && (
-          <Card className="border border-border/70">
-            <CardHeader>
-              <CardTitle>Phase Controls</CardTitle>
-              <CardDescription>Advance once approvals are satisfied, refresh artifacts, or clean up this project.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  onClick={handlePhaseAdvance}
-                  disabled={advancing || executing}
-                  variant="outline"
-                  className="flex-1 min-w-[180px]"
-                >
-                  {advancing ? 'Advancing...' : 'Advance to Next Phase'}
-                </Button>
-                {project.current_phase === 'DEPENDENCIES' && !project.dependencies_approved && (
-                  <Button
-                    variant="secondary"
-                    className="flex-1 min-w-[180px]"
-                    onClick={() => setShowDependencySelector(true)}
-                    disabled={executing || advancing || showDependencySelector}
-                  >
-                    Select Dependencies
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  className="flex-1 min-w-[140px]"
-                  onClick={async () => {
-                    setRefreshing(true);
-                    await fetchProject();
-                    await fetchArtifacts();
-                    setRefreshing(false);
-                    recordAction('Refreshed project and artifacts.');
-                  }}
-                  disabled={executing || advancing || refreshing}
-                >
-                  {refreshing ? 'Refreshing...' : 'Refresh'}
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={() => setShowDeleteDialog(true)}
-                  className="flex-1 min-w-[140px] flex items-center justify-center gap-2"
-                  disabled={executing || advancing}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {project.current_phase === 'DONE' && (
-          <Card className="bg-[hsl(var(--chart-4))]/10 border border-[hsl(var(--chart-4))]/30">
-            <CardContent className="pt-6">
-              <div className="text-center mb-6">
-                <div className="flex items-center justify-center gap-2 mb-4">
-                  <CheckCircle className="h-5 w-5 text-[hsl(var(--chart-4))]" />
-                  <p className="text-[hsl(var(--chart-4))] font-semibold">
-                    Project specification complete! Ready for code generation.
-                  </p>
-                </div>
-                <p className="text-muted-foreground text-sm">
-                  Generate the HANDOFF.md document that contains all specifications compiled into a single prompt for LLM-based code generation.
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                {/* Check if handoff already exists */}
-                {artifacts['DONE'] && artifacts['DONE'].some((a: Artifact) => a.name === 'HANDOFF.md') ? (
-                  <div className="space-y-3">
-                    <div className="bg-[hsl(var(--chart-4))]/15 border border-[hsl(var(--chart-4))]/30 rounded-lg p-4 text-center">
-                      <p className="text-[hsl(var(--chart-4))] font-semibold flex items-center justify-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-[hsl(var(--chart-4))]" />
-                        HANDOFF.md has been generated
-                      </p>
-                    </div>
-                    <Button
-                      onClick={handleDownloadSpecs}
-                      className="w-full flex items-center justify-center gap-2 h-12 bg-primary hover:bg-primary/80"
-                    >
-                      <Download className="h-4 w-4" />
-                      Download All Specifications (ZIP)
-                    </Button>
-                    <p className="text-center text-xs text-muted-foreground">
-                      Share HANDOFF.md with engineering and attach ZIP to your build ticket.
-                    </p>
-                  </div>
-                ) : (
-                  <Button
-                    onClick={handleGenerateHandoff}
-                    disabled={generatingHandoff}
-                    className="w-full flex items-center justify-center gap-2 h-12"
-                  >
-                    {generatingHandoff ? (
-                      <>
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                        Generating HANDOFF.md...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="h-4 w-4 text-[hsl(var(--chart-4))]" />
-                        Generate HANDOFF.md
-                      </>
-                    )}
-                  </Button>
-                )}
-                {!artifacts['DONE']?.some((a: Artifact) => a.name === 'HANDOFF.md') && (
-                  <p className="text-center text-xs text-muted-foreground">
-                    Compile all artifacts into a single prompt once your stakeholders sign off.
-                  </p>
-                )}
-
-                <div className="flex gap-4 justify-center pt-2 border-t border-[hsl(var(--chart-4))]/30">
-                  <Button
-                    onClick={() => router.push('/dashboard')}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    Back to Dashboard
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => setShowDeleteDialog(true)}
-                    className="flex items-center gap-2"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete Project
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Delete confirmation dialog */}
         <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle className="text-destructive">Delete Project</DialogTitle>
               <DialogDescription>
-                Are you sure you want to delete &quot;{project?.name}&quot;? This action cannot be undone and will permanently remove all project data and specifications.
+                Are you sure you want to delete &quot;{project?.name}&quot;? This action cannot be undone.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="gap-2 sm:gap-0">
@@ -1068,7 +857,7 @@ export default function ProjectPage() {
               >
                 {deleting ? (
                   <>
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-transparent"></div>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-transparent" />
                     Deleting...
                   </>
                 ) : (
@@ -1082,7 +871,6 @@ export default function ProjectPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Artifact Viewer Modal */}
         {selectedArtifact && (
           <ArtifactViewer
             open={viewerOpen}
@@ -1093,18 +881,32 @@ export default function ProjectPage() {
           />
         )}
       </div>
+
+      {project.current_phase !== 'DONE' && (
+        <ActionBar
+          currentPhase={project.current_phase}
+          canAdvance={canAdvance}
+          canExecute={canExecutePhase}
+          hasArtifacts={hasCurrentArtifacts}
+          executing={executing}
+          advancing={advancing}
+          refreshing={refreshing}
+          onExecute={handleExecutePhase}
+          onAdvance={handlePhaseAdvance}
+          onRefresh={handleRefresh}
+          onDownload={handleDownloadSpecs}
+          onDelete={() => setShowDeleteDialog(true)}
+          executeLabel={hasCurrentArtifacts ? `Rebuild ${project.current_phase}` : undefined}
+        />
+      )}
     </main>
   );
 }
 
-// Helper functions
 function shouldShowExecuteButton(phase: string): boolean {
-  // Don't show execute button for user-driven phases
   if (phase === 'STACK_SELECTION' || phase === 'DONE') {
     return false;
   }
-
-  // All other phases can be executed (or rebuilt) at any time
   return true;
 }
 
@@ -1119,11 +921,11 @@ function hasArtifactsForPhase(phase: string, artifacts: Record<string, Artifact[
 function getPhaseDescription(phase: string): string {
   const descriptions: Record<string, string> = {
     ANALYSIS: 'Analyze and clarify project requirements. AI agents will generate your project constitution, brief, and user personas.',
-    STACK_SELECTION: 'Select and approve the technology stack for your project. Choose between predefined stacks optimized for different scenarios.',
+    STACK_SELECTION: 'Select and approve the technology stack for your project.',
     SPEC: 'Generate detailed product and technical specifications including PRD, data model, and API specifications.',
-    DEPENDENCIES: 'Define and approve all project dependencies including npm packages, Python libraries, and system requirements.',
-    SOLUTIONING: 'Create architecture diagrams, break down work into epics and tasks, and plan implementation sequence.',
-    DONE: 'Generate final handoff document with HANDOFF.md prompt for LLM-based code generation.'
+    DEPENDENCIES: 'Define and approve all project dependencies including npm packages and system requirements.',
+    SOLUTIONING: 'Create architecture diagrams, break down work into epics and tasks, and plan implementation.',
+    DONE: 'Generate final handoff document for LLM-based code generation.'
   };
   return descriptions[phase] || 'Project phase';
 }

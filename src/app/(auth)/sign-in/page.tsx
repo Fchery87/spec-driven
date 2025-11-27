@@ -3,8 +3,9 @@
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useState, Suspense } from "react"
-import { KeyRound, Loader2, ShieldCheck } from "lucide-react"
+import { KeyRound, Loader2, ShieldCheck, Lock, Mail } from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -65,7 +66,6 @@ function SignInPageContent() {
         }
       )
 
-      // Fallback: if onSuccess doesn't trigger, check result and redirect manually
       if (result && !result.error) {
         logEvent("sign_in_redirect")
         setTimeout(() => {
@@ -100,87 +100,108 @@ function SignInPageContent() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted px-4 py-16">
-      <div className="mx-auto flex max-w-5xl flex-col items-center gap-10">
-        <div className="text-center space-y-3">
-          <BadgeHeroLabel />
-          <h1 className="text-3xl font-semibold text-foreground">Welcome back</h1>
-          <p className="text-muted-foreground">
-            Sign in to orchestrate specs, approvals, and handoffs with clarity.
-          </p>
-        </div>
+    <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted">
+      <div className="mx-auto max-w-6xl px-4 py-12 md:px-6">
+        <div className="flex flex-col items-center gap-8">
+          <div className="gradient-header dark:gradient-header-dark rounded-2xl p-8 border border-border/50 w-full max-w-lg text-center">
+            <Badge className="bg-primary/15 text-primary border-primary/30 border px-3 py-1 mb-4">
+              <ShieldCheck className="h-3.5 w-3.5 mr-1.5" />
+              Secure Access
+            </Badge>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">
+              Welcome back
+            </h1>
+            <p className="text-muted-foreground">
+              Sign in to orchestrate specs, approvals, and handoffs with clarity.
+            </p>
+          </div>
 
-        <Card className="w-full max-w-md border border-border/70 bg-card/80">
-          <CardHeader>
-            <CardTitle className="text-xl">Sign In</CardTitle>
-            <CardDescription>Enter your email to access your workspace.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {error && (
-              <p className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
-              </p>
-            )}
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <div className="flex items-center">
-                <Label htmlFor="password">Password</Label>
-                <Link href="#" className="ml-auto text-sm text-primary underline-offset-4 hover:underline">
-                  Forgot password?
-                </Link>
+          <Card className="w-full max-w-lg border-border/50 bg-card/50 shadow-lg">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Lock className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Sign In</CardTitle>
+                  <CardDescription className="text-sm">Enter your email to access your workspace.</CardDescription>
+                </div>
               </div>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="remember"
-                checked={rememberMe}
-                onChange={(event) => setRememberMe(event.target.checked)}
-              />
-              <Label htmlFor="remember" className="text-sm text-muted-foreground">
-                Remember me on this device
-              </Label>
-            </div>
-            <Button
-              className="w-full"
-              disabled={loading}
-              type="button"
-              onClick={(e) => {
-                e.preventDefault()
-                handleEmailSignIn()
-              }}
-            >
-              {loading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <KeyRound className="mr-2 h-4 w-4" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {error && (
+                <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-destructive" />
+                  {error}
+                </div>
               )}
-              Sign In
-            </Button>
-            <div className="flex items-center gap-3 text-xs uppercase tracking-wide text-muted-foreground">
-              <span className="h-px flex-1 bg-border" />
-              or continue with
-              <span className="h-px flex-1 bg-border" />
-            </div>
-            <div className="flex flex-col gap-2">
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="you@company.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-10 bg-background"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <div className="flex items-center">
+                  <Label htmlFor="password">Password</Label>
+                  <Link href="#" className="ml-auto text-sm text-primary underline-offset-4 hover:underline">
+                    Forgot password?
+                  </Link>
+                </div>
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-10 bg-background"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="remember"
+                  checked={rememberMe}
+                  onChange={(event) => setRememberMe(event.target.checked)}
+                />
+                <Label htmlFor="remember" className="text-sm text-muted-foreground">
+                  Remember me on this device
+                </Label>
+              </div>
+              <Button
+                className="w-full h-11"
+                disabled={loading}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  handleEmailSignIn()
+                }}
+              >
+                {loading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <KeyRound className="mr-2 h-4 w-4" />
+                )}
+                Sign In
+              </Button>
+              <div className="flex items-center gap-3 text-xs uppercase tracking-wide text-muted-foreground">
+                <span className="h-px flex-1 bg-border" />
+                or continue with
+                <span className="h-px flex-1 bg-border" />
+              </div>
               <Button
                 variant="outline"
-                className={cn("w-full gap-2")}
+                className={cn("w-full h-11 gap-2")}
                 disabled={loading}
                 type="button"
                 onClick={() => handleSocialSignIn("google")}
@@ -188,28 +209,19 @@ function SignInPageContent() {
                 <GoogleIcon />
                 Sign in with Google
               </Button>
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-col gap-2 text-sm text-muted-foreground">
-            <p className="text-center">
-              Need an account?{" "}
-              <Link href="/sign-up" className="text-primary underline-offset-4 hover:underline">
-                Create one
-              </Link>
-            </p>
-          </CardFooter>
-        </Card>
+            </CardContent>
+            <CardFooter className="flex flex-col gap-2 text-sm text-muted-foreground pt-2 border-t border-border/50">
+              <p className="text-center py-2">
+                Need an account?{" "}
+                <Link href="/sign-up" className="text-primary font-medium underline-offset-4 hover:underline">
+                  Create one
+                </Link>
+              </p>
+            </CardFooter>
+          </Card>
+        </div>
       </div>
     </main>
-  )
-}
-
-function BadgeHeroLabel() {
-  return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/80 px-3 py-1 text-xs font-medium uppercase tracking-[0.3em] text-muted-foreground">
-      <ShieldCheck className="h-4 w-4 text-primary" />
-      Secure Access
-    </div>
   )
 }
 
@@ -223,12 +235,21 @@ export default function SignInPage() {
 
 function SignInPageLoadingFallback() {
   return (
-    <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted px-4 py-16">
-      <div className="mx-auto flex max-w-5xl flex-col items-center gap-10">
-        <div className="text-center space-y-3">
-          <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/80 px-3 py-1 text-xs font-medium uppercase tracking-[0.3em] text-muted-foreground animate-pulse">
-            Loading...
+    <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted">
+      <div className="mx-auto max-w-6xl px-4 py-12 md:px-6">
+        <div className="flex flex-col items-center gap-8">
+          <div className="gradient-header dark:gradient-header-dark rounded-2xl p-8 border border-border/50 w-full max-w-lg text-center">
+            <div className="h-6 w-32 bg-muted animate-pulse rounded-full mx-auto mb-4" />
+            <div className="h-8 w-48 bg-muted animate-pulse rounded mx-auto mb-2" />
+            <div className="h-4 w-64 bg-muted animate-pulse rounded mx-auto" />
           </div>
+          <Card className="w-full max-w-lg border-border/50 bg-card/50">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-center py-12">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </main>

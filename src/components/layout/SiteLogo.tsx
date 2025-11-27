@@ -7,56 +7,119 @@ import { cn } from "@/lib/utils"
 interface SiteLogoProps {
   className?: string
   showText?: boolean
+  size?: "sm" | "md" | "lg"
 }
 
-export function SiteLogo({ className, showText = true }: SiteLogoProps) {
+export function SiteLogo({ className, showText = true, size = "md" }: SiteLogoProps) {
   const gradientId = useId()
 
+  const sizeClasses = {
+    sm: "h-8 w-8",
+    md: "h-10 w-10",
+    lg: "h-12 w-12",
+  }
+
+  const textSizeClasses = {
+    sm: "text-base",
+    md: "text-lg",
+    lg: "text-xl",
+  }
+
   return (
-    <div className={cn("flex items-center gap-3", className)}>
-      <div className="relative">
-        <div className="absolute inset-0 rounded-[1.25rem] bg-gradient-to-br from-[hsl(var(--chart-1))] via-[hsl(var(--chart-2))] to-[hsl(var(--chart-3))] opacity-70 blur-md" />
+    <div className={cn("flex items-center gap-2.5", className)}>
+      <div className="relative flex-shrink-0">
+        <div className={cn(
+          "absolute inset-0 rounded-xl bg-gradient-to-br from-primary via-amber-500 to-orange-500 opacity-20 blur-lg",
+          sizeClasses[size]
+        )} />
         <svg
-          viewBox="0 0 64 64"
-          className="relative h-12 w-12 text-primary drop-shadow-lg"
+          viewBox="0 0 48 48"
+          className={cn("relative drop-shadow-md", sizeClasses[size])}
           role="img"
           aria-label="Spec-Driven"
         >
           <defs>
-            <linearGradient id={`${gradientId}-grad`} x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="hsl(var(--chart-1))" />
-              <stop offset="50%" stopColor="hsl(var(--chart-2))" />
-              <stop offset="100%" stopColor="hsl(var(--chart-3))" />
+            <linearGradient id={`${gradientId}-main`} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="hsl(var(--primary))" />
+              <stop offset="100%" stopColor="hsl(38 92% 50%)" />
+            </linearGradient>
+            <linearGradient id={`${gradientId}-accent`} x1="0%" y1="100%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="hsl(38 92% 50%)" />
+              <stop offset="100%" stopColor="hsl(25 95% 53%)" />
             </linearGradient>
           </defs>
           <rect
-            x="8"
-            y="10"
-            width="48"
-            height="44"
-            rx="12"
-            fill={`url(#${gradientId}-grad)`}
-            opacity="0.35"
+            x="4"
+            y="4"
+            width="40"
+            height="40"
+            rx="10"
+            fill={`url(#${gradientId}-main)`}
+          />
+          <rect
+            x="10"
+            y="12"
+            width="20"
+            height="3"
+            rx="1.5"
+            fill="hsl(var(--background))"
+            opacity="0.95"
+          />
+          <rect
+            x="10"
+            y="18"
+            width="14"
+            height="2.5"
+            rx="1.25"
+            fill="hsl(var(--background))"
+            opacity="0.7"
+          />
+          <rect
+            x="10"
+            y="23"
+            width="18"
+            height="2.5"
+            rx="1.25"
+            fill="hsl(var(--background))"
+            opacity="0.7"
           />
           <path
-            d="M18 20h28c2.209 0 4 1.791 4 4v24c0 2.209-1.791 4-4 4H18c-2.209 0-4-1.791-4-4V24c0-2.209 1.791-4 4-4z"
-            fill={`url(#${gradientId}-grad)`}
+            d="M10 30 L16 30 L19 33 L16 36 L10 36 Z"
+            fill="hsl(var(--background))"
+            opacity="0.9"
           />
           <path
-            d="M22 28h20M22 36h12M22 44h8"
+            d="M21 30 L27 30 L30 33 L27 36 L21 36 Z"
+            fill="hsl(var(--background))"
+            opacity="0.75"
+          />
+          <circle
+            cx="36"
+            cy="33"
+            r="7"
+            fill={`url(#${gradientId}-accent)`}
+            opacity="0.95"
+          />
+          <path
+            d="M33 33 L35 35 L39 31"
             stroke="hsl(var(--background))"
-            strokeWidth="3"
+            strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
+            fill="none"
           />
-          <circle cx="46" cy="44" r="5" fill="hsl(var(--background))" opacity="0.85" />
         </svg>
       </div>
 
       {showText && (
         <div className="leading-tight">
-          <span className="text-lg font-semibold tracking-tight text-foreground">Spec-Driven</span>
-          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">
+          <span className={cn(
+            "font-semibold tracking-tight text-foreground",
+            textSizeClasses[size]
+          )}>
+            Spec-Driven
+          </span>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-medium">
             Orchestrate Tomorrow
           </p>
         </div>

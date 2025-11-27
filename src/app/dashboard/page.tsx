@@ -15,7 +15,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Trash2, Filter, Search, Sparkles, MoreHorizontal, ArrowUpRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { 
+  Trash2, Search, Plus, MoreHorizontal, ArrowUpRight, 
+  ChevronDown, ChevronUp, Layers, Clock, CheckCircle2,
+  AlertCircle, FolderOpen, TrendingUp
+} from 'lucide-react';
 
 interface Project {
   slug: string;
@@ -98,7 +102,6 @@ export default function Dashboard() {
       if (result.success) {
         setDeleteDialogOpen(false);
         setSelectedProjectToDelete(null);
-        // Refresh the projects list
         fetchProjects();
       } else {
         setError(result.error || 'Failed to delete project');
@@ -121,8 +124,9 @@ export default function Dashboard() {
   }, [projects, searchTerm, phaseFilter]);
 
   const totalProjects = projects.length;
-  const awaitingStack = projects.filter((p) => !p.stack_approved).length;
-  const awaitingDependencies = projects.filter((p) => !p.dependencies_approved).length;
+  const completedProjects = projects.filter(p => p.current_phase === 'DONE').length;
+  const inProgressProjects = projects.filter(p => p.current_phase !== 'DONE').length;
+  const awaitingApprovals = projects.filter(p => !p.stack_approved || !p.dependencies_approved).length;
   const averageProgress = totalProjects
     ? Math.round(
         projects.reduce((sum, project) => sum + getPhaseProgress(project.current_phase), 0) /
@@ -130,153 +134,191 @@ export default function Dashboard() {
       )
     : 0;
 
-  const insights = useMemo(() => {
+  const recentActivity = useMemo(() => {
     return [...projects]
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
       .slice(0, 4)
       .map((project) => ({
-        title: `${project.name} advanced to ${project.current_phase}`,
-        subtitle: formatRelativeTime(project.created_at),
+        project,
+        message: `${project.name} advanced to ${project.current_phase}`,
+        time: formatRelativeTime(project.created_at),
       }));
   }, [projects]);
 
-  const getPhaseColor = (phase: string) => {
-    const colors: Record<string, string> = {
-      ANALYSIS: 'bg-[hsl(var(--chart-1))]/20 text-[hsl(var(--chart-1))]',
-      STACK_SELECTION: 'bg-[hsl(var(--chart-2))]/20 text-[hsl(var(--chart-2))]',
-      SPEC: 'bg-[hsl(var(--chart-3))]/20 text-[hsl(var(--chart-3))]',
-      DEPENDENCIES: 'bg-[hsl(var(--chart-4))]/20 text-[hsl(var(--chart-4))]',
-      SOLUTIONING: 'bg-[hsl(var(--chart-5))]/20 text-[hsl(var(--chart-5))]',
-      DONE: 'bg-primary text-primary-foreground'
-    };
-    return `${colors[phase] || 'bg-muted text-foreground'} border-transparent`;
-  };
-
   return (
-    <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted p-6 md:p-10">
-      <div className="max-w-7xl mx-auto space-y-8">
-        {/* Hero */}
-        <Card className="overflow-hidden border border-border/70 bg-card/80">
-          <CardContent className="flex flex-col gap-6 p-6 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-border/70 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                <Sparkles className="h-3.5 w-3.5 text-primary" />
-                Workspace overview
+    <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted">
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
+        {/* Hero Header with Gradient */}
+        <div className="gradient-header dark:gradient-header-dark rounded-2xl p-6 border border-border/50">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <FolderOpen className="h-5 w-5 text-primary" />
+                <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                  Workspace
+                </span>
               </div>
-              <h1 className="text-3xl font-bold text-foreground">Projects</h1>
-              <p className="text-muted-foreground">
-                Monitor progress, approvals, and artifacts across every spec-driven initiative.
+              <h1 className="text-3xl font-bold text-foreground">Projects Dashboard</h1>
+              <p className="text-muted-foreground max-w-xl">
+                Monitor progress, manage approvals, and track artifacts across all your spec-driven initiatives.
               </p>
-              <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                <span>{totalProjects} active</span>
-                <span>{awaitingStack} awaiting stack approval</span>
-                <span>{awaitingDependencies} dependency reviews pending</span>
-              </div>
             </div>
-            <div className="flex w-full flex-col gap-4 md:w-auto">
-              <div className="rounded-2xl border border-border/60 bg-muted/40 px-6 py-4 text-center">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Avg. completion</p>
-                <p className="text-3xl font-semibold text-foreground">{averageProgress}%</p>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="flex items-center gap-6 px-5 py-3 rounded-xl bg-background/60 border border-border/50">
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-foreground">{averageProgress}%</p>
+                  <p className="text-xs text-muted-foreground">Avg. Progress</p>
+                </div>
+                <div className="h-10 w-px bg-border" />
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{completedProjects}</p>
+                  <p className="text-xs text-muted-foreground">Completed</p>
+                </div>
               </div>
-              <Button size="lg" onClick={handleNewProject} className="w-full md:w-56">
-                + New Project
+              <Button size="lg" onClick={handleNewProject} className="gap-2">
+                <Plus className="h-4 w-4" />
+                New Project
               </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Card className="border-border/50 bg-card/50">
+            <CardContent className="pt-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Projects</p>
+                  <p className="text-3xl font-bold text-foreground">{totalProjects}</p>
+                </div>
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Layers className="h-6 w-6 text-primary" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50 bg-card/50">
+            <CardContent className="pt-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">In Progress</p>
+                  <p className="text-3xl font-bold text-foreground">{inProgressProjects}</p>
+                </div>
+                <div className="h-12 w-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                  <TrendingUp className="h-6 w-6 text-blue-500" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50 bg-card/50">
+            <CardContent className="pt-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Completed</p>
+                  <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{completedProjects}</p>
+                </div>
+                <div className="h-12 w-12 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                  <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50 bg-card/50">
+            <CardContent className="pt-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Awaiting Approval</p>
+                  <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">{awaitingApprovals}</p>
+                </div>
+                <div className="h-12 w-12 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                  <AlertCircle className="h-6 w-6 text-amber-500" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Search and Filter */}
+        <Card className="border-border/50 bg-card/50">
+          <CardContent className="py-4">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search projects by name or slug..."
+                  className="pl-10 bg-background"
+                />
+              </div>
+              <select
+                value={phaseFilter}
+                onChange={(e) => setPhaseFilter(e.target.value)}
+                className="h-10 rounded-lg border border-border bg-background px-3 text-sm text-foreground min-w-[180px]"
+              >
+                <option value="ALL">All phases</option>
+                {PHASES.map((phase) => (
+                  <option key={phase} value={phase}>
+                    {phase.replace(/_/g, ' ')}
+                  </option>
+                ))}
+              </select>
             </div>
           </CardContent>
         </Card>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card className="border border-border/70">
-            <CardHeader>
-              <CardDescription>Total projects</CardDescription>
-              <CardTitle className="text-3xl">{totalProjects}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="border border-border/70">
-            <CardHeader>
-              <CardDescription>Awaiting stack approvals</CardDescription>
-              <CardTitle className="text-2xl">{awaitingStack}</CardTitle>
-            </CardHeader>
-          </Card>
-          <Card className="border border-border/70">
-            <CardHeader>
-              <CardDescription>Dependency reviews pending</CardDescription>
-              <CardTitle className="text-2xl">{awaitingDependencies}</CardTitle>
-            </CardHeader>
-          </Card>
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-card/70 p-4 md:flex-row md:items-center">
-          <div className="flex w-full items-center gap-2 rounded-xl border border-border/70 bg-background px-3">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <Input
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by name or slug"
-              className="border-0 bg-transparent shadow-none focus-visible:ring-0"
-            />
-          </div>
-          <div className="flex w-full items-center gap-2 md:w-auto">
-            <Filter className="h-4 w-4 text-muted-foreground" />
-            <select
-              value={phaseFilter}
-              onChange={(e) => setPhaseFilter(e.target.value)}
-              className="w-full rounded-xl border border-border/70 bg-background px-3 py-2 text-sm text-foreground md:w-64"
-            >
-              <option value="ALL">All phases</option>
-              {PHASES.map((phase) => (
-                <option key={phase} value={phase}>
-                  {phase.replace(/_/g, ' ')}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Insights */}
-        {insights.length > 0 && (
-          <Card className="border border-border/70">
-            <CardHeader className="flex flex-col gap-2">
+        {/* Recent Activity */}
+        {recentActivity.length > 0 && (
+          <Card className="border-border/50 bg-card/50">
+            <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardDescription>Recent activity</CardDescription>
-                  <CardTitle>What changed lately</CardTitle>
+                  <CardDescription className="text-xs uppercase tracking-wider">Recent Activity</CardDescription>
+                  <CardTitle className="text-lg">What changed lately</CardTitle>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="flex items-center gap-1"
                   onClick={() => setActivityOpen((prev) => !prev)}
+                  className="gap-1"
                 >
                   {activityOpen ? (
-                    <>
-                      Hide
-                      <ChevronUp className="h-4 w-4" />
-                    </>
+                    <>Hide <ChevronUp className="h-4 w-4" /></>
                   ) : (
-                    <>
-                      Show
-                      <ChevronDown className="h-4 w-4" />
-                    </>
+                    <>Show <ChevronDown className="h-4 w-4" /></>
                   )}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                The latest updates across your projects.
-              </p>
             </CardHeader>
             {activityOpen && (
-              <CardContent className="space-y-3">
-                {insights.map((insight) => (
-                  <div key={insight.title} className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/40 px-4 py-3">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{insight.title}</p>
-                      <p className="text-xs text-muted-foreground">{insight.subtitle}</p>
-                    </div>
-                    <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                ))}
+              <CardContent className="pt-0">
+                <div className="space-y-2">
+                  {recentActivity.map((activity, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleOpenProject(activity.project.slug)}
+                      className="w-full flex items-center justify-between rounded-xl border border-border/60 bg-muted/30 px-4 py-3 hover:bg-muted/60 transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`h-2 w-2 rounded-full ${
+                          activity.project.current_phase === 'DONE' 
+                            ? 'bg-emerald-500' 
+                            : 'bg-primary'
+                        }`} />
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{activity.message}</p>
+                          <p className="text-xs text-muted-foreground">{activity.time}</p>
+                        </div>
+                      </div>
+                      <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  ))}
+                </div>
               </CardContent>
             )}
           </Card>
@@ -284,8 +326,9 @@ export default function Dashboard() {
 
         {/* Error message */}
         {error && (
-          <Card className="mb-8 border border-destructive/30 bg-destructive/10">
-            <CardContent className="pt-6">
+          <Card className="border-destructive/30 bg-destructive/10">
+            <CardContent className="py-4 flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-destructive" />
               <p className="text-destructive">{error}</p>
             </CardContent>
           </Card>
@@ -293,124 +336,148 @@ export default function Dashboard() {
 
         {/* Loading state */}
         {loading && (
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">Loading projects...</p>
+          <div className="flex items-center justify-center py-12">
+            <div className="flex flex-col items-center gap-3">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <p className="text-muted-foreground">Loading projects...</p>
+            </div>
           </div>
         )}
 
         {/* Empty state */}
         {!loading && projects.length === 0 && !error && (
-          <Card>
-            <CardContent className="pt-12 text-center">
-              <p className="text-muted-foreground mb-6">
-                No projects yet. Create one to get started!
+          <Card className="border-dashed border-2 border-border">
+            <CardContent className="py-16 text-center">
+              <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <FolderOpen className="h-6 w-6 text-primary" />
+              </div>
+              <h3 className="text-lg font-semibold text-foreground mb-2">No projects yet</h3>
+              <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
+                Create your first project to start generating specs, PRDs, and handoff documents.
               </p>
-              <Button onClick={handleNewProject}>Create First Project</Button>
+              <Button onClick={handleNewProject} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Create First Project
+              </Button>
             </CardContent>
           </Card>
         )}
 
         {/* Projects grid */}
         {!loading && filteredProjects.length > 0 && (
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filteredProjects.map((project) => {
               const progress = getPhaseProgress(project.current_phase);
+              const isComplete = project.current_phase === 'DONE';
+              
               return (
-              <Card
-                key={project.slug}
-                className="cursor-pointer border border-border/70 hover:shadow-lg"
-                onClick={() => handleOpenProject(project.slug)}
-              >
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-2">
-                      <CardTitle className="text-xl text-foreground">{project.name}</CardTitle>
-                      <CardDescription>Slug: {project.slug}</CardDescription>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge className={getPhaseColor(project.current_phase)}>
-                          {project.current_phase}
+                <Card
+                  key={project.slug}
+                  className="group cursor-pointer border-border/50 bg-card/50 hover:border-primary/30 hover:shadow-lg transition-all duration-200"
+                  onClick={() => handleOpenProject(project.slug)}
+                >
+                  <CardContent className="pt-5">
+                    <div className="flex items-start justify-between gap-3 mb-4">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-foreground truncate group-hover:text-primary transition-colors">
+                          {project.name}
+                        </h3>
+                        <p className="text-xs text-muted-foreground truncate">{project.slug}</p>
+                      </div>
+                      <div className="relative h-14 w-14 flex-shrink-0">
+                        <svg className="h-14 w-14 -rotate-90 transform">
+                          <circle
+                            cx="28"
+                            cy="28"
+                            r="24"
+                            className="fill-none stroke-muted stroke-[4]"
+                          />
+                          <circle
+                            cx="28"
+                            cy="28"
+                            r="24"
+                            className={`fill-none stroke-[4] transition-all duration-500 ${
+                              isComplete ? 'stroke-emerald-500' : 'stroke-primary'
+                            }`}
+                            strokeDasharray={`${progress * 1.5} 150`}
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <span className="text-sm font-bold">{progress}%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 mb-4">
+                      <Badge className={`${
+                        isComplete 
+                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30' 
+                          : 'bg-primary/10 text-primary border-primary/20'
+                      } border`}>
+                        {project.current_phase.replace(/_/g, ' ')}
+                      </Badge>
+                      {project.stack_choice && (
+                        <Badge variant="outline" className="text-xs">
+                          {project.stack_choice.replace(/_/g, ' ')}
                         </Badge>
-                        {project.stack_choice && (
-                          <Badge variant="outline" className="text-xs">
-                            {project.stack_choice.replace(/_/g, ' ')}
-                          </Badge>
-                        )}
-                      </div>
+                      )}
                     </div>
-                    <div className="relative h-20 w-20 flex-shrink-0">
-                      <div
-                        className="absolute inset-0 rounded-full"
-                        style={{
-                          background: `conic-gradient(hsl(var(--chart-1)) ${progress}%, hsl(var(--muted-foreground)) ${progress}% 100%)`,
-                        }}
-                      />
-                      <div className="absolute inset-2 rounded-full border border-border bg-card flex flex-col items-center justify-center text-xs">
-                        <span className="text-sm font-semibold text-foreground">{progress}%</span>
-                        <span className="text-[10px] text-muted-foreground">complete</span>
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="grid gap-2 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <span className={`h-2 w-2 rounded-full ${project.stack_approved ? 'bg-[hsl(var(--chart-4))]' : 'bg-muted'}`} />
+
+                    <div className="space-y-2 mb-4 text-sm">
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <span className={`h-2 w-2 rounded-full ${
+                          project.stack_approved ? 'bg-emerald-500' : 'bg-amber-500'
+                        }`} />
                         Stack {project.stack_approved ? 'approved' : 'pending'}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className={`h-2 w-2 rounded-full ${project.dependencies_approved ? 'bg-[hsl(var(--chart-4))]' : 'bg-muted'}`} />
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <span className={`h-2 w-2 rounded-full ${
+                          project.dependencies_approved ? 'bg-emerald-500' : 'bg-amber-500'
+                        }`} />
                         Dependencies {project.dependencies_approved ? 'approved' : 'pending'}
                       </div>
-                      {project.stats && (
-                        <div>{project.stats.total_artifacts} artifacts generated</div>
-                      )}
-                      <div>Created {new Date(project.created_at).toLocaleDateString()}</div>
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Clock className="h-3.5 w-3.5" />
+                        {new Date(project.created_at).toLocaleDateString()}
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-3">
+
+                    <div className="flex items-center gap-2 pt-3 border-t border-border/50">
                       <Button
                         size="sm"
-                        className="flex-1 min-w-[120px]"
+                        className="flex-1"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleOpenProject(project.slug);
                         }}
                       >
-                        Resume
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1 min-w-[120px]"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(`/project/${project.slug}`);
-                        }}
-                      >
-                        View details
+                        {isComplete ? 'View' : 'Resume'}
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-9 w-9 rounded-full"
+                        className="h-8 w-8"
                         onClick={(e) => handleDeleteClick(e, project)}
                       >
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )})}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
 
+        {/* No results */}
         {!loading && filteredProjects.length === 0 && projects.length > 0 && (
-          <Card>
+          <Card className="border-border/50">
             <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">No projects match your filters.</p>
-              <Button variant="outline" className="mt-4" onClick={() => setPhaseFilter('ALL')}>
-                Reset filters
+              <Search className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground mb-4">No projects match your search.</p>
+              <Button variant="outline" onClick={() => { setSearchTerm(''); setPhaseFilter('ALL'); }}>
+                Clear filters
               </Button>
             </CardContent>
           </Card>
@@ -422,32 +489,28 @@ export default function Dashboard() {
             <DialogHeader>
               <DialogTitle className="text-destructive">Delete Project</DialogTitle>
               <DialogDescription>
-                Are you sure you want to delete &quot;{selectedProjectToDelete?.name}&quot;? This action cannot be undone and will permanently remove all project data and specifications.
+                Are you sure you want to delete &quot;{selectedProjectToDelete?.name}&quot;? This action cannot be undone.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="gap-2 sm:gap-0">
-              <Button
-                variant="outline"
-                onClick={() => setDeleteDialogOpen(false)}
-                disabled={deleting}
-              >
+              <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
                 Cancel
               </Button>
               <Button
                 variant="destructive"
                 onClick={handleConfirmDelete}
                 disabled={deleting}
-                className="flex items-center gap-2"
+                className="gap-2"
               >
                 {deleting ? (
                   <>
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-transparent"></div>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
                     Deleting...
                   </>
                 ) : (
                   <>
                     <Trash2 className="h-4 w-4" />
-                    Delete Project
+                    Delete
                   </>
                 )}
               </Button>

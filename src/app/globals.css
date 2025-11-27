@@ -121,3 +121,70 @@
     letter-spacing: var(--tracking-normal);
   }
 }
+
+@layer components {
+  .gradient-header {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--primary) / 0.15) 0%,
+      hsl(var(--chart-2) / 0.1) 50%,
+      hsl(var(--accent) / 0.05) 100%
+    );
+  }
+  
+  .gradient-header-dark {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--primary) / 0.2) 0%,
+      hsl(var(--chart-2) / 0.15) 50%,
+      hsl(var(--background)) 100%
+    );
+  }
+
+  .phase-dot {
+    @apply w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all duration-300;
+  }
+
+  .phase-dot-completed {
+    @apply bg-emerald-500 border-emerald-500 text-white;
+  }
+
+  .phase-dot-current {
+    @apply bg-primary border-primary text-primary-foreground ring-4 ring-primary/20;
+  }
+
+  .phase-dot-pending {
+    @apply bg-muted border-border text-muted-foreground;
+  }
+
+  .phase-dot-blocked {
+    @apply bg-destructive/10 border-destructive text-destructive;
+  }
+
+  .phase-connector {
+    @apply h-1 flex-1 mx-1 rounded-full transition-all duration-300;
+  }
+
+  .phase-connector-completed {
+    @apply bg-emerald-500;
+  }
+
+  .phase-connector-pending {
+    @apply bg-border;
+  }
+
+  .artifact-tree-item {
+    @apply flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors cursor-pointer;
+    @apply hover:bg-muted/80;
+  }
+
+  .artifact-tree-item-active {
+    @apply bg-primary/10 text-primary;
+  }
+
+  .sticky-action-bar {
+    @apply fixed bottom-0 left-0 right-0 z-50;
+    @apply bg-background/95 backdrop-blur-sm border-t border-border;
+    @apply px-6 py-3;
+  }
+}

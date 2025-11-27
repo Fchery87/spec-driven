@@ -6,41 +6,87 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Lightbulb, Layers, Package, Sparkles, Workflow, ClipboardList, ShieldCheck, Rocket, ArrowUpRight, Timer, FileText } from 'lucide-react';
+import { 
+  Lightbulb, Layers, Package, Workflow, ClipboardList, ShieldCheck, 
+  Rocket, ArrowRight, Timer, FileText, CheckCircle2, Zap, Users, GitBranch,
+  ArrowUpRight
+} from 'lucide-react';
 
 import { sampleSpecText, sampleSpecTitle } from '@/content/sample-spec';
 
-const valueProps = [
+const phases = [
+  { name: 'Analysis', description: 'Clarify vision, personas, and KPIs.', icon: Lightbulb, color: 'text-amber-500' },
+  { name: 'Stack Selection', description: 'Approve platform choices with rationale.', icon: Layers, color: 'text-blue-500' },
+  { name: 'Spec', description: 'Generate PRDs, API contracts, and data models.', icon: FileText, color: 'text-purple-500' },
+  { name: 'Dependencies', description: 'Validate npm/pip packages with risk notes.', icon: Package, color: 'text-orange-500' },
+  { name: 'Solutioning', description: 'Map architecture, epics, and workstreams.', icon: GitBranch, color: 'text-cyan-500' },
+  { name: 'Done', description: 'Export HANDOFF.md for downstream codegen.', icon: CheckCircle2, color: 'text-emerald-500' },
+]
+
+const metrics = [
+  { label: 'Specs delivered', value: '480+', icon: FileText },
+  { label: 'Median handoff time', value: '2.6 hrs', icon: Timer },
+  { label: 'Approval accuracy', value: '94%', icon: CheckCircle2 },
+]
+
+const features = [
   {
     title: 'Spec-first orchestration',
     description: 'Guide analysts, architects, and AI agents through a single shared workflow with guardrails and approvals.',
-    icon: Lightbulb,
+    icon: Workflow,
+    gradient: 'from-amber-500/20 to-orange-500/20',
   },
   {
     title: 'Stack-aware decisions',
     description: 'Bake technology constraints into every phase so dependency proposals, PRDs, and diagrams stay in sync.',
     icon: Layers,
+    gradient: 'from-blue-500/20 to-cyan-500/20',
   },
   {
     title: 'Production-ready handoffs',
     description: 'Deliver curated prompts, artifacts, and handoff bundles engineers can ship without rework.',
-    icon: Package,
+    icon: Rocket,
+    gradient: 'from-emerald-500/20 to-teal-500/20',
   },
 ]
 
-const phases = [
-  { name: 'Analysis', description: 'Clarify vision, personas, and KPIs.' },
-  { name: 'Stack Selection', description: 'Approve platform choices with rationale.' },
-  { name: 'Spec', description: 'Generate PRDs, API contracts, and data models.' },
-  { name: 'Dependencies', description: 'Validate npm/pip packages with risk notes.' },
-  { name: 'Solutioning', description: 'Map architecture, epics, and workstreams.' },
-  { name: 'Done', description: 'Export HANDOFF.md for downstream codegen.' },
+const capabilities = [
+  {
+    title: 'Phase choreography',
+    description: 'The platform decides whether to execute AI agents or request approvals before advancing.',
+    icon: Zap,
+  },
+  {
+    title: 'Artifact lineage',
+    description: 'Each deliverable—PRDs, data models, dependency proposals—is versioned and traceable.',
+    icon: ClipboardList,
+  },
+  {
+    title: 'Gate reviews',
+    description: 'Stakeholders sign off on stacks and dependencies before downstream automation continues.',
+    icon: ShieldCheck,
+  },
 ]
 
-const metrics = [
-  { label: 'Specs delivered', value: '480+' },
-  { label: 'Median handoff time', value: '2.6 hrs' },
-  { label: 'Approval accuracy', value: '94%' },
+const testimonials = [
+  {
+    quote: "Handoff turnaround dropped from days to hours. Stakeholders now approve dependencies before a single line of code ships.",
+    author: "Head of Platform",
+    company: "Alto Robotics",
+    icon: Timer,
+  },
+  {
+    quote: "4 squads rely on Spec-Driven to align AI-generated artifacts with tech leadership requirements.",
+    author: "Engineering Lead",
+    company: "TechCorp",
+    icon: Users,
+  },
+  {
+    quote: "92% of dependency proposals are approved on the first pass because risks are documented in-context.",
+    author: "VP Engineering",
+    company: "StartupXYZ",
+    icon: ShieldCheck,
+  },
 ]
 
 export default function Home() {
@@ -55,220 +101,267 @@ export default function Home() {
     router.push('/dashboard');
   };
 
-  const samplePreview = sampleSpecText.split('\n').slice(0, 16).join('\n')
+  const samplePreview = sampleSpecText.split('\n').slice(0, 18).join('\n')
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-16 px-4 py-12 md:px-6">
-        {/* Hero */}
-        <section className="grid items-center gap-10 md:grid-cols-2">
-          <div className="space-y-6">
-            <Badge className="w-fit bg-[hsl(var(--chart-2))]/20 text-[hsl(var(--chart-2))]">
-              Spec-first orchestration OS
-            </Badge>
-            <div className="space-y-4">
-              <h1 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl">
-                From idea to handoff in six guided phases.
-              </h1>
-              <p className="text-lg text-muted-foreground">
-                Spec-Driven aligns analysts, architects, and AI copilots around a single source of truth so you can ship production-ready instructions faster than ever.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <Button size="lg" className="px-8" onClick={handleStartProject}>
-                Start New Project
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="px-8"
-                onClick={() => setSampleOpen(true)}
-              >
-                See sample Spec
-              </Button>
-            </div>
-            <div className="flex flex-wrap gap-6 text-sm text-muted-foreground">
-              {metrics.map((metric) => (
-                <div key={metric.label}>
-                  <p className="text-2xl font-semibold text-foreground">{metric.value}</p>
-                  <p>{metric.label}</p>
+      <div className="mx-auto max-w-6xl px-4 py-12 md:px-6">
+        {/* Hero Section */}
+        <section className="relative mb-20">
+          <div className="gradient-header dark:gradient-header-dark rounded-3xl p-8 md:p-12 border border-border/50">
+            <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
+              <div className="space-y-6">
+                <Badge className="bg-primary/15 text-primary border-primary/30 border px-3 py-1">
+                  Spec-first orchestration OS
+                </Badge>
+                
+                <h1 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl lg:text-6xl">
+                  From idea to handoff in{' '}
+                  <span className="bg-gradient-to-r from-primary to-amber-500 bg-clip-text text-transparent">
+                    six guided phases
+                  </span>
+                </h1>
+                
+                <p className="text-lg text-muted-foreground max-w-xl">
+                  Spec-Driven aligns analysts, architects, and AI copilots around a single source of truth 
+                  so you can ship production-ready instructions faster than ever.
+                </p>
+
+                <div className="flex flex-wrap gap-3">
+                  <Button size="lg" onClick={handleStartProject} className="gap-2 px-6">
+                    Start New Project
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                  <Button size="lg" variant="outline" onClick={() => setSampleOpen(true)} className="px-6">
+                    See sample Spec
+                  </Button>
                 </div>
-              ))}
+
+                <div className="flex flex-wrap gap-8 pt-4">
+                  {metrics.map((metric) => (
+                    <div key={metric.label} className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-background/60 border border-border/50 flex items-center justify-center">
+                        <metric.icon className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-foreground">{metric.value}</p>
+                        <p className="text-xs text-muted-foreground">{metric.label}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Phase Timeline Card */}
+              <Card className="border-border/60 bg-card/80 shadow-xl backdrop-blur lg:ml-auto">
+                <CardHeader className="pb-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <Workflow className="h-4 w-4 text-primary" />
+                    </div>
+                    <CardTitle className="text-lg">Guided Orchestration</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Every artifact is generated, reviewed, and approved in a predictable flow.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {phases.map((phase, index) => (
+                    <div key={phase.name} className="flex items-start gap-3 group">
+                      <div className="flex flex-col items-center">
+                        <div className={`h-9 w-9 rounded-lg border border-border bg-background flex items-center justify-center group-hover:border-primary/50 transition-colors`}>
+                          <phase.icon className={`h-4 w-4 ${phase.color}`} />
+                        </div>
+                        {index < phases.length - 1 && (
+                          <div className="w-px h-3 bg-border mt-1" />
+                        )}
+                      </div>
+                      <div className="pb-2">
+                        <p className="font-medium text-foreground text-sm">{phase.name}</p>
+                        <p className="text-xs text-muted-foreground">{phase.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
             </div>
           </div>
-          <Card className="border border-border/80 bg-card/80 shadow-xl backdrop-blur">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <Sparkles className="h-5 w-5 text-primary" />
-                Guided Orchestration
-              </CardTitle>
-              <CardDescription>
-                Every artifact is generated, reviewed, and approved in a predictable flow.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {phases.map((phase, index) => (
-                <div key={phase.name} className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 flex-col items-center text-xs text-muted-foreground">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background text-sm font-semibold">
-                      {index + 1}
+        </section>
+
+        {/* Features Section */}
+        <section className="mb-20">
+          <div className="grid gap-4 md:grid-cols-3">
+            {features.map((feature) => (
+              <Card key={feature.title} className="group border-border/50 bg-card/50 hover:border-primary/30 transition-all duration-300">
+                <CardContent className="pt-6">
+                  <div className={`h-12 w-12 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                    <feature.icon className="h-6 w-6 text-foreground" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-foreground mb-2">{feature.title}</h3>
+                  <p className="text-sm text-muted-foreground">{feature.description}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        {/* Workflow Section */}
+        <section className="mb-20">
+          <Card className="border-border/50 bg-muted/30 overflow-hidden">
+            <CardContent className="p-8">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-8">
+                <div>
+                  <Badge className="bg-primary/10 text-primary border-0 mb-3">Workflow in one glance</Badge>
+                  <h2 className="text-2xl font-bold text-foreground mb-2">Every phase knows what&apos;s next</h2>
+                  <p className="text-muted-foreground max-w-xl">
+                    Analysts, architects, and engineers stay aligned because the orchestrator 
+                    enforces gates before moving forward.
+                  </p>
+                </div>
+                <Button variant="outline" onClick={handleGoToDashboard} className="gap-2 shrink-0">
+                  Explore Workflow
+                  <ArrowUpRight className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                {capabilities.map((cap) => (
+                  <div key={cap.title} className="rounded-xl border border-border/60 bg-card/70 p-5 hover:border-primary/30 transition-colors">
+                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
+                      <cap.icon className="h-5 w-5 text-primary" />
                     </div>
+                    <h3 className="font-semibold text-foreground mb-1">{cap.title}</h3>
+                    <p className="text-sm text-muted-foreground">{cap.description}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* Sample Spec Section */}
+        <section className="mb-20">
+          <div className="grid gap-8 lg:grid-cols-2 lg:items-center">
+            <div className="space-y-6">
+              <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 border">
+                Outcome highlight
+              </Badge>
+              <h2 className="text-3xl font-bold text-foreground">
+                See exactly what you hand off
+              </h2>
+              <p className="text-muted-foreground">
+                Every project bundles PRDs, API schemas, dependency memos, and a final HANDOFF.md prompt. 
+                Preview the quality of content downstream teams receive.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Button onClick={() => setSampleOpen(true)} className="gap-2">
+                  <FileText className="h-4 w-4" />
+                  See sample Spec
+                </Button>
+                <Button variant="outline" onClick={handleStartProject}>
+                  Generate your own
+                </Button>
+              </div>
+            </div>
+
+            <Card className="border-border/60 bg-card/80 shadow-lg overflow-hidden">
+              <CardHeader className="bg-muted/50 border-b border-border/50">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <FileText className="h-4 w-4 text-primary" />
                   </div>
                   <div>
-                    <p className="font-semibold text-foreground">{phase.name}</p>
-                    <p className="text-sm text-muted-foreground">{phase.description}</p>
+                    <CardTitle className="text-base">{sampleSpecTitle}</CardTitle>
+                    <CardDescription className="text-xs">Excerpt from a completed HANDOFF bundle</CardDescription>
                   </div>
                 </div>
-              ))}
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* Value props */}
-        <section className="grid gap-6 md:grid-cols-3">
-          {valueProps.map((item) => (
-            <Card key={item.title} className="border border-border/60 bg-card/70 shadow-sm">
-              <CardHeader>
-                <div className="flex items-center gap-3 mb-2">
-                  <item.icon className="h-6 w-6 text-primary" />
-                  <CardTitle className="text-xl">{item.title}</CardTitle>
-                </div>
               </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">{item.description}</p>
+              <CardContent className="p-0">
+                <pre className="max-h-72 overflow-auto p-4 text-xs text-muted-foreground whitespace-pre-wrap font-mono bg-muted/20">
+                  {samplePreview}
+                </pre>
+                <div className="p-3 border-t border-border/50 bg-muted/30">
+                  <Button variant="ghost" size="sm" className="w-full" onClick={() => setSampleOpen(true)}>
+                    View full spec
+                  </Button>
+                </div>
               </CardContent>
             </Card>
-          ))}
+          </div>
         </section>
 
-        {/* Flow timeline */}
-        <section className="rounded-3xl border border-border/60 bg-muted/40 p-8">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        {/* Testimonials Section */}
+        <section className="mb-20">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
             <div>
-              <p className="text-sm font-semibold text-primary">Workflow in one glance</p>
-              <h2 className="text-2xl font-bold text-foreground">Every phase knows what’s next</h2>
-              <p className="text-muted-foreground">
-                Analysts, architects, and engineers stay aligned because the orchestrator enforces gates before moving forward.
-              </p>
-            </div>
-            <Button variant="outline" onClick={handleGoToDashboard}>
-              Explore Workflow
-              <ArrowUpRight className="ml-2 h-4 w-4" />
-            </Button>
-          </div>
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
-            <div className="rounded-2xl border border-border/60 bg-card/70 p-5">
-              <Workflow className="mb-3 h-6 w-6 text-primary" />
-              <h3 className="font-semibold text-foreground">Phase choreography</h3>
-              <p className="text-sm text-muted-foreground">
-                The platform decides whether to execute AI agents or request approvals before advancing.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-border/60 bg-card/70 p-5">
-              <ClipboardList className="mb-3 h-6 w-6 text-[hsl(var(--chart-3))]" />
-              <h3 className="font-semibold text-foreground">Artifact lineage</h3>
-              <p className="text-sm text-muted-foreground">
-                Each deliverable—PRDs, data models, dependency proposals—is versioned and traceable back to its phase.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-border/60 bg-card/70 p-5">
-              <ShieldCheck className="mb-3 h-6 w-6 text-[hsl(var(--chart-4))]" />
-              <h3 className="font-semibold text-foreground">Gate reviews</h3>
-              <p className="text-sm text-muted-foreground">
-                Stakeholders sign off on stacks and dependencies before downstream automation continues.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Sample spec preview */}
-        <section className="grid gap-8 lg:grid-cols-2">
-          <div className="space-y-4">
-            <Badge className="w-fit bg-[hsl(var(--chart-4))]/20 text-[hsl(var(--chart-4))]">Outcome highlight</Badge>
-            <h2 className="text-3xl font-bold text-foreground">See exactly what you hand off</h2>
-            <p className="text-muted-foreground">
-              Every project bundles PRDs, API schemas, dependency memos, and a final HANDOFF.md prompt. Preview the quality of content downstream teams receive.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Button onClick={() => setSampleOpen(true)}>See sample Spec</Button>
-              <Button variant="outline" onClick={handleStartProject}>
-                Generate your own
-              </Button>
-            </div>
-          </div>
-          <Card className="border border-border/60 bg-card/80 shadow-lg w-full">
-            <CardHeader>
-              <CardTitle className="text-xl flex items-center gap-2">
-                <FileText className="h-5 w-5 text-primary" />
-                {sampleSpecTitle}
-              </CardTitle>
-              <CardDescription>Excerpt from a completed HANDOFF bundle.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <pre className="max-h-72 w-full overflow-auto rounded-lg bg-muted p-4 text-xs text-foreground whitespace-pre-wrap break-words">
-                {samplePreview}
-              </pre>
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* Social proof */}
-        <section className="rounded-3xl border border-border/50 bg-card/60 p-8">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-primary">Operational uplift</p>
+              <Badge className="bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30 border mb-3">
+                Operational uplift
+              </Badge>
               <h2 className="text-2xl font-bold text-foreground">Teams ship with clarity</h2>
             </div>
-            <Button variant="ghost" onClick={handleGoToDashboard}>
+            <Button variant="ghost" onClick={handleGoToDashboard} className="gap-2">
               View live projects
-              <ArrowUpRight className="ml-2 h-4 w-4" />
+              <ArrowUpRight className="h-4 w-4" />
             </Button>
           </div>
-          <div className="mt-6 grid gap-6 md:grid-cols-3">
-            <div className="rounded-2xl border border-border/60 bg-background/80 p-6">
-              <Timer className="mb-3 h-6 w-6 text-primary" />
-              <p className="text-sm text-muted-foreground">
-                “Handoff turnaround dropped from days to hours. Stakeholders now approve dependencies before a single line of code ships.”
-              </p>
-              <p className="mt-3 text-sm font-semibold text-foreground">Head of Platform, Alto Robotics</p>
-            </div>
-            <div className="rounded-2xl border border-border/60 bg-background/80 p-6">
-              <Rocket className="mb-3 h-6 w-6 text-[hsl(var(--chart-2))]" />
-              <p className="text-sm text-muted-foreground">
-                4 squads rely on Spec-Driven to align AI-generated artifacts with tech leadership requirements.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-border/60 bg-background/80 p-6">
-              <ShieldCheck className="mb-3 h-6 w-6 text-[hsl(var(--chart-4))]" />
-              <p className="text-sm text-muted-foreground">
-                92% of dependency proposals are approved on the first pass because risks are documented in-context.
-              </p>
-            </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            {testimonials.map((testimonial, i) => (
+              <Card key={i} className="border-border/50 bg-card/50">
+                <CardContent className="pt-6">
+                  <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                    <testimonial.icon className="h-5 w-5 text-primary" />
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
+                    &ldquo;{testimonial.quote}&rdquo;
+                  </p>
+                  <div className="pt-4 border-t border-border/50">
+                    <p className="text-sm font-medium text-foreground">{testimonial.author}</p>
+                    <p className="text-xs text-muted-foreground">{testimonial.company}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </section>
 
-        {/* CTA */}
-        <section className="rounded-3xl border border-border/60 bg-gradient-to-r from-[hsl(var(--chart-1))]/15 via-[hsl(var(--chart-2))]/15 to-[hsl(var(--chart-3))]/15 p-10 text-center">
-          <h2 className="text-3xl font-bold text-foreground">Ready to orchestrate your next build?</h2>
-          <p className="mt-3 text-muted-foreground">
-            Launch a project in minutes, invite stakeholders, and watch every artifact align itself automatically.
-          </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Button size="lg" onClick={handleStartProject}>Start New Project</Button>
-            <Button size="lg" variant="outline" onClick={() => setSampleOpen(true)}>
-              See sample Spec
-            </Button>
-          </div>
+        {/* CTA Section */}
+        <section>
+          <Card className="border-0 bg-gradient-to-r from-primary/10 via-amber-500/10 to-orange-500/10 overflow-hidden">
+            <CardContent className="py-12 px-8 text-center">
+              <h2 className="text-3xl font-bold text-foreground mb-3">
+                Ready to orchestrate your next build?
+              </h2>
+              <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
+                Launch a project in minutes, invite stakeholders, and watch every artifact align itself automatically.
+              </p>
+              <div className="flex flex-wrap justify-center gap-3">
+                <Button size="lg" onClick={handleStartProject} className="gap-2 px-8">
+                  Start New Project
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+                <Button size="lg" variant="outline" onClick={() => setSampleOpen(true)} className="px-8">
+                  See sample Spec
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </section>
       </div>
 
+      {/* Sample Spec Dialog */}
       <Dialog open={sampleOpen} onOpenChange={setSampleOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl max-h-[90vh]">
           <DialogHeader>
-            <DialogTitle>{sampleSpecTitle}</DialogTitle>
-            <DialogDescription>Representative excerpt from a completed HANDOFF.md package.</DialogDescription>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              {sampleSpecTitle}
+            </DialogTitle>
+            <DialogDescription>
+              Representative excerpt from a completed HANDOFF.md package.
+            </DialogDescription>
           </DialogHeader>
-          <pre className="max-h-[60vh] overflow-auto rounded-lg bg-muted p-4 text-sm text-foreground whitespace-pre-wrap">
+          <pre className="max-h-[60vh] overflow-auto rounded-lg bg-muted p-4 text-sm text-foreground whitespace-pre-wrap font-mono">
             {sampleSpecText}
           </pre>
         </DialogContent>
