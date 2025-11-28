@@ -26,8 +26,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className={cn('min-h-screen bg-background text-foreground antialiased', inter.className)}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={cn('min-h-screen bg-background text-foreground antialiased', inter.className)} suppressHydrationWarning>
         <ErrorBoundary>
           <AuthProvider>
             <ClientLayout>{children}</ClientLayout>
