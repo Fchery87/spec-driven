@@ -369,15 +369,19 @@ export const readArtifact = async (slug: string, phase: string, name: string): P
 /**
  * Delete project from file system
  * Note: Async database deletion should be called separately
+ * Returns true if the project was deleted or didn't exist (R2-only projects)
+ * Returns false only on actual deletion errors
  */
 export const deleteProject = (slug: string): boolean => {
   try {
     const projectPath = resolve(getProjectsPath(), slug);
     if (existsSync(projectPath)) {
       rmSync(projectPath, { recursive: true, force: true });
-      return true;
+      logger.info('Project directory deleted from local filesystem', { slug, projectPath });
+    } else {
+      logger.debug('Project directory does not exist locally, nothing to delete', { slug, projectPath });
     }
-    return false;
+    return true;
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error(`Error deleting project ${slug}:`, err);
