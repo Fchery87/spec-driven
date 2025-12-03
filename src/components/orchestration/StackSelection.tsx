@@ -57,6 +57,9 @@ export function StackSelection({
   const [showCustom, setShowCustom] = useState(false)
   const [reasoning, setReasoning] = useState('')
   const [preferences, setPreferences] = useState<TechnicalPreferences>({})
+  
+  // Two-step selection: pendingStack is what user clicked, selectedStack is what's confirmed
+  const [pendingStack, setPendingStack] = useState<string | null>(null)
 
   // Fetch stack templates from API
   useEffect(() => {
@@ -79,14 +82,31 @@ export function StackSelection({
     fetchTemplates()
   }, [])
 
-  const handleStackSelect = (stackId: string) => {
-    onStackSelect(stackId, reasoning, preferences)
+  // Step 1: User clicks a card - only highlights it (no submission)
+  const handleStackClick = (stackId: string) => {
+    setPendingStack(stackId)
+    setShowCustom(false) // Clear custom mode if selecting a template
+  }
+
+  // Step 2: User confirms their selection - NOW we submit
+  const confirmStackSelection = () => {
+    if (pendingStack) {
+      onStackSelect(pendingStack, reasoning, preferences)
+    }
   }
 
   const handleCustomStack = () => {
     if (customStack.trim()) {
       onStackSelect('custom', reasoning, preferences)
     }
+  }
+
+  const clearSelection = () => {
+    setPendingStack(null)
+    setReasoning('')
+    setPreferences({})
+    setShowCustom(false)
+    setCustomStack('')
   }
 
   const getStackIcon = (stackId: string) => {
@@ -156,14 +176,16 @@ export function StackSelection({
 
       {/* Stack Template Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {templates.map((template) => (
+        {templates.map((template) => {
+          const isSelected = pendingStack === template.id
+          return (
           <Card
             key={template.id}
             className={`
               cursor-pointer transition-all hover:shadow-lg
-              ${selectedStack === template.id ? 'ring-2 ring-primary ' + getStackColor(template.id) : 'hover:scale-[1.02]'}
+              ${isSelected ? 'ring-2 ring-primary ' + getStackColor(template.id) : 'hover:scale-[1.02]'}
             `}
-            onClick={() => handleStackSelect(template.id)}
+            onClick={() => handleStackClick(template.id)}
           >
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -171,7 +193,7 @@ export function StackSelection({
                   {getStackIcon(template.id)}
                   <CardTitle className="text-base">{template.name}</CardTitle>
                 </div>
-                {selectedStack === template.id && (
+                {isSelected && (
                   <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                 )}
               </div>
@@ -247,7 +269,7 @@ export function StackSelection({
               )}
             </CardContent>
           </Card>
-        ))}
+        )})}
       </div>
 
       {/* Custom Stack Option */}
@@ -303,7 +325,7 @@ export function StackSelection({
       </Card>
 
       {/* Technical Preferences */}
-      {(selectedStack || showCustom) && Object.keys(preferenceOptions).length > 0 && (
+      {(pendingStack || showCustom) && Object.keys(preferenceOptions).length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Technical Preferences (Optional)</CardTitle>
@@ -340,62 +362,65 @@ export function StackSelection({
         </Card>
       )}
 
-      {/* Reasoning Input */}
-      {(selectedStack || showCustom) && (
-        <Card>
+      {/* Confirm Selection Panel */}
+      {(pendingStack || showCustom) && (
+        <Card className="border-2 border-primary/50 bg-primary/5">
           <CardHeader>
-            <CardTitle>Why did you choose this stack?</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-primary" />
+              Confirm Your Selection
+            </CardTitle>
             <CardDescription>
-              Help us understand your reasoning so we can optimize the generated specifications.
+              You selected: <strong>{pendingStack ? templates.find(t => t.id === pendingStack)?.name : 'Custom Stack'}</strong>. 
+              Add optional reasoning and click confirm when ready.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <textarea
-              className="w-full p-3 border rounded-md resize-none h-24"
-              placeholder="e.g., We need fast iteration for our MVP. The unified TypeScript codebase helps our small team move quickly..."
-              value={reasoning}
-              onChange={(e) => setReasoning(e.target.value)}
-            />
+            <div>
+              <label className="text-sm font-medium mb-2 block">Why did you choose this stack? (Optional)</label>
+              <textarea
+                className="w-full p-3 border rounded-md resize-none h-24"
+                placeholder="e.g., We need fast iteration for our MVP. The unified TypeScript codebase helps our small team move quickly..."
+                value={reasoning}
+                onChange={(e) => setReasoning(e.target.value)}
+              />
+            </div>
 
             <div className="flex gap-2">
               <Button
                 onClick={() => {
-                  if (selectedStack) {
-                    handleStackSelect(selectedStack)
+                  if (pendingStack) {
+                    confirmStackSelection()
                   } else if (showCustom) {
                     handleCustomStack()
                   }
                 }}
-                disabled={isLoading}
+                disabled={isLoading || (!pendingStack && !customStack.trim())}
                 className="flex-1"
+                size="lg"
               >
                 {isLoading ? 'Confirming...' : 'Confirm Stack Choice'}
               </Button>
               <Button
                 variant="outline"
-                onClick={() => {
-                  onStackSelect('')
-                  setReasoning('')
-                  setPreferences({})
-                  setShowCustom(false)
-                  setCustomStack('')
-                }}
+                onClick={clearSelection}
+                size="lg"
               >
-                Clear Selection
+                Change Selection
               </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Selection Summary */}
-      {selectedStack && !showCustom && (
-        <Card className="bg-[hsl(var(--chart-4))]/10 border border-[hsl(var(--chart-4))]/30">
+      {/* Already Approved Notice */}
+      {selectedStack && (
+        <Card className="bg-emerald-500/10 border border-emerald-500/30">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-[hsl(var(--chart-4))]">
-              <CheckCircle2 className="h-5 w-5 text-[hsl(var(--chart-4))]" />
+            <div className="flex items-center gap-2 text-emerald-600">
+              <CheckCircle2 className="h-5 w-5" />
               <span className="font-semibold">
-                Selected: {templates.find(t => t.id === selectedStack)?.name || selectedStack}
+                Stack Approved: {templates.find(t => t.id === selectedStack)?.name || selectedStack}
               </span>
             </div>
           </CardContent>
