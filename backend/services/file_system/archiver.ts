@@ -253,6 +253,7 @@ ${brief ? this.extractDescription(brief) : 'Project description not available.'}
 
 ## Read Documents in This Order
 
+### Phase 1: Project Foundation (ANALYSIS)
 1. **constitution.md** (5 min read)
    - Project guiding principles
    - Non-negotiable values
@@ -267,49 +268,73 @@ ${brief ? this.extractDescription(brief) : 'Project description not available.'}
    - Pain points and goals
    - Usage patterns
 
-4. **PRD.md** (20 min read)
+### Phase 2: Stack Decision (STACK_SELECTION)
+4. **stack-decision.md** (5 min read)
+   - Chosen technology stack composition
+   - Frontend, backend, database, deployment layers
+   - Technical preferences applied
+
+5. **stack-rationale.md** (5 min read)
+   - Why this stack was selected
+   - Alternatives considered and why not chosen
+   - Trade-offs accepted
+
+### Phase 3: Specifications (SPEC)
+6. **PRD.md** (20 min read)
    - Detailed product requirements
    - Functional & non-functional requirements
    - User stories with acceptance criteria
-   - Epics breakdown
    - MVP vs Phase 2 features (marked clearly)
 
-5. **data-model.md** (10 min read)
+7. **data-model.md** (10 min read)
    - Database schema
    - Tables, columns, relationships
    - Key constraints
 
-6. **api-spec.json** (reference)
+8. **api-spec.json** (reference)
    - OpenAPI specification
    - All endpoints, methods, payloads
-   - Used during API implementation
 
-7. **architecture.md** (15 min read)
-   - System design and component overview
-   - Tech stack rationale
-   - Security & compliance design
-   - Scaling strategy
-   - Performance considerations
+9. **design-system.md** (10 min read)
+   - Color palette (project-specific, NOT purple defaults)
+   - Typography (ONLY 4 sizes: body, label, heading, display)
+   - Spacing (8pt grid: 8, 16, 24, 32, 48, 64)
+   - Motion tokens (Framer Motion durations and springs)
+   - Border radius, shadows, breakpoints
 
-8. **DEPENDENCIES.md** (10 min read)
-   - All required packages
-   - Why each dependency was chosen
-   - Security and licensing notes
+10. **component-inventory.md** (10 min read)
+    - UI components mapped to shadcn/ui
+    - Custom components with props/variants
+    - Animation requirements per component
 
-9. **epics.md** (10 min read)
-   - Feature set breakdown
-   - Which requirements each epic covers
-   - Components and APIs per epic
+11. **user-flows.md** (10 min read)
+    - Key user journeys with steps
+    - Screens and interaction states
+    - Error states and recovery paths
 
-10. **tasks.md** (reference during implementation)
+### Phase 4: Dependencies (DEPENDENCIES)
+12. **DEPENDENCIES.md** (10 min read)
+    - All required packages
+    - Why each dependency was chosen
+    - Security and licensing notes
+
+### Phase 5: Implementation Plan (SOLUTIONING)
+13. **architecture.md** (15 min read)
+    - System design and component overview
+    - Tech stack rationale
+    - Security & compliance design
+    - Scaling strategy
+
+14. **epics.md** (10 min read)
+    - Feature set breakdown
+    - Which requirements each epic covers
+
+15. **tasks.md** (reference during implementation)
     - Detailed task list with execution context
-    - Each task references PRD, architecture, data-model
     - Implementation hints and acceptance criteria
 
-11. **README.md** (2 min read)
+16. **README.md** (2 min read)
     - Quick start guide for developers
-    - How to use this project folder
-    - Directory structure explanation
 
 ## Approved Technology Stack
 
@@ -354,16 +379,28 @@ The project must be production-ready, secure, and maintainable.
 
 Implement the project following these documents (read in order):
 
+### Phase 1: Foundation
 1. constitution.md - Project guiding principles
 2. project-brief.md - Vision and context
 3. personas.md - User types and needs
-4. PRD.md - Complete requirements (including MVP vs Phase 2)
-5. data-model.md - Database schema
-6. api-spec.json - API contracts (if generating backend)
-7. architecture.md - System design
-8. DEPENDENCIES.md - Approved packages and why
-9. epics.md - Feature breakdown
-10. tasks.md - Implementation sequence with acceptance criteria
+
+### Phase 2: Stack
+4. stack-decision.md - Chosen technology stack
+5. stack-rationale.md - Why this stack was selected
+
+### Phase 3: Specifications
+6. PRD.md - Complete requirements (MVP vs Phase 2)
+7. data-model.md - Database schema
+8. api-spec.json - API contracts
+9. design-system.md - UI design tokens
+10. component-inventory.md - UI components
+11. user-flows.md - User journeys
+
+### Phase 4-5: Implementation
+12. DEPENDENCIES.md - Approved packages
+13. architecture.md - System design
+14. epics.md - Feature breakdown
+15. tasks.md - Implementation sequence
 
 ## Key Constraints
 
@@ -373,14 +410,24 @@ Implement the project following these documents (read in order):
 - **Quality:** All code must pass tests and meet acceptance criteria in tasks.md
 - **Dependencies:** Use ONLY packages listed in DEPENDENCIES.md
 - **API Design:** Match api-spec.json exactly
+- **Design System:** Follow design-system.md EXACTLY:
+  - Use ONLY 4 typography sizes (body, label, heading, display)
+  - Use ONLY 8pt grid spacing (8, 16, 24, 32, 48, 64)
+  - Follow 60/30/10 color rule with project-specific colors
+  - Use Framer Motion with defined duration scale
+  - Implement shadcn/ui components per component-inventory.md
+  - Follow user-flows.md for all user journeys
+  - AVOID: purple defaults, gradient blobs, Inter font, excessive border radius
 
 ## Implementation Steps
 
-1. **Setup:** Create project structure
+1. **Setup:** Create project structure per stack-decision.md
 2. **Database:** Set up schema matching data-model.md
 3. **Backend APIs:** Implement endpoints from api-spec.json
-4. **Frontend:** Implement screens and components per tasks.md
-5. **Testing:** Write tests matching acceptance criteria
+4. **Design:** Apply design-system.md tokens to Tailwind config
+5. **Components:** Build UI per component-inventory.md
+6. **Frontend:** Implement screens per user-flows.md and tasks.md
+7. **Testing:** Write tests matching acceptance criteria
 6. **Documentation:** Keep implementation notes aligned with architecture.md
 
 ## Quality Standards
@@ -400,33 +447,41 @@ Good luck! You have a complete spec. Build excellent software. 🚀
 
 \`\`\`
 ${projectSlug}/
-├── constitution.md              ← Project guiding principles
-├── project-brief.md             ← Vision & objectives
-├── personas.md                  ← User personas
 ├── README.md                    ← Quick start for this folder
 ├── HANDOFF.md                   ← This file (your guide)
 │
-├── specs/                      ← All specification artifacts
-│   ├── PRD.md                  ← Complete product requirements
-│   ├── data-model.md           ← Database schema
-│   ├── api-spec.json           ← OpenAPI specification
-│   ├── architecture.md         ← System design
-│   ├── epics.md               ← Feature breakdown
-│   ├── tasks.md                ← Detailed task list
-│   ├── plan.md                ← Project plan & approved stack
-│   └── DEPENDENCIES.md        ← Package choices & rationale
+├── specs/
+│   ├── ANALYSIS/               ← Phase 1: Project Foundation
+│   │   ├── constitution.md     ← Guiding principles
+│   │   ├── project-brief.md    ← Vision & objectives
+│   │   └── personas.md         ← User personas
+│   │
+│   ├── STACK_SELECTION/        ← Phase 2: Stack Decision
+│   │   ├── stack-decision.md   ← Chosen technology stack
+│   │   └── stack-rationale.md  ← Why this stack was selected
+│   │
+│   ├── SPEC/                   ← Phase 3: Specifications
+│   │   ├── PRD.md              ← Product requirements
+│   │   ├── data-model.md       ← Database schema
+│   │   ├── api-spec.json       ← OpenAPI specification
+│   │   ├── design-system.md    ← Colors, typography, spacing, motion
+│   │   ├── component-inventory.md ← UI components (shadcn/ui)
+│   │   └── user-flows.md       ← User journey definitions
+│   │
+│   ├── DEPENDENCIES/           ← Phase 4: Dependencies
+│   │   └── DEPENDENCIES.md     ← Package choices & rationale
+│   │
+│   └── SOLUTIONING/            ← Phase 5: Implementation Plan
+│       ├── architecture.md     ← System design
+│       ├── epics.md            ← Feature breakdown
+│       ├── tasks.md            ← Detailed task list
+│       └── plan.md             ← Project plan
 │
-├── .ai-config/                ← Agent prompts & config (reference)
-│   ├── analyst_prompt.md
-│   ├── pm_prompt.md
-│   ├── architect_prompt.md
-│   ├── scrummaster_prompt.md
-│   ├── devops_prompt.md
+├── .ai-config/                 ← Agent prompts (reference)
 │   └── validators.yml
 │
-└── docs/                      ← Documentation
-    ├── security-baseline.md     ← Security requirements & implementation
-    └── DEPS_NOTES.md          ← Dependency policy notes & overrides
+└── docs/                       ← Documentation
+    └── security-baseline.md    ← Security requirements
 \`\`\`
 
 ## Next Steps
