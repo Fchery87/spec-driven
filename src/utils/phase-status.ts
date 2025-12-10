@@ -24,7 +24,7 @@ export interface ProjectProgress {
   artifacts?: Record<string, Array<{ name: string }>>
 }
 
-const PHASES = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'DONE']
+const PHASES = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE', 'DONE']
 
 const REQUIRED_ARTIFACTS: Record<string, string[]> = {
   ANALYSIS: ['constitution.md', 'project-brief.md', 'personas.md'],
@@ -32,6 +32,7 @@ const REQUIRED_ARTIFACTS: Record<string, string[]> = {
   SPEC: ['PRD.md', 'data-model.md', 'api-spec.json', 'design-system.md', 'component-inventory.md', 'user-flows.md'],
   DEPENDENCIES: ['DEPENDENCIES.md', 'dependency-proposal.md', 'approval.md'],
   SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],
+  VALIDATE: ['validation-report.md', 'coverage-matrix.md'],
   DONE: ['README.md', 'HANDOFF.md']
 }
 
@@ -41,11 +42,12 @@ const APPROVAL_GATES: Record<string, { field: string; displayName: string }> = {
 }
 
 const PHASE_DESCRIPTIONS: Record<string, string> = {
-  ANALYSIS: 'Analyze and clarify project requirements. AI agents will generate your project constitution, brief, and user personas.',
+  ANALYSIS: 'Analyze and clarify project requirements. AI agents will generate your project constitution, brief, and user personas. Uncertainties are marked for resolution.',
   STACK_SELECTION: 'Choose your architecture pattern (Monolithic or Decoupled Services). This strategic decision guides specific technology choices.',
-  SPEC: 'Generate detailed product and technical specifications including PRD, data model, and API specifications.',
+  SPEC: 'Generate detailed product and technical specifications including PRD, data model, API specifications, and design system artifacts.',
   DEPENDENCIES: 'Review and approve the DevOps-generated dependency plan based on your architecture. Specific packages are automatically generated from your architecture choice.',
-  SOLUTIONING: 'Create architecture diagrams, break down work into epics and tasks, and generate an implementation roadmap.',
+  SOLUTIONING: 'Create architecture diagrams, break down work into epics and tasks with test-first approach, and generate an implementation roadmap with parallel task markers.',
+  VALIDATE: 'Cross-artifact consistency analysis. Verify all requirements map to tasks, personas are consistent, and Constitutional Articles are followed.',
   DONE: 'Generate final handoff document with comprehensive project README and HANDOFF.md prompt for LLM-based code generation.'
 }
 

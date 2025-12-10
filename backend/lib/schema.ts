@@ -17,6 +17,11 @@ export const projects = pgTable('Project', {
   handoffGenerated: boolean('handoff_generated').notNull().default(false),
   ownerId: uuid('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
 
+  // Clarification tracking (JSON stored as text)
+  clarificationState: text('clarification_state'), // JSON: ClarificationState
+  clarificationMode: text('clarification_mode').default('hybrid'), // 'interactive' | 'hybrid' | 'auto_resolve'
+  clarificationCompleted: boolean('clarification_completed').notNull().default(false),
+
   // Timestamps
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -31,7 +36,7 @@ export const projects = pgTable('Project', {
 export const artifacts = pgTable('Artifact', {
   id: uuid('id').primaryKey().defaultRandom(),
   projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
-  phase: text('phase').notNull(), // ANALYSIS, STACK_SELECTION, SPEC, DEPENDENCIES, SOLUTIONING, DONE
+  phase: text('phase').notNull(), // ANALYSIS, STACK_SELECTION, SPEC, DEPENDENCIES, SOLUTIONING, VALIDATE, DONE
   filename: text('filename').notNull(),
   content: text('content').notNull(),
   version: integer('version').notNull().default(1),

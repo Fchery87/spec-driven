@@ -21,6 +21,8 @@ import { ProjectHeader } from '@/components/orchestration/ProjectHeader';
 import { PhaseTimeline } from '@/components/orchestration/PhaseTimeline';
 import { ArtifactSidebar } from '@/components/orchestration/ArtifactSidebar';
 import { ActionBar } from '@/components/orchestration/ActionBar';
+import { ClarificationPanel, type ClarificationQuestion, type ClarificationMode } from '@/components/orchestration/ClarificationPanel';
+import { ValidationResultsPanel, type ValidationCheck, type ValidationSummary } from '@/components/orchestration/ValidationResultsPanel';
 import { calculatePhaseStatuses, canAdvanceFromPhase } from '@/utils/phase-status';
 import { CheckCircle, Trash2, Download, FileText, AlertCircle } from 'lucide-react';
 
@@ -42,7 +44,7 @@ interface Project {
   stats?: Record<string, unknown>;
 }
 
-const PHASES = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'DONE'];
+const PHASES = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE', 'DONE'];
 
 export default function ProjectPage() {
   const params = useParams();
@@ -68,6 +70,25 @@ export default function ProjectPage() {
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionInput, setDescriptionInput] = useState('');
   const [savingDescription, setSavingDescription] = useState(false);
+  
+  // Clarification state (ANALYSIS phase)
+  const [clarificationQuestions, setClarificationQuestions] = useState<ClarificationQuestion[]>([]);
+  const [clarificationMode, setClarificationMode] = useState<ClarificationMode>('hybrid');
+  const [showClarification, setShowClarification] = useState(false);
+  const [submittingClarification, setSubmittingClarification] = useState(false);
+  const [autoResolvingClarification, setAutoResolvingClarification] = useState(false);
+
+  // Validation state (VALIDATE phase)
+  const [validationChecks, setValidationChecks] = useState<ValidationCheck[]>([]);
+  const [validationSummary, setValidationSummary] = useState<ValidationSummary>({
+    totalChecks: 0,
+    passed: 0,
+    failed: 0,
+    warnings: 0,
+    pending: 0,
+    overallStatus: 'pending'
+  });
+  const [isValidating, setIsValidating] = useState(false);
 
   const dependencySelectorRef = useRef<HTMLDivElement | null>(null);
 
@@ -126,10 +147,216 @@ export default function ProjectPage() {
     }
   }, [slug]);
 
+  // Fetch clarification state for ANALYSIS phase
+  const fetchClarification = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/projects/${slug}/clarification`, { cache: 'no-store' });
+      const result = await response.json();
+
+      if (result.success && result.data.enabled) {
+        const state = result.data.state;
+        setClarificationQuestions(state.questions || []);
+        setClarificationMode(state.mode || 'hybrid');
+        setShowClarification(!state.completed && !state.skipped && state.questions.length > 0);
+      } else {
+        setShowClarification(false);
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      logger.error('Failed to fetch clarification:', error);
+    }
+  }, [slug]);
+
+  // Handle clarification answer
+  const handleClarificationAnswer = (questionId: string, answer: string) => {
+    setClarificationQuestions(prev => prev.map(q => {
+      if (q.id === questionId) {
+        if (answer === '') {
+          // Reset answer
+          return { ...q, resolved: false, resolvedBy: null, userAnswer: undefined, aiAssumed: undefined };
+        }
+        return { ...q, resolved: true, resolvedBy: 'user', userAnswer: answer };
+      }
+      return q;
+    }));
+  };
+
+  // Handle auto-resolve single question
+  const handleAutoResolveSingle = async (questionId: string) => {
+    setAutoResolvingClarification(true);
+    try {
+      const response = await fetch(`/api/projects/${slug}/clarification/auto-resolve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questionIds: [questionId] })
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        setClarificationQuestions(result.data.state.questions);
+        recordAction('Question auto-resolved by AI.');
+      } else {
+        recordAction(result.error || 'Failed to auto-resolve', 'error');
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      logger.error('Failed to auto-resolve:', error);
+      recordAction('Failed to auto-resolve', 'error');
+    } finally {
+      setAutoResolvingClarification(false);
+    }
+  };
+
+  // Handle auto-resolve all questions
+  const handleAutoResolveAll = async () => {
+    setAutoResolvingClarification(true);
+    try {
+      const response = await fetch(`/api/projects/${slug}/clarification/auto-resolve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        setClarificationQuestions(result.data.state.questions);
+        recordAction(`Auto-resolved ${result.data.resolved.length} question(s).`);
+      } else {
+        recordAction(result.error || 'Failed to auto-resolve all', 'error');
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      logger.error('Failed to auto-resolve all:', error);
+      recordAction('Failed to auto-resolve all', 'error');
+    } finally {
+      setAutoResolvingClarification(false);
+    }
+  };
+
+  // Handle clarification submit
+  const handleClarificationSubmit = async () => {
+    setSubmittingClarification(true);
+    try {
+      const response = await fetch(`/api/projects/${slug}/clarification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questions: clarificationQuestions,
+          mode: clarificationMode,
+          skip: false
+        })
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        setShowClarification(false);
+        recordAction('Clarification answers saved.');
+        await fetchProject();
+      } else {
+        recordAction(result.error || 'Failed to submit clarification', 'error');
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      logger.error('Failed to submit clarification:', error);
+      recordAction('Failed to submit clarification', 'error');
+    } finally {
+      setSubmittingClarification(false);
+    }
+  };
+
+  // Handle clarification skip
+  const handleClarificationSkip = async () => {
+    setSubmittingClarification(true);
+    try {
+      const response = await fetch(`/api/projects/${slug}/clarification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questions: clarificationQuestions,
+          mode: clarificationMode,
+          skip: true
+        })
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        setShowClarification(false);
+        recordAction('Clarification skipped - AI will make assumptions.');
+      } else {
+        recordAction(result.error || 'Failed to skip clarification', 'error');
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      logger.error('Failed to skip clarification:', error);
+      recordAction('Failed to skip clarification', 'error');
+    } finally {
+      setSubmittingClarification(false);
+    }
+  };
+
+  // Run validation checks (VALIDATE phase)
+  const handleRunValidation = async () => {
+    setIsValidating(true);
+    try {
+      const response = await fetch(`/api/projects/${slug}/validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        setValidationChecks(result.data.checks);
+        setValidationSummary(result.data.summary);
+        await fetchArtifacts(); // Refresh to get validation artifacts
+        recordAction(`Validation complete: ${result.data.summary.passed}/${result.data.summary.totalChecks} checks passed`);
+      } else {
+        recordAction(result.error || 'Failed to run validation', 'error');
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      logger.error('Failed to run validation:', error);
+      recordAction('Failed to run validation', 'error');
+    } finally {
+      setIsValidating(false);
+    }
+  };
+
+  // Download validation report
+  const handleDownloadValidationReport = async () => {
+    try {
+      const response = await fetch(`/api/projects/${slug}/artifacts/VALIDATE/validation-report.md`, { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error('Validation report not found');
+      }
+      const content = await response.text();
+
+      const element = document.createElement('a');
+      const file = new Blob([content], { type: 'text/markdown' });
+      element.href = URL.createObjectURL(file);
+      element.download = `${slug}-validation-report.md`;
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
+      URL.revokeObjectURL(element.href);
+      recordAction('Downloaded validation report.');
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      logger.error('Failed to download validation report:', error);
+      recordAction('Failed to download validation report', 'error');
+    }
+  };
+
   useEffect(() => {
     fetchProject();
     fetchArtifacts();
   }, [fetchProject, fetchArtifacts]);
+
+  // Fetch clarification when in ANALYSIS phase with artifacts
+  useEffect(() => {
+    if (project?.current_phase === 'ANALYSIS' && artifacts['ANALYSIS']?.length > 0) {
+      fetchClarification();
+    }
+  }, [project?.current_phase, artifacts, fetchClarification]);
 
   useEffect(() => {
     if (project?.description !== undefined && !editingDescription) {
@@ -611,6 +838,25 @@ export default function ProjectPage() {
           </Card>
         )}
 
+        {/* Clarification Panel for ANALYSIS phase */}
+        {showClarification && project.current_phase === 'ANALYSIS' && clarificationQuestions.length > 0 && (
+          <div className="mb-6">
+            <ClarificationPanel
+              projectSlug={slug}
+              questions={clarificationQuestions}
+              mode={clarificationMode}
+              onModeChange={setClarificationMode}
+              onAnswerQuestion={handleClarificationAnswer}
+              onAutoResolve={handleAutoResolveSingle}
+              onAutoResolveAll={handleAutoResolveAll}
+              onSubmit={handleClarificationSubmit}
+              onSkip={handleClarificationSkip}
+              isSubmitting={submittingClarification}
+              isAutoResolving={autoResolvingClarification}
+            />
+          </div>
+        )}
+
         {showStackSelection && (
           <Card className="mb-6 border border-primary/30 bg-primary/5">
             <CardHeader>
@@ -647,6 +893,21 @@ export default function ProjectPage() {
               />
             </CardContent>
           </Card>
+        )}
+
+        {/* Validation Results Panel for VALIDATE phase */}
+        {project.current_phase === 'VALIDATE' && (
+          <div className="mb-6">
+            <ValidationResultsPanel
+              checks={validationChecks}
+              summary={validationSummary}
+              onRunValidation={handleRunValidation}
+              onDownloadReport={handleDownloadValidationReport}
+              isValidating={isValidating}
+              canProceed={validationSummary.overallStatus === 'pass' || validationSummary.overallStatus === 'warning'}
+              onProceed={handlePhaseAdvance}
+            />
+          </div>
         )}
 
         {editingDescription && (
@@ -941,11 +1202,12 @@ function hasArtifactsForPhase(phase: string, artifacts: Record<string, Artifact[
 
 function getPhaseDescription(phase: string): string {
   const descriptions: Record<string, string> = {
-    ANALYSIS: 'Analyze and clarify project requirements. AI agents will generate your project constitution, brief, and user personas.',
+    ANALYSIS: 'Analyze and clarify project requirements. AI agents will generate your project constitution, brief, and user personas. Uncertainties are marked for resolution.',
     STACK_SELECTION: 'Select and approve the technology stack for your project.',
     SPEC: 'Generate detailed product and technical specifications including PRD, data model, and API specifications.',
     DEPENDENCIES: 'Define and approve all project dependencies including npm packages and system requirements.',
-    SOLUTIONING: 'Create architecture diagrams, break down work into epics and tasks, and plan implementation.',
+    SOLUTIONING: 'Create architecture diagrams, break down work into epics and tasks with test-first approach, and plan implementation.',
+    VALIDATE: 'Cross-artifact consistency analysis. Verify all requirements map to tasks, personas are consistent, and Constitutional Articles are followed.',
     DONE: 'Generate final handoff document for LLM-based code generation.'
   };
   return descriptions[phase] || 'Project phase';
@@ -958,6 +1220,7 @@ function getPhaseOutputs(phase: string): string[] {
     SPEC: ['PRD.md', 'data-model.md', 'api-spec.json', 'design-system.md', 'component-inventory.md', 'user-flows.md'],
     DEPENDENCIES: ['DEPENDENCIES.md', 'dependency-proposal.md', 'approval.md'],
     SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],
+    VALIDATE: ['validation-report.md', 'coverage-matrix.md'],
     DONE: ['README.md', 'HANDOFF.md']
   };
   return outputs[phase] || [];

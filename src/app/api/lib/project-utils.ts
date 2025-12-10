@@ -12,6 +12,8 @@ import {
   uploadProjectIdea as uploadIdeaToR2,
 } from '@/lib/r2-storage';
 
+import type { ClarificationState } from '@/types/orchestrator';
+
 export interface ProjectMetadata {
   id?: string;
   slug: string;
@@ -26,6 +28,7 @@ export interface ProjectMetadata {
   handoff_generated?: boolean;
   handoff_generated_at?: string;
   orchestration_state?: Record<string, unknown>;
+  clarification_state?: ClarificationState;
   created_at?: string;
   updated_at?: string;
 }

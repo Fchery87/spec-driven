@@ -11,6 +11,42 @@ export interface Phase {
   gates?: string[];
   next_phase: string;
   validators: string[];
+  clarification?: ClarificationConfig;
+  quality_checklist?: string[];
+}
+
+// Clarification System Types (GitHub Spec Kit inspired)
+export type ClarificationMode = 'interactive' | 'hybrid' | 'auto_resolve';
+
+export interface ClarificationConfig {
+  enabled: boolean;
+  default_mode: ClarificationMode;
+  max_questions: number;
+  allow_skip: boolean;
+  uncertainty_marker: string;
+  assumption_marker: string;
+}
+
+export interface ClarificationQuestion {
+  id: string;
+  category: string;
+  question: string;
+  context?: string;
+  suggestedOptions?: string[];
+  userAnswer?: string;
+  aiAssumed?: {
+    assumption: string;
+    rationale: string;
+  };
+  resolved: boolean;
+  resolvedBy: 'user' | 'ai' | null;
+}
+
+export interface ClarificationState {
+  mode: ClarificationMode;
+  questions: ClarificationQuestion[];
+  completed: boolean;
+  skipped: boolean;
 }
 
 export interface Stack {

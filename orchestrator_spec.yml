@@ -1,21 +1,129 @@
 # Spec-Driven Orchestrator Configuration
-# Version: 2.0
-# Date: 2025-11-27
-# Updated: Enhanced prompts, validators, and phase-specific LLM configs
+# Version: 3.0
+# Date: 2025-12-10
+# Updated: Added Hybrid Clarification, VALIDATE phase, Constitutional Articles,
+#          Uncertainty Markers, Test-First Requirements, Task Parallelism, Quality Checklists
 
-# Phase workflow definition
+# =============================================================================
+# CONSTITUTIONAL ARTICLES (Inspired by GitHub Spec Kit + BMAD Method)
+# These principles govern ALL spec generation and must be enforced
+# =============================================================================
+constitutional_articles:
+  article_1_library_first:
+    name: "Library-First Principle"
+    mandate: "Every feature begins as a reusable module with clear boundaries"
+    enforcement: "architecture.md must show modular boundaries for each feature"
+    rationale: "Modularity enables testing, reuse, and maintainability"
+    
+  article_2_test_first:
+    name: "Test-First Imperative"
+    mandate: "No implementation code before tests are specified"
+    enforcement: "tasks.md must list test specifications BEFORE implementation notes"
+    rationale: "Tests define behavior; implementation fulfills that behavior"
+    
+  article_3_simplicity:
+    name: "Simplicity Gate"
+    mandate: "Maximum 3 projects/services for MVP; justify additional complexity"
+    enforcement: "architecture.md must include complexity tracking section"
+    rationale: "Start simple, add complexity only when proven necessary"
+    
+  article_4_anti_abstraction:
+    name: "Anti-Abstraction"
+    mandate: "Use framework directly; no unnecessary wrappers or abstractions"
+    enforcement: "DEPENDENCIES.md must justify each abstraction layer"
+    rationale: "Abstractions add maintenance cost; use only when essential"
+    
+  article_5_integration_first:
+    name: "Integration-First Testing"
+    mandate: "Prefer real databases over mocks; test in realistic environments"
+    enforcement: "Test configuration in tasks.md must specify real service usage"
+    rationale: "Mocks hide real integration issues; real tests find real bugs"
+
+# =============================================================================
+# WORKFLOW TRACKS (Scale-Adaptive - Inspired by BMAD Method)
+# =============================================================================
+workflow_tracks:
+  quick_flow:
+    name: "Quick Flow"
+    description: "Fast path for bug fixes, small features, and hotfixes"
+    use_for: ["Bug fixes", "Small features", "Hotfixes", "Simple CRUD"]
+    phases: ["ANALYSIS_LITE", "SOLUTIONING_LITE", "DONE"]
+    time_to_start: "< 5 minutes"
+    outputs: ["tech-spec.md", "tasks.md", "HANDOFF.md"]
+    skip_gates: true
+    
+  standard:
+    name: "Standard Flow"
+    description: "Full workflow for products, platforms, and new features"
+    use_for: ["Products", "Platforms", "New features", "MVPs"]
+    phases: ["ANALYSIS", "STACK_SELECTION", "SPEC", "DEPENDENCIES", "SOLUTIONING", "VALIDATE", "DONE"]
+    time_to_start: "< 30 minutes"
+    outputs: "all"
+    default: true
+    
+  enterprise:
+    name: "Enterprise Flow"
+    description: "Extended workflow with compliance and security gates"
+    use_for: ["Compliance-heavy projects", "Large scale", "Multi-team", "Regulated industries"]
+    phases: ["ANALYSIS", "STACK_SELECTION", "SPEC", "SECURITY_REVIEW", "DEPENDENCIES", "COMPLIANCE_CHECK", "SOLUTIONING", "VALIDATE", "DONE"]
+    time_to_start: "< 60 minutes"
+    outputs: "all + compliance artifacts"
+    additional_gates: ["security_approved", "compliance_approved"]
+
+# =============================================================================
+# PHASE WORKFLOW DEFINITION
+# =============================================================================
 phases:
   ANALYSIS:
     name: "ANALYSIS"
-    description: "Clarify requirements through guided Q&A"
+    description: "Clarify requirements through guided Q&A with uncertainty resolution"
     owner: "analyst"
     duration_minutes: 30
     inputs: ["user_idea"]
     outputs: ["constitution.md", "project-brief.md", "personas.md"]
     next_phase: "STACK_SELECTION"
-    validators: ["presence", "markdown_frontmatter", "content_quality"]
+    validators: ["presence", "markdown_frontmatter", "content_quality", "no_unresolved_clarifications"]
     allow_regeneration: true
     max_regeneration_attempts: 3
+    
+    # Hybrid Clarification Mode (NEW - Inspired by GitHub Spec Kit)
+    clarification:
+      enabled: true
+      default_mode: "hybrid"  # Options: interactive | auto_resolve | hybrid
+      max_questions: 10
+      allow_skip: true
+      uncertainty_marker: "[NEEDS CLARIFICATION: {question}]"
+      assumption_marker: "[AI ASSUMED: {assumption} - {rationale}]"
+      modes:
+        interactive:
+          description: "User answers all clarification questions before proceeding"
+          flow: "AI pauses → Shows questions → User answers → AI proceeds"
+          best_for: "Complex projects, compliance-heavy, precise requirements"
+        auto_resolve:
+          description: "AI makes reasonable assumptions and documents them"
+          flow: "AI proceeds → Documents assumptions as [AI ASSUMED: rationale]"
+          best_for: "Fast iteration, MVPs, familiar domains"
+        hybrid:
+          description: "User chooses which questions to answer; AI resolves rest"
+          flow: |
+            1. AI generates output with [NEEDS CLARIFICATION] markers
+            2. User sees question panel with options:
+               - Answer specific questions manually
+               - "Auto-resolve remaining" → AI assumes rest
+               - "Auto-resolve all" → Skip entirely (current speed)
+            3. Auto-resolved items marked: [AI ASSUMED: {assumption}]
+          best_for: "Balanced control and speed"
+    
+    # Quality Checklist for this phase
+    quality_checklist:
+      - "All THREE files generated (constitution, brief, personas)"
+      - "No unresolved [NEEDS CLARIFICATION] markers (unless auto-resolved)"
+      - "3-5 distinct personas (not variations of same user)"
+      - "Each persona has specific pain points (not generic)"
+      - "Success metrics are SMART format"
+      - "constitution.md has 5+ guiding principles with rationale"
+      - "project-brief.md has TAM/SAM/SOM analysis"
+      - "Competitive analysis identifies real or realistic competitors"
     
   STACK_SELECTION:
     name: "STACK_SELECTION"
@@ -35,6 +143,14 @@ phases:
       - "3. Architect proposes best-fit template OR custom stack"
       - "4. User can: Accept proposal, Pick different template, Fully customize"
       - "5. Approval gate confirms final choice"
+    quality_checklist:
+      - "stack-decision.md and stack-rationale.md both exist"
+      - "All required layers defined (frontend, mobile, backend, database, deployment)"
+      - "Decision matrix with weighted scoring provided"
+      - "Alternatives considered with rationale for rejection"
+      - "Trade-offs explicitly documented with mitigations"
+      - "Scaling considerations addressed"
+      - "Technical preferences from brief applied or justified if overridden"
     
   SPEC:
     name: "SPEC"
@@ -48,6 +164,22 @@ phases:
     validators: ["markdown_frontmatter", "api_openapi", "presence", "content_coverage", "requirement_format", "design_system_compliance"]
     allow_regeneration: true
     max_regeneration_attempts: 3
+    quality_checklist:
+      - "Minimum 15 functional requirements for MVP"
+      - "Each requirement has >= 2 Gherkin acceptance criteria"
+      - "All MVP requirements link to a persona from personas.md"
+      - "Traceability matrix complete with no orphaned requirements"
+      - "NFRs have measurable targets (not vague statements)"
+      - "No circular dependencies between requirements"
+      - "api-spec.json is valid OpenAPI 3.0.3"
+      - "All endpoints have error responses defined"
+      - "design-system.md has NO purple/indigo as primary color"
+      - "design-system.md uses OKLCH color format"
+      - "design-system.md has exactly 4 typography sizes"
+      - "design-system.md spacing values all divisible by 4 or 8"
+      - "design-system.md includes Framer Motion animation tokens"
+      - "component-inventory.md links to shadcn docs for each component"
+      - "user-flows.md has Mermaid diagrams for all major PRD flows"
     
   DEPENDENCIES:
     name: "DEPENDENCIES"
@@ -60,19 +192,84 @@ phases:
     gates: ["dependencies_approved"]
     next_phase: "SOLUTIONING"
     validators: ["presence", "dependencies_approved", "policy_check"]
+    quality_checklist:
+      - "All dependencies have version pinned (exact or caret)"
+      - "Every production dependency links to a PRD requirement"
+      - "No duplicate functionality (e.g., don't include both Axios and Fetch wrapper)"
+      - "Security status verified for all packages (0 HIGH/CRITICAL)"
+      - "License compatibility confirmed (MIT, Apache 2.0, BSD, ISC)"
+      - "Bundle size estimates provided"
+      - "No deprecated packages included"
+      - "All packages actively maintained (updated within 12 months)"
+      - "Article 4 (Anti-Abstraction) compliance: abstraction layers justified"
     
   SOLUTIONING:
     name: "SOLUTIONING"
-    description: "Create architecture and task breakdown"
+    description: "Create architecture and task breakdown with test-first approach"
     owner: ["architect", "scrummaster"]
     duration_minutes: 60
     inputs: ["PRD.md", "data-model.md", "api-spec.json", "DEPENDENCIES.md"]
     outputs: ["architecture.md", "epics.md", "tasks.md", "plan.md"]
     depends_on: ["SPEC", "DEPENDENCIES"]
-    next_phase: "DONE"
-    validators: ["markdown_frontmatter", "tasks_dag", "presence", "content_coverage", "requirement_traceability"]
+    next_phase: "VALIDATE"
+    validators: ["markdown_frontmatter", "tasks_dag", "presence", "content_coverage", "requirement_traceability", "test_first_compliance"]
     allow_regeneration: true
     max_regeneration_attempts: 3
+    quality_checklist:
+      - "plan.md has ALL 9 sections (not truncated)"
+      - "epics.md covers all PRD epics"
+      - "tasks.md has minimum 15 MVP tasks"
+      - "Every task links to REQ-XXX-YYY from PRD"
+      - "No circular dependencies in task graph"
+      - "All tasks have Gherkin-style acceptance criteria"
+      - "Story points add up correctly per epic"
+      - "Timeline is realistic (not overly optimistic)"
+      - "Tests listed BEFORE implementation notes in each task (Article 2)"
+      - "Parallel tasks marked with [P] for concurrent execution"
+      - "Task groups organized (Sequential vs Parallel)"
+      - "Article 1 (Library-First): Features structured as modules"
+      - "Article 3 (Simplicity): <= 3 services for MVP or justified"
+      - "Article 5 (Integration-First): Test config specifies real services"
+    
+  VALIDATE:
+    name: "VALIDATE"
+    description: "Cross-artifact consistency and coverage analysis"
+    owner: "validator"
+    duration_minutes: 15
+    inputs: ["all_previous_artifacts"]
+    outputs: ["validation-report.md", "coverage-matrix.md"]
+    depends_on: ["SOLUTIONING"]
+    next_phase: "DONE"
+    validators: ["cross_reference_check", "requirement_coverage", "dependency_consistency", "constitutional_compliance"]
+    quality_checklist:
+      - "Every REQ-XXX in PRD maps to at least one task"
+      - "All API endpoints have corresponding data model entities"
+      - "Design system tokens used consistently in component-inventory"
+      - "No orphaned user stories without acceptance criteria"
+      - "Stack choice in architecture.md matches approved stack"
+      - "All personas in PRD exist in personas.md"
+      - "All EPIC-IDs in tasks.md exist in epics.md"
+      - "Constitutional Articles 1-5 compliance verified"
+      - "No unresolved [NEEDS CLARIFICATION] markers"
+      - "All [AI ASSUMED] items documented in validation report"
+    validation_checks:
+      requirement_to_task_mapping:
+        description: "Every PRD requirement has at least one implementing task"
+        source: "PRD.md"
+        target: "tasks.md"
+        pattern: "REQ-[A-Z]+-\\d{3}"
+      api_to_data_model_mapping:
+        description: "All API response schemas have corresponding data model entities"
+        source: "api-spec.json"
+        target: "data-model.md"
+      persona_consistency:
+        description: "All personas referenced in PRD exist in personas.md"
+        source: "PRD.md"
+        target: "personas.md"
+      stack_consistency:
+        description: "Technologies in architecture.md match stack-decision.md"
+        source: "architecture.md"
+        target: "stack-decision.md"
     
   DONE:
     name: "DONE"
@@ -81,8 +278,17 @@ phases:
     duration_minutes: 10
     inputs: ["all_previous_artifacts"]
     outputs: ["README.md", "HANDOFF.md", "project.zip"]
-    depends_on: ["SOLUTIONING"]
+    depends_on: ["VALIDATE"]
     validators: ["handoff_complete", "zip_created", "cross_artifact_consistency"]
+    quality_checklist:
+      - "HANDOFF.md generated with complete LLM prompt"
+      - "All artifacts included in ZIP"
+      - "README.md provides quick start guide"
+      - "Document reading order specified"
+      - "Stack summary matches approved stack"
+      - "Security baseline checklist included"
+      - "Validation report shows all checks passed"
+      - "No unresolved issues from VALIDATE phase"
 
 # Technology Stack Configuration
 # Mode: hybrid - Architect proposes based on requirements, user can accept, modify, or go custom
@@ -378,6 +584,7 @@ agents:
     responsibilities:
       - "Ask clarifying questions to understand project vision"
       - "Generate constitution, project brief, and personas"
+      - "Mark uncertainties for user resolution or AI auto-resolution"
     prompt_template: |
       # ROLE
       You are a Business Analyst and Product Strategist operating as a CEO/CPO advisor.
@@ -389,6 +596,39 @@ agents:
 
       # PROJECT DESCRIPTION
       {{projectIdea}}
+
+      # =============================================================================
+      # UNCERTAINTY PROTOCOL (MANDATORY - Inspired by GitHub Spec Kit)
+      # =============================================================================
+      When generating these documents, you MUST follow this protocol:
+      
+      1. **Mark ALL Ambiguities**: Use `[NEEDS CLARIFICATION: specific question]`
+         - If the project description doesn't specify something important, MARK IT
+         - Don't guess or assume - surface the uncertainty
+         
+      2. **Track Assumptions**: When you must make an assumption, use:
+         `[AI ASSUMED: {what you assumed} - {why this is reasonable}]`
+         
+      3. **Categories to Check for Uncertainty**:
+         - Target users: Who exactly? Demographics? Technical level?
+         - Scale: How many users? Data volume? Traffic expectations?
+         - Platforms: Web only? Mobile? Desktop? All?
+         - Authentication: Email/password? OAuth? SSO? MFA?
+         - Monetization: Free? Freemium? Subscription? One-time?
+         - Compliance: GDPR? HIPAA? SOC2? None?
+         - Timeline: MVP deadline? Phase 2 timeline?
+         - Budget: Hosting budget? Third-party service limits?
+         
+      4. **Example Markers**:
+         - `[NEEDS CLARIFICATION: What authentication methods should be supported - email/password only, or also OAuth providers like Google/GitHub?]`
+         - `[AI ASSUMED: Target scale is <10k users based on MVP focus - adjust if enterprise scale needed]`
+         - `[NEEDS CLARIFICATION: Is offline functionality required for the mobile app?]`
+      
+      5. **Clarification Mode**: {{clarificationMode}}
+         - If "interactive": Generate markers and STOP for user input
+         - If "auto_resolve": Make reasonable assumptions and document with [AI ASSUMED]
+         - If "hybrid": Generate markers; user will choose which to answer
+      # =============================================================================
 
       # CRITICAL REQUIREMENTS
 
@@ -1262,13 +1502,38 @@ agents:
     role: "Scrum Master and Project Manager"
     perspective: "VP Engineering"
     responsibilities:
-      - "Break requirements into executable tasks"
+      - "Break requirements into executable tasks with TEST-FIRST approach"
       - "Plan execution and ensure nothing falls through cracks"
-      - "Create epics and task breakdown"
+      - "Create epics and task breakdown with parallelism markers"
+      - "Ensure Constitutional Article compliance"
     prompt_template: |
       # ROLE
       You are a Scrum Master and Project Manager (VP Engineering perspective).
       Your output creates the implementation roadmap that developers will follow.
+
+      # =============================================================================
+      # TEST-FIRST IMPERATIVE (Constitutional Article 2 - NON-NEGOTIABLE)
+      # =============================================================================
+      For EACH task in tasks.md, you MUST:
+      1. **Define Tests BEFORE Implementation**: Test specifications come first
+      2. **Acceptance Criteria = Tests**: Every criterion must be directly testable
+      3. **Test File Creation Order** (in implementation notes):
+         - Contract tests (API shape and validation)
+         - Integration tests (real database operations)
+         - E2E tests (complete user flows)
+         - Unit tests (business logic)
+      4. Tests must use REAL services where possible (Article 5: Integration-First)
+      # =============================================================================
+
+      # =============================================================================
+      # TASK PARALLELISM MARKERS
+      # =============================================================================
+      Mark tasks that can run in parallel with [P]:
+      - Independent tasks with no shared dependencies can run simultaneously
+      - Group tasks into execution phases:
+        - Sequential groups: Must complete in order
+        - Parallel groups [P]: Can be developed concurrently
+      # =============================================================================
 
       # CONTEXT DOCUMENTS
       PRD:
@@ -1364,9 +1629,27 @@ agents:
 
       # OUTPUT 3: tasks.md
 
-      ## Task Format (EXACT STRUCTURE REQUIRED):
+      ## Task Execution Groups (ORGANIZE BY PARALLELISM)
 
-      ### TASK-{EPIC}-{SEQ}: {Action Verb} {Object}
+      ### Group 1 (Sequential - Foundation)
+      Tasks that MUST complete in order:
+      - TASK-001: Database schema setup
+      - TASK-002: Auth service (depends on TASK-001)
+
+      ### Group 2 [P] (Parallel - Can run simultaneously)
+      Independent tasks with no dependencies on each other:
+      - TASK-003: User API endpoints [P]
+      - TASK-004: Project API endpoints [P]
+      - TASK-005: UI component library [P]
+
+      ### Group 3 (Sequential - Integration)
+      - TASK-006: Frontend-Backend integration (depends on Group 2)
+
+      ---
+
+      ## Task Format (EXACT STRUCTURE REQUIRED - TEST-FIRST):
+
+      ### TASK-{EPIC}-{SEQ}: {Action Verb} {Object} [P if parallel]
 
       | Field | Value |
       |-------|-------|
@@ -1376,25 +1659,38 @@ agents:
       | **Complexity** | Small (2-4h) / Medium (4-6h) / Large (6-8h) |
       | **Story Points** | 1 / 2 / 3 / 5 / 8 |
       | **Depends On** | TASK-X-Y, TASK-X-Z / None |
+      | **Parallel** | Yes [P] / No |
 
       **User Story**: As a {persona}, I want {goal} so that {benefit}
 
-      **Acceptance Criteria**:
+      **Acceptance Criteria** (Gherkin format - these ARE your tests):
       - [ ] GIVEN {precondition} WHEN {action} THEN {result}
       - [ ] GIVEN {precondition} WHEN {action} THEN {result}
       - [ ] {Additional testable criterion}
 
+      ## TESTS FIRST (Article 2 Compliance) - Define BEFORE implementation:
+
+      **Test Specifications**:
+      | Test Type | Test Name | What It Verifies |
+      |-----------|-----------|------------------|
+      | Contract | `{endpoint}.contract.test.ts` | API returns correct schema |
+      | Integration | `{feature}.integration.test.ts` | Database operations work |
+      | E2E | `{flow}.e2e.test.ts` | User journey completes |
+      | Unit | `{module}.unit.test.ts` | Business logic correct |
+
+      **Test Configuration** (Article 5 - Integration-First):
+      - Database: Use real PostgreSQL (not SQLite/mocks)
+      - Auth: Use real auth service
+      - External APIs: Use test instances or sandboxes
+
+      ---
+
       **Architecture Reference**: {Component from architecture.md}
 
-      **Implementation Notes**:
+      **Implementation Notes** (AFTER tests are defined):
       - {Technical guidance - patterns, libraries}
       - {Security considerations}
       - {Edge cases to handle}
-
-      **Test Cases**:
-      - Unit: {What to test}
-      - Integration: {What to test}
-      - E2E: {What to test}
 
       ---
 
@@ -1878,6 +2174,41 @@ validators:
       actionable_criteria: 40
     minimum_score: 70
     implementation: "quality_scoring"
+    
+  no_unresolved_clarifications:
+    description: "Check that all [NEEDS CLARIFICATION] markers are resolved or auto-resolved"
+    implementation: "clarification_marker_check"
+    allowed_unresolved: 0
+    auto_resolved_marker: "[AI ASSUMED:"
+    
+  test_first_compliance:
+    description: "Verify tasks have tests defined BEFORE implementation (Article 2)"
+    checks:
+      - "Each task has Test Specifications section"
+      - "Test section appears before Implementation Notes"
+      - "Contract, Integration, E2E, Unit test types specified"
+      - "Test configuration specifies real services (Article 5)"
+    implementation: "test_first_validator"
+    
+  constitutional_compliance:
+    description: "Verify all 5 Constitutional Articles are followed"
+    articles:
+      article_1:
+        check: "Features structured as modules with clear boundaries"
+        artifact: "architecture.md"
+      article_2:
+        check: "Tests specified before implementation in tasks"
+        artifact: "tasks.md"
+      article_3:
+        check: "Maximum 3 services for MVP or justified complexity"
+        artifact: "architecture.md"
+      article_4:
+        check: "Abstraction layers justified in dependencies"
+        artifact: "DEPENDENCIES.md"
+      article_5:
+        check: "Integration tests use real services"
+        artifact: "tasks.md"
+    implementation: "constitutional_validator"
     
   design_system_compliance:
     description: "Ensure design follows fire-your-design-team.md principles"
