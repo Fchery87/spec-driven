@@ -1,6 +1,8 @@
 # Spec-Driven Platform
 
-A multi-agent system that guides users through a 6-phase workflow to generate production-ready project specifications, which are then used as prompts for LLM-based code generation.
+A multi-agent system that guides users through a **7-phase workflow** to generate production-ready project specifications, which are then used as prompts for LLM-based code generation.
+
+**Version 3.0** - Now featuring Hybrid Clarification Mode, Constitutional Articles, VALIDATE phase, and Test-First requirements.
 
 ## 🚀 Quick Start
 
@@ -35,18 +37,32 @@ The application will be available at `http://localhost:3001`
 
 ## 📋 Core Workflow
 
-The platform guides users through 6 sequential phases:
+The platform guides users through **7 sequential phases**:
 
 ```
 User Input (project idea)
   ↓ [ANALYSIS] - Analyst generates constitution, brief, personas
+  │             ★ NEW: Hybrid Clarification Mode (interactive/auto-resolve/hybrid)
   ↓ [STACK_SELECTION] - Architect proposes stack, user approves/customizes (GATE)
   ↓ [SPEC] - PM generates PRD, data model, API spec + design system artifacts
   ↓ [DEPENDENCIES] - DevOps proposes packages (GATE)
   ↓ [SOLUTIONING] - Architect & Scrum Master create design, epics, tasks
+  │                 ★ NEW: Test-First requirements, Task Parallelism [P] markers
+  ↓ [VALIDATE] - ★ NEW: Cross-artifact consistency & compliance checks
   ↓ [DONE] - Auto-generate HANDOFF.md & ZIP for user download
   ↓ User uploads to IDE, pastes HANDOFF.md as LLM prompt for code generation
 ```
+
+### New in Version 3.0
+
+| Feature | Description |
+|---------|-------------|
+| **Hybrid Clarification** | Choose to answer questions manually, let AI assume, or mix both |
+| **Constitutional Articles** | 5 governing principles enforced across all specs |
+| **VALIDATE Phase** | Automated consistency checks before handoff |
+| **Test-First** | Tests specified before implementation in task breakdown |
+| **Task Parallelism** | `[P]` markers identify tasks that can run concurrently |
+| **Quality Checklists** | Self-verification gates for each phase |
 
 ### Hybrid Stack Selection
 
@@ -65,6 +81,49 @@ The platform supports **12+ predefined stack templates** or fully **custom stack
 
 **Custom Mode:** Define your own stack with frontend, backend, database, and deployment layers.
 
+### Constitutional Articles
+
+Five governing principles that are enforced across ALL generated specifications:
+
+| Article | Name | Mandate |
+|---------|------|---------|
+| 1 | **Library-First** | Every feature begins as a reusable module with clear boundaries |
+| 2 | **Test-First** | No implementation code before tests are specified (NON-NEGOTIABLE) |
+| 3 | **Simplicity Gate** | Maximum 3 services for MVP; justify additional complexity |
+| 4 | **Anti-Abstraction** | Use framework directly; no unnecessary wrappers |
+| 5 | **Integration-First** | Prefer real databases over mocks in tests |
+
+### Hybrid Clarification Mode (ANALYSIS Phase)
+
+When AI encounters ambiguity, users choose how to resolve it:
+
+| Mode | Description | Best For |
+|------|-------------|----------|
+| **Interactive** | Answer all questions manually | Complex projects, precise requirements |
+| **Auto-resolve** | AI makes assumptions and documents them | Fast iteration, MVPs |
+| **Hybrid** | Pick which to answer; AI resolves rest | Balanced control and speed |
+
+Uncertainty markers in generated artifacts:
+- `[NEEDS CLARIFICATION: question]` - Requires user input
+- `[AI ASSUMED: assumption - rationale]` - AI made a documented assumption
+
+### VALIDATE Phase
+
+New phase that runs 10 automated consistency checks before DONE:
+
+1. **Requirement to Task Mapping** - Every PRD requirement has implementing task
+2. **API to Data Model Mapping** - All schemas have corresponding entities
+3. **Persona Consistency** - All personas referenced exist
+4. **Stack Consistency** - Technologies match across artifacts
+5. **Epic to Task Consistency** - All task EPICs are defined
+6. **No Unresolved Clarifications** - All markers resolved
+7. **AI Assumptions Documented** - All assumptions tracked
+8. **Design System Compliance** - Follows design guidelines
+9. **Test-First Compliance** - Tests specified before implementation
+10. **Constitutional Compliance** - All 5 articles followed
+
+Generates: `validation-report.md`, `coverage-matrix.md`
+
 ## 🏗️ Architecture
 
 ### Tech Stack
@@ -80,8 +139,9 @@ The platform supports **12+ predefined stack templates** or fully **custom stack
 **Backend:**
 - Node.js + TypeScript
 - Drizzle ORM
-- PostgreSQL (Neon)
-- Google Gemini API
+- PostgreSQL (Neon - serverless)
+- Cloudflare R2 (S3-compatible artifact storage)
+- Google Gemini API (LLM)
 - Better-Auth for authentication
 
 **Testing & Quality:**
@@ -347,15 +407,16 @@ npm run db:migrate
 
 ### Multi-Agent Collaboration
 
-Five specialized agents work together:
+Six specialized agents work together:
 
 | Agent | Phase | Role | Output |
 |-------|-------|------|--------|
-| **Analyst** | ANALYSIS | Clarify requirements | Constitution, Brief, Personas |
+| **Analyst** | ANALYSIS | Clarify requirements with uncertainty markers | Constitution, Brief, Personas |
 | **Architect** | STACK_SELECTION | Propose technology stack | stack-decision.md, stack-rationale.md |
 | **PM** | SPEC | Document product | PRD, Data Model, API Spec, Design System |
 | **DevOps** | DEPENDENCIES | Specify dependencies | Dependency list, security baseline |
-| **Scrum Master** | SOLUTIONING | Break down work | Epics, Tasks (with DAG dependencies) |
+| **Scrum Master** | SOLUTIONING | Break down work (test-first, parallelism) | Epics, Tasks with `[P]` markers |
+| **Validator** | VALIDATE | Cross-artifact consistency checks | validation-report.md, coverage-matrix.md |
 
 ### Approval Gates
 
@@ -378,7 +439,7 @@ The SPEC phase generates design system artifacts following the **[fire-your-desi
 
 ### Artifact Versioning
 
-All project artifacts are stored as human-readable files:
+All project artifacts are stored in Cloudflare R2 (with database indexing):
 
 ```
 /projects/{slug}/specs/
@@ -396,7 +457,20 @@ All project artifacts are stored as human-readable files:
 │   ├── design-system.md
 │   ├── component-inventory.md
 │   └── user-flows.md
-└── ...
+├── DEPENDENCIES/v1/
+│   ├── DEPENDENCIES.md
+│   └── dependency-proposal.md
+├── SOLUTIONING/v1/
+│   ├── architecture.md
+│   ├── epics.md
+│   ├── tasks.md
+│   └── plan.md
+├── VALIDATE/v1/           ★ NEW
+│   ├── validation-report.md
+│   └── coverage-matrix.md
+└── DONE/v1/
+    ├── README.md
+    └── HANDOFF.md
 ```
 
 ## 🐛 Troubleshooting
@@ -482,6 +556,19 @@ For questions or issues:
 
 ---
 
-**Last Updated:** December 2, 2025
+**Last Updated:** December 10, 2025
 
-**Version:** 0.2.0
+**Version:** 3.0.0
+
+### Changelog (v3.0.0)
+
+- Added 7th phase: VALIDATE with 10 automated consistency checks
+- Added Hybrid Clarification Mode (interactive/auto-resolve/hybrid)
+- Added Constitutional Articles (5 governing principles)
+- Added Test-First requirements in SOLUTIONING phase
+- Added Task Parallelism markers `[P]` for concurrent execution
+- Added Quality Checklists for all phases
+- Added Cloudflare R2 integration for artifact storage
+- Updated database schema with clarification tracking
+- Added ValidationResultsPanel UI component
+- Added ClarificationPanel UI component

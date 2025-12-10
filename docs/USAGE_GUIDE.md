@@ -2,6 +2,122 @@
 
 Quick reference for using the Spec-Driven platform features.
 
+**Version 3.0** - Updated with Hybrid Clarification, VALIDATE phase, and Constitutional Articles.
+
+---
+
+## Phase Workflow (7 Phases)
+
+```
+ANALYSIS → STACK_SELECTION → SPEC → DEPENDENCIES → SOLUTIONING → VALIDATE → DONE
+```
+
+| Phase | User Action | Outputs |
+|-------|-------------|---------|
+| ANALYSIS | Answer clarification questions (or let AI assume) | constitution.md, project-brief.md, personas.md |
+| STACK_SELECTION | Approve/customize technology stack (GATE) | stack-decision.md, stack-rationale.md |
+| SPEC | Review generated specs | PRD.md, data-model.md, api-spec.json, design-system.md |
+| DEPENDENCIES | Approve dependencies (GATE) | DEPENDENCIES.md, dependency-proposal.md |
+| SOLUTIONING | Review architecture and tasks | architecture.md, epics.md, tasks.md, plan.md |
+| VALIDATE | Run validation checks, review results | validation-report.md, coverage-matrix.md |
+| DONE | Download handoff | README.md, HANDOFF.md, project.zip |
+
+---
+
+## Hybrid Clarification Mode (ANALYSIS Phase)
+
+When the AI encounters ambiguity during ANALYSIS, it marks uncertainties with `[NEEDS CLARIFICATION: question]`. Users can choose how to resolve them:
+
+### Three Modes
+
+| Mode | Description | When to Use |
+|------|-------------|-------------|
+| **Interactive** | Answer ALL questions manually | Complex projects, compliance-heavy, precise requirements |
+| **Hybrid** | Pick which to answer; AI resolves rest | Balanced control and speed (DEFAULT) |
+| **Auto-resolve** | AI assumes all and documents | Fast iteration, MVPs, familiar domains |
+
+### UI Flow
+
+1. Execute ANALYSIS phase
+2. If uncertainties found, ClarificationPanel appears
+3. Select mode (Interactive/Hybrid/Auto-resolve)
+4. For each question:
+   - Click to expand
+   - Type answer OR click "Let AI decide"
+   - AI assumptions marked as `[AI ASSUMED: assumption - rationale]`
+5. Click "Continue" when done
+
+### Markers in Artifacts
+
+```markdown
+## Authentication
+[NEEDS CLARIFICATION: Should users login with email/password, OAuth, or SSO?]
+
+## Scale
+[AI ASSUMED: 1,000-10,000 monthly active users - typical for B2B SaaS MVP]
+```
+
+---
+
+## VALIDATE Phase
+
+The VALIDATE phase runs 10 automated consistency checks before generating the final handoff.
+
+### Validation Checks
+
+| Check | Category | What It Validates |
+|-------|----------|-------------------|
+| Requirement to Task Mapping | Mapping | Every PRD requirement has implementing task |
+| API to Data Model Mapping | Consistency | All API schemas have corresponding entities |
+| Persona Consistency | Consistency | All personas referenced exist |
+| Stack Consistency | Consistency | Technologies match across artifacts |
+| Epic to Task Consistency | Mapping | All task EPICs are defined |
+| No Unresolved Clarifications | Completeness | All `[NEEDS CLARIFICATION]` resolved |
+| AI Assumptions Documented | Completeness | All `[AI ASSUMED]` tracked |
+| Design System Compliance | Compliance | Follows design guidelines |
+| Test-First Compliance | Compliance | Tests specified before implementation |
+| Constitutional Compliance | Compliance | All 5 articles followed |
+
+### UI Flow
+
+1. Advance to VALIDATE phase
+2. Click "Run Validation"
+3. Review results (pass/fail/warning for each check)
+4. Expand checks to see detailed items
+5. If all pass or warnings only → "Proceed to DONE"
+6. If failures → Fix issues in previous phases, re-run
+
+### Generated Artifacts
+
+- `validation-report.md` - Detailed results for all checks
+- `coverage-matrix.md` - Artifact coverage by phase
+
+---
+
+## Constitutional Articles
+
+Five governing principles enforced across ALL generated specifications:
+
+### Article 1: Library-First Principle
+**Mandate:** Every feature begins as a reusable module with clear boundaries.
+**Enforcement:** `architecture.md` must show modular boundaries for each feature.
+
+### Article 2: Test-First Imperative (NON-NEGOTIABLE)
+**Mandate:** No implementation code before tests are specified.
+**Enforcement:** `tasks.md` lists test specifications BEFORE implementation notes.
+
+### Article 3: Simplicity Gate
+**Mandate:** Maximum 3 services for MVP; justify additional complexity.
+**Enforcement:** `architecture.md` includes complexity tracking section.
+
+### Article 4: Anti-Abstraction
+**Mandate:** Use framework directly; no unnecessary wrappers.
+**Enforcement:** `DEPENDENCIES.md` justifies each abstraction layer.
+
+### Article 5: Integration-First Testing
+**Mandate:** Prefer real databases over mocks in tests.
+**Enforcement:** Test configuration in `tasks.md` specifies real service usage.
+
 ---
 
 ## Stack Selection
@@ -592,4 +708,4 @@ As you integrate these utilities into more routes:
 
 ---
 
-**Last Updated:** December 2, 2025
+**Last Updated:** December 10, 2025

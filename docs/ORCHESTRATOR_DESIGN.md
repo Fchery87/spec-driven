@@ -1,8 +1,8 @@
 # Spec-Driven Platform: Orchestrator Design Document
 
-**Version:** 1.0
-**Date:** 2025-11-14
-**Status:** Design Phase
+**Version:** 3.0
+**Date:** 2025-12-10
+**Status:** Production
 **Owner:** Spec-Driven Team
 
 ---
@@ -21,12 +21,13 @@
 10. [Data Models](#data-models)
 11. [Implementation Roadmap](#implementation-roadmap)
 12. [Technical Decisions](#technical-decisions)
+13. [Version 3.0 Enhancements](#version-30-enhancements)
 
 ---
 
 ## Executive Summary
 
-Spec-Driven is transforming from a simple project scaffolder into a **comprehensive spec-first orchestrator** that guides users through a structured 6-phase workflow to produce production-ready project documentation.
+Spec-Driven is transforming from a simple project scaffolder into a **comprehensive spec-first orchestrator** that guides users through a structured **7-phase workflow** to produce production-ready project documentation.
 
 **Core Principle:** The system generates **complete, structured markdown specifications and planning documents** that users download as a ZIP, upload to their IDE, and use as context for their LLM of choice to generate production code. **No code generation happens in Spec-Driven itself.**
 
@@ -2266,11 +2267,97 @@ security_baseline:
 
 ---
 
+## Version 3.0 Enhancements
+
+### New Phase: VALIDATE
+
+A new 7th phase added between SOLUTIONING and DONE that performs automated cross-artifact consistency checks.
+
+**Purpose:** Ensure all artifacts are internally consistent before generating the final handoff.
+
+**Validation Checks (10 total):**
+
+| Check | Category | Description |
+|-------|----------|-------------|
+| Requirement to Task Mapping | Mapping | Every REQ-XXX in PRD maps to at least one task |
+| API to Data Model Mapping | Consistency | All API schemas have corresponding data model entities |
+| Persona Consistency | Consistency | All personas referenced in PRD exist in personas.md |
+| Stack Consistency | Consistency | Technologies in architecture.md match stack-decision.md |
+| Epic to Task Consistency | Mapping | All EPIC-IDs in tasks.md exist in epics.md |
+| No Unresolved Clarifications | Completeness | No `[NEEDS CLARIFICATION]` markers remain |
+| AI Assumptions Documented | Completeness | All `[AI ASSUMED]` items tracked |
+| Design System Compliance | Compliance | Follows design system guidelines |
+| Test-First Compliance | Compliance | Tests specified before implementation |
+| Constitutional Compliance | Compliance | All 5 Constitutional Articles followed |
+
+**Outputs:** `validation-report.md`, `coverage-matrix.md`
+
+### Hybrid Clarification Mode
+
+New feature in ANALYSIS phase allowing users to choose how to resolve ambiguities:
+
+| Mode | Description |
+|------|-------------|
+| Interactive | User answers all clarification questions manually |
+| Hybrid | User picks which to answer; AI resolves rest with documented assumptions |
+| Auto-resolve | AI makes all assumptions and documents them (fastest) |
+
+**Markers:**
+- `[NEEDS CLARIFICATION: question]` - Requires user input
+- `[AI ASSUMED: assumption - rationale]` - AI-generated assumption
+
+### Constitutional Articles
+
+Five governing principles enforced across all specifications:
+
+1. **Library-First Principle** - Features as reusable modules
+2. **Test-First Imperative** - Tests specified before implementation (NON-NEGOTIABLE)
+3. **Simplicity Gate** - Max 3 services for MVP
+4. **Anti-Abstraction** - Use frameworks directly, justify wrappers
+5. **Integration-First Testing** - Real databases over mocks
+
+### Test-First Requirements
+
+SOLUTIONING phase now enforces test-first approach:
+- Tasks must list test specifications BEFORE implementation notes
+- Gherkin-style acceptance criteria required
+- Test order: Contract → Integration → E2E → Unit
+
+### Task Parallelism Markers
+
+Tasks in `tasks.md` now include `[P]` markers to identify tasks that can run concurrently:
+
+```markdown
+## Sequential Tasks
+- TASK-001: Setup database schema
+
+## Parallel Tasks [P]
+- TASK-002: Implement user service [P]
+- TASK-003: Implement auth service [P]
+- TASK-004: Create UI components [P]
+```
+
+### Quality Checklists
+
+Each phase now includes a `quality_checklist` in `orchestrator_spec.yml` for self-verification before advancing.
+
+### Infrastructure Updates
+
+| Component | Change |
+|-----------|--------|
+| Database | Added clarification_state, clarification_mode, clarification_completed columns |
+| Storage | Cloudflare R2 integration for artifact storage |
+| API | New routes: `/clarification`, `/clarification/auto-resolve`, `/validate` |
+| UI | New components: ClarificationPanel, ValidationResultsPanel |
+
+---
+
 ## Document History
 
 | Version | Date       | Author | Changes |
 |---------|------------|--------|---------|
 | 1.0     | 2025-11-14 | Team   | Initial design document |
+| 3.0     | 2025-12-10 | Team   | Added VALIDATE phase, Hybrid Clarification, Constitutional Articles, Test-First, Task Parallelism |
 
 ---
 

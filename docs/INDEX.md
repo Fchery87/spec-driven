@@ -1,6 +1,19 @@
 # Spec-Driven Documentation Index
 
+**Version 3.0** | Updated December 10, 2025
+
 Welcome to the Spec-Driven Platform documentation! This index will guide you through all available documentation to help you understand, develop, and deploy the project.
+
+## 🆕 What's New in Version 3.0
+
+| Feature | Description | Documentation |
+|---------|-------------|---------------|
+| **VALIDATE Phase** | 7th phase with 10 automated consistency checks | [ORCHESTRATOR_DESIGN.md](ORCHESTRATOR_DESIGN.md#version-30-enhancements) |
+| **Hybrid Clarification** | Interactive/Auto-resolve/Hybrid modes for ambiguity | [USAGE_GUIDE.md](USAGE_GUIDE.md#hybrid-clarification-mode-analysis-phase) |
+| **Constitutional Articles** | 5 governing principles for all specs | [USAGE_GUIDE.md](USAGE_GUIDE.md#constitutional-articles) |
+| **Test-First Requirements** | Tests specified before implementation | [README.md](../README.md) |
+| **Task Parallelism** | `[P]` markers for concurrent tasks | [ORCHESTRATOR_DESIGN.md](ORCHESTRATOR_DESIGN.md#task-parallelism-markers) |
+| **Cloudflare R2** | S3-compatible artifact storage | [S3_SETUP_GUIDE.md](S3_SETUP_GUIDE.md) |
 
 ## 🚀 Quick Navigation
 
@@ -127,9 +140,11 @@ Start here for a complete introduction:
 ## 📖 Document Descriptions
 
 ### Core Reference Documents (Must Read)
-- **ORCHESTRATOR_DESIGN.md** (74KB, 2200+ lines)
-  - Complete specification of the 6-phase workflow
-  - Multi-agent orchestration details
+- **ORCHESTRATOR_DESIGN.md** (80KB, 2400+ lines)
+  - Complete specification of the **7-phase workflow** (including VALIDATE)
+  - Multi-agent orchestration details (6 agents including Validator)
+  - Constitutional Articles enforcement
+  - Hybrid Clarification Mode
   - State machine implementation
   - API specifications and examples
   - Data models and database schema
@@ -340,6 +355,6 @@ Start here for a complete introduction:
 
 ---
 
-**Last Updated**: December 2, 2025
-**Status**: Complete and Current
+**Last Updated**: December 10, 2025
+**Status**: Complete and Current (v3.0)
 **Next Review**: Q1 2026

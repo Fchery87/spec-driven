@@ -15,11 +15,12 @@ import {
 import { sampleSpecText, sampleSpecTitle } from '@/content/sample-spec';
 
 const phases = [
-  { name: 'Analysis', description: 'Clarify vision, personas, and KPIs.', icon: Lightbulb, color: 'text-amber-500' },
-  { name: 'Stack Selection', description: 'Approve platform choices with rationale.', icon: Layers, color: 'text-blue-500' },
+  { name: 'Analysis', description: 'Clarify vision with hybrid Q&A mode.', icon: Lightbulb, color: 'text-amber-500', badge: 'AI + Human' },
+  { name: 'Stack Selection', description: 'Approve platform choices with rationale.', icon: Layers, color: 'text-blue-500', badge: 'Gate' },
   { name: 'Spec', description: 'Generate PRDs, API contracts, and data models.', icon: FileText, color: 'text-purple-500' },
-  { name: 'Dependencies', description: 'Validate npm/pip packages with risk notes.', icon: Package, color: 'text-orange-500' },
-  { name: 'Solutioning', description: 'Map architecture, epics, and workstreams.', icon: GitBranch, color: 'text-cyan-500' },
+  { name: 'Dependencies', description: 'Validate packages with security notes.', icon: Package, color: 'text-orange-500', badge: 'Gate' },
+  { name: 'Solutioning', description: 'Test-first tasks with parallelism markers.', icon: GitBranch, color: 'text-cyan-500' },
+  { name: 'Validate', description: '10 automated consistency checks.', icon: ShieldCheck, color: 'text-rose-500', badge: 'New' },
   { name: 'Done', description: 'Export HANDOFF.md for downstream codegen.', icon: CheckCircle2, color: 'text-emerald-500' },
 ]
 
@@ -31,22 +32,25 @@ const metrics = [
 
 const features = [
   {
-    title: 'Spec-first orchestration',
-    description: 'Guide analysts, architects, and AI agents through a single shared workflow with guardrails and approvals.',
-    icon: Workflow,
+    title: 'Hybrid Clarification Mode',
+    description: 'Choose to answer questions manually, let AI assume with rationale, or mix both for balanced control and speed.',
+    icon: Lightbulb,
     gradient: 'from-amber-500/20 to-orange-500/20',
+    badge: 'New in v3.0',
   },
   {
-    title: 'Stack-aware decisions',
-    description: 'Bake technology constraints into every phase so dependency proposals, PRDs, and diagrams stay in sync.',
-    icon: Layers,
+    title: 'Constitutional Articles',
+    description: '5 governing principles enforced across all specs: Library-First, Test-First, Simplicity, Anti-Abstraction, Integration-First.',
+    icon: ShieldCheck,
     gradient: 'from-blue-500/20 to-cyan-500/20',
+    badge: 'New in v3.0',
   },
   {
-    title: 'Production-ready handoffs',
-    description: 'Deliver curated prompts, artifacts, and handoff bundles engineers can ship without rework.',
-    icon: Rocket,
+    title: 'Automated Validation',
+    description: '10 consistency checks verify requirement mapping, persona consistency, and constitutional compliance before handoff.',
+    icon: CheckCircle2,
     gradient: 'from-emerald-500/20 to-teal-500/20',
+    badge: 'New in v3.0',
   },
 ]
 
@@ -112,19 +116,19 @@ export default function Home() {
             <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
               <div className="space-y-6">
                 <Badge className="bg-primary/15 text-primary border-primary/30 border px-3 py-1">
-                  Spec-first orchestration OS
+                  Spec-first orchestration OS — v3.0
                 </Badge>
                 
                 <h1 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl lg:text-6xl">
                   From idea to handoff in{' '}
                   <span className="bg-gradient-to-r from-primary to-amber-500 bg-clip-text text-transparent">
-                    six guided phases
+                    seven guided phases
                   </span>
                 </h1>
                 
                 <p className="text-lg text-muted-foreground max-w-xl">
                   Spec-Driven aligns analysts, architects, and AI copilots around a single source of truth 
-                  so you can ship production-ready instructions faster than ever.
+                  with hybrid clarification, constitutional articles, and automated validation.
                 </p>
 
                 <div className="flex flex-wrap gap-3">
@@ -177,7 +181,14 @@ export default function Home() {
                         )}
                       </div>
                       <div className="pb-2">
-                        <p className="font-medium text-foreground text-sm">{phase.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-foreground text-sm">{phase.name}</p>
+                          {phase.badge && (
+                            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-4 ${phase.badge === 'New' ? 'border-rose-500/50 text-rose-500' : 'border-muted-foreground/30'}`}>
+                              {phase.badge}
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground">{phase.description}</p>
                       </div>
                     </div>
@@ -188,14 +199,27 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Features Section */}
+        {/* Features Section - Version 3.0 Highlights */}
         <section className="mb-20">
+          <div className="text-center mb-8">
+            <Badge className="bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 border mb-3">
+              Version 3.0
+            </Badge>
+            <h2 className="text-2xl font-bold text-foreground">What&apos;s new in this release</h2>
+          </div>
           <div className="grid gap-4 md:grid-cols-3">
             {features.map((feature) => (
               <Card key={feature.title} className="group border-border/50 bg-card/50 hover:border-primary/30 transition-all duration-300">
                 <CardContent className="pt-6">
-                  <div className={`h-12 w-12 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
-                    <feature.icon className="h-6 w-6 text-foreground" />
+                  <div className="flex items-start justify-between mb-4">
+                    <div className={`h-12 w-12 rounded-xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                      <feature.icon className="h-6 w-6 text-foreground" />
+                    </div>
+                    {feature.badge && (
+                      <Badge variant="outline" className="text-[10px] border-rose-500/50 text-rose-500">
+                        {feature.badge}
+                      </Badge>
+                    )}
                   </div>
                   <h3 className="text-lg font-semibold text-foreground mb-2">{feature.title}</h3>
                   <p className="text-sm text-muted-foreground">{feature.description}</p>
