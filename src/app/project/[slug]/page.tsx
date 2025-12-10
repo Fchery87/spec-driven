@@ -1186,7 +1186,10 @@ export default function ProjectPage() {
 }
 
 function shouldShowExecuteButton(phase: string): boolean {
-  if (phase === 'STACK_SELECTION' || phase === 'DONE') {
+  // STACK_SELECTION: Uses approval flow, not execute
+  // VALIDATE: Uses /validate endpoint via ValidationResultsPanel
+  // DONE: Uses /generate-handoff endpoint
+  if (phase === 'STACK_SELECTION' || phase === 'VALIDATE' || phase === 'DONE') {
     return false;
   }
   return true;

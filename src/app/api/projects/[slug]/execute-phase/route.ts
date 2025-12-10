@@ -49,6 +49,16 @@ const executePhaseHandler = withAuth(
       );
     }
 
+    if (metadata.current_phase === 'VALIDATE') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Validation phase requires running checks. Use /validate endpoint instead.'
+        },
+        { status: 400 }
+      );
+    }
+
     if (metadata.current_phase === 'DONE') {
       return NextResponse.json(
         {
