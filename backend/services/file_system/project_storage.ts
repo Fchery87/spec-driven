@@ -309,7 +309,7 @@ export class ProjectStorage {
       phases: {} as Record<string, number>
     };
 
-    const phases = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING'];
+    const phases = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE'];
     
     for (const phase of phases) {
       const artifacts = this.listArtifacts(projectSlug, phase);

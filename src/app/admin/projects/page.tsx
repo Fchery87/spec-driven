@@ -31,7 +31,7 @@ interface ProjectData {
   ownerName: string | null;
 }
 
-const PHASES = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'DONE'];
+const PHASES = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE', 'DONE'];
 
 export default function AllProjectsPage() {
   const [projects, setProjects] = useState<ProjectData[]>([]);

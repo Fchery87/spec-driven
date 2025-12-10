@@ -31,7 +31,7 @@ export const ARTIFACT_CONFIG = {
  * Phase configuration
  */
 export const PHASE_CONFIG = {
-  phases: ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'DONE'] as const,
+  phases: ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE', 'DONE'] as const,
 
   // Files required for each phase
   requiredFiles: {
@@ -40,6 +40,7 @@ export const PHASE_CONFIG = {
     SPEC: ['PRD.md', 'data-model.md', 'api-spec.json', 'design-system.md', 'component-inventory.md', 'user-flows.md'],
     DEPENDENCIES: ['DEPENDENCIES.md', 'dependency-proposal.md', 'approval.md'],
     SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],
+    VALIDATE: ['validation-report.md', 'coverage-matrix.md'],
     DONE: ['README.md', 'HANDOFF.md'],
   },
 } as const;

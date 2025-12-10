@@ -223,7 +223,7 @@ export class ProjectsService {
     }
 
     const artifacts: ProjectArtifact[] = [];
-    const phases = phase ? [phase] : ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING'];
+    const phases = phase ? [phase] : ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE'];
 
     for (const phaseName of phases) {
       const phaseArtifacts = this.projectStorage.listArtifacts(slug, phaseName);

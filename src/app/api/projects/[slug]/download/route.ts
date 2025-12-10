@@ -100,7 +100,7 @@ export const GET = withAuth(
       });
 
       // Add all artifacts from all phases
-      const allPhases = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'DONE'];
+      const allPhases = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE', 'DONE'];
 
       for (const phase of allPhases) {
         const artifacts = await listArtifacts(slug, phase);

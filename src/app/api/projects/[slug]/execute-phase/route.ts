@@ -61,7 +61,7 @@ const executePhaseHandler = withAuth(
 
     // Collect artifacts from previous phases for context
     const previousArtifacts: Record<string, string> = {};
-    const allPhases = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'DONE'];
+    const allPhases = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE', 'DONE'];
     const currentIndex = allPhases.indexOf(metadata.current_phase);
 
     // Read artifact content from R2 or filesystem for all completed phases

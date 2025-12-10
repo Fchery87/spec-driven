@@ -157,7 +157,7 @@ export class Archiver {
     }
 
     // Add specs directory
-    const phases = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING'];
+    const phases = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE'];
     for (const phase of phases) {
       const artifacts = this.projectStorage.listArtifacts(projectSlug, phase);
       for (const artifact of artifacts) {

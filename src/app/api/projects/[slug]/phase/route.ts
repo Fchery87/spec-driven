@@ -5,7 +5,7 @@ import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 
-const PHASES = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'DONE'];
+const PHASES = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE', 'DONE'];
 
 const getPhaseOutputs = (phase: string): string[] => {
   const outputs: Record<string, string[]> = {
@@ -14,6 +14,7 @@ const getPhaseOutputs = (phase: string): string[] => {
     SPEC: ['PRD.md', 'data-model.md', 'api-spec.json', 'design-system.md', 'component-inventory.md', 'user-flows.md'],
     DEPENDENCIES: ['DEPENDENCIES.md', 'dependency-proposal.md', 'approval.md'],
     SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],
+    VALIDATE: ['validation-report.md', 'coverage-matrix.md'],
     DONE: ['README.md', 'HANDOFF.md']
   };
   return outputs[phase] || [];

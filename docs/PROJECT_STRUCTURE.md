@@ -519,9 +519,9 @@ DB Service.operation() (Data Access)
 Database (PostgreSQL/SQLite)
 ```
 
-### State Machine Pattern
+### State Machine Pattern (7-Phase Workflow v3.0)
 ```
-ANALYSIS → STACK_SELECTION (Gate) → SPEC → DEPENDENCIES (Gate) → SOLUTIONING → DONE
+ANALYSIS → STACK_SELECTION (Gate) → SPEC → DEPENDENCIES (Gate) → SOLUTIONING → VALIDATE → DONE
 ```
 
 ### Multi-Agent Collaboration
