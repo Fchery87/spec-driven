@@ -370,6 +370,36 @@ export class ProjectDBService {
   }
 
   /**
+   * Update clarification state
+   */
+  async updateClarificationState(
+    slug: string,
+    clarificationState: string | null,
+    clarificationMode?: string,
+    clarificationCompleted?: boolean,
+    ownerId?: string
+  ) {
+    const updateData: Record<string, unknown> = {
+      clarificationState: clarificationState,
+      updatedAt: new Date()
+    };
+    
+    if (clarificationMode !== undefined) {
+      updateData.clarificationMode = clarificationMode;
+    }
+    if (clarificationCompleted !== undefined) {
+      updateData.clarificationCompleted = clarificationCompleted;
+    }
+
+    const result = await db.update(projects)
+      .set(updateData)
+      .where(ownerId ? and(eq(projects.slug, slug), eq(projects.ownerId, ownerId)) : eq(projects.slug, slug))
+      .returning();
+
+    return result[0];
+  }
+
+  /**
    * Get project statistics
    */
   async getProjectStats(slug: string, ownerId?: string) {

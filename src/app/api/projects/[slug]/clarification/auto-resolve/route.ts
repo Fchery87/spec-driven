@@ -62,6 +62,7 @@ const autoResolveHandler = withAuth(
           success: true,
           data: {
             state: clarificationState,
+            resolved: [],
             message: 'No questions to auto-resolve'
           }
         });
@@ -81,6 +82,7 @@ const autoResolveHandler = withAuth(
           success: true,
           data: {
             state: clarificationState,
+            resolved: [],
             message: 'No unresolved questions to process'
           }
         });

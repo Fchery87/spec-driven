@@ -121,6 +121,22 @@ export async function updateProjectMetadata(
     return dbService.updateProjectDescription(slug, description, ownerId);
   }
 
+  // Handle clarification_state updates
+  if ('clarification_state' in metadata && metadata.clarification_state) {
+    const clarificationState = typeof metadata.clarification_state === 'string' 
+      ? metadata.clarification_state 
+      : JSON.stringify(metadata.clarification_state);
+    const clarificationMode = (metadata.clarification_state as { mode?: string })?.mode;
+    const clarificationCompleted = (metadata.clarification_state as { completed?: boolean })?.completed;
+    return dbService.updateClarificationState(
+      slug,
+      clarificationState,
+      clarificationMode,
+      clarificationCompleted,
+      ownerId
+    );
+  }
+
   // If no specific update, just return the project as-is
   return project;
 }

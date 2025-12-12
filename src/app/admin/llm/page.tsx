@@ -14,25 +14,95 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { Cpu, Save, RefreshCw } from 'lucide-react';
+import { Cpu, Save, RefreshCw, CheckCircle, XCircle, AlertTriangle, Key, Eye, EyeOff, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+type ProviderType = 'gemini' | 'openai' | 'anthropic' | 'zai' | 'groq';
+
 interface LLMConfig {
+  llm_provider: ProviderType;
   llm_model: string;
   llm_temperature: string;
   llm_max_tokens: string;
   llm_timeout: string;
 }
 
-const AVAILABLE_MODELS = [
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast, efficient for most tasks' },
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Most capable, higher quality' },
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Previous generation, stable' },
-  { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: 'Legacy, wide compatibility' },
-  { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Legacy pro model' },
-];
+interface ProviderStatus {
+  configured: boolean;
+  connected?: boolean;
+  error?: string;
+}
+
+interface SecretStatus {
+  hasEnvKey: boolean;
+  hasDbKey: boolean;
+  maskedKey?: string;
+  source?: 'env' | 'db';
+}
+
+const PROVIDER_INFO: Record<ProviderType, { name: string; envKey: string; docsUrl: string }> = {
+  gemini: {
+    name: 'Google Gemini',
+    envKey: 'GEMINI_API_KEY',
+    docsUrl: 'https://ai.google.dev/docs',
+  },
+  openai: {
+    name: 'OpenAI',
+    envKey: 'OPENAI_API_KEY',
+    docsUrl: 'https://platform.openai.com/docs',
+  },
+  anthropic: {
+    name: 'Anthropic Claude',
+    envKey: 'ANTHROPIC_API_KEY',
+    docsUrl: 'https://docs.anthropic.com',
+  },
+  zai: {
+    name: 'Z.ai GLM',
+    envKey: 'ZAI_API_KEY',
+    docsUrl: 'https://docs.z.ai/api-reference/introduction',
+  },
+  groq: {
+    name: 'Groq (FREE)',
+    envKey: 'GROQ_API_KEY',
+    docsUrl: 'https://console.groq.com/docs',
+  },
+};
+
+const PROVIDER_MODELS: Record<ProviderType, { id: string; name: string; description: string }[]> = {
+  gemini: [
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast, efficient for most tasks' },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Most capable, higher quality' },
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Previous generation, stable' },
+  ],
+  openai: [
+    { id: 'gpt-4o', name: 'GPT-4o', description: 'Most capable, multimodal' },
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Fast and affordable' },
+    { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: 'Previous flagship model' },
+    { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: 'Fast and economical' },
+  ],
+  anthropic: [
+    { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', description: 'Latest balanced model' },
+    { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', description: 'Fast and capable' },
+    { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', description: 'Fastest, most affordable' },
+    { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', description: 'Most powerful' },
+  ],
+  zai: [
+    { id: 'glm-4.6', name: 'GLM-4.6', description: 'Latest flagship model' },
+    { id: 'glm-4-plus', name: 'GLM-4 Plus', description: 'High performance model' },
+    { id: 'glm-4-air', name: 'GLM-4 Air', description: 'Balanced performance' },
+    { id: 'glm-4-flash', name: 'GLM-4 Flash', description: 'Most economical' },
+  ],
+  groq: [
+    { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', description: 'Most capable, versatile (FREE)' },
+    { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', description: 'Fast, efficient (FREE)' },
+    { id: 'llama-3.2-90b-vision-preview', name: 'Llama 3.2 90B Vision', description: 'Multimodal (FREE)' },
+    { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B', description: 'MoE model, 32k context (FREE)' },
+    { id: 'gemma2-9b-it', name: 'Gemma 2 9B', description: 'Google Gemma (FREE)' },
+  ],
+};
 
 const DEFAULT_CONFIG: LLMConfig = {
+  llm_provider: 'gemini',
   llm_model: 'gemini-2.5-flash',
   llm_temperature: '0.7',
   llm_max_tokens: '8192',
@@ -43,9 +113,35 @@ export default function LLMConfigPage() {
   const [config, setConfig] = useState<LLMConfig>(DEFAULT_CONFIG);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [providerStatus, setProviderStatus] = useState<Record<ProviderType, ProviderStatus>>({
+    gemini: { configured: false },
+    openai: { configured: false },
+    anthropic: { configured: false },
+    zai: { configured: false },
+    groq: { configured: false },
+  });
+  const [secretsStatus, setSecretsStatus] = useState<Record<string, SecretStatus>>({});
+  const [encryptionConfigured, setEncryptionConfigured] = useState(false);
+  const [apiKeyInputs, setApiKeyInputs] = useState<Record<ProviderType, string>>({
+    gemini: '',
+    openai: '',
+    anthropic: '',
+    zai: '',
+    groq: '',
+  });
+  const [showApiKey, setShowApiKey] = useState<Record<ProviderType, boolean>>({
+    gemini: false,
+    openai: false,
+    anthropic: false,
+    zai: false,
+    groq: false,
+  });
+  const [savingKey, setSavingKey] = useState<ProviderType | null>(null);
 
   useEffect(() => {
     fetchConfig();
+    fetchProviderStatus();
+    fetchSecretsStatus();
   }, []);
 
   const fetchConfig = async () => {
@@ -64,6 +160,40 @@ export default function LLMConfigPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchProviderStatus = async () => {
+    try {
+      const response = await fetch('/api/admin/llm-providers');
+      const data = await response.json();
+      if (data.success) {
+        setProviderStatus(data.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch provider status:', error);
+    }
+  };
+
+  const fetchSecretsStatus = async () => {
+    try {
+      const response = await fetch('/api/admin/secrets');
+      const data = await response.json();
+      if (data.success) {
+        setSecretsStatus(data.data);
+        setEncryptionConfigured(data.encryptionConfigured);
+      }
+    } catch (error) {
+      console.error('Failed to fetch secrets status:', error);
+    }
+  };
+
+  const handleProviderChange = (provider: ProviderType) => {
+    const defaultModel = PROVIDER_MODELS[provider]?.[0]?.id || '';
+    setConfig({
+      ...config,
+      llm_provider: provider,
+      llm_model: defaultModel,
+    });
   };
 
   const handleSave = async () => {
@@ -85,6 +215,62 @@ export default function LLMConfigPage() {
     }
   };
 
+  const handleSaveApiKey = async (provider: ProviderType) => {
+    const apiKey = apiKeyInputs[provider];
+    if (!apiKey.trim()) {
+      toast.error('Please enter an API key');
+      return;
+    }
+
+    setSavingKey(provider);
+    try {
+      const response = await fetch('/api/admin/secrets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider, apiKey }),
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success(data.message);
+        setApiKeyInputs({ ...apiKeyInputs, [provider]: '' });
+        fetchSecretsStatus();
+        fetchProviderStatus();
+      } else {
+        toast.error(data.error || 'Failed to save API key');
+      }
+    } catch (error) {
+      console.error('Failed to save API key:', error);
+      toast.error('Failed to save API key');
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
+  const handleDeleteApiKey = async (provider: ProviderType) => {
+    if (!confirm(`Are you sure you want to remove the ${PROVIDER_INFO[provider].name} API key from the database?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/secrets?provider=${provider}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        toast.success(data.message);
+        fetchSecretsStatus();
+        fetchProviderStatus();
+      } else {
+        toast.error(data.error || 'Failed to delete API key');
+      }
+    } catch (error) {
+      console.error('Failed to delete API key:', error);
+      toast.error('Failed to delete API key');
+    }
+  };
+
   const handleReset = () => {
     setConfig(DEFAULT_CONFIG);
     toast.info('Configuration reset to defaults (not saved)');
@@ -98,7 +284,10 @@ export default function LLMConfigPage() {
     );
   }
 
-  const selectedModel = AVAILABLE_MODELS.find(m => m.id === config.llm_model);
+  const currentProvider = config.llm_provider || 'gemini';
+  const availableModels = PROVIDER_MODELS[currentProvider] || [];
+  const selectedModel = availableModels.find(m => m.id === config.llm_model);
+  const currentProviderStatus = providerStatus[currentProvider];
 
   return (
     <div className="space-y-6">
@@ -110,11 +299,174 @@ export default function LLMConfigPage() {
         <p className="text-muted-foreground">Configure AI model settings for the orchestrator</p>
       </div>
 
+      {/* Provider Status Cards */}
+      <div className="grid gap-4 md:grid-cols-4">
+        {(Object.keys(PROVIDER_INFO) as ProviderType[]).map((provider) => {
+          const info = PROVIDER_INFO[provider];
+          const status = providerStatus[provider];
+          const secret = secretsStatus[provider];
+          const isActive = currentProvider === provider;
+          
+          return (
+            <Card 
+              key={provider}
+              className={`border-border/50 cursor-pointer transition-all ${
+                isActive ? 'ring-2 ring-primary bg-primary/5' : 'bg-card/50 hover:bg-card/80'
+              }`}
+              onClick={() => handleProviderChange(provider)}
+            >
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium">{info.name}</span>
+                  {(status?.configured || secret?.hasDbKey) ? (
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {secret?.hasEnvKey && (
+                    <Badge variant="secondary" className="text-xs">ENV</Badge>
+                  )}
+                  {secret?.hasDbKey && (
+                    <Badge variant="outline" className="text-xs">DB</Badge>
+                  )}
+                  {isActive && <Badge className="text-xs">Active</Badge>}
+                </div>
+                {secret?.maskedKey && (
+                  <p className="text-xs text-muted-foreground mt-2 font-mono">{secret.maskedKey}</p>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Warning if provider not configured */}
+      {!currentProviderStatus?.configured && !secretsStatus[currentProvider]?.hasDbKey && (
+        <Card className="border-yellow-500/50 bg-yellow-500/10">
+          <CardContent className="pt-4 flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium text-yellow-500">Provider Not Configured</p>
+              <p className="text-sm text-muted-foreground">
+                Add <code className="bg-muted px-1 rounded">{PROVIDER_INFO[currentProvider].envKey}</code> to your environment variables or enter an API key below.
+                <a 
+                  href={PROVIDER_INFO[currentProvider].docsUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="ml-2 text-primary hover:underline"
+                >
+                  View docs
+                </a>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* API Key Management */}
+      <Card className="border-border/50 bg-card/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="h-5 w-5" />
+            API Key Management
+          </CardTitle>
+          <CardDescription>
+            Securely store API keys in the database (encrypted with AES-256-GCM).
+            Environment variables always take priority.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!encryptionConfigured && (
+            <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/50 text-sm">
+              <p className="font-medium text-yellow-500">Encryption Not Configured</p>
+              <p className="text-muted-foreground">
+                Add <code className="bg-muted px-1 rounded">ENCRYPTION_KEY</code> to your environment to enable secure API key storage.
+              </p>
+            </div>
+          )}
+          
+          <div className="grid gap-4 md:grid-cols-2">
+            {(Object.keys(PROVIDER_INFO) as ProviderType[]).map((provider) => {
+              const info = PROVIDER_INFO[provider];
+              const secret = secretsStatus[provider];
+              
+              return (
+                <div key={provider} className="space-y-2 p-4 rounded-lg border border-border/50">
+                  <div className="flex items-center justify-between">
+                    <Label className="font-medium">{info.name}</Label>
+                    <div className="flex items-center gap-1">
+                      {secret?.hasEnvKey && (
+                        <Badge variant="secondary" className="text-xs">From ENV</Badge>
+                      )}
+                      {secret?.hasDbKey && !secret?.hasEnvKey && (
+                        <Badge variant="outline" className="text-xs">From DB</Badge>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {secret?.maskedKey && (
+                    <p className="text-xs text-muted-foreground font-mono">{secret.maskedKey}</p>
+                  )}
+                  
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Input
+                        type={showApiKey[provider] ? 'text' : 'password'}
+                        placeholder={`Enter ${info.name} API key...`}
+                        value={apiKeyInputs[provider]}
+                        onChange={(e) => setApiKeyInputs({ ...apiKeyInputs, [provider]: e.target.value })}
+                        disabled={!encryptionConfigured || secret?.hasEnvKey}
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKey({ ...showApiKey, [provider]: !showApiKey[provider] })}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showApiKey[provider] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => handleSaveApiKey(provider)}
+                      disabled={!encryptionConfigured || savingKey === provider || secret?.hasEnvKey || !apiKeyInputs[provider]}
+                    >
+                      {savingKey === provider ? (
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                    </Button>
+                    {secret?.hasDbKey && !secret?.hasEnvKey && (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleDeleteApiKey(provider)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {secret?.hasEnvKey && (
+                    <p className="text-xs text-muted-foreground">
+                      Using environment variable. Database key disabled.
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="border-border/50 bg-card/50">
           <CardHeader>
             <CardTitle>Model Selection</CardTitle>
-            <CardDescription>Choose the AI model for generation tasks</CardDescription>
+            <CardDescription>Choose the AI model for {PROVIDER_INFO[currentProvider].name}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -127,7 +479,7 @@ export default function LLMConfigPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {AVAILABLE_MODELS.map((model) => (
+                  {availableModels.map((model) => (
                     <SelectItem key={model.id} value={model.id}>
                       <div>
                         <p className="font-medium">{model.name}</p>
@@ -181,10 +533,10 @@ export default function LLMConfigPage() {
                 value={config.llm_max_tokens}
                 onChange={(e) => setConfig({ ...config, llm_max_tokens: e.target.value })}
                 min={1024}
-                max={32768}
+                max={65536}
               />
               <p className="text-xs text-muted-foreground">
-                Maximum number of tokens in the response (1024-32768)
+                Maximum number of tokens in the response (1024-65536)
               </p>
             </div>
 
@@ -195,10 +547,10 @@ export default function LLMConfigPage() {
                 value={config.llm_timeout}
                 onChange={(e) => setConfig({ ...config, llm_timeout: e.target.value })}
                 min={30}
-                max={300}
+                max={600}
               />
               <p className="text-xs text-muted-foreground">
-                Request timeout in seconds (30-300)
+                Request timeout in seconds (30-600)
               </p>
             </div>
           </CardContent>

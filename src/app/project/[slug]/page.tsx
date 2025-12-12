@@ -193,8 +193,11 @@ export default function ProjectPage() {
       const result = await response.json();
 
       if (result.success) {
-        setClarificationQuestions(result.data.state.questions);
-        recordAction('Question auto-resolved by AI.');
+        setClarificationQuestions(result.data.state?.questions || []);
+        const resolvedCount = result.data.resolved?.length || 0;
+        recordAction(resolvedCount > 0 
+          ? 'Question auto-resolved by AI.'
+          : result.data.message || 'Question already resolved.');
       } else {
         recordAction(result.error || 'Failed to auto-resolve', 'error');
       }
@@ -219,8 +222,11 @@ export default function ProjectPage() {
       const result = await response.json();
 
       if (result.success) {
-        setClarificationQuestions(result.data.state.questions);
-        recordAction(`Auto-resolved ${result.data.resolved.length} question(s).`);
+        setClarificationQuestions(result.data.state?.questions || []);
+        const resolvedCount = result.data.resolved?.length || 0;
+        recordAction(resolvedCount > 0 
+          ? `Auto-resolved ${resolvedCount} question(s).`
+          : result.data.message || 'No questions to resolve.');
       } else {
         recordAction(result.error || 'Failed to auto-resolve all', 'error');
       }

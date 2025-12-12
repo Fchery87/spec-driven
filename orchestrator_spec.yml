@@ -2455,7 +2455,7 @@ llm_config:
       
     SOLUTIONING:
       temperature: 0.4    # Balanced for architecture + tasks
-      max_tokens: 32768   # Largest output phase
+      max_tokens: 32768   # Largest output phase - Groq/Llama limit
       
     DONE:
       temperature: 0.3

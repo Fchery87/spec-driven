@@ -170,6 +170,14 @@ export const settings = pgTable('Setting', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+// Secrets model for encrypted API keys (fallback when env vars not set)
+export const secrets = pgTable('Secret', {
+  key: text('key').primaryKey(), // e.g., 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY'
+  encryptedValue: text('encrypted_value').notNull(), // AES-256-GCM encrypted
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
 // Define relationships using Drizzle relations
 export const projectsRelations = relations(projects, ({ many }) => ({
   artifacts: many(artifacts),
@@ -238,3 +246,4 @@ export type Account = InferSelectModel<typeof accounts>;
 export type Session = InferSelectModel<typeof sessions>;
 export type Verification = InferSelectModel<typeof verifications>;
 export type Setting = InferSelectModel<typeof settings>;
+export type Secret = InferSelectModel<typeof secrets>;

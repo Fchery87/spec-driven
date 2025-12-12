@@ -105,6 +105,16 @@ export const getProjectMetadata = async (slug: string, ownerId?: string) => {
     const dbService = new ProjectDBService();
     const project = await dbService.getProjectBySlug(slug, ownerId);
     if (project) {
+      // Parse clarification_state from JSON string if present
+      let clarificationState: ClarificationState | undefined;
+      if (project.clarificationState) {
+        try {
+          clarificationState = JSON.parse(project.clarificationState) as ClarificationState;
+        } catch {
+          logger.warn('Failed to parse clarification_state from database', { slug });
+        }
+      }
+
       return {
         id: project.id,
         slug: project.slug,
@@ -118,7 +128,8 @@ export const getProjectMetadata = async (slug: string, ownerId?: string) => {
         handoff_generated: project.handoffGenerated,
         handoff_generated_at: project.handoffGeneratedAt?.toISOString?.(),
         created_by_id: project.ownerId,
-        orchestration_state: project.orchestrationState || { artifact_versions: {}, phase_history: [], approval_gates: {} },
+        orchestration_state: { artifact_versions: {}, phase_history: [], approval_gates: {} },
+        clarification_state: clarificationState,
         created_at: project.createdAt?.toISOString?.(),
         updated_at: project.updatedAt?.toISOString?.()
       } satisfies ProjectMetadata;

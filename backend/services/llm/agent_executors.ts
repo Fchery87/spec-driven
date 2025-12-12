@@ -1,4 +1,4 @@
-import { GeminiClient } from './llm_client';
+import { LLMProvider } from './providers/base';
 import { ConfigLoader } from '../orchestrator/config_loader';
 import { logger } from '@/lib/logger';
 
@@ -189,7 +189,7 @@ function parseArtifacts(content: string, expectedFiles: string[]): Record<string
  * Generates: constitution.md, project-brief.md, personas.md
  */
 async function executeAnalystAgent(
-  llmClient: GeminiClient,
+  llmClient: LLMProvider,
   configLoader: ConfigLoader,
   projectIdea: string,
   projectName?: string
@@ -218,7 +218,7 @@ async function executeAnalystAgent(
  * Generates: PRD.md
  */
 async function executePMAgent(
-  llmClient: GeminiClient,
+  llmClient: LLMProvider,
   configLoader: ConfigLoader,
   projectBrief: string,
   personas: string,
@@ -247,7 +247,7 @@ async function executePMAgent(
  * - SOLUTIONING phase: architecture.md
  */
 async function executeArchitectAgent(
-  llmClient: GeminiClient,
+  llmClient: LLMProvider,
   configLoader: ConfigLoader,
   phase: 'SPEC' | 'SOLUTIONING',
   projectBrief: string,
@@ -426,7 +426,7 @@ Generate now:`;
  * Generates: epics.md, tasks.md, plan.md
  */
 async function executeScrumMasterAgent(
-  llmClient: GeminiClient,
+  llmClient: LLMProvider,
   configLoader: ConfigLoader,
   prd: string,
   dataModel: string,
@@ -491,7 +491,7 @@ async function executeScrumMasterAgent(
  * Generates: DEPENDENCIES.md, dependency-proposal.md
  */
 async function executeDevOpsAgent(
-  llmClient: GeminiClient,
+  llmClient: LLMProvider,
   configLoader: ConfigLoader,
   prd: string,
   stackChoice: string = 'web_application',
@@ -523,7 +523,7 @@ async function executeDevOpsAgent(
 // They create ConfigLoader locally (before any awaits) to avoid context loss
 
 export async function getAnalystExecutor(
-  llmClient: GeminiClient,
+  llmClient: LLMProvider,
   projectId: string,
   artifacts: Record<string, string>,
   projectName?: string
@@ -534,7 +534,7 @@ export async function getAnalystExecutor(
 }
 
 export async function getPMExecutor(
-  llmClient: GeminiClient,
+  llmClient: LLMProvider,
   projectId: string,
   artifacts: Record<string, string>,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -548,7 +548,7 @@ export async function getPMExecutor(
 }
 
 export async function getArchitectExecutor(
-  llmClient: GeminiClient,
+  llmClient: LLMProvider,
   projectId: string,
   artifacts: Record<string, string>,
   phase: 'SPEC' | 'SOLUTIONING' = 'SOLUTIONING',
@@ -562,7 +562,7 @@ export async function getArchitectExecutor(
 }
 
 export async function getScruMasterExecutor(
-  llmClient: GeminiClient,
+  llmClient: LLMProvider,
   projectId: string,
   artifacts: Record<string, string>,
   projectName?: string
@@ -575,7 +575,7 @@ export async function getScruMasterExecutor(
 }
 
 export async function getDevOpsExecutor(
-  llmClient: GeminiClient,
+  llmClient: LLMProvider,
   projectId: string,
   artifacts: Record<string, string>,
   stackChoice?: string,
@@ -596,7 +596,7 @@ export async function getDevOpsExecutor(
  * Following fire-your-design-team.md principles
  */
 async function executeDesignAgent(
-  llmClient: GeminiClient,
+  llmClient: LLMProvider,
   projectBrief: string,
   prd: string,
   personas: string,
@@ -841,7 +841,7 @@ status: "draft"
 }
 
 export async function getDesignExecutor(
-  llmClient: GeminiClient,
+  llmClient: LLMProvider,
   projectId: string,
   artifacts: Record<string, string>,
   projectName?: string

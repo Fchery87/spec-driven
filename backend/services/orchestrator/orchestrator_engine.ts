@@ -21,6 +21,7 @@ import {
   getDesignExecutor
 } from '../llm/agent_executors';
 import { GeminiClient } from '../llm/llm_client';
+import { createLLMClient, ProviderType, getProviderApiKeyAsync } from '../llm/providers';
 
 export class OrchestratorEngine {
   private spec: OrchestratorSpec;
@@ -76,6 +77,43 @@ export class OrchestratorEngine {
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.llmClient = new GeminiClient(llmConfig as any);
+  }
+
+  /**
+   * Fetch LLM settings from database (admin overrides)
+   */
+  private async getLLMSettingsFromDB(): Promise<{
+    provider?: string;
+    model?: string;
+    temperature?: number;
+    max_tokens?: number;
+    timeout?: number;
+  }> {
+    try {
+      const { db } = await import('@/backend/lib/drizzle');
+      const { settings } = await import('@/backend/lib/schema');
+      const { like } = await import('drizzle-orm');
+      
+      const llmSettings = await db.select().from(settings).where(like(settings.key, 'llm_%'));
+      
+      const result: Record<string, string> = {};
+      llmSettings.forEach((s: { key: string; value: string }) => {
+        result[s.key] = s.value;
+      });
+      
+      return {
+        provider: result['llm_provider'] || undefined,
+        model: result['llm_model'] || undefined,
+        temperature: result['llm_temperature'] ? parseFloat(result['llm_temperature']) : undefined,
+        max_tokens: result['llm_max_tokens'] ? parseInt(result['llm_max_tokens'], 10) : undefined,
+        timeout: result['llm_timeout'] ? parseInt(result['llm_timeout'], 10) : undefined
+      };
+    } catch (error) {
+      logger.warn('Failed to fetch LLM settings from database, using YAML defaults', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return {};
+    }
   }
 
   /**
@@ -228,19 +266,35 @@ export class OrchestratorEngine {
       const validators = this.validators;
       const artifactManager = new ArtifactManager();
 
-      // Create GeminiClient locally from spec config with phase overrides
+      // Fetch LLM settings from database (admin overrides)
+      const dbSettings = await this.getLLMSettingsFromDB();
+      
+      // Determine provider (database setting takes precedence)
+      const provider = (dbSettings.provider || spec.llm_config.provider || 'gemini') as ProviderType;
+      const apiKey = await getProviderApiKeyAsync(provider);
+      
+      // Create LLM client with database settings taking precedence over YAML
       const llmConfig = {
-        provider: spec.llm_config.provider as string,
-        model: spec.llm_config.model as string,
-        max_tokens: spec.llm_config.max_tokens as number,
-        temperature: spec.llm_config.temperature as number,
-        timeout_seconds: spec.llm_config.timeout_seconds as number,
-        api_key: process.env.GEMINI_API_KEY,
+        provider,
+        model: dbSettings.model || spec.llm_config.model as string,
+        max_tokens: dbSettings.max_tokens || spec.llm_config.max_tokens as number,
+        temperature: dbSettings.temperature || spec.llm_config.temperature as number,
+        timeout_seconds: dbSettings.timeout || spec.llm_config.timeout_seconds as number,
+        api_key: apiKey,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         phase_overrides: (spec.llm_config as any).phase_overrides || {}
       };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const llmClient = new GeminiClient(llmConfig as any);
+      
+      logger.info('[OrchestratorEngine] Using LLM config', {
+        provider: llmConfig.provider,
+        model: llmConfig.model,
+        fromDB: !!dbSettings.model,
+        temperature: llmConfig.temperature,
+        max_tokens: llmConfig.max_tokens
+      });
+      
+      // Create LLM client using factory (supports multiple providers)
+      const llmClient = createLLMClient(llmConfig);
       
       // Get project name for template variables
       const projectName = project.name || 'Untitled Project';
@@ -334,13 +388,25 @@ export class OrchestratorEngine {
           break;
 
         case 'SOLUTIONING':
-          generatedArtifacts = await Promise.all([
-            getArchitectExecutor(llmClient, projectId, artifacts, 'SOLUTIONING', stackChoice, projectName),
-            getScruMasterExecutor(llmClient, projectId, artifacts, projectName)
-          ]).then(([arch, scrum]) => ({
-            ...arch,
-            ...scrum
-          }));
+          // Run agents sequentially to avoid rate limiting
+          // Architect generates architecture.md first
+          const archArtifacts = await getArchitectExecutor(
+            llmClient, projectId, artifacts, 'SOLUTIONING', stackChoice, projectName
+          );
+          logger.info('[SOLUTIONING] Architect Agent complete, starting Scrum Master Agent');
+          
+          // Small delay to help with rate limiting
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // Scrum Master generates epics.md, tasks.md, plan.md
+          const scrumArtifacts = await getScruMasterExecutor(
+            llmClient, projectId, artifacts, projectName
+          );
+          
+          generatedArtifacts = {
+            ...archArtifacts,
+            ...scrumArtifacts
+          };
           break;
 
         case 'DEPENDENCIES':

@@ -76,9 +76,17 @@ class Logger {
     const prefix = `[${entry.level.toUpperCase()}] ${entry.timestamp}`
 
     if (entry.error) {
-      console.error(`%c${prefix}`, style, entry.message, entry.error, entry.context)
+      if (entry.context) {
+        console.error(`%c${prefix}`, style, entry.message, entry.error, entry.context)
+      } else {
+        console.error(`%c${prefix}`, style, entry.message, entry.error)
+      }
     } else {
-      console.log(`%c${prefix}`, style, entry.message, entry.context)
+      if (entry.context) {
+        console.log(`%c${prefix}`, style, entry.message, entry.context)
+      } else {
+        console.log(`%c${prefix}`, style, entry.message)
+      }
     }
   }
 
@@ -90,7 +98,7 @@ class Logger {
       message: entry.message,
       correlationId: entry.correlationId,
       requestId: entry.requestId,
-      context: entry.context,
+      ...(entry.context && { context: entry.context }),
       ...(entry.error && {
         error: {
           name: entry.error.name,
@@ -107,11 +115,23 @@ class Logger {
       const message = `${prefix}${correlationInfo} ${entry.message}`
 
       if (entry.level === 'error') {
-        console.error(message, entry.context, entry.error)
+        if (entry.context) {
+          console.error(message, entry.context, entry.error)
+        } else {
+          console.error(message, entry.error)
+        }
       } else if (entry.level === 'warn') {
-        console.warn(message, entry.context)
+        if (entry.context) {
+          console.warn(message, entry.context)
+        } else {
+          console.warn(message)
+        }
       } else {
-        console.log(message, entry.context)
+        if (entry.context) {
+          console.log(message, entry.context)
+        } else {
+          console.log(message)
+        }
       }
     } else {
       // Production: structured JSON logging
