@@ -53,6 +53,13 @@ export class GroqClient implements LLMProvider {
       topP = override.top_p ?? topP;
     }
 
+    // Groq max_tokens limit is 32768 for all models
+    const GROQ_MAX_TOKENS = 32768;
+    if (maxTokens > GROQ_MAX_TOKENS) {
+      logger.warn(`max_tokens ${maxTokens} exceeds Groq limit of ${GROQ_MAX_TOKENS}, capping`);
+      maxTokens = GROQ_MAX_TOKENS;
+    }
+
     const systemPrompt = contextDocs.length > 0
       ? `You are an expert software architect and project manager. Use the following context documents:\n\n${contextDocs.join('\n\n---\n\n')}`
       : 'You are an expert software architect and project manager.';

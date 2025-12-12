@@ -2455,7 +2455,7 @@ llm_config:
       
     SOLUTIONING:
       temperature: 0.4    # Balanced for architecture + tasks
-      max_tokens: 32768   # Largest output phase - Groq/Llama limit
+      max_tokens: 16384   # GPT-4o-mini max output limit
       
     DONE:
       temperature: 0.3

@@ -11,8 +11,17 @@ interface AdminStats {
   activeProjects: number;
   completedProjects: number;
   llmModel: string;
+  llmProvider: string;
   featureFlags: number;
 }
+
+const PROVIDER_NAMES: Record<string, string> = {
+  gemini: 'Google Gemini',
+  openai: 'OpenAI',
+  anthropic: 'Anthropic Claude',
+  zai: 'Z.ai GLM',
+  groq: 'Groq (FREE)',
+};
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -128,7 +137,7 @@ export default function AdminDashboard() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Provider</span>
-                <Badge variant="outline">Google Gemini</Badge>
+                <Badge variant="outline">{PROVIDER_NAMES[stats?.llmProvider ?? 'gemini'] ?? stats?.llmProvider}</Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Status</span>

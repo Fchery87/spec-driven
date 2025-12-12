@@ -23,6 +23,12 @@ async function handler() {
       .where(eq(settings.key, 'llm_model'))
       .limit(1);
 
+    const llmProviderSetting = await db
+      .select()
+      .from(settings)
+      .where(eq(settings.key, 'llm_provider'))
+      .limit(1);
+
     const featureFlagCount = await db
       .select({ count: count() })
       .from(settings)
@@ -36,6 +42,7 @@ async function handler() {
         activeProjects: activeCount.count,
         completedProjects: completedCount.count,
         llmModel: llmModelSetting[0]?.value ?? 'gemini-2.5-flash',
+        llmProvider: llmProviderSetting[0]?.value ?? 'gemini',
         featureFlags: featureFlagCount[0]?.count ?? 0,
       },
     });

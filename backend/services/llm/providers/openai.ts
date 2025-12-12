@@ -53,6 +53,20 @@ export class OpenAIClient implements LLMProvider {
       topP = override.top_p ?? topP;
     }
 
+    // Model-specific max_tokens limits
+    const MODEL_MAX_TOKENS: Record<string, number> = {
+      'gpt-4o': 16384,
+      'gpt-4o-mini': 16384,
+      'gpt-4-turbo': 4096,
+      'gpt-3.5-turbo': 4096,
+    };
+    
+    const modelLimit = MODEL_MAX_TOKENS[this.model] || 16384;
+    if (maxTokens > modelLimit) {
+      logger.warn(`max_tokens ${maxTokens} exceeds ${this.model} limit of ${modelLimit}, capping`);
+      maxTokens = modelLimit;
+    }
+
     const systemPrompt = contextDocs.length > 0
       ? `You are an expert software architect and project manager. Use the following context documents:\n\n${contextDocs.join('\n\n---\n\n')}`
       : 'You are an expert software architect and project manager.';
