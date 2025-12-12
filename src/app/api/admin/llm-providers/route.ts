@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withAdminAuth } from '@/app/api/middleware/auth-guard';
 
-type ProviderType = 'gemini' | 'openai' | 'anthropic' | 'zai' | 'groq';
+type ProviderType = 'gemini' | 'openai' | 'anthropic' | 'zai' | 'groq' | 'deepseek';
 
 const PROVIDER_ENV_KEYS: Record<ProviderType, string> = {
   gemini: 'GEMINI_API_KEY',
@@ -9,6 +9,7 @@ const PROVIDER_ENV_KEYS: Record<ProviderType, string> = {
   anthropic: 'ANTHROPIC_API_KEY',
   zai: 'ZAI_API_KEY',
   groq: 'GROQ_API_KEY',
+  deepseek: 'DEEPSEEK_API_KEY',
 };
 
 export const GET = withAdminAuth(async () => {
@@ -19,6 +20,7 @@ export const GET = withAdminAuth(async () => {
       anthropic: { configured: false },
       zai: { configured: false },
       groq: { configured: false },
+      deepseek: { configured: false },
     };
 
     for (const [provider, envKey] of Object.entries(PROVIDER_ENV_KEYS)) {

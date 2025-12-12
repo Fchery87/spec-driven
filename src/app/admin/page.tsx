@@ -21,6 +21,7 @@ const PROVIDER_NAMES: Record<string, string> = {
   anthropic: 'Anthropic Claude',
   zai: 'Z.ai GLM',
   groq: 'Groq (FREE)',
+  deepseek: 'DeepSeek',
 };
 
 export default function AdminDashboard() {

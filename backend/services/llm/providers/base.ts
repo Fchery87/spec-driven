@@ -5,7 +5,7 @@ export interface LLMProvider {
   testConnection(): Promise<boolean>;
 }
 
-export type ProviderType = 'gemini' | 'openai' | 'anthropic' | 'zai' | 'groq';
+export type ProviderType = 'gemini' | 'openai' | 'anthropic' | 'zai' | 'groq' | 'deepseek';
 
 export interface ProviderConfig extends LLMConfigWithOverrides {
   provider: ProviderType;
@@ -42,6 +42,10 @@ export const PROVIDER_MODELS: Record<ProviderType, { id: string; name: string; d
     { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B', description: 'MoE model, 32k context (FREE)' },
     { id: 'gemma2-9b-it', name: 'Gemma 2 9B', description: 'Google Gemma (FREE)' },
   ],
+  deepseek: [
+    { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', description: '64K output, best for large docs ($0.12/proj)' },
+    { id: 'deepseek-chat', name: 'DeepSeek Chat', description: '8K output, fast & cheap ($0.06/proj)' },
+  ],
 };
 
 export const PROVIDER_INFO: Record<ProviderType, { name: string; envKey: string; docsUrl: string }> = {
@@ -69,5 +73,10 @@ export const PROVIDER_INFO: Record<ProviderType, { name: string; envKey: string;
     name: 'Groq (FREE)',
     envKey: 'GROQ_API_KEY',
     docsUrl: 'https://console.groq.com/docs',
+  },
+  deepseek: {
+    name: 'DeepSeek',
+    envKey: 'DEEPSEEK_API_KEY',
+    docsUrl: 'https://platform.deepseek.com/docs',
   },
 };

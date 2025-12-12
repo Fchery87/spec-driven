@@ -5,6 +5,7 @@ import { OpenAIClient } from './openai';
 import { AnthropicClient } from './anthropic';
 import { ZaiClient } from './zhipu';
 import { GroqClient } from './groq';
+import { DeepSeekClient } from './deepseek';
 import { GeminiClient } from '../llm_client';
 
 export type { LLMProvider, ProviderType } from './base';
@@ -36,6 +37,9 @@ export function createLLMClient(config: LLMFactoryConfig): LLMProvider {
     
     case 'groq':
       return new GroqClient(config);
+    
+    case 'deepseek':
+      return new DeepSeekClient(config);
     
     case 'gemini':
     default:
@@ -98,7 +102,7 @@ export function isProviderConfigured(provider: ProviderType): boolean {
 }
 
 export function getConfiguredProviders(): ProviderType[] {
-  return (['gemini', 'openai', 'anthropic', 'zai', 'groq'] as ProviderType[])
+  return (['gemini', 'openai', 'anthropic', 'zai', 'groq', 'deepseek'] as ProviderType[])
     .filter(isProviderConfigured);
 }
 

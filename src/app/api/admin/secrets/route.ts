@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 import { withAdminAuth } from '@/app/api/middleware/auth-guard';
 import { encrypt, decrypt, maskApiKey, isEncryptionConfigured } from '@/backend/lib/encryption';
 
-type ProviderType = 'gemini' | 'openai' | 'anthropic' | 'zai' | 'groq';
+type ProviderType = 'gemini' | 'openai' | 'anthropic' | 'zai' | 'groq' | 'deepseek';
 
 const PROVIDER_ENV_KEYS: Record<ProviderType, string> = {
   gemini: 'GEMINI_API_KEY',
@@ -13,6 +13,7 @@ const PROVIDER_ENV_KEYS: Record<ProviderType, string> = {
   anthropic: 'ANTHROPIC_API_KEY',
   zai: 'ZAI_API_KEY',
   groq: 'GROQ_API_KEY',
+  deepseek: 'DEEPSEEK_API_KEY',
 };
 
 // GET - Retrieve masked status of all API keys

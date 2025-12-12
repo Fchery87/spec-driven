@@ -17,7 +17,7 @@ import { Slider } from '@/components/ui/slider';
 import { Cpu, Save, RefreshCw, CheckCircle, XCircle, AlertTriangle, Key, Eye, EyeOff, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-type ProviderType = 'gemini' | 'openai' | 'anthropic' | 'zai' | 'groq';
+type ProviderType = 'gemini' | 'openai' | 'anthropic' | 'zai' | 'groq' | 'deepseek';
 
 interface LLMConfig {
   llm_provider: ProviderType;
@@ -66,6 +66,11 @@ const PROVIDER_INFO: Record<ProviderType, { name: string; envKey: string; docsUr
     envKey: 'GROQ_API_KEY',
     docsUrl: 'https://console.groq.com/docs',
   },
+  deepseek: {
+    name: 'DeepSeek',
+    envKey: 'DEEPSEEK_API_KEY',
+    docsUrl: 'https://platform.deepseek.com/docs',
+  },
 };
 
 const PROVIDER_MODELS: Record<ProviderType, { id: string; name: string; description: string }[]> = {
@@ -99,6 +104,10 @@ const PROVIDER_MODELS: Record<ProviderType, { id: string; name: string; descript
     { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B', description: 'MoE model, 32k context (FREE)' },
     { id: 'gemma2-9b-it', name: 'Gemma 2 9B', description: 'Google Gemma (FREE)' },
   ],
+  deepseek: [
+    { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', description: '64K output, best for large docs ($0.12/proj)' },
+    { id: 'deepseek-chat', name: 'DeepSeek Chat', description: '8K output, fast & cheap ($0.06/proj)' },
+  ],
 };
 
 const DEFAULT_CONFIG: LLMConfig = {
@@ -119,6 +128,7 @@ export default function LLMConfigPage() {
     anthropic: { configured: false },
     zai: { configured: false },
     groq: { configured: false },
+    deepseek: { configured: false },
   });
   const [secretsStatus, setSecretsStatus] = useState<Record<string, SecretStatus>>({});
   const [encryptionConfigured, setEncryptionConfigured] = useState(false);
@@ -128,6 +138,7 @@ export default function LLMConfigPage() {
     anthropic: '',
     zai: '',
     groq: '',
+    deepseek: '',
   });
   const [showApiKey, setShowApiKey] = useState<Record<ProviderType, boolean>>({
     gemini: false,
@@ -135,6 +146,7 @@ export default function LLMConfigPage() {
     anthropic: false,
     zai: false,
     groq: false,
+    deepseek: false,
   });
   const [savingKey, setSavingKey] = useState<ProviderType | null>(null);
 
