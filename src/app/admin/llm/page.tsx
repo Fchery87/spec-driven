@@ -118,6 +118,46 @@ const DEFAULT_CONFIG: LLMConfig = {
   llm_timeout: '120',
 };
 
+// Provider-specific optimal settings - automatically applied when switching providers
+const PROVIDER_DEFAULTS: Record<ProviderType, { model: string; max_tokens: string; timeout: string; description: string }> = {
+  gemini: {
+    model: 'gemini-2.5-flash',
+    max_tokens: '8192',
+    timeout: '120',
+    description: 'Free tier available, 8K output limit',
+  },
+  openai: {
+    model: 'gpt-4o-mini',
+    max_tokens: '16384',
+    timeout: '120',
+    description: 'GPT-4o-mini has 16K output limit',
+  },
+  anthropic: {
+    model: 'claude-3-5-haiku-20241022',
+    max_tokens: '8192',
+    timeout: '120',
+    description: 'Claude 3.5 Haiku has 8K output limit',
+  },
+  zai: {
+    model: 'glm-4.6',
+    max_tokens: '8192',
+    timeout: '300',
+    description: 'Z.ai reasoning model, slower responses',
+  },
+  groq: {
+    model: 'llama-3.3-70b-versatile',
+    max_tokens: '32768',
+    timeout: '120',
+    description: 'FREE! Llama 3.3 has 32K output limit',
+  },
+  deepseek: {
+    model: 'deepseek-reasoner',
+    max_tokens: '65536',
+    timeout: '300',
+    description: 'Best value! 64K output, handles full templates',
+  },
+};
+
 export default function LLMConfigPage() {
   const [config, setConfig] = useState<LLMConfig>(DEFAULT_CONFIG);
   const [loading, setLoading] = useState(true);
@@ -200,12 +240,15 @@ export default function LLMConfigPage() {
   };
 
   const handleProviderChange = (provider: ProviderType) => {
-    const defaultModel = PROVIDER_MODELS[provider]?.[0]?.id || '';
+    const providerDefaults = PROVIDER_DEFAULTS[provider];
     setConfig({
       ...config,
       llm_provider: provider,
-      llm_model: defaultModel,
+      llm_model: providerDefaults.model,
+      llm_max_tokens: providerDefaults.max_tokens,
+      llm_timeout: providerDefaults.timeout,
     });
+    toast.info(`Switched to ${PROVIDER_INFO[provider].name} with optimal settings (${providerDefaults.description})`);
   };
 
   const handleSave = async () => {
