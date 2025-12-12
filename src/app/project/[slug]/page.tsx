@@ -24,7 +24,7 @@ import { ActionBar } from '@/components/orchestration/ActionBar';
 import { ClarificationPanel, type ClarificationQuestion, type ClarificationMode } from '@/components/orchestration/ClarificationPanel';
 import { ValidationResultsPanel, type ValidationCheck, type ValidationSummary } from '@/components/orchestration/ValidationResultsPanel';
 import { calculatePhaseStatuses, canAdvanceFromPhase } from '@/utils/phase-status';
-import { CheckCircle, Trash2, Download, FileText, AlertCircle } from 'lucide-react';
+import { CheckCircle, Trash2, Download, FileText, AlertCircle, RotateCcw } from 'lucide-react';
 
 interface Artifact {
   name: string;
@@ -58,6 +58,8 @@ export default function ProjectPage() {
   const [artifacts, setArtifacts] = useState<Record<string, Artifact[]>>({});
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [executing, setExecuting] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -738,6 +740,36 @@ export default function ProjectPage() {
     }
   };
 
+  const handleResetProject = async () => {
+    setResetting(true);
+    try {
+      const response = await fetch(`/api/projects/${slug}/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setShowResetDialog(false);
+        setArtifacts({});
+        recordAction('Project reset to ANALYSIS phase', 'success');
+        // Refresh project data
+        window.location.reload();
+      } else {
+        setError(result.error || 'Failed to reset project');
+        setShowResetDialog(false);
+      }
+    } catch (err) {
+      setError('Failed to reset project');
+      const error = err instanceof Error ? err : new Error(String(err));
+      logger.error('Failed to reset project:', error);
+      setShowResetDialog(false);
+    } finally {
+      setResetting(false);
+    }
+  };
+
   const handlePhaseClick = (phase: string) => {
     const phaseArtifacts = artifacts[phase];
     if (phaseArtifacts && phaseArtifacts.length > 0) {
@@ -1015,6 +1047,14 @@ export default function ProjectPage() {
                         Back to Dashboard
                       </Button>
                       <Button
+                        variant="outline"
+                        onClick={() => setShowResetDialog(true)}
+                        className="flex items-center gap-2 text-amber-600 border-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950"
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                        Reset
+                      </Button>
+                      <Button
                         variant="destructive"
                         onClick={() => setShowDeleteDialog(true)}
                         className="flex items-center gap-2"
@@ -1159,6 +1199,44 @@ export default function ProjectPage() {
           </DialogContent>
         </Dialog>
 
+        <Dialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle className="text-amber-600">Reset Project</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to reset &quot;{project?.name}&quot;? This will delete all generated artifacts and return the project to the ANALYSIS phase.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                variant="outline"
+                onClick={() => setShowResetDialog(false)}
+                disabled={resetting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="default"
+                onClick={handleResetProject}
+                disabled={resetting}
+                className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700"
+              >
+                {resetting ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-transparent" />
+                    Resetting...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="h-4 w-4" />
+                    Reset Project
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {selectedArtifact && (
           <ArtifactViewer
             open={viewerOpen}
@@ -1184,6 +1262,7 @@ export default function ProjectPage() {
           onRefresh={handleRefresh}
           onDownload={handleDownloadSpecs}
           onDelete={() => setShowDeleteDialog(true)}
+          onReset={() => setShowResetDialog(true)}
           executeLabel={hasCurrentArtifacts ? `Rebuild ${project.current_phase}` : undefined}
         />
       )}

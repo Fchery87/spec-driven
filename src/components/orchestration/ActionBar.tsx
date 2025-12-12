@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { RefreshCw, ChevronRight, Trash2, Download, Play } from "lucide-react"
+import { RefreshCw, ChevronRight, Trash2, Download, Play, RotateCcw } from "lucide-react"
 
 interface ActionBarProps {
   currentPhase: string
@@ -15,6 +15,7 @@ interface ActionBarProps {
   onRefresh: () => void
   onDownload: () => void
   onDelete: () => void
+  onReset?: () => void
   refreshing?: boolean
   executeLabel?: string
 }
@@ -31,6 +32,7 @@ export function ActionBar({
   onRefresh,
   onDownload,
   onDelete,
+  onReset,
   refreshing = false,
   executeLabel,
 }: ActionBarProps) {
@@ -81,6 +83,19 @@ export function ActionBar({
         </div>
 
         <div className="flex items-center gap-2">
+          {onReset && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onReset}
+              disabled={executing || advancing}
+              className="text-amber-600 hover:text-amber-600 hover:bg-amber-600/10"
+              title="Reset project to ANALYSIS phase"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+          )}
+
           <Button
             variant="ghost"
             size="icon"
