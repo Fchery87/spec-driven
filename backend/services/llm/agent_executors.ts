@@ -294,6 +294,20 @@ async function executeArchitectAgent(
     });
     
     // Dedicated architecture prompt - much shorter than the full template
+    // Get stack template details for consistency
+    const stackTemplates: Record<string, string> = {
+      'nextjs_fullstack_expo': 'Next.js 14 + TypeScript + Expo for mobile',
+      'nextjs_web_only': 'Next.js 14 + TypeScript (web only, no mobile)',
+      'hybrid_nextjs_fastapi': 'Next.js frontend + FastAPI Python backend',
+      'react_express': 'React SPA + Express.js backend',
+      'vue_nuxt': 'Vue 3 + Nuxt 3',
+      'svelte_kit': 'SvelteKit fullstack',
+      'django_htmx': 'Django + HTMX hypermedia',
+      'go_react': 'Go backend + React frontend',
+    };
+    const chosenStack = stackChoice || 'nextjs_web_only';
+    const stackDescription = stackTemplates[chosenStack] || chosenStack;
+
     const architecturePrompt = `You are a Chief Architect designing the system architecture for "${name}".
 
 ## Project Brief (Summary)
@@ -302,18 +316,28 @@ ${truncatedBrief}
 ## PRD Key Requirements (Summary)
 ${truncatedPrd}
 
-## Stack Choice: ${stackChoice || 'nextjs_fullstack'}
+## APPROVED STACK (from stack-decision.md)
+**Stack Template:** ${chosenStack}
+**Stack Description:** ${stackDescription}
+
+CRITICAL: Your architecture MUST use the approved stack. Do NOT deviate from this selection.
 
 ## Your Task
-Generate a comprehensive architecture.md document covering:
+Generate a comprehensive architecture.md document. CRITICAL REQUIREMENTS:
 
+1. **Explicitly reference the approved stack** (${chosenStack}) in the document
+2. **All technologies must match** the approved stack template
+3. **Include the stack template name** in the Technology Stack section
+4. Map architecture components to PRD requirements where applicable
+
+## Sections to Include:
 1. **System Overview** - High-level architecture diagram (Mermaid)
-2. **Technology Stack** - Table of all technologies with versions and rationale
-3. **Component Design** - Major components, responsibilities, interfaces
-4. **Frontend Architecture** - Directory structure, state management, routing
-5. **Backend Architecture** - API design, services, data access patterns
+2. **Technology Stack** - MUST match approved stack: ${chosenStack}
+3. **Component Design** - Major components with requirement mappings
+4. **Frontend Architecture** - Per the ${chosenStack} template
+5. **Backend Architecture** - Per the ${chosenStack} template
 6. **Database Design** - Schema overview, indexes, relationships
-7. **Security Architecture** - Auth flow, authorization, encryption, OWASP mitigations
+7. **Security Architecture** - Auth flow, authorization, OWASP mitigations
 8. **Performance & Scalability** - Caching, CDN, scaling strategy
 9. **Deployment Architecture** - Environments, CI/CD, infrastructure
 
@@ -327,9 +351,14 @@ owner: architect
 version: 1.0
 date: ${currentDate}
 status: draft
+approved_stack: ${chosenStack}
 ---
 
 # System Architecture for ${name}
+
+## Approved Stack
+This architecture implements the **${chosenStack}** stack template as approved in stack-decision.md.
+Stack: ${stackDescription}
 
 ## 1. System Overview
 \`\`\`mermaid
@@ -341,13 +370,14 @@ graph TB
     App --> Cache[(Cache)]
 \`\`\`
 
-## 2. Technology Stack
+## 2. Technology Stack (${chosenStack})
 | Layer | Technology | Version | Rationale |
 |-------|------------|---------|-----------|
-| Frontend | Next.js | 14.x | App Router, SSR |
+| Stack Template | ${chosenStack} | - | Approved in stack-decision.md |
+| Frontend | Next.js | 14.x | App Router, RSC (per ${chosenStack}) |
 | ... | ... | ... | ... |
 
-(continue with all sections - be comprehensive but concise)
+(continue with all sections - reference ${chosenStack} where relevant)
 \`\`\`
 
 Generate the complete architecture.md now:`;
@@ -525,6 +555,10 @@ async function executeScrumMasterAgent(
   const dataModelContext = dataModel.slice(0, 4000);
   const apiSpecContext = apiSpec.slice(0, 4000);
 
+  // Extract requirement IDs from PRD for mapping
+  const requirementIds = prdContext.match(/REQ-[A-Z]+-\d+/g) || [];
+  const uniqueReqs = Array.from(new Set(requirementIds));
+  
   // === CALL 1: Generate epics.md ===
   logger.info('[SOLUTIONING] Generating epics.md...');
   const epicsPrompt = `You are an expert Scrum Master. Generate epics.md for "${name}".
@@ -536,12 +570,16 @@ ${prdContext}
 Data Model Summary:
 ${dataModelContext}
 
+## PRD Requirements to Cover
+The following requirements MUST be mapped to epics:
+${uniqueReqs.slice(0, 30).join(', ') || 'Extract REQ-XXX-YYY from PRD above'}
+
 ## Instructions
-Create 4-8 epics covering the full MVP scope. Each epic should have:
-- Clear title and description
-- Business value
-- Acceptance criteria (3-5 items)
-- Dependencies on other epics (if any)
+Create 4-8 epics covering the full MVP scope. CRITICAL REQUIREMENTS:
+
+1. **Each epic MUST list the PRD requirements it addresses** using the REQ-XXX-YYY format
+2. Every requirement from the PRD must be covered by at least one epic
+3. Include clear acceptance criteria in Gherkin format (Given/When/Then)
 
 ## Output Format
 Output ONLY a single fenced code block:
@@ -557,13 +595,25 @@ status: draft
 
 # Product Epics
 
-## Epic 1: [Title]
+## Epic 1: User Authentication
+**Description:** Implement secure user authentication system
+**Requirements Covered:** REQ-AUTH-001, REQ-AUTH-002, REQ-AUTH-003
+**Business Value:** Enables secure access and protects user data
+**Acceptance Criteria:**
+- Given a new user, When they register with valid email/password, Then account is created
+- Given a registered user, When they login with correct credentials, Then they receive auth token
+- Given an authenticated user, When their token expires, Then they are prompted to re-login
+**Dependencies:** None
+
+## Epic 2: [Title]
 **Description:** ...
+**Requirements Covered:** REQ-XXX-001, REQ-XXX-002
 **Business Value:** ...
 **Acceptance Criteria:**
-- [ ] ...
+- Given ... When ... Then ...
+**Dependencies:** Epic 1
 
-(continue for all epics)
+(continue for all epics - MUST cover ALL requirements)
 \`\`\`
 
 Generate now:`;
@@ -579,20 +629,22 @@ Generate now:`;
   const tasksPrompt = `You are an expert Scrum Master. Generate tasks.md for "${name}".
 
 ## Context
-Epics:
+Epics (with Requirements):
 ${epicsContext}
 
 PRD Summary:
 ${prdContext.slice(0, 6000)}
 
+## PRD Requirements to Implement
+${uniqueReqs.slice(0, 30).join(', ') || 'Extract from epics above'}
+
 ## Instructions
-Break down epics into concrete development tasks. For each task:
-- Clear title
-- Epic reference
-- Story points (1, 2, 3, 5, 8)
-- Priority (P0, P1, P2)
-- Brief description
-- Technical notes if needed
+Break down epics into concrete development tasks. CRITICAL REQUIREMENTS:
+
+1. **Each task MUST reference the specific PRD requirement(s) it implements** (REQ-XXX-YYY)
+2. **Every requirement listed in epics must have at least one implementing task**
+3. Include test specifications BEFORE implementation details (Test-First)
+4. Use Gherkin format (Given/When/Then) for acceptance criteria
 
 ## Output Format
 Output ONLY a single fenced code block:
@@ -610,13 +662,29 @@ status: draft
 
 ## Sprint 1 Tasks
 
-### TASK-001: [Title]
-- **Epic:** Epic 1
-- **Points:** 3
+### TASK-001: Implement User Registration API
+- **Epic:** Epic 1 - User Authentication
+- **Implements:** REQ-AUTH-001, REQ-AUTH-002
+- **Points:** 5
 - **Priority:** P0
-- **Description:** ...
+- **Description:** Create registration endpoint with email/password validation
+- **Test Specification:**
+  - Given valid email and password, When POST /auth/register, Then return 201 with user object
+  - Given existing email, When POST /auth/register, Then return 409 Conflict
+  - Given invalid email format, When POST /auth/register, Then return 400 Bad Request
+- **Technical Notes:** Use bcrypt for password hashing, validate email format
 
-(continue for all tasks, organized by sprint)
+### TASK-002: [Title]
+- **Epic:** Epic X
+- **Implements:** REQ-XXX-001
+- **Points:** N
+- **Priority:** P0/P1/P2
+- **Description:** ...
+- **Test Specification:**
+  - Given ... When ... Then ...
+- **Technical Notes:** ...
+
+(continue for ALL tasks - every requirement MUST have implementing tasks)
 \`\`\`
 
 Generate now:`;
@@ -639,13 +707,12 @@ Tasks Summary:
 ${tasksContext}
 
 ## Instructions
-Create a comprehensive execution plan covering:
-1. Timeline overview (sprints, milestones)
-2. MVP scope and phase 2 scope
-3. Resource allocation
-4. Risk assessment and mitigation
-5. Success metrics
-6. Go-live checklist
+Create a comprehensive execution plan. CRITICAL REQUIREMENTS:
+
+1. **Reference specific requirements** (REQ-XXX-YYY) when defining MVP scope
+2. **Include test milestones** - tests must be written before implementation
+3. **Use Gherkin acceptance criteria** for key deliverables
+4. **Define clear success metrics** tied to requirements
 
 ## Output Format
 Output ONLY a single fenced code block:
@@ -662,25 +729,49 @@ status: draft
 # Execution Plan
 
 ## 1. Timeline Overview
+| Sprint | Duration | Focus | Key Deliverables |
+|--------|----------|-------|------------------|
+| Sprint 1 | 2 weeks | Auth & Core | REQ-AUTH-001 to REQ-AUTH-004 |
+| Sprint 2 | 2 weeks | Features | REQ-CRUD-001 to REQ-CRUD-005 |
+| ... | ... | ... | ... |
+
+## 2. MVP Scope (Requirements Included)
+The MVP will implement the following requirements:
+- **Authentication:** REQ-AUTH-001, REQ-AUTH-002, REQ-AUTH-003, REQ-AUTH-004
+- **Core CRUD:** REQ-CRUD-001, REQ-CRUD-002, REQ-CRUD-003
+- **User Management:** REQ-USER-001, REQ-USER-002
+(list all MVP requirements)
+
+## 3. Phase 2 Scope (Post-MVP)
+Requirements deferred to Phase 2:
+- REQ-XXX-YYY: [reason for deferral]
+(list deferred requirements)
+
+## 4. Test-First Milestones
+| Milestone | Tests Due | Implementation Due | Requirements |
+|-----------|-----------|-------------------|--------------|
+| Auth Tests | Week 1 | Week 2 | REQ-AUTH-* |
+| ... | ... | ... | ... |
+
+## 5. Resource Allocation
 ...
 
-## 2. MVP Scope
-...
+## 6. Risk Assessment
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| ... | ... | ... | ... |
 
-## 3. Phase 2 Scope
-...
+## 7. Success Metrics
+| Metric | Target | Measures Requirements |
+|--------|--------|----------------------|
+| User Registration Rate | >80% completion | REQ-AUTH-001 |
+| ... | ... | ... |
 
-## 4. Resource Allocation
-...
-
-## 5. Risk Assessment
-...
-
-## 6. Success Metrics
-...
-
-## 7. Go-Live Checklist
-...
+## 8. Go-Live Checklist
+- [ ] All REQ-AUTH-* requirements tested and passing
+- [ ] All REQ-CRUD-* requirements tested and passing
+- [ ] Security audit complete
+- [ ] Performance benchmarks met
 \`\`\`
 
 Generate now:`;

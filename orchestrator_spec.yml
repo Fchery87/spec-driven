@@ -627,7 +627,15 @@ agents:
       5. **Clarification Mode**: {{clarificationMode}}
          - If "interactive": Generate markers and STOP for user input
          - If "auto_resolve": Make reasonable assumptions and document with [AI ASSUMED]
+           IMPORTANT: When auto_resolve mode is active, you MUST NOT leave any [NEEDS CLARIFICATION] markers.
+           Instead, make a reasonable assumption and use [AI ASSUMED: assumption - rationale]
          - If "hybrid": Generate markers; user will choose which to answer
+         
+      6. **CRITICAL**: If clarificationMode is "auto_resolve" or not specified:
+         - DO NOT output any [NEEDS CLARIFICATION: ...] markers
+         - For EVERY uncertainty, make a reasonable assumption
+         - Document assumptions with [AI ASSUMED: ...]
+         - This ensures validation passes without unresolved clarifications
       # =============================================================================
 
       # CRITICAL REQUIREMENTS
@@ -876,11 +884,22 @@ agents:
       # QUALITY GATES (Self-verify)
       - [ ] Minimum 15 functional requirements for MVP
       - [ ] Each requirement has >= 2 acceptance criteria in Gherkin format
-      - [ ] All MVP requirements link to a persona from personas.md
+      - [ ] All MVP requirements link to a persona from personas.md BY NAME
       - [ ] Traceability matrix is complete with no orphaned requirements
       - [ ] NFRs have measurable targets (not vague statements)
       - [ ] No circular dependencies between requirements
       - [ ] Success metrics are SMART (Specific, Measurable, Achievable, Relevant, Time-bound)
+      
+      # PERSONA CONSISTENCY (CRITICAL)
+      You MUST reference personas from personas.md BY THEIR EXACT NAMES:
+      - In the Persona(s) field of each requirement
+      - In the Actor field of each use case
+      - In the Persona column of the traceability matrix
+      
+      Example: If personas.md defines "Ava, the Freelance Fashion Photographer", 
+      use "Ava" or "Ava, the Freelance Fashion Photographer" in your PRD.
+      
+      DO NOT create new persona names that don't exist in personas.md.
 
       # SECURITY REQUIREMENTS (MANDATORY FOR ALL PROJECTS)
       Include these NFRs by default:
