@@ -113,122 +113,88 @@ export class GeminiClient implements LLMProvider {
     };
 
     let lastError: Error | null = null;
-    const maxAttempts = Math.max(1, retries + 1); // retries = number of retries, so attempts = retries + initial
-    const baseWaitMs = 5000;
-    const maxWaitMs = 40000;
 
-    const computeBackoff = (attemptNumber: number) => {
-      const raw = Math.min(maxWaitMs, baseWaitMs * Math.pow(2, attemptNumber - 1));
-      const jitter = raw * 0.2 * (Math.random() * 2 - 1); // ±20%
-      return Math.max(baseWaitMs, Math.round(raw + jitter));
-    };
-
-    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        // Create abort controller for timeout
-        const controller = new AbortController();
-        const timeoutMs = (effectiveConfig.timeout_seconds || 180) * 1000;
-        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-        try {
-          const response = await fetch(
-            `${this.baseUrl}/models/${this.config.model}:generateContent`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': this.config.api_key,
-              },
-              body: JSON.stringify(requestBody),
-              signal: controller.signal
-            }
-          );
-
-          if (response.status === 429) {
-            lastError = new Error('Gemini rate limit (429)');
-            if (attempt === maxAttempts) {
-              throw new Error(`Gemini rate limited after ${maxAttempts} attempts; consider reducing prompt size or retrying later.`);
-            }
-            const waitTime = computeBackoff(attempt);
-            logger.warn(`Rate limited by Gemini API. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxAttempts}...`);
-            await sleep(waitTime);
-            continue;
+        const response = await fetch(
+          `${this.baseUrl}/models/${this.config.model}:generateContent`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': this.config.api_key,
+            },
+            body: JSON.stringify(requestBody)
           }
+        );
 
-          if (!response.ok) {
-            const errorText = await response.text();
-            const error = new Error(`Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
-            logger.error('Gemini API error details:', error, {
-              status: response.status,
-              statusText: response.statusText,
-              errorText,
-              model: this.config.model,
-              attempt
-            });
-            throw error;
-          }
-
-          const data = await response.json();
-          const finishReason = data.candidates?.[0]?.finishReason;
-          
-          logger.info('Gemini API success:', {
-            model: data.modelVersion,
-            candidatesCount: data.candidates?.length,
-            finishReason: finishReason
-          });
-
-          // Warn if response was truncated
-          if (finishReason === 'MAX_TOKENS') {
-            logger.warn('Gemini response was truncated due to MAX_TOKENS limit. Consider increasing max_tokens or reducing prompt size.', {
-              model: effectiveConfig.model,
-              maxTokens: effectiveConfig.max_tokens,
-              phase: phase || this.config.phase
-            });
-          }
-
-          return this.parseResponse(data);
-        } finally {
-          clearTimeout(timeoutId);
-        }
-      } catch (error) {
-        lastError = error as Error;
-        const isAbortError = error instanceof Error && error.name === 'AbortError';
-        const isRateLimitError = error instanceof Error && (error.message.includes('429') || error.message.toLowerCase().includes('rate limit'));
-
-        if (isAbortError) {
-          logger.error('Gemini API call timed out', new Error('Request timeout'), {
-            timeoutSeconds: effectiveConfig.timeout_seconds || 180,
-            attempt,
-            phase: phase || this.config.phase
-          });
-          if (attempt === maxAttempts) {
-            throw new Error(`Gemini API request timed out after ${effectiveConfig.timeout_seconds || 180} seconds`);
-          }
+        if (response.status === 429) {
+          // Rate limit - wait and retry with exponential backoff (1s, 2s, 4s, 8s)
+          const waitTime = Math.pow(2, attempt) * 1000;
+          logger.info(`Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
           continue;
         }
 
-        logger.error('Gemini API call error:', error instanceof Error ? error : new Error(String(error)), {
-          attempt,
-          maxAttempts
-        });
-
-        if (isRateLimitError && attempt < maxAttempts) {
-          const waitTime = computeBackoff(attempt);
-          logger.warn(`Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${maxAttempts}...`);
-          await sleep(waitTime);
-          continue;
-        }
-
-        if (!isRateLimitError && !isAbortError) {
-          // Non-retryable error: fail fast
+        if (!response.ok) {
+          const errorText = await response.text();
+          const error = new Error(`Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
+          logger.error('Gemini API error details:', error, {
+            status: response.status,
+            statusText: response.statusText,
+            errorText,
+            model: this.config.model,
+            attempt: attempt + 1
+          });
           throw error;
         }
 
-        if (attempt === maxAttempts) {
+        const data = await response.json();
+        const finishReason = data.candidates?.[0]?.finishReason;
+        
+        logger.info('Gemini API success:', {
+          model: data.modelVersion,
+          candidatesCount: data.candidates?.length,
+          finishReason: finishReason
+        });
+
+        // Warn if response was truncated
+        if (finishReason === 'MAX_TOKENS') {
+          logger.warn('Gemini response was truncated due to MAX_TOKENS limit. Consider increasing max_tokens or reducing prompt size.', {
+            model: effectiveConfig.model,
+            maxTokens: effectiveConfig.max_tokens,
+            phase: phase || this.config.phase
+          });
+        }
+
+        return this.parseResponse(data);
+      } catch (error) {
+        lastError = error as Error;
+        logger.error('Gemini API call error:', error instanceof Error ? error : new Error(String(error)), {
+          attempt: attempt + 1,
+          maxRetries: retries
+        });
+
+        // If it's a rate limit error and we have retries left, continue
+        if (error instanceof Error && error.message.includes('429') && attempt < retries) {
+          const waitTime = Math.pow(2, attempt) * 1000;
+          logger.info(`Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          continue;
+        }
+
+        // If we have retries left, continue trying
+        if (attempt < retries) {
+          const waitTime = Math.pow(2, attempt) * 1000;
+          logger.info(`Retrying after error. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          continue;
+        }
+
+        // No retries left, throw
+        if (attempt === retries) {
           logger.error('Gemini API call failed after retries:', error instanceof Error ? error : new Error(String(error)));
-          throw new Error(`Failed to generate completion after ${maxAttempts} attempts: ${error instanceof Error ? error.message : String(error)}`);
+          throw new Error(`Failed to generate completion after ${retries} retries: ${error}`);
         }
       }
     }

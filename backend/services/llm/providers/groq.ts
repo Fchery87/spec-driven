@@ -96,7 +96,7 @@ export class GroqClient implements LLMProvider {
         clearTimeout(timeoutId);
 
         if (response.status === 429) {
-          const backoffMs = Math.pow(2, attempt) * 5000;
+          const backoffMs = Math.pow(2, attempt) * 1000;
           logger.warn(`Rate limited by Groq API. Waiting ${backoffMs}ms before retry ${attempt + 1}/${retries}...`);
           await new Promise(resolve => setTimeout(resolve, backoffMs));
           continue;
