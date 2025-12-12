@@ -279,9 +279,21 @@ async function executeArchitectAgent(
     };
   } else {
     expectedFiles = ['architecture.md'];
+    // Truncate context for SOLUTIONING to avoid exceeding token limits
+    // GPT-4o-mini has 16K output limit - need room for the architecture doc
+    const truncatedBrief = projectBrief.slice(0, 8000);
+    const truncatedPrd = prd.slice(0, 20000);
+    
+    logger.info(`[${phase}] Truncating context for architecture generation`, {
+      originalBriefLength: projectBrief.length,
+      truncatedBriefLength: truncatedBrief.length,
+      originalPrdLength: prd.length,
+      truncatedPrdLength: truncatedPrd.length
+    });
+    
     variables = {
-      brief: projectBrief,
-      prd: prd,
+      brief: truncatedBrief,
+      prd: truncatedPrd,
       phase: 'solutioning',
       stackChoice: stackChoice || 'web_application',
       projectName: projectName || 'Untitled Project'
@@ -424,6 +436,7 @@ Generate now:`;
 /**
  * Execute Scrum Master Agent (SOLUTIONING phase)
  * Generates: epics.md, tasks.md, plan.md
+ * Split into 3 separate calls to avoid token limit truncation
  */
 async function executeScrumMasterAgent(
   llmClient: LLMProvider,
@@ -433,56 +446,187 @@ async function executeScrumMasterAgent(
   apiSpec: string,
   projectName?: string
 ): Promise<Record<string, string>> {
-  logger.info('[SOLUTIONING] Executing Scrum Master Agent');
+  logger.info('[SOLUTIONING] Executing Scrum Master Agent (split into 3 calls)');
 
-  const agentConfig = configLoader.getSection('agents').scrummaster;
-  const prompt = buildPrompt(agentConfig.prompt_template, {
-    prd: prd,
-    dataModel: dataModel,
-    apiSpec: apiSpec,
-    projectName: projectName || 'Untitled Project'
+  const artifacts: Record<string, string> = {};
+  const currentDate = new Date().toISOString().split('T')[0];
+  const name = projectName || 'Untitled Project';
+
+  // Truncate context to avoid huge prompts
+  const prdContext = prd.slice(0, 12000);
+  const dataModelContext = dataModel.slice(0, 4000);
+  const apiSpecContext = apiSpec.slice(0, 4000);
+
+  // === CALL 1: Generate epics.md ===
+  logger.info('[SOLUTIONING] Generating epics.md...');
+  const epicsPrompt = `You are an expert Scrum Master. Generate epics.md for "${name}".
+
+## Context
+PRD Summary:
+${prdContext}
+
+Data Model Summary:
+${dataModelContext}
+
+## Instructions
+Create 4-8 epics covering the full MVP scope. Each epic should have:
+- Clear title and description
+- Business value
+- Acceptance criteria (3-5 items)
+- Dependencies on other epics (if any)
+
+## Output Format
+Output ONLY a single fenced code block:
+\`\`\`
+filename: epics.md
+---
+title: Product Epics
+owner: scrummaster
+version: 1.0
+date: ${currentDate}
+status: draft
+---
+
+# Product Epics
+
+## Epic 1: [Title]
+**Description:** ...
+**Business Value:** ...
+**Acceptance Criteria:**
+- [ ] ...
+
+(continue for all epics)
+\`\`\`
+
+Generate now:`;
+
+  const epicsResponse = await llmClient.generateCompletion(epicsPrompt, undefined, 3, 'SOLUTIONING');
+  const epicsArtifacts = parseArtifacts(epicsResponse.content, ['epics.md']);
+  artifacts['epics.md'] = epicsArtifacts['epics.md'] || epicsResponse.content;
+
+  // === CALL 2: Generate tasks.md ===
+  logger.info('[SOLUTIONING] Generating tasks.md...');
+  const epicsContext = artifacts['epics.md']?.slice(0, 6000) || '';
+  
+  const tasksPrompt = `You are an expert Scrum Master. Generate tasks.md for "${name}".
+
+## Context
+Epics:
+${epicsContext}
+
+PRD Summary:
+${prdContext.slice(0, 6000)}
+
+## Instructions
+Break down epics into concrete development tasks. For each task:
+- Clear title
+- Epic reference
+- Story points (1, 2, 3, 5, 8)
+- Priority (P0, P1, P2)
+- Brief description
+- Technical notes if needed
+
+## Output Format
+Output ONLY a single fenced code block:
+\`\`\`
+filename: tasks.md
+---
+title: Development Tasks
+owner: scrummaster
+version: 1.0
+date: ${currentDate}
+status: draft
+---
+
+# Development Tasks
+
+## Sprint 1 Tasks
+
+### TASK-001: [Title]
+- **Epic:** Epic 1
+- **Points:** 3
+- **Priority:** P0
+- **Description:** ...
+
+(continue for all tasks, organized by sprint)
+\`\`\`
+
+Generate now:`;
+
+  const tasksResponse = await llmClient.generateCompletion(tasksPrompt, undefined, 3, 'SOLUTIONING');
+  const tasksArtifacts = parseArtifacts(tasksResponse.content, ['tasks.md']);
+  artifacts['tasks.md'] = tasksArtifacts['tasks.md'] || tasksResponse.content;
+
+  // === CALL 3: Generate plan.md ===
+  logger.info('[SOLUTIONING] Generating plan.md...');
+  const tasksContext = artifacts['tasks.md']?.slice(0, 4000) || '';
+
+  const planPrompt = `You are an expert Scrum Master. Generate plan.md for "${name}".
+
+## Context
+Epics Summary:
+${epicsContext.slice(0, 3000)}
+
+Tasks Summary:
+${tasksContext}
+
+## Instructions
+Create a comprehensive execution plan covering:
+1. Timeline overview (sprints, milestones)
+2. MVP scope and phase 2 scope
+3. Resource allocation
+4. Risk assessment and mitigation
+5. Success metrics
+6. Go-live checklist
+
+## Output Format
+Output ONLY a single fenced code block:
+\`\`\`
+filename: plan.md
+---
+title: Execution Plan
+owner: scrummaster
+version: 1.0
+date: ${currentDate}
+status: draft
+---
+
+# Execution Plan
+
+## 1. Timeline Overview
+...
+
+## 2. MVP Scope
+...
+
+## 3. Phase 2 Scope
+...
+
+## 4. Resource Allocation
+...
+
+## 5. Risk Assessment
+...
+
+## 6. Success Metrics
+...
+
+## 7. Go-Live Checklist
+...
+\`\`\`
+
+Generate now:`;
+
+  const planResponse = await llmClient.generateCompletion(planPrompt, undefined, 3, 'SOLUTIONING');
+  const planArtifacts = parseArtifacts(planResponse.content, ['plan.md']);
+  artifacts['plan.md'] = planArtifacts['plan.md'] || planResponse.content;
+
+  logger.info('[SOLUTIONING] Scrum Master Agent completed', { 
+    artifacts: Object.keys(artifacts),
+    epicsLength: artifacts['epics.md']?.length || 0,
+    tasksLength: artifacts['tasks.md']?.length || 0,
+    planLength: artifacts['plan.md']?.length || 0
   });
-
-  const response = await llmClient.generateCompletion(prompt, undefined, 3, 'SOLUTIONING');
-  const artifacts = parseArtifacts(response.content, ['epics.md', 'tasks.md', 'plan.md']);
-
-  // If plan.md is missing/empty (often due to model truncation), regenerate plan only
-  if (!artifacts['plan.md'] || artifacts['plan.md'].trim().length === 0) {
-    logger.warn('[SOLUTIONING] plan.md missing, triggering fallback generation');
-    const fallbackPrompt = [
-      'You previously produced epics.md and tasks.md. Now produce ONLY plan.md.',
-      'Keep it concise enough to avoid truncation but cover: timeline, sprints, MVP scope, phase 2 scope, risks, resources, success metrics, go-live, support/maintenance.',
-      'Output a single fenced block exactly like:',
-      '```',
-      'filename: plan.md',
-      '---',
-      'title: Execution Plan',
-      'owner: scrummaster',
-      'version: 1.0',
-      'date: <current-date>',
-      'status: draft',
-      '---',
-      '',
-      '<content here>',
-      '```',
-      '',
-      'Context documents:',
-      'PRD:',
-      prd,
-      '',
-      'Data model:',
-      dataModel,
-      '',
-      'API spec:',
-      apiSpec
-    ].join('\n');
-
-    const planResponse = await llmClient.generateCompletion(fallbackPrompt);
-    const planArtifacts = parseArtifacts(planResponse.content, ['plan.md']);
-    artifacts['plan.md'] = planArtifacts['plan.md'];
-  }
-
-  logger.info('[SOLUTIONING] Scrum Master Agent completed', { artifacts: Object.keys(artifacts) });
   return artifacts;
 }
 
