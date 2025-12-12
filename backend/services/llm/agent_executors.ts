@@ -279,25 +279,93 @@ async function executeArchitectAgent(
     };
   } else {
     expectedFiles = ['architecture.md'];
-    // Truncate context for SOLUTIONING to avoid exceeding token limits
-    // GPT-4o-mini has 16K output limit - need room for the architecture doc
-    const truncatedBrief = projectBrief.slice(0, 8000);
-    const truncatedPrd = prd.slice(0, 20000);
+    // Use a dedicated, shorter prompt for SOLUTIONING architecture generation
+    // The full template is ~17KB which leaves no room for output
+    const truncatedBrief = projectBrief.slice(0, 6000);
+    const truncatedPrd = prd.slice(0, 15000);
+    const currentDate = new Date().toISOString().split('T')[0];
+    const name = projectName || 'Untitled Project';
     
-    logger.info(`[${phase}] Truncating context for architecture generation`, {
+    logger.info(`[${phase}] Using dedicated architecture prompt`, {
       originalBriefLength: projectBrief.length,
       truncatedBriefLength: truncatedBrief.length,
       originalPrdLength: prd.length,
       truncatedPrdLength: truncatedPrd.length
     });
     
-    variables = {
-      brief: truncatedBrief,
-      prd: truncatedPrd,
-      phase: 'solutioning',
-      stackChoice: stackChoice || 'web_application',
-      projectName: projectName || 'Untitled Project'
-    };
+    // Dedicated architecture prompt - much shorter than the full template
+    const architecturePrompt = `You are a Chief Architect designing the system architecture for "${name}".
+
+## Project Brief (Summary)
+${truncatedBrief}
+
+## PRD Key Requirements (Summary)
+${truncatedPrd}
+
+## Stack Choice: ${stackChoice || 'nextjs_fullstack'}
+
+## Your Task
+Generate a comprehensive architecture.md document covering:
+
+1. **System Overview** - High-level architecture diagram (Mermaid)
+2. **Technology Stack** - Table of all technologies with versions and rationale
+3. **Component Design** - Major components, responsibilities, interfaces
+4. **Frontend Architecture** - Directory structure, state management, routing
+5. **Backend Architecture** - API design, services, data access patterns
+6. **Database Design** - Schema overview, indexes, relationships
+7. **Security Architecture** - Auth flow, authorization, encryption, OWASP mitigations
+8. **Performance & Scalability** - Caching, CDN, scaling strategy
+9. **Deployment Architecture** - Environments, CI/CD, infrastructure
+
+## Output Format
+Output a single fenced code block:
+\`\`\`
+filename: architecture.md
+---
+title: System Architecture
+owner: architect
+version: 1.0
+date: ${currentDate}
+status: draft
+---
+
+# System Architecture for ${name}
+
+## 1. System Overview
+\`\`\`mermaid
+graph TB
+    Client[Web Client] --> API[API Gateway]
+    API --> Auth[Auth Service]
+    API --> App[App Service]
+    App --> DB[(Database)]
+    App --> Cache[(Cache)]
+\`\`\`
+
+## 2. Technology Stack
+| Layer | Technology | Version | Rationale |
+|-------|------------|---------|-----------|
+| Frontend | Next.js | 14.x | App Router, SSR |
+| ... | ... | ... | ... |
+
+(continue with all sections - be comprehensive but concise)
+\`\`\`
+
+Generate the complete architecture.md now:`;
+
+    const response = await llmClient.generateCompletion(architecturePrompt, undefined, 3, phase);
+    const artifacts = parseArtifacts(response.content, expectedFiles);
+    
+    // If parsing failed, use raw response
+    if (!artifacts['architecture.md'] || artifacts['architecture.md'].trim().length < 500) {
+      logger.warn('[SOLUTIONING] architecture.md parsing failed, using raw response');
+      artifacts['architecture.md'] = response.content;
+    }
+    
+    logger.info(`[${phase}] Architect Agent completed`, {
+      artifacts: Object.keys(artifacts),
+      architectureLength: artifacts['architecture.md']?.length || 0
+    });
+    return artifacts;
   }
 
   const prompt = buildPrompt(agentConfig.prompt_template, variables);
