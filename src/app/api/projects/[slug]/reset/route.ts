@@ -46,14 +46,21 @@ export async function POST(
 
     logger.info('Project reset to ANALYSIS phase', { slug, projectId: project.id });
 
-    return NextResponse.json({
-      success: true,
-      message: 'Project reset to ANALYSIS phase',
-      project: {
-        slug,
-        current_phase: 'ANALYSIS',
+    return NextResponse.json(
+      {
+        success: true,
+        message: 'Project reset to ANALYSIS phase',
+        project: {
+          slug,
+          current_phase: 'ANALYSIS',
+        },
       },
-    });
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+        },
+      }
+    );
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error('Failed to reset project', err);

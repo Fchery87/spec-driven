@@ -104,7 +104,8 @@ export default function ProjectPage() {
 
   const fetchProject = useCallback(async (skipGateChecks: boolean = false) => {
     try {
-      const response = await fetch(`/api/projects/${slug}`, { cache: 'no-store' });
+      // Add timestamp to bust any browser/CDN cache
+      const response = await fetch(`/api/projects/${slug}?_t=${Date.now()}`, { cache: 'no-store' });
       const result = await response.json();
 
       if (result.success) {
@@ -136,7 +137,8 @@ export default function ProjectPage() {
 
   const fetchArtifacts = useCallback(async () => {
     try {
-      const response = await fetch(`/api/projects/${slug}/artifacts`, { cache: 'no-store' });
+      // Add timestamp to bust any browser/CDN cache
+      const response = await fetch(`/api/projects/${slug}/artifacts?_t=${Date.now()}`, { cache: 'no-store' });
       const result = await response.json();
 
       if (result.success) {
@@ -752,10 +754,18 @@ export default function ProjectPage() {
 
       if (result.success) {
         setShowResetDialog(false);
+        // Clear all local state
         setArtifacts({});
+        setProject(null);
+        setShowStackSelection(false);
+        setShowDependencySelector(false);
+        setShowClarification(false);
         recordAction('Project reset to ANALYSIS phase', 'success');
-        // Refresh project data
-        window.location.reload();
+        // Force a hard refresh to clear any cached data
+        router.refresh();
+        // Re-fetch fresh data
+        await fetchProject();
+        await fetchArtifacts();
       } else {
         setError(result.error || 'Failed to reset project');
         setShowResetDialog(false);
