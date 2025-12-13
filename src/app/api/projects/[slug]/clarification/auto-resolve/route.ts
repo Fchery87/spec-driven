@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getProjectMetadata, saveProjectMetadata, persistProjectToDB } from '@/app/api/lib/project-utils';
+import { getProjectMetadata, saveProjectMetadata, persistProjectToDB, readArtifact, writeArtifact } from '@/app/api/lib/project-utils';
 import { logger } from '@/lib/logger';
 import { withAuth, type AuthSession } from '@/app/api/middleware/auth-guard';
 import type { ClarificationQuestion, ClarificationState } from '@/types/orchestrator';
@@ -116,6 +116,9 @@ const autoResolveHandler = withAuth(
 
       await saveProjectMetadata(slug, updated);
       await persistProjectToDB(slug, updated);
+
+      // Update artifact files to replace [NEEDS CLARIFICATION] with [AI ASSUMED]
+      await updateArtifactsWithResolutions(slug, resolvedQuestions);
 
       logger.info('Auto-resolved clarification questions', {
         project: slug,
@@ -247,6 +250,66 @@ Guidelines:
         rationale: 'Unable to generate specific assumption; defaulting to common patterns'
       }
     }));
+  }
+}
+
+/**
+ * Update artifact files to replace [NEEDS CLARIFICATION] markers with [AI ASSUMED] markers
+ */
+async function updateArtifactsWithResolutions(
+  slug: string,
+  resolvedQuestions: ClarificationQuestion[]
+): Promise<void> {
+  const artifacts = ['constitution.md', 'project-brief.md', 'personas.md'];
+  
+  for (const artifactName of artifacts) {
+    try {
+      let content = await readArtifact(slug, 'ANALYSIS', artifactName);
+      let modified = false;
+      
+      for (const question of resolvedQuestions) {
+        if (question.aiAssumed) {
+          // Create regex to find this specific clarification marker
+          // Match [NEEDS CLARIFICATION: ...] where the content matches the question
+          const questionText = question.question.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const pattern = new RegExp(
+            `\\[NEEDS CLARIFICATION:\\s*${questionText.substring(0, 50)}[^\\]]*\\]`,
+            'gi'
+          );
+          
+          const replacement = `[AI ASSUMED: ${question.aiAssumed.assumption} - ${question.aiAssumed.rationale}]`;
+          
+          if (pattern.test(content)) {
+            content = content.replace(pattern, replacement);
+            modified = true;
+          }
+        }
+      }
+      
+      // Also do a general cleanup of any remaining NEEDS CLARIFICATION markers
+      // that might not have been matched (in case question text changed)
+      const remainingPattern = /\[NEEDS CLARIFICATION:[^\]]+\]/gi;
+      const remainingMatches = content.match(remainingPattern);
+      
+      if (remainingMatches && remainingMatches.length > 0) {
+        // Replace with a generic AI assumption
+        content = content.replace(remainingPattern, '[AI ASSUMED: Standard industry practice will be followed - Auto-resolved during clarification phase]');
+        modified = true;
+        logger.info('Cleaned up remaining NEEDS CLARIFICATION markers', { 
+          slug, 
+          artifact: artifactName, 
+          count: remainingMatches.length 
+        });
+      }
+      
+      if (modified) {
+        await writeArtifact(slug, 'ANALYSIS', artifactName, content);
+        logger.debug('Updated artifact with AI assumptions', { slug, artifact: artifactName });
+      }
+    } catch (err) {
+      // Artifact might not exist, skip
+      logger.debug('Could not update artifact', { slug, artifact: artifactName, error: (err as Error).message });
+    }
   }
 }
 

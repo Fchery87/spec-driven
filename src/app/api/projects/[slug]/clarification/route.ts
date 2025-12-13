@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getProjectMetadata, saveProjectMetadata, persistProjectToDB, readArtifact } from '@/app/api/lib/project-utils';
+import { getProjectMetadata, saveProjectMetadata, persistProjectToDB, readArtifact, writeArtifact } from '@/app/api/lib/project-utils';
 import { logger } from '@/lib/logger';
 import { withAuth, type AuthSession } from '@/app/api/middleware/auth-guard';
 import type { ClarificationQuestion, ClarificationMode, ClarificationState } from '@/types/orchestrator';
@@ -144,6 +144,11 @@ const submitClarificationHandler = withAuth(
       await saveProjectMetadata(slug, updated);
       await persistProjectToDB(slug, updated);
 
+      // Update artifacts to replace [NEEDS CLARIFICATION] markers
+      if (skip || clarificationState.questions.some(q => q.resolved)) {
+        await updateArtifactsWithResolutions(slug, clarificationState.questions, skip);
+      }
+
       logger.info('Clarification submitted', {
         project: slug,
         mode: clarificationState.mode,
@@ -211,6 +216,66 @@ async function extractClarificationQuestions(slug: string): Promise<Clarificatio
   }
 
   return questions;
+}
+
+/**
+ * Update artifact files to replace [NEEDS CLARIFICATION] markers
+ * with user answers or AI assumptions
+ */
+async function updateArtifactsWithResolutions(
+  slug: string,
+  questions: ClarificationQuestion[],
+  skipped: boolean
+): Promise<void> {
+  const artifacts = ['constitution.md', 'project-brief.md', 'personas.md'];
+  
+  for (const artifactName of artifacts) {
+    try {
+      let content = await readArtifact(slug, 'ANALYSIS', artifactName);
+      let modified = false;
+      
+      // Replace resolved questions with their answers/assumptions
+      for (const question of questions) {
+        if (question.resolved) {
+          const questionText = question.question.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const pattern = new RegExp(
+            `\\[NEEDS CLARIFICATION:\\s*${questionText.substring(0, 50)}[^\\]]*\\]`,
+            'gi'
+          );
+          
+          let replacement: string;
+          if (question.resolvedBy === 'user' && question.userAnswer) {
+            replacement = `[RESOLVED: ${question.userAnswer}]`;
+          } else if (question.aiAssumed) {
+            replacement = `[AI ASSUMED: ${question.aiAssumed.assumption} - ${question.aiAssumed.rationale}]`;
+          } else {
+            replacement = '[AI ASSUMED: Standard practice will be followed - Auto-resolved]';
+          }
+          
+          if (pattern.test(content)) {
+            content = content.replace(pattern, replacement);
+            modified = true;
+          }
+        }
+      }
+      
+      // If skipped, replace ALL remaining markers with generic assumption
+      if (skipped) {
+        const remainingPattern = /\[NEEDS CLARIFICATION:[^\]]+\]/gi;
+        if (remainingPattern.test(content)) {
+          content = content.replace(remainingPattern, '[AI ASSUMED: Standard industry practice will be followed - Skipped by user]');
+          modified = true;
+        }
+      }
+      
+      if (modified) {
+        await writeArtifact(slug, 'ANALYSIS', artifactName, content);
+        logger.debug('Updated artifact with clarification resolutions', { slug, artifact: artifactName });
+      }
+    } catch {
+      // Artifact might not exist, skip
+    }
+  }
 }
 
 export const GET = getClarificationHandler;
