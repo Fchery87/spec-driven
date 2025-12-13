@@ -24,7 +24,7 @@ import { ActionBar } from '@/components/orchestration/ActionBar';
 import { ClarificationPanel, type ClarificationQuestion, type ClarificationMode } from '@/components/orchestration/ClarificationPanel';
 import { ValidationResultsPanel, type ValidationCheck, type ValidationSummary } from '@/components/orchestration/ValidationResultsPanel';
 import { calculatePhaseStatuses, canAdvanceFromPhase } from '@/utils/phase-status';
-import { CheckCircle, Trash2, Download, FileText, AlertCircle, RotateCcw } from 'lucide-react';
+import { CheckCircle, Trash2, Download, FileText, AlertCircle, RotateCcw, History } from 'lucide-react';
 
 interface Artifact {
   name: string;
@@ -60,6 +60,9 @@ export default function ProjectPage() {
   const [deleting, setDeleting] = useState(false);
   const [showResetDialog, setShowResetDialog] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [showRevertDialog, setShowRevertDialog] = useState(false);
+  const [reverting, setReverting] = useState(false);
+  const [revertTargetPhase, setRevertTargetPhase] = useState<string>('');
   const [executing, setExecuting] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -748,6 +751,42 @@ export default function ProjectPage() {
     }
   };
 
+  const handleRevertPhase = async () => {
+    if (!revertTargetPhase) return;
+    
+    setReverting(true);
+    try {
+      const response = await fetch(`/api/projects/${slug}/revert-phase`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetPhase: revertTargetPhase })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setShowRevertDialog(false);
+        setRevertTargetPhase('');
+        setArtifacts({});
+        setProject(null);
+        recordAction(`Project reverted to ${revertTargetPhase} phase`, 'success');
+        router.refresh();
+        await fetchProject();
+        await fetchArtifacts();
+      } else {
+        setError(result.error || 'Failed to revert phase');
+        setShowRevertDialog(false);
+      }
+    } catch (err) {
+      setError('Failed to revert phase');
+      const error = err instanceof Error ? err : new Error(String(err));
+      logger.error('Failed to revert phase:', error);
+      setShowRevertDialog(false);
+    } finally {
+      setReverting(false);
+    }
+  };
+
   const handlePhaseClick = (phase: string) => {
     const phaseArtifacts = artifacts[phase];
     if (phaseArtifacts && phaseArtifacts.length > 0) {
@@ -1026,6 +1065,14 @@ export default function ProjectPage() {
                       </Button>
                       <Button
                         variant="outline"
+                        onClick={() => setShowRevertDialog(true)}
+                        className="flex items-center gap-2 text-blue-600 border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
+                      >
+                        <History className="h-4 w-4" />
+                        Revert
+                      </Button>
+                      <Button
+                        variant="outline"
                         onClick={() => setShowResetDialog(true)}
                         className="flex items-center gap-2 text-amber-600 border-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950"
                       >
@@ -1215,6 +1262,72 @@ export default function ProjectPage() {
           </DialogContent>
         </Dialog>
 
+        <Dialog open={showRevertDialog} onOpenChange={setShowRevertDialog}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle className="text-blue-600">Revert to Previous Phase</DialogTitle>
+              <DialogDescription>
+                Select a phase to revert to. All artifacts from the selected phase onwards will be deleted and you can re-run those phases.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <label className="text-sm font-medium mb-2 block">Target Phase</label>
+              <select
+                value={revertTargetPhase}
+                onChange={(e) => setRevertTargetPhase(e.target.value)}
+                className="w-full p-2 border border-border rounded-md bg-background"
+              >
+                <option value="">Select a phase...</option>
+                {['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'SOLUTIONING', 'DEPENDENCIES', 'VALIDATE'].map((phase) => {
+                  const phaseIndex = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'SOLUTIONING', 'DEPENDENCIES', 'VALIDATE', 'DONE'].indexOf(phase);
+                  const currentIndex = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'SOLUTIONING', 'DEPENDENCIES', 'VALIDATE', 'DONE'].indexOf(project.current_phase);
+                  const isAvailable = phaseIndex <= currentIndex;
+                  return (
+                    <option key={phase} value={phase} disabled={!isAvailable}>
+                      {phase} {!isAvailable ? '(not reached)' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+              {revertTargetPhase && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  This will delete all artifacts from <strong>{revertTargetPhase}</strong> onwards and allow you to re-run those phases.
+                </p>
+              )}
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowRevertDialog(false);
+                  setRevertTargetPhase('');
+                }}
+                disabled={reverting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="default"
+                onClick={handleRevertPhase}
+                disabled={reverting || !revertTargetPhase}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+              >
+                {reverting ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-border border-t-transparent" />
+                    Reverting...
+                  </>
+                ) : (
+                  <>
+                    <History className="h-4 w-4" />
+                    Revert to {revertTargetPhase || 'Phase'}
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {selectedArtifact && (
           <ArtifactViewer
             open={viewerOpen}
@@ -1241,6 +1354,7 @@ export default function ProjectPage() {
           onDownload={handleDownloadSpecs}
           onDelete={() => setShowDeleteDialog(true)}
           onReset={() => setShowResetDialog(true)}
+          onRevert={() => setShowRevertDialog(true)}
           executeLabel={hasCurrentArtifacts ? `Rebuild ${project.current_phase}` : undefined}
         />
       )}

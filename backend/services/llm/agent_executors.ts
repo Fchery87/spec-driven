@@ -635,16 +635,20 @@ ${epicsContext}
 PRD Summary:
 ${prdContext.slice(0, 6000)}
 
-## PRD Requirements to Implement
-${uniqueReqs.slice(0, 30).join(', ') || 'Extract from epics above'}
+## PRD Requirements to Implement (MANDATORY - ALL MUST BE MAPPED)
+The following requirements MUST each have at least one implementing task:
+${uniqueReqs.slice(0, 40).join(', ') || 'Extract ALL REQ-XXX-YYY from PRD above'}
+
+IMPORTANT: If you see requirements in the PRD that are not in this list, you MUST still create tasks for them.
 
 ## Instructions
 Break down epics into concrete development tasks. CRITICAL REQUIREMENTS:
 
 1. **Each task MUST reference the specific PRD requirement(s) it implements** (REQ-XXX-YYY)
-2. **Every requirement listed in epics must have at least one implementing task**
+2. **EVERY requirement from the PRD must have at least one implementing task - NO EXCEPTIONS**
 3. Include test specifications BEFORE implementation details (Test-First)
 4. Use Gherkin format (Given/When/Then) for acceptance criteria
+5. **Before finishing, verify EVERY REQ-XXX-YYY has at least one task**
 
 ## Output Format
 Output ONLY a single fenced code block:
@@ -686,6 +690,21 @@ status: draft
 
 (continue for ALL tasks - every requirement MUST have implementing tasks)
 \`\`\`
+
+## VALIDATION CHECKLIST (Complete before generating)
+Before outputting, verify:
+- [ ] Every REQ-AUTH-XXX has at least one task
+- [ ] Every REQ-USER-XXX has at least one task  
+- [ ] Every REQ-CRUD-XXX has at least one task
+- [ ] Every REQ-MEDIA-XXX has at least one task
+- [ ] Every REQ-PAYMENT-XXX has at least one task
+- [ ] Every REQ-ADMIN-XXX has at least one task
+- [ ] Every REQ-SEARCH-XXX has at least one task
+- [ ] Every REQ-NOTIF-XXX has at least one task
+- [ ] Every REQ-INTEG-XXX has at least one task
+- [ ] All tasks have Gherkin test specifications
+
+If ANY requirement is missing a task, ADD ONE before generating output.
 
 Generate now:`;
 
