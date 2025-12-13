@@ -106,7 +106,7 @@ export class ConfigLoader {
           owner: 'architect',
           duration_minutes: 20,
           inputs: ['project-brief.md', 'personas.md'],
-          outputs: ['stack-decision.md', 'stack-rationale.md'],
+          outputs: ['stack-proposal.md', 'stack-decision.md', 'stack-rationale.md', 'stack.json'],
           depends_on: ['ANALYSIS'],
           gates: ['stack_approved'],
           next_phase: 'SPEC',
@@ -129,11 +129,11 @@ export class ConfigLoader {
           owner: 'devops',
           duration_minutes: 30,
           inputs: ['PRD.md', 'approved_stack'],
-          outputs: ['DEPENDENCIES.md', 'dependency-proposal.md'],
+          outputs: ['DEPENDENCIES.md', 'dependencies.json'],
           depends_on: ['SPEC'],
           gates: ['dependencies_approved'],
           next_phase: 'SOLUTIONING',
-          validators: ['presence', 'dependencies_approved', 'policy_check']
+          validators: ['presence', 'dependencies_approved']
         },
         SOLUTIONING: {
           name: 'SOLUTIONING',

@@ -1,11 +1,129 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getProjectMetadata, saveProjectMetadata, writeArtifact, persistProjectToDB } from '@/app/api/lib/project-utils';
 import { ProjectDBService } from '@/backend/services/database/drizzle_project_db_service';
+import { ConfigLoader } from '@/backend/services/orchestrator/config_loader';
 import { logger } from '@/lib/logger';
 import { withAuth, type AuthSession } from '@/app/api/middleware/auth-guard';
 import { ApproveStackSchema, type CustomStackComposition, type TechnicalPreferences } from '@/app/api/schemas';
 
 export const runtime = 'nodejs';
+
+type ArchitectureType = 'web_application' | 'mobile_application' | 'api_first_platform' | 'static_site' | 'backend_heavy' | 'custom';
+type PackageManager = 'pnpm' | 'npm' | 'bun';
+
+type StackTemplateComposition = Partial<Record<'frontend' | 'mobile' | 'backend' | 'database' | 'deployment' | 'auth' | 'storage', string>>;
+interface StackTemplate {
+  name?: string;
+  description?: string;
+  composition?: StackTemplateComposition;
+}
+interface RawSpecWithTemplates {
+  stack_templates?: Record<string, StackTemplate>;
+}
+
+function inferArchitectureType(stackChoice: string, composition?: Record<string, unknown>, mode: 'template' | 'custom' = 'template'): ArchitectureType {
+  if (mode === 'custom' || stackChoice === 'custom') return 'custom';
+  const id = stackChoice.toLowerCase();
+  const mobile = typeof composition?.mobile === 'string' ? composition.mobile.toLowerCase() : '';
+
+  if (id.includes('astro') || id.includes('static')) return 'static_site';
+  if (id.includes('hono') || id.includes('api') || id.includes('edge') || id.includes('serverless')) return 'api_first_platform';
+  if (id.includes('fastapi') || id.includes('django') || id.includes('go_')) return 'backend_heavy';
+  if (mobile.includes('expo') || mobile.includes('flutter') || id.includes('expo') || id.includes('flutter') || id.includes('react_native')) {
+    return 'mobile_application';
+  }
+  return 'web_application';
+}
+
+function generateStackProposalContent(params: {
+  mode: 'template' | 'custom';
+  stackChoice: string;
+  packageManager: PackageManager;
+  architectureType: ArchitectureType;
+  templateName?: string;
+}): string {
+  const date = new Date().toISOString().split('T')[0];
+  return `---
+title: "Technology Stack Proposal"
+owner: "architect"
+version: "1"
+date: "${date}"
+status: "draft"
+---
+
+# Technology Stack Proposal
+
+## Recommendation
+- **Recommended Template**: ${params.mode === 'custom' ? 'custom' : params.stackChoice}
+- **Architecture Type**: ${params.architectureType}
+- **Package Manager**: ${params.packageManager}
+
+## Notes
+This proposal is a lightweight summary captured at approval time.
+If you want an AI-authored recommendation matrix, run the STACK_SELECTION phase proposal generator (when available).
+`;
+}
+
+function buildStackJson(params: {
+  mode: 'template' | 'custom';
+  stackChoice: string;
+  packageManager: PackageManager;
+  architectureType: ArchitectureType;
+  customComposition?: CustomStackComposition;
+  technicalPreferences?: TechnicalPreferences;
+  template?: StackTemplate;
+}): Record<string, unknown> {
+  if (params.mode === 'custom' && params.customComposition) {
+    return {
+      template_id: 'custom',
+      architecture_type: 'custom',
+      package_manager: params.packageManager,
+      frontend: params.customComposition.frontend,
+      mobile: params.customComposition.mobile,
+      backend: params.customComposition.backend,
+      database: {
+        provider: params.customComposition.database.provider,
+        type: params.customComposition.database.type,
+        orm: params.customComposition.database.orm || null,
+      },
+      deployment: params.customComposition.deployment,
+      storage: null,
+      auth: null,
+      preferences: params.technicalPreferences || {},
+    };
+  }
+
+  const composition = (params.template?.composition || {}) as StackTemplateComposition;
+  const db = String(composition.database || '');
+  const orm = db.toLowerCase().includes('drizzle') ? 'Drizzle' : db.toLowerCase().includes('prisma') ? 'Prisma' : null;
+  const dbProvider = db.toLowerCase().includes('neon') ? 'Neon' : db.toLowerCase().includes('supabase') ? 'Supabase' : db;
+
+  const isDefaultWeb = params.stackChoice === 'nextjs_web_app' || params.stackChoice === 'nextjs_web_only';
+
+  return {
+    template_id: params.stackChoice,
+    architecture_type: params.architectureType,
+    package_manager: params.packageManager,
+    composition,
+    database: {
+      provider: dbProvider,
+      engine: db.toLowerCase().includes('postgres') ? 'PostgreSQL' : null,
+      orm,
+    },
+    storage: isDefaultWeb
+      ? { provider: 'Cloudflare R2', protocol: 'S3-compatible' }
+      : composition.storage
+        ? { provider: composition.storage, protocol: null }
+        : null,
+    auth: isDefaultWeb
+      ? { provider: 'Better Auth' }
+      : composition.auth
+        ? { provider: composition.auth }
+        : null,
+    deployment: { primary: composition.deployment || null },
+    preferences: params.technicalPreferences || {},
+  };
+}
 
 /**
  * Generate stack-decision.md content based on mode (template or custom)
@@ -188,10 +306,18 @@ export const POST = withAuth(
         stack_choice,
         custom_composition,
         technical_preferences,
+        package_manager,
         reasoning,
         alternatives_considered,
         platform,
       } = validationResult.data;
+
+      const configLoader = new ConfigLoader();
+      const spec = configLoader.loadSpec() as unknown as RawSpecWithTemplates;
+      const stackTemplates = spec.stack_templates || {};
+      const template = stackTemplates[stack_choice];
+      const architectureType = inferArchitectureType(stack_choice, template?.composition, mode);
+      const packageManager = (package_manager || 'pnpm') as PackageManager;
 
       const metadata = await getProjectMetadata(slug, session.user.id);
 
@@ -221,8 +347,30 @@ export const POST = withAuth(
       );
 
       // Write artifacts to filesystem
+      const stackProposalContent = generateStackProposalContent({
+        mode,
+        stackChoice: stack_choice,
+        packageManager,
+        architectureType,
+        templateName: template?.name,
+      });
+
+      const stackJson = buildStackJson({
+        mode,
+        stackChoice: stack_choice,
+        packageManager,
+        architectureType,
+        customComposition: custom_composition,
+        technicalPreferences: technical_preferences,
+        template,
+      });
+
+      const stackJsonContent = JSON.stringify(stackJson, null, 2);
+
+      await writeArtifact(slug, 'STACK_SELECTION', 'stack-proposal.md', stackProposalContent);
       await writeArtifact(slug, 'STACK_SELECTION', 'stack-decision.md', stackDecisionContent);
       await writeArtifact(slug, 'STACK_SELECTION', 'stack-rationale.md', stackRationaleContent);
+      await writeArtifact(slug, 'STACK_SELECTION', 'stack.json', stackJsonContent);
 
       // DB-primary: persist artifacts to database
       const dbService = new ProjectDBService();
@@ -230,6 +378,12 @@ export const POST = withAuth(
 
       if (dbProject) {
         try {
+          await dbService.saveArtifact(
+            dbProject.id,
+            'STACK_SELECTION',
+            'stack-proposal.md',
+            stackProposalContent
+          );
           await dbService.saveArtifact(
             dbProject.id,
             'STACK_SELECTION',
@@ -241,6 +395,12 @@ export const POST = withAuth(
             'STACK_SELECTION',
             'stack-rationale.md',
             stackRationaleContent
+          );
+          await dbService.saveArtifact(
+            dbProject.id,
+            'STACK_SELECTION',
+            'stack.json',
+            stackJsonContent
           );
 
           logger.info('Stack approval artifacts persisted to database', {
@@ -262,6 +422,8 @@ export const POST = withAuth(
         stack_choice,
         stack_mode: mode,
         platform_type: platform,
+        architecture_type: architectureType,
+        package_manager: packageManager,
         stack_approved: true,
         stack_approval_date: new Date().toISOString(),
         stack_reasoning: reasoning,
@@ -288,6 +450,8 @@ export const POST = withAuth(
           stack_choice,
           mode,
           platform_type: platform,
+          architecture_type: architectureType,
+          package_manager: packageManager,
           stack_approved: true,
           technical_preferences,
           message: 'Stack selection approved successfully',

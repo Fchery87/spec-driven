@@ -23,8 +23,7 @@ describe('GeminiClient rate-limit handling', () => {
 
   it('retries on 429 up to max attempts then fails with rate-limit error', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('', { status: 429 }));
-    // @ts-expect-error - override global fetch for test
-    global.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const client = new GeminiClient(baseConfig as any);
     const promise = client.generateCompletion('prompt', undefined, 2, 'TEST'); // retries=2 => 3 attempts
@@ -37,8 +36,7 @@ describe('GeminiClient rate-limit handling', () => {
 
   it('fails fast on non-rate-limit errors without extra retries', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('boom', { status: 500, statusText: 'Server Error' }));
-    // @ts-expect-error - override global fetch for test
-    global.fetch = fetchMock;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const client = new GeminiClient(baseConfig as any);
 

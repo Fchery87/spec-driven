@@ -815,7 +815,7 @@ Generate now:`;
 
 /**
  * Execute DevOps Agent (DEPENDENCIES phase)
- * Generates: DEPENDENCIES.md, dependency-proposal.md
+ * Generates: DEPENDENCIES.md, dependencies.json
  */
 async function executeDevOpsAgent(
   llmClient: LLMProvider,
@@ -836,7 +836,7 @@ async function executeDevOpsAgent(
   const response = await llmClient.generateCompletion(prompt, undefined, 3, 'DEPENDENCIES');
   const artifacts = parseArtifacts(response.content, [
     'DEPENDENCIES.md',
-    'dependency-proposal.md'
+    'dependencies.json'
   ]);
 
   logger.info('[DEPENDENCIES] DevOps Agent completed', { artifacts: Object.keys(artifacts) });

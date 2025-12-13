@@ -125,6 +125,13 @@ export class Validators {
           validator.criteria as Record<string, number>,
           validator.minimum_score as number
         );
+
+      case 'json_schema_check':
+        return this.validateJsonSchema(
+          project,
+          validator.artifact as string,
+          (validator.required_fields as string[]) || []
+        );
       
       default:
         return {
@@ -133,6 +140,48 @@ export class Validators {
           warnings: [`Unknown validator implementation: ${validator.implementation}`]
         };
     }
+  }
+
+  private validateJsonSchema(project: Project, artifactName: string, requiredFields: string[]): ValidationResult {
+    const checks: Record<string, boolean> = {};
+    const errors: string[] = [];
+
+    const phasePath = `${project.project_path}/specs/${project.current_phase}/v1`;
+    const artifactPath = resolve(phasePath, artifactName);
+
+    if (!existsSync(artifactPath)) {
+      return {
+        status: 'fail',
+        checks: { [artifactName]: false },
+        errors: [`Required JSON artifact missing: ${artifactName}`]
+      };
+    }
+
+    try {
+      const raw = readFileSync(artifactPath, 'utf8');
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      checks[artifactName] = true;
+
+      for (const field of requiredFields) {
+        const ok = Object.prototype.hasOwnProperty.call(parsed, field);
+        checks[`${artifactName}:${field}`] = ok;
+        if (!ok) {
+          errors.push(`${artifactName} missing required field: ${field}`);
+        }
+      }
+    } catch (error) {
+      return {
+        status: 'fail',
+        checks: { [artifactName]: false },
+        errors: [`Failed to parse ${artifactName} as JSON: ${error instanceof Error ? error.message : String(error)}`]
+      };
+    }
+
+    return {
+      status: errors.length > 0 ? 'fail' : 'pass',
+      checks,
+      errors: errors.length > 0 ? errors : undefined
+    };
   }
 
   /**
@@ -1247,9 +1296,9 @@ export class Validators {
   private getRequiredFilesForPhase(phase: string): string[] {
     const phaseFiles: Record<string, string[]> = {
       ANALYSIS: ['constitution.md', 'project-brief.md', 'personas.md'],
-      STACK_SELECTION: ['stack-decision.md', 'stack-rationale.md'],
+      STACK_SELECTION: ['stack-proposal.md', 'stack-decision.md', 'stack-rationale.md', 'stack.json'],
       SPEC: ['PRD.md', 'data-model.md', 'api-spec.json', 'design-system.md', 'component-inventory.md', 'user-flows.md'],
-      DEPENDENCIES: ['DEPENDENCIES.md', 'dependency-proposal.md'],
+      DEPENDENCIES: ['DEPENDENCIES.md', 'dependencies.json'],
       SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md'],
       DONE: ['HANDOFF.md']
     };

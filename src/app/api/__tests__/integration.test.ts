@@ -22,7 +22,7 @@ const mockSession = vi.hoisted(() => ({
 }));
 
 const authMocks = vi.hoisted(() => {
-  const requireAuth = vi.fn(async () => mockSession);
+  const requireAuth = vi.fn<() => Promise<typeof mockSession | null>>(async () => mockSession);
   const withAuth = vi.fn((handler: unknown) => async (req: unknown, ctx: unknown) => {
     const session = await requireAuth();
     if (!session) {

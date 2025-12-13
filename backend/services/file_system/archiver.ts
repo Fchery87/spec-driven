@@ -269,15 +269,22 @@ ${brief ? this.extractDescription(brief) : 'Project description not available.'}
    - Usage patterns
 
 ### Phase 2: Stack Decision (STACK_SELECTION)
-4. **stack-decision.md** (5 min read)
-   - Chosen technology stack composition
+4. **stack-proposal.md** (3 min read)
+   - High-level recommendation summary
+   - Options considered
+
+5. **stack-decision.md** (5 min read)
+   - Approved technology stack composition
    - Frontend, backend, database, deployment layers
    - Technical preferences applied
 
-5. **stack-rationale.md** (5 min read)
+6. **stack-rationale.md** (5 min read)
    - Why this stack was selected
    - Alternatives considered and why not chosen
    - Trade-offs accepted
+
+7. **stack.json** (reference)
+   - Canonical machine-readable stack contract
 
 ### Phase 3: Specifications (SPEC)
 6. **PRD.md** (20 min read)
@@ -317,6 +324,9 @@ ${brief ? this.extractDescription(brief) : 'Project description not available.'}
     - All required packages
     - Why each dependency was chosen
     - Security and licensing notes
+
+13. **dependencies.json** (reference)
+    - Canonical machine-readable dependencies contract
 
 ### Phase 5: Implementation Plan (SOLUTIONING)
 13. **architecture.md** (15 min read)
@@ -385,8 +395,10 @@ Implement the project following these documents (read in order):
 3. personas.md - User types and needs
 
 ### Phase 2: Stack
-4. stack-decision.md - Chosen technology stack
-5. stack-rationale.md - Why this stack was selected
+4. stack-proposal.md - Recommendation summary
+5. stack-decision.md - Approved technology stack
+6. stack-rationale.md - Why this stack was selected
+7. stack.json - Machine-readable stack contract
 
 ### Phase 3: Specifications
 6. PRD.md - Complete requirements (MVP vs Phase 2)
@@ -398,9 +410,10 @@ Implement the project following these documents (read in order):
 
 ### Phase 4-5: Implementation
 12. DEPENDENCIES.md - Approved packages
-13. architecture.md - System design
-14. epics.md - Feature breakdown
-15. tasks.md - Implementation sequence
+13. dependencies.json - Machine-readable dependency contract
+14. architecture.md - System design
+15. epics.md - Feature breakdown
+16. tasks.md - Implementation sequence
 
 ## Key Constraints
 
@@ -408,7 +421,7 @@ Implement the project following these documents (read in order):
 - **Security:** Follow the security baseline in architecture.md
 - **MVP Focus:** Only implement Phase 1 features (marked in PRD.md)
 - **Quality:** All code must pass tests and meet acceptance criteria in tasks.md
-- **Dependencies:** Use ONLY packages listed in DEPENDENCIES.md
+- **Dependencies:** Use dependencies.json as the source of truth; DEPENDENCIES.md is rationale.
 - **API Design:** Match api-spec.json exactly
 - **Design System:** Follow design-system.md EXACTLY:
   - Use ONLY 4 typography sizes (body, label, heading, display)
@@ -457,8 +470,10 @@ ${projectSlug}/
 │   │   └── personas.md         ← User personas
 │   │
 │   ├── STACK_SELECTION/        ← Phase 2: Stack Decision
-│   │   ├── stack-decision.md   ← Chosen technology stack
-│   │   └── stack-rationale.md  ← Why this stack was selected
+│   │   ├── stack-proposal.md   ← Recommendation summary
+│   │   ├── stack-decision.md   ← Approved technology stack
+│   │   ├── stack-rationale.md  ← Why this stack was selected
+│   │   └── stack.json          ← Machine-readable stack contract
 │   │
 │   ├── SPEC/                   ← Phase 3: Specifications
 │   │   ├── PRD.md              ← Product requirements
@@ -469,7 +484,8 @@ ${projectSlug}/
 │   │   └── user-flows.md       ← User journey definitions
 │   │
 │   ├── DEPENDENCIES/           ← Phase 4: Dependencies
-│   │   └── DEPENDENCIES.md     ← Package choices & rationale
+│   │   ├── DEPENDENCIES.md     ← Package choices & rationale
+│   │   └── dependencies.json   ← Machine-readable dependency contract
 │   │
 │   └── SOLUTIONING/            ← Phase 5: Implementation Plan
 │       ├── architecture.md     ← System design
