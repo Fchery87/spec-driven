@@ -3,17 +3,46 @@ import { NextRequest } from 'next/server';
 import { POST as approveDependencies } from '@/app/api/projects/[slug]/approve-dependencies/route';
 import { POST as executePhase } from '@/app/api/projects/[slug]/execute-phase/route';
 
+const mockSession = vi.hoisted(() => ({
+  user: {
+    id: 'test-user-123',
+    email: 'test@example.com',
+    emailVerified: true,
+    name: 'Test User',
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  session: {
+    id: 'test-session-123',
+    token: 'test-token',
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }
+}));
+
 // Mock dependencies
 vi.mock('@/backend/services/database/drizzle_project_db_service');
 vi.mock('@/app/api/lib/project-utils');
 vi.mock('@/lib/logger');
 vi.mock('@/backend/services/orchestrator/orchestrator_engine');
-vi.mock('@/app/api/middleware/auth-guard');
+vi.mock('@/app/api/middleware/auth-guard', () => ({
+  requireAuth: async () => mockSession,
+  withAuth: (handler: unknown) => async (req: unknown, ctx: unknown) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (handler as any)(req, ctx, mockSession);
+  },
+  withAdminAuth: (handler: unknown) => async (req: unknown, ctx: unknown) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (handler as any)(req, ctx, mockSession);
+  },
+  isAdmin: () => true,
+  isSuperAdmin: () => true
+}));
 
 import { ProjectDBService } from '@/backend/services/database/drizzle_project_db_service';
 import * as projectUtils from '@/app/api/lib/project-utils';
 import { OrchestratorEngine } from '@/backend/services/orchestrator/orchestrator_engine';
-import { withAuth } from '@/app/api/middleware/auth-guard';
 
 describe('Approval Gates and Phase Execution', () => {
   const mockMetadata = {
@@ -47,33 +76,8 @@ describe('Approval Gates and Phase Execution', () => {
     updatedAt: new Date('2025-01-01')
   };
 
-  const mockSession = {
-    user: {
-      id: 'test-user-123',
-      email: 'test@example.com',
-      emailVerified: true,
-      name: 'Test User',
-      createdAt: new Date(),
-      updatedAt: new Date()
-    },
-    session: {
-      id: 'test-session-123',
-      token: 'test-token',
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-  };
-
   beforeEach(() => {
     vi.clearAllMocks();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (withAuth as any).mockImplementation(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (handler: (req: NextRequest, context: any, session: any) => Promise<Response>) =>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (req: NextRequest, context?: any) => handler(req, context, mockSession)
-    );
   });
 
   describe('POST /api/projects/[slug]/approve-dependencies', () => {
@@ -96,7 +100,7 @@ describe('Approval Gates and Phase Execution', () => {
         {
           method: 'POST',
           body: JSON.stringify({
-            approvalNotes: 'All dependencies reviewed and approved'
+            notes: 'All dependencies reviewed and approved'
           })
         }
       );
@@ -122,7 +126,7 @@ describe('Approval Gates and Phase Execution', () => {
         {
           method: 'POST',
           body: JSON.stringify({
-            approvalNotes: 'Some notes'
+            notes: 'Some notes'
           })
         }
       );
@@ -173,7 +177,7 @@ describe('Approval Gates and Phase Execution', () => {
         {
           method: 'POST',
           body: JSON.stringify({
-            approvalNotes: 'Approved'
+            notes: 'Approved'
           })
         }
       );
@@ -346,8 +350,13 @@ describe('Approval Gates and Phase Execution', () => {
 
     it('should collect artifacts from previous phases', async () => {
       const listArtifactsSpy = vi.spyOn(projectUtils, 'listArtifacts');
+      const metadataForSpec = {
+        ...mockMetadata,
+        current_phase: 'SPEC',
+        phases_completed: ['ANALYSIS', 'STACK_SELECTION']
+      };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.getProjectMetadata as any).mockReturnValue(metadataForAnalysis);
+      (projectUtils.getProjectMetadata as any).mockReturnValue(metadataForSpec);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.listArtifacts as any).mockReturnValue([]);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -580,7 +589,7 @@ describe('Approval Gates and Phase Execution', () => {
         }
       );
 
-      expect(async () => {
+      await expect(async () => {
         await request.json();
       }).rejects.toThrow();
     });

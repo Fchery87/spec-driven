@@ -1,6 +1,6 @@
 "use client"
 
-import { CheckCircle2, Circle, AlertCircle, Play, Lock } from "lucide-react"
+import { CheckCircle2, Circle, Play, Lock } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface Phase {

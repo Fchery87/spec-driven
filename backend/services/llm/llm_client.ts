@@ -130,9 +130,14 @@ export class GeminiClient implements LLMProvider {
 
         if (response.status === 429) {
           // Rate limit - wait and retry with exponential backoff (1s, 2s, 4s, 8s)
+          if (attempt >= retries) {
+            throw new Error('Rate limited by Gemini API');
+          }
           const waitTime = Math.pow(2, attempt) * 1000;
-          logger.info(`Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
+          logger.info(
+            `Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`
+          );
+          await new Promise((resolve) => setTimeout(resolve, waitTime));
           continue;
         }
 
@@ -175,27 +180,23 @@ export class GeminiClient implements LLMProvider {
           maxRetries: retries
         });
 
-        // If it's a rate limit error and we have retries left, continue
-        if (error instanceof Error && error.message.includes('429') && attempt < retries) {
-          const waitTime = Math.pow(2, attempt) * 1000;
-          logger.info(`Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-          continue;
+        const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+        const isRateLimited = message.includes('rate limited') || message.includes('429');
+
+        if (isRateLimited) {
+          if (attempt < retries) {
+            const waitTime = Math.pow(2, attempt) * 1000;
+            logger.info(
+              `Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`
+            );
+            await new Promise((resolve) => setTimeout(resolve, waitTime));
+            continue;
+          }
+          throw new Error('Rate limited by Gemini API');
         }
 
-        // If we have retries left, continue trying
-        if (attempt < retries) {
-          const waitTime = Math.pow(2, attempt) * 1000;
-          logger.info(`Retrying after error. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-          continue;
-        }
-
-        // No retries left, throw
-        if (attempt === retries) {
-          logger.error('Gemini API call failed after retries:', error instanceof Error ? error : new Error(String(error)));
-          throw new Error(`Failed to generate completion after ${retries} retries: ${error}`);
-        }
+        // Non rate-limit errors: fail fast (no retries)
+        throw error;
       }
     }
 

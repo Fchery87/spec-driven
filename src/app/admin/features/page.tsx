@@ -18,12 +18,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-interface FeatureFlag {
-  key: string;
-  value: string;
-  enabled: boolean;
-}
-
 const SYSTEM_FEATURES = [
   { key: 'feature_email_verification', label: 'Email Verification', description: 'Require email verification for new accounts' },
   { key: 'feature_oauth_google', label: 'Google OAuth', description: 'Enable Google sign-in' },

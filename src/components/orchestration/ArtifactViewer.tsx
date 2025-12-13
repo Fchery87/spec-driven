@@ -111,7 +111,7 @@ export function ArtifactViewer({
             dangerouslySetInnerHTML={{ __html: svg }}
           />
         )
-      } catch (err) {
+      } catch {
         // If mermaid fails, show the raw code
         parts.push(
           <div key={diagramId} className="my-4 p-4 bg-destructive/10 rounded-lg border border-destructive/30">
@@ -173,7 +173,7 @@ export function ArtifactViewer({
         duration: 2000,
       })
       setTimeout(() => setCopied(false), 2000)
-    } catch (err) {
+    } catch {
       toast.error('Failed to copy', {
         description: 'Could not copy to clipboard',
       })

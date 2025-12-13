@@ -3,40 +3,66 @@ import { NextRequest } from 'next/server';
 import { POST as createProject } from '@/app/api/projects/route';
 import { POST as approveStack } from '@/app/api/projects/[slug]/approve-stack/route';
 
+const mockSession = vi.hoisted(() => ({
+  user: {
+    id: 'test-user-123',
+    email: 'test@example.com',
+    emailVerified: true,
+    name: 'Test User',
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  session: {
+    id: 'test-session-123',
+    token: 'test-token',
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }
+}));
+
+const authMocks = vi.hoisted(() => {
+  const requireAuth = vi.fn(async () => mockSession);
+  const withAuth = vi.fn((handler: unknown) => async (req: unknown, ctx: unknown) => {
+    const session = await requireAuth();
+    if (!session) {
+      return new Response(JSON.stringify({ success: false, error: 'Unauthorized' }), { status: 401 });
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (handler as any)(req, ctx, session);
+  });
+  return {
+    requireAuth,
+    withAuth,
+    withAdminAuth: withAuth,
+    isAdmin: () => true,
+    isSuperAdmin: () => true,
+  };
+});
+
 // Mock dependencies
 vi.mock('@/backend/services/database/drizzle_project_db_service');
 vi.mock('@/app/api/lib/project-utils');
+vi.mock('@/lib/r2-storage', () => ({
+  uploadProjectIdea: vi.fn(async () => undefined),
+  deleteProjectFromR2: vi.fn(async () => undefined),
+}));
 vi.mock('@/lib/logger');
 vi.mock('@/lib/rate-limiter');
-vi.mock('@/lib/correlation-id');
-vi.mock('@/app/api/middleware/auth-guard');
+vi.mock('@/lib/correlation-id', () => ({
+  withCorrelationId: (fn: unknown) => fn,
+  getCorrelationId: () => 'test-correlation-id',
+  getRequestId: () => 'test-request-id',
+  withCorrelationIdFetch: (_url: string, init?: RequestInit) => init || {}
+}));
+vi.mock('@/app/api/middleware/auth-guard', () => authMocks);
 
 import { ProjectDBService } from '@/backend/services/database/drizzle_project_db_service';
 import * as projectUtils from '@/app/api/lib/project-utils';
 import { logger } from '@/lib/logger';
 import { generalLimiter, getRateLimitKey } from '@/lib/rate-limiter';
-import { withCorrelationId } from '@/lib/correlation-id';
-import { withAuth } from '@/app/api/middleware/auth-guard';
 
 describe('Integration: Auth → Validation → DB Flow', () => {
-  const mockSession = {
-    user: {
-      id: 'test-user-123',
-      email: 'test@example.com',
-      emailVerified: true,
-      name: 'Test User',
-      createdAt: new Date(),
-      updatedAt: new Date()
-    },
-    session: {
-      id: 'test-session-123',
-      token: 'test-token',
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-  };
-
   const mockMetadata = {
     id: 'test-id-123',
     slug: 'test-project',
@@ -74,22 +100,13 @@ describe('Integration: Auth → Validation → DB Flow', () => {
     (getRateLimitKey as any).mockReturnValue('test-key');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (generalLimiter.isAllowed as any).mockResolvedValue(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (withCorrelationId as any).mockImplementation((fn: (req: NextRequest) => Promise<Response>) => fn);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (withAuth as any).mockImplementation(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (handler: (req: NextRequest, context: any, session: any) => Promise<Response>) =>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (req: NextRequest, context?: any) => handler(req, context, mockSession)
-    );
   });
 
   describe('Complete Flow: Create Project → Validate Input → Persist to Database', () => {
     it('should complete full flow from authenticated request to database persistence', async () => {
       // Setup mocks for database operations
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (ProjectDBService.prototype.createProject as any).mockResolvedValue({
+      (ProjectDBService.prototype.createProjectWithState as any).mockResolvedValue({
         ...mockProjectData,
         name: 'My New Project',
         slug: 'my-new-project-abc123'
@@ -99,7 +116,7 @@ describe('Integration: Auth → Validation → DB Flow', () => {
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
+
 
       // Step 1: Make authenticated request with valid data
       const request = new NextRequest(new URL('http://localhost:3000/api/projects'), {
@@ -120,9 +137,8 @@ describe('Integration: Auth → Validation → DB Flow', () => {
       expect(json.data.name).toBe('My New Project');
 
       // Step 4: Verify database operations were called
-      expect(ProjectDBService.prototype.createProject).toHaveBeenCalled();
+      expect(ProjectDBService.prototype.createProjectWithState).toHaveBeenCalled();
       expect(projectUtils.saveProjectMetadata).toHaveBeenCalled();
-      expect(projectUtils.persistProjectToDB).toHaveBeenCalled();
 
       // Step 5: Verify logging occurred (audit trail)
       expect(logger.info).toHaveBeenCalledWith(
@@ -135,19 +151,7 @@ describe('Integration: Auth → Validation → DB Flow', () => {
     });
 
     it('should reject unauthenticated requests at auth layer', async () => {
-      // Create a mock auth guard that returns 401
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (withAuth as any).mockImplementation(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
-        (handler: (req: NextRequest, context: any, session: any) => Promise<Response>) =>
-          async () => {
-            const response = new Response(
-              JSON.stringify({ success: false, error: 'Unauthorized' }),
-              { status: 401 }
-            );
-            return response;
-          }
-      );
+      authMocks.requireAuth.mockResolvedValueOnce(null);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects'), {
         method: 'POST',
@@ -179,9 +183,11 @@ describe('Integration: Auth → Validation → DB Flow', () => {
       expect(response.status).toBe(400);
       const json = await response.json();
       expect(json.success).toBe(false);
-      expect(json.error).toContain('Project name is required');
+      expect(json.error).toBe('Invalid input');
+      expect(json.details).toBeDefined();
 
       // Database should NOT have been called
+      expect(ProjectDBService.prototype.createProjectWithState).not.toHaveBeenCalled();
       expect(ProjectDBService.prototype.createProject).not.toHaveBeenCalled();
     });
 
@@ -201,15 +207,17 @@ describe('Integration: Auth → Validation → DB Flow', () => {
       expect(response.status).toBe(400);
       const json = await response.json();
       expect(json.success).toBe(false);
-      expect(json.error).toContain('must not exceed');
+      expect(json.error).toBe('Invalid input');
+      expect(json.details).toBeDefined();
 
       // Database should NOT have been called
+      expect(ProjectDBService.prototype.createProjectWithState).not.toHaveBeenCalled();
       expect(ProjectDBService.prototype.createProject).not.toHaveBeenCalled();
     });
 
     it('should handle database errors gracefully after validation passes', async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (ProjectDBService.prototype.createProject as any).mockRejectedValue(
+      (ProjectDBService.prototype.createProjectWithState as any).mockRejectedValue(
         new Error('Database connection failed')
       );
 
@@ -272,15 +280,27 @@ describe('Integration: Auth → Validation → DB Flow', () => {
       expect(projectUtils.writeArtifact).toHaveBeenCalledWith(
         'test-project',
         'STACK_SELECTION',
-        'plan.md',
+        'stack-decision.md',
         expect.stringContaining('Node.js + React + PostgreSQL')
+      );
+      expect(projectUtils.writeArtifact).toHaveBeenCalledWith(
+        'test-project',
+        'STACK_SELECTION',
+        'stack-rationale.md',
+        expect.stringContaining('Stack Selection Rationale')
       );
 
       // Verify artifacts were persisted to database (DB-primary strategy)
       expect(ProjectDBService.prototype.saveArtifact).toHaveBeenCalledWith(
         mockProjectData.id,
         'STACK_SELECTION',
-        'plan.md',
+        'stack-decision.md',
+        expect.any(String)
+      );
+      expect(ProjectDBService.prototype.saveArtifact).toHaveBeenCalledWith(
+        mockProjectData.id,
+        'STACK_SELECTION',
+        'stack-rationale.md',
         expect.any(String)
       );
 
@@ -311,7 +331,8 @@ describe('Integration: Auth → Validation → DB Flow', () => {
       expect(response.status).toBe(400);
       const json = await response.json();
       expect(json.success).toBe(false);
-      expect(json.error).toContain('Stack choice is required');
+      expect(json.error).toBe('Invalid input');
+      expect(json.details).toBeDefined();
 
       // Verify no artifacts or DB operations occurred
       expect(projectUtils.writeArtifact).not.toHaveBeenCalled();
@@ -367,7 +388,7 @@ describe('Integration: Auth → Validation → DB Flow', () => {
   describe('Authentication & Authorization', () => {
     it('should include user ID in logged operations for audit trail', async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (ProjectDBService.prototype.createProject as any).mockResolvedValue(mockProjectData);
+      (ProjectDBService.prototype.createProjectWithState as any).mockResolvedValue(mockProjectData);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
@@ -395,7 +416,7 @@ describe('Integration: Auth → Validation → DB Flow', () => {
 
     it('should maintain session information throughout request lifecycle', async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (ProjectDBService.prototype.createProject as any).mockResolvedValue(mockProjectData);
+      (ProjectDBService.prototype.createProjectWithState as any).mockResolvedValue(mockProjectData);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
@@ -416,7 +437,7 @@ describe('Integration: Auth → Validation → DB Flow', () => {
 
       // Verify all operations logged the authenticated user
       expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('creating new project'),
+        expect.stringContaining('project created successfully'),
         expect.objectContaining({
           userId: 'test-user-123'
         })
@@ -442,7 +463,7 @@ describe('Integration: Auth → Validation → DB Flow', () => {
     });
 
     it('should reject requests with overly long descriptions', async () => {
-      const longDescription = 'x'.repeat(2000);
+      const longDescription = 'x'.repeat(6000);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects'), {
         method: 'POST',
@@ -462,9 +483,9 @@ describe('Integration: Auth → Validation → DB Flow', () => {
 
   describe('Database Persistence', () => {
     it('should call database service with validated data', async () => {
-      const createProjectSpy = vi.spyOn(ProjectDBService.prototype, 'createProject');
+      const createProjectSpy = vi.spyOn(ProjectDBService.prototype, 'createProjectWithState');
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (ProjectDBService.prototype.createProject as any).mockResolvedValue(mockProjectData);
+      (ProjectDBService.prototype.createProjectWithState as any).mockResolvedValue(mockProjectData);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
@@ -485,19 +506,17 @@ describe('Integration: Auth → Validation → DB Flow', () => {
       expect(createProjectSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           name: 'Database Test Project',
-          description: 'Testing database persistence'
+          description: 'Testing database persistence',
+          ownerId: 'test-user-123'
         })
       );
     });
 
     it('should persist metadata to both filesystem and database', async () => {
-      const persistSpy = vi.spyOn(projectUtils, 'persistProjectToDB');
       const saveSpy = vi.spyOn(projectUtils, 'saveProjectMetadata');
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (ProjectDBService.prototype.createProject as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
+      (ProjectDBService.prototype.createProjectWithState as any).mockResolvedValue(mockProjectData);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects'), {
         method: 'POST',
@@ -508,9 +527,8 @@ describe('Integration: Auth → Validation → DB Flow', () => {
 
       await createProject(request, {});
 
-      // Both filesystem and database persistence should be called
+      // Project creation should write metadata artifact
       expect(saveSpy).toHaveBeenCalled();
-      expect(persistSpy).toHaveBeenCalled();
     });
   });
 });

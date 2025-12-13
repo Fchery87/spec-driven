@@ -12,7 +12,6 @@ import {
   FileCheck,
   Shield,
   Link2,
-  Users,
   Layers,
   BookOpen,
   RefreshCw,
@@ -183,7 +182,7 @@ export function ValidationResultsPanel({
           <div className="text-center py-8 text-muted-foreground">
             <BookOpen className="h-12 w-12 mx-auto mb-3 opacity-50" />
             <p className="font-medium">No validation checks run yet</p>
-            <p className="text-sm">Click "Run Validation" to check artifact consistency</p>
+            <p className="text-sm">Click &quot;Run Validation&quot; to check artifact consistency</p>
           </div>
         )}
 

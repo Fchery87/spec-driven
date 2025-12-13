@@ -2,9 +2,14 @@ import { defineConfig } from 'vitest/config'
 import path from 'path'
 
 export default defineConfig({
+  esbuild: {
+    // Next uses its own TS/JSX pipeline; for Vitest we need JSX to compile without requiring React in scope.
+    jsx: 'automatic',
+  },
   test: {
     globals: true,
-    environment: 'node',
+    environment: 'jsdom',
+    setupFiles: ['./vitest.setup.ts'],
     include: ['**/*.test.ts', '**/*.test.tsx'],
     exclude: ['node_modules', 'dist', '.next'],
     coverage: {
@@ -20,8 +25,10 @@ export default defineConfig({
     }
   },
   resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src')
-    }
+    alias: [
+      // IMPORTANT: keep the more specific backend alias before the general "@" alias.
+      { find: /^@\/backend\/(.*)$/, replacement: path.resolve(__dirname, './backend/$1') },
+      { find: /^@\/(.*)$/, replacement: path.resolve(__dirname, './src/$1') },
+    ]
   }
 })

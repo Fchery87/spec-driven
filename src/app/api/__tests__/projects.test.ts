@@ -5,21 +5,58 @@ import { GET as getProjects, POST as createProject } from '@/app/api/projects/ro
 import { GET as getProject, PUT as updateProject, DELETE as deleteProject } from '@/app/api/projects/[slug]/route';
 import { POST as approveStack } from '@/app/api/projects/[slug]/approve-stack/route';
 
+const mockSession = vi.hoisted(() => ({
+  user: {
+    id: 'test-user-123',
+    email: 'test@example.com',
+    emailVerified: true,
+    name: 'Test User',
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  session: {
+    id: 'test-session-123',
+    token: 'test-token',
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }
+}));
+
 // Mock dependencies
 vi.mock('@/backend/services/database/drizzle_project_db_service');
 vi.mock('@/backend/services/file_system/project_storage');
 vi.mock('@/app/api/lib/project-utils');
+vi.mock('@/lib/r2-storage', () => ({
+  uploadProjectIdea: vi.fn(async () => undefined),
+  deleteProjectFromR2: vi.fn(async () => undefined),
+}));
 vi.mock('@/lib/logger');
 vi.mock('@/lib/rate-limiter');
-vi.mock('@/lib/correlation-id');
-vi.mock('@/app/api/middleware/auth-guard');
+vi.mock('@/lib/correlation-id', () => ({
+  withCorrelationId: (fn: unknown) => fn,
+  getCorrelationId: () => 'test-correlation-id',
+  getRequestId: () => 'test-request-id',
+  withCorrelationIdFetch: (_url: string, init?: RequestInit) => init || {}
+}));
+vi.mock('@/app/api/middleware/auth-guard', () => ({
+  requireAuth: async () => mockSession,
+  withAuth: (handler: unknown) => async (req: unknown, ctx: unknown) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (handler as any)(req, ctx, mockSession);
+  },
+  withAdminAuth: (handler: unknown) => async (req: unknown, ctx: unknown) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (handler as any)(req, ctx, mockSession);
+  },
+  isAdmin: () => true,
+  isSuperAdmin: () => true
+}));
 
 import { ProjectDBService } from '@/backend/services/database/drizzle_project_db_service';
 import { ProjectStorage } from '@/backend/services/file_system/project_storage';
 import * as projectUtils from '@/app/api/lib/project-utils';
 import { generalLimiter, getRateLimitKey, createRateLimitResponse } from '@/lib/rate-limiter';
-import { withCorrelationId } from '@/lib/correlation-id';
-import { withAuth } from '@/app/api/middleware/auth-guard';
 
 describe('Projects API Routes', () => {
   const mockProjectData = {
@@ -53,24 +90,6 @@ describe('Projects API Routes', () => {
     orchestration_state: {}
   };
 
-  const mockSession = {
-    user: {
-      id: 'test-user-123',
-      email: 'test@example.com',
-      emailVerified: true,
-      name: 'Test User',
-      createdAt: new Date(),
-      updatedAt: new Date()
-    },
-    session: {
-      id: 'test-session-123',
-      token: 'test-token',
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-  };
-
   beforeEach(() => {
     vi.clearAllMocks();
     // Default mock implementations
@@ -78,15 +97,6 @@ describe('Projects API Routes', () => {
     (getRateLimitKey as any).mockReturnValue('test-key');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (generalLimiter.isAllowed as any).mockResolvedValue(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (withCorrelationId as any).mockImplementation((fn: (req: NextRequest) => Promise<Response>) => fn);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (withAuth as any).mockImplementation(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (handler: (req: NextRequest, context: any, session: any) => Promise<Response>) =>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (req: NextRequest, context?: any) => handler(req, context, mockSession)
-    );
   });
 
   describe('GET /api/projects - List all projects', () => {
@@ -211,14 +221,16 @@ describe('Projects API Routes', () => {
 
       expect(response.status).toBe(400);
       expect(json.success).toBe(false);
-      expect(json.error).toContain('Project name is required');
+      expect(json.error).toBe('Invalid input');
+      expect(json.details).toBeDefined();
     });
 
     it('should generate slug from project name', async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (ProjectDBService.prototype.createProject as any).mockResolvedValue({
         ...mockProjectData,
-        name: 'My Awesome Project'
+        name: 'My Awesome Project',
+        slug: 'my-awesome-project-abc12345'
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
@@ -240,25 +252,6 @@ describe('Projects API Routes', () => {
       expect(json.success).toBe(true);
       // Slug should be generated from name + UUID
       expect(json.data.slug).toContain('my-awesome-project');
-    });
-
-    it('should create project directory in filesystem', async () => {
-      const createDirSpy = vi.spyOn(ProjectStorage.prototype, 'createProjectDirectory');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (ProjectDBService.prototype.createProject as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-
-      const request = new NextRequest(new URL('http://localhost:3000/api/projects'), {
-        method: 'POST',
-        body: JSON.stringify({
-          name: 'Test Project'
-        })
-      });
-
-      await createProject(request, {});
-
-      expect(createDirSpy).toHaveBeenCalled();
     });
 
     it('should save project metadata to filesystem', async () => {
@@ -617,7 +610,8 @@ describe('Projects API Routes', () => {
 
       expect(response.status).toBe(400);
       expect(json.success).toBe(false);
-      expect(json.error).toContain('Stack choice is required');
+      expect(json.error).toBe('Invalid input');
+      expect(json.details).toBeDefined();
     });
 
     it('should return 404 when project not found', async () => {
@@ -767,7 +761,7 @@ describe('Projects API Routes', () => {
       });
 
       // Request parsing error would be handled by Next.js
-      expect(async () => {
+      await expect(async () => {
         await request.json();
       }).rejects.toThrow();
     });

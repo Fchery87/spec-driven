@@ -574,7 +574,6 @@ async function checkTestFirstCompliance(artifacts: Record<string, string>): Prom
 async function checkConstitutionalCompliance(artifacts: Record<string, string>): Promise<ValidationCheck> {
   const architecture = artifacts['SOLUTIONING/architecture.md'] || '';
   const tasks = artifacts['SOLUTIONING/tasks.md'] || '';
-  const dependencies = artifacts['DEPENDENCIES/DEPENDENCIES.md'] || '';
 
   const items: { item: string; status: 'pass' | 'fail' | 'warning'; message?: string }[] = [];
 
@@ -602,7 +601,6 @@ async function checkConstitutionalCompliance(artifacts: Record<string, string>):
   });
 
   // Article 4: Anti-Abstraction
-  const hasAbstractionJustification = /wrapper|abstraction|justify/i.test(dependencies);
   items.push({
     item: 'Article 4: Anti-Abstraction',
     status: 'pass', // Hard to validate automatically

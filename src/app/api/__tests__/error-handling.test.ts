@@ -3,21 +3,58 @@ import { NextRequest } from 'next/server';
 import { GET as getProject, POST as createProject } from '@/app/api/projects/route';
 import { GET as getSingleProject, PUT as updateProject, DELETE as deleteProject } from '@/app/api/projects/[slug]/route';
 
+const mockSession = vi.hoisted(() => ({
+  user: {
+    id: 'test-user-123',
+    email: 'test@example.com',
+    emailVerified: true,
+    name: 'Test User',
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  session: {
+    id: 'test-session-123',
+    token: 'test-token',
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }
+}));
+
 // Mock dependencies
 vi.mock('@/backend/services/database/drizzle_project_db_service');
 vi.mock('@/app/api/lib/project-utils');
+vi.mock('@/lib/r2-storage', () => ({
+  uploadProjectIdea: vi.fn(async () => undefined),
+  deleteProjectFromR2: vi.fn(async () => undefined),
+}));
 vi.mock('@/lib/logger');
 vi.mock('@/lib/rate-limiter');
-vi.mock('@/lib/correlation-id');
-vi.mock('@/app/api/middleware/auth-guard');
+vi.mock('@/lib/correlation-id', () => ({
+  withCorrelationId: (fn: unknown) => fn,
+  getCorrelationId: () => 'test-correlation-id',
+  getRequestId: () => 'test-request-id',
+  withCorrelationIdFetch: (_url: string, init?: RequestInit) => init || {}
+}));
+vi.mock('@/app/api/middleware/auth-guard', () => ({
+  requireAuth: async () => mockSession,
+  withAuth: (handler: unknown) => async (req: unknown, ctx: unknown) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (handler as any)(req, ctx, mockSession);
+  },
+  withAdminAuth: (handler: unknown) => async (req: unknown, ctx: unknown) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (handler as any)(req, ctx, mockSession);
+  },
+  isAdmin: () => true,
+  isSuperAdmin: () => true
+}));
 vi.mock('fs');
 
 import { ProjectDBService } from '@/backend/services/database/drizzle_project_db_service';
 import * as projectUtils from '@/app/api/lib/project-utils';
 import { logger } from '@/lib/logger';
 import { generalLimiter, getRateLimitKey, createRateLimitResponse } from '@/lib/rate-limiter';
-import { withCorrelationId } from '@/lib/correlation-id';
-import { withAuth } from '@/app/api/middleware/auth-guard';
 
 describe('API Error Handling', () => {
   const mockMetadata = {
@@ -36,39 +73,12 @@ describe('API Error Handling', () => {
     orchestration_state: {}
   };
 
-  const mockSession = {
-    user: {
-      id: 'test-user-123',
-      email: 'test@example.com',
-      emailVerified: true,
-      name: 'Test User',
-      createdAt: new Date(),
-      updatedAt: new Date()
-    },
-    session: {
-      id: 'test-session-123',
-      token: 'test-token',
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-  };
-
   beforeEach(() => {
     vi.clearAllMocks();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (getRateLimitKey as any).mockReturnValue('test-key');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (generalLimiter.isAllowed as any).mockResolvedValue(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (withCorrelationId as any).mockImplementation((fn: (req: NextRequest) => Promise<Response>) => fn);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (withAuth as any).mockImplementation(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (handler: (req: NextRequest, context: any, session: any) => Promise<Response>) =>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        async (req: NextRequest, context?: any) => handler(req, context, mockSession)
-    );
   });
 
   describe('Database Connection Errors', () => {
@@ -133,7 +143,9 @@ describe('API Error Handling', () => {
       const json = await response.json();
 
       expect(response.status).toBe(400);
-      expect(json.error).toContain('required');
+      expect(json.success).toBe(false);
+      expect(json.error).toBe('Invalid input');
+      expect(json.details).toBeDefined();
     });
 
     it('should reject null project name', async () => {
@@ -159,30 +171,24 @@ describe('API Error Handling', () => {
       const json = await response.json();
 
       expect(response.status).toBe(400);
-      expect(json.error).toContain('Project name is required');
+      expect(json.success).toBe(false);
+      expect(json.error).toBe('Invalid input');
+      expect(json.details).toBeDefined();
     });
 
     it('should handle very long project names', async () => {
       const longName = 'a'.repeat(1000);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (ProjectDBService.prototype.createProject as any).mockResolvedValue({
-        id: 'test-id',
-        slug: 'a-'.repeat(100).slice(0, 100),
-        name: longName,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-
       const request = new NextRequest(new URL('http://localhost:3000/api/projects'), {
         method: 'POST',
         body: JSON.stringify({ name: longName })
       });
 
       const response = await createProject(request, {});
+      const json = await response.json();
 
-      expect(response.status).toBe(201);
+      expect(response.status).toBe(400);
+      expect(json.success).toBe(false);
+      expect(json.error).toBe('Invalid input');
     });
 
     it('should handle special characters in project name', async () => {
@@ -418,7 +424,7 @@ describe('API Error Handling', () => {
         body: '{invalid json'
       });
 
-      expect(async () => {
+      await expect(async () => {
         await request.json();
       }).rejects.toThrow();
     });
@@ -429,7 +435,7 @@ describe('API Error Handling', () => {
         body: null
       });
 
-      expect(async () => {
+      await expect(async () => {
         await request.json();
       }).rejects.toThrow();
     });

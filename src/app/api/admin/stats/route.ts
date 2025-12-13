@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { db } from '@/backend/lib/drizzle';
 import { users, projects, settings } from '@/backend/lib/schema';
 import { eq, count, ne, like } from 'drizzle-orm';
@@ -55,6 +55,4 @@ async function handler() {
   }
 }
 
-export const GET = withAdminAuth(async (request: NextRequest) => {
-  return handler();
-});
+export const GET = withAdminAuth(async () => handler());

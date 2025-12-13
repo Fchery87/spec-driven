@@ -67,7 +67,6 @@ export default function ProjectPage() {
   const [generatingHandoff, setGeneratingHandoff] = useState(false);
   const [showDependencySelector, setShowDependencySelector] = useState(false);
   const [approvingDependencies, setApprovingDependencies] = useState(false);
-  const [regeneratingDependencies, setRegeneratingDependencies] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionInput, setDescriptionInput] = useState('');
@@ -543,37 +542,6 @@ export default function ProjectPage() {
       recordAction('Failed to approve dependencies', 'error')
     } finally {
       setApprovingDependencies(false)
-    }
-  };
-
-  const handleRegenerateDependencies = async (feedback?: string) => {
-    setRegeneratingDependencies(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/projects/${slug}/regenerate-dependencies`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ feedback }),
-        cache: 'no-store'
-      })
-
-      const result = await response.json()
-
-      if (result.success) {
-        await fetchProject(true)
-        await fetchArtifacts()
-        recordAction('Dependencies regenerated based on your feedback.')
-      } else {
-        setError(result.error || 'Failed to regenerate dependencies')
-        recordAction(result.error || 'Failed to regenerate dependencies', 'error')
-      }
-    } catch (err) {
-      setError('Failed to regenerate dependencies')
-      const error = err instanceof Error ? err : new Error(String(err));
-      logger.error('Failed to regenerate dependencies:', error);
-      recordAction('Failed to regenerate dependencies', 'error')
-    } finally {
-      setRegeneratingDependencies(false)
     }
   };
 

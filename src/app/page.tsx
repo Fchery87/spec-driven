@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { 
   Lightbulb, Layers, Package, Workflow, ClipboardList, ShieldCheck, 
-  Rocket, ArrowRight, Timer, FileText, CheckCircle2, Zap, Users, GitBranch,
+  ArrowRight, Timer, FileText, CheckCircle2, Zap, Users, GitBranch,
   ArrowUpRight
 } from 'lucide-react';
 
