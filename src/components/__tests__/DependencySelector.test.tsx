@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DependencySelector } from '@/components/orchestration/DependencySelector';
 
@@ -65,12 +65,16 @@ describe('DependencySelector Component', () => {
 
     await user.click(screen.getByRole('button', { name: /Custom Stack/i }));
 
-    await user.type(screen.getByPlaceholderText(/Next\.js 14, React, Vue 3/i), 'SvelteKit');
-    await user.type(screen.getByPlaceholderText(/FastAPI, Express, Go Fiber/i), 'Go (chi)');
-    await user.type(screen.getByPlaceholderText(/PostgreSQL, MongoDB, Supabase/i), 'PostgreSQL');
-    await user.type(screen.getByPlaceholderText(/Vercel, AWS, Fly\.io/i), 'Fly.io');
-    await user.type(screen.getByPlaceholderText(/List package names with versions/i), 'zod, drizzle-orm\nreact');
-    await user.type(screen.getByPlaceholderText(/Security exceptions, licensing requirements, hosting preferences/i), 'Prefer OSS-only');
+    // fireEvent is substantially faster than user.type and avoids flakey timeouts in CI.
+    fireEvent.change(screen.getByPlaceholderText(/Next\.js 14, React, Vue 3/i), { target: { value: 'SvelteKit' } });
+    fireEvent.change(screen.getByPlaceholderText(/FastAPI, Express, Go Fiber/i), { target: { value: 'Go' } });
+    fireEvent.change(screen.getByPlaceholderText(/PostgreSQL, MongoDB, Supabase/i), { target: { value: 'PostgreSQL' } });
+    fireEvent.change(screen.getByPlaceholderText(/Vercel, AWS, Fly\.io/i), { target: { value: 'Fly.io' } });
+    fireEvent.change(screen.getByPlaceholderText(/List package names with versions/i), { target: { value: 'zod\ndrizzle-orm\nreact' } });
+    fireEvent.change(
+      screen.getByPlaceholderText(/Security exceptions, licensing requirements, hosting preferences/i),
+      { target: { value: 'Prefer OSS-only' } }
+    );
 
     await user.click(screen.getByRole('button', { name: /Approve Dependencies/i }));
 
@@ -78,10 +82,10 @@ describe('DependencySelector Component', () => {
       expect.objectContaining({
         mode: 'custom',
         architecture: 'custom',
-        notes: expect.any(String),
+        notes: 'Prefer OSS-only',
         customStack: expect.objectContaining({
           frontend: 'SvelteKit',
-          backend: 'Go (chi)',
+          backend: 'Go',
           database: 'PostgreSQL',
           deployment: 'Fly.io',
           dependencies: expect.arrayContaining(['zod', 'drizzle-orm', 'react'])

@@ -1278,9 +1278,9 @@ export default function ProjectPage() {
                 className="w-full p-2 border border-border rounded-md bg-background"
               >
                 <option value="">Select a phase...</option>
-                {['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'SOLUTIONING', 'DEPENDENCIES', 'VALIDATE'].map((phase) => {
-                  const phaseIndex = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'SOLUTIONING', 'DEPENDENCIES', 'VALIDATE', 'DONE'].indexOf(phase);
-                  const currentIndex = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'SOLUTIONING', 'DEPENDENCIES', 'VALIDATE', 'DONE'].indexOf(project.current_phase);
+                {PHASES.filter((p) => p !== 'DONE').map((phase) => {
+                  const phaseIndex = PHASES.indexOf(phase);
+                  const currentIndex = PHASES.indexOf(project.current_phase);
                   const isAvailable = phaseIndex <= currentIndex;
                   return (
                     <option key={phase} value={phase} disabled={!isAvailable}>
