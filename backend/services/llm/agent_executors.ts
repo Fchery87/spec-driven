@@ -561,7 +561,7 @@ async function executeScrumMasterAgent(
   
   logger.info('[SOLUTIONING] Extracted requirements from PRD', { 
     totalRequirements: uniqueReqs.length,
-    requirements: uniqueReqs.slice(0, 30).join(', ')
+    requirements: uniqueReqs.join(', ')
   });
   
   // === CALL 1: Generate epics.md ===
@@ -575,9 +575,9 @@ ${prdContext}
 Data Model Summary:
 ${dataModelContext}
 
-## PRD Requirements to Cover
+## PRD Requirements to Cover (${uniqueReqs.length} total)
 The following requirements MUST be mapped to epics:
-${uniqueReqs.slice(0, 30).join(', ') || 'Extract REQ-XXX-YYY from PRD above'}
+${uniqueReqs.join(', ') || 'Extract REQ-XXX-YYY from PRD above'}
 
 ## Instructions
 Create 4-8 epics covering the full MVP scope. CRITICAL REQUIREMENTS:
@@ -640,9 +640,9 @@ ${epicsContext}
 PRD Summary:
 ${prdContext.slice(0, 6000)}
 
-## PRD Requirements to Implement (MANDATORY - ALL MUST BE MAPPED)
+## PRD Requirements to Implement (${uniqueReqs.length} total - MANDATORY - ALL MUST BE MAPPED)
 The following requirements MUST each have at least one implementing task:
-${uniqueReqs.slice(0, 40).join(', ') || 'Extract ALL REQ-XXX-YYY from PRD above'}
+${uniqueReqs.join(', ') || 'Extract ALL REQ-XXX-YYY from PRD above'}
 
 IMPORTANT: If you see requirements in the PRD that are not in this list, you MUST still create tasks for them.
 
