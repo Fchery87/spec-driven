@@ -131,11 +131,11 @@ phases:
     owner: "architect"
     duration_minutes: 25
     inputs: ["project-brief.md", "personas.md", "constitution.md"]
-    outputs: ["stack-decision.md", "stack-rationale.md"]
+    outputs: ["stack-proposal.md", "stack-decision.md", "stack-rationale.md", "stack.json"]
     depends_on: ["ANALYSIS"]
     gates: ["stack_approved"]
     next_phase: "SPEC"
-    validators: ["presence", "stack_approved", "stack_completeness"]
+    validators: ["presence", "stack_approved", "stack_completeness", "stack_json_check"]
     mode: "hybrid"
     process:
       - "1. Architect analyzes requirements from project-brief.md"
@@ -187,19 +187,18 @@ phases:
     owner: "devops"
     duration_minutes: 30
     inputs: ["PRD.md", "approved_stack"]
-    outputs: ["DEPENDENCIES.md", "dependency-proposal.md"]
+    outputs: ["DEPENDENCIES.md", "dependencies.json"]
     depends_on: ["SPEC"]
     gates: ["dependencies_approved"]
     next_phase: "SOLUTIONING"
-    validators: ["presence", "dependencies_approved", "policy_check"]
+    validators: ["presence", "dependencies_approved", "dependencies_json_check"]
     quality_checklist:
       - "All dependencies have version pinned (exact or caret)"
       - "Every production dependency links to a PRD requirement"
       - "No duplicate functionality (e.g., don't include both Axios and Fetch wrapper)"
-      - "Security status verified for all packages (0 HIGH/CRITICAL)"
-      - "License compatibility confirmed (MIT, Apache 2.0, BSD, ISC)"
-      - "Bundle size estimates provided"
       - "No deprecated packages included"
+      - "Licenses recorded and compatible"
+      - "Bundle size estimates provided"
       - "All packages actively maintained (updated within 12 months)"
       - "Article 4 (Anti-Abstraction) compliance: abstraction layers justified"
     
@@ -329,14 +328,32 @@ stack_templates:
     scaling: "Good for 10k-100k DAU, complex backend logic"
 
   # === WEB-ONLY (NO MOBILE) ===
-  nextjs_web_only:
-    name: "Next.js Web Only"
-    description: "Full-stack Next.js without mobile - responsive web"
+  nextjs_web_app:
+    name: "Next.js Web App (Neon + Drizzle + R2 + Better Auth)"
+    description: "Full-stack Next.js App Router with Neon Postgres, Drizzle ORM, Cloudflare R2 storage, and Better Auth"
     composition:
       frontend: "Next.js 14 (App Router)"
       mobile: "None (responsive web design)"
       backend: "Next.js API routes / Server Actions"
-      database: "PostgreSQL with Prisma"
+      database: "Neon Postgres + Drizzle ORM"
+      auth: "Better Auth"
+      storage: "Cloudflare R2 (S3-compatible)"
+      deployment: "Vercel"
+    best_for: ["Web apps", "admin dashboards", "internal tools", "B2B SaaS", "CRUD SaaS"]
+    strengths: ["Fast iteration", "type-safe DB access", "simple ops", "R2-backed media storage"]
+    tradeoffs: ["No native mobile experience"]
+    scaling: "Good for any scale with proper caching; Neon + serverless patterns support growth"
+
+  nextjs_web_only:
+    name: "Next.js Web Only (Legacy ID)"
+    description: "Legacy template id retained for compatibility; prefer nextjs_web_app"
+    composition:
+      frontend: "Next.js 14 (App Router)"
+      mobile: "None (responsive web design)"
+      backend: "Next.js API routes / Server Actions"
+      database: "Neon Postgres + Drizzle ORM"
+      auth: "Better Auth"
+      storage: "Cloudflare R2 (S3-compatible)"
       deployment: "Vercel"
     best_for: ["Web apps", "admin dashboards", "internal tools", "B2B SaaS"]
     strengths: ["Simplest setup", "server components", "no mobile complexity"]
@@ -889,16 +906,25 @@ agents:
       - [ ] No circular dependencies between requirements
       - [ ] Success metrics are SMART (Specific, Measurable, Achievable, Relevant, Time-bound)
       
-      # PERSONA CONSISTENCY (CRITICAL)
+      # PERSONA CONSISTENCY (CRITICAL - VALIDATION WILL FAIL WITHOUT THIS)
       You MUST reference personas from personas.md BY THEIR EXACT NAMES:
       - In the Persona(s) field of each requirement
       - In the Actor field of each use case
       - In the Persona column of the traceability matrix
       
-      Example: If personas.md defines "Ava, the Freelance Fashion Photographer", 
-      use "Ava" or "Ava, the Freelance Fashion Photographer" in your PRD.
+      IMPORTANT: Extract the EXACT persona names from the Personas section above.
+      For example, if personas.md defines:
+      - "Alex - the indie full-stack developer"
+      - "Maya - the DevRel team lead"
+      - "Sam - the platform engineer"
       
+      Then in your PRD, use these EXACT names:
+      - **Persona(s)**: Alex, Maya
+      - **Actor**: Sam
+      
+      DO NOT use generic terms like "Developer", "User", or "Admin".
       DO NOT create new persona names that don't exist in personas.md.
+      EVERY requirement MUST reference at least one persona by name.
 
       # SECURITY REQUIREMENTS (MANDATORY FOR ALL PROJECTS)
       Include these NFRs by default:
@@ -962,7 +988,8 @@ agents:
       Templates available:
       - nextjs_fullstack_expo: TypeScript fullstack + mobile
       - hybrid_nextjs_fastapi: Next.js + Python backend
-      - nextjs_web_only: Web-only, no mobile
+      - nextjs_web_app: Web-only default (Neon + Drizzle + R2 + Better Auth)
+      - nextjs_web_only: Legacy ID retained for compatibility; prefer nextjs_web_app
       - react_express: Traditional SPA + Node backend
       - vue_nuxt: Vue ecosystem
       - svelte_kit: SvelteKit fullstack
@@ -973,6 +1000,40 @@ agents:
       - flutter_firebase: Mobile-first with Firebase
       - react_native_supabase: React Native + Supabase
       - CUSTOM: Define each layer manually
+
+      #### OUTPUT 0: stack-proposal.md
+      ```
+      filename: stack-proposal.md
+      ---
+      title: Technology Stack Proposal
+      owner: architect
+      version: 1.0
+      date: {{currentDate}}
+      status: draft
+      ---
+
+      # Technology Stack Proposal
+
+      ## Recommendation
+      - **Recommended Template**: [template_id or "custom"]
+      - **Architecture Type**: [web_application | mobile_application | api_first_platform | static_site | backend_heavy | custom]
+      - **Package Manager**: pnpm (default) | npm | bun
+
+      ## Decision Summary
+      [A concise explanation (5-10 bullets) mapping requirements → stack choices]
+
+      ## Options Considered
+      | Option | Fit | Key Pros | Key Cons | Why/Why Not |
+      |--------|-----|----------|----------|-------------|
+      | [template_id] | High/Med/Low | ... | ... | ... |
+      | [template_id] | High/Med/Low | ... | ... | ... |
+
+      ## Default Infra Wiring (if web)
+      - **Database**: Neon Postgres
+      - **ORM**: Drizzle
+      - **Storage**: Cloudflare R2 (S3-compatible)
+      - **Auth**: Better Auth
+      ```
 
       #### OUTPUT 1: stack-decision.md
       ```
@@ -989,6 +1050,8 @@ agents:
 
       ## Recommended Stack
       **Template**: [template_name OR "custom"]
+      **Package Manager**: pnpm (default) | npm | bun
+      **Architecture Type**: [web_application | mobile_application | api_first_platform | static_site | backend_heavy | custom]
 
       ### Composition
       | Layer | Technology | Version | Rationale |
@@ -998,6 +1061,8 @@ agents:
       | Backend | [framework] | [version] | [why this choice] |
       | Database | [provider] | [version] | [why this choice] |
       | ORM | [choice] | [version] | [why this choice] |
+      | Auth | [provider] | [version] | [why this choice] |
+      | Storage | [provider] | [version] | [why this choice] |
       | Deployment | [platform] | - | [why this choice] |
 
       ### Technical Preferences Applied
@@ -1074,6 +1139,24 @@ agents:
       - [What to do if scale increases]
       - [What to do if mobile becomes priority]
       - [Migration path if needed]
+      ```
+
+      #### OUTPUT 3: stack.json
+      ```
+      filename: stack.json
+      {
+        "template_id": "<template_id>",
+        "architecture_type": "web_application",
+        "package_manager": "pnpm",
+        "frontend": { "framework": "Next.js", "meta_framework": "Next.js", "styling": "Tailwind CSS", "ui_library": "shadcn/ui" },
+        "mobile": { "platform": "none" },
+        "backend": { "language": "TypeScript", "framework": "Next.js" },
+        "database": { "provider": "Neon", "engine": "PostgreSQL", "orm": "Drizzle" },
+        "storage": { "provider": "Cloudflare R2", "protocol": "S3-compatible" },
+        "auth": { "provider": "Better Auth" },
+        "deployment": { "primary": "Vercel" },
+        "preferences": { "validation": "zod", "testing": "vitest", "e2e_testing": "playwright" }
+      }
       ```
 
       ### FOR PHASE: spec
@@ -1830,7 +1913,9 @@ agents:
 
       # REQUIRED DEPENDENCIES BY STACK
 
-      ## For Stack: nextjs_only_expo
+      ## For Stack: nextjs_web_app
+
+      (Also applies to nextjs_fullstack_expo for the web tier.)
 
       ### Core Framework (Production)
       - next@14.x - React framework with App Router
@@ -1852,11 +1937,16 @@ agents:
       - zod@3.x - Schema validation
 
       ### Database & ORM (Production)
-      - @prisma/client@5.x - Type-safe ORM
-      - prisma@5.x (dev) - Prisma CLI
+      - drizzle-orm@0.x - Type-safe ORM
+      - @neondatabase/serverless@1.x - Neon Postgres driver
+      - drizzle-kit@0.x (dev) - Migrations / schema
+
+      ### Storage (Production)
+      - @aws-sdk/client-s3@3.x - S3 client (Cloudflare R2)
+      - @aws-sdk/s3-request-presigner@3.x - Signed upload/download URLs
 
       ### Authentication (Production)
-      - better-auth@1.x OR next-auth@5.x - Authentication library
+      - better-auth@1.x - Authentication library (default)
       - bcryptjs@2.x - Password hashing
 
       ### Testing (Development)
@@ -1870,7 +1960,7 @@ agents:
       - @types/node - Node.js types
       - @types/react - React types
 
-      ## For Stack: hybrid_nextjs_fastapi_expo
+      ## For Stack: hybrid_nextjs_fastapi
 
       Include all above, PLUS:
 
@@ -1917,11 +2007,10 @@ agents:
       | **Avg. Maintenance Age** | < 6 months |
 
       ## Security Compliance Checklist
-      - [ ] npm audit: 0 HIGH/CRITICAL vulnerabilities
-      - [ ] All licenses reviewed and approved
+      - [ ] No duplicate functionality
       - [ ] No deprecated packages
       - [ ] All packages actively maintained
-      - [ ] Lockfile committed (pnpm-lock.yaml)
+      - [ ] Lockfile committed (pnpm-lock.yaml / package-lock.json / bun.lock)
 
       ## Dependency Policy
       | Policy | Enforcement |
@@ -1983,71 +2072,77 @@ agents:
 
       ## Installation Commands
       ```bash
-      # Install all dependencies
+      # pnpm (default)
       pnpm install
+      pnpm install --frozen-lockfile
 
-      # Audit for vulnerabilities
-      pnpm audit
+      # npm
+      npm install
+      npm ci
 
-      # Update to latest patch versions
-      pnpm update
+      # bun
+      bun install
+      bun install --frozen-lockfile
       ```
       ```
 
-      # OUTPUT 2: dependency-proposal.md
+      # OUTPUT 2: dependencies.json
 
       ```
-      filename: dependency-proposal.md
-      ---
-      title: Dependency Proposal
-      owner: devops
-      version: 1.0
-      date: {{currentDate}}
-      status: pending_approval
-      ---
-
-      # Dependency Proposal for {{projectName}}
-
-      ## Summary
-      | Category | Count | Notes |
-      |----------|-------|-------|
-      | Production | {X} | Core runtime dependencies |
-      | Development | {Y} | Build/test tooling |
-      | Total | {Z} | |
-
-      ## Security Audit Summary
-      | Severity | Count | Action Required |
-      |----------|-------|-----------------|
-      | Critical | 0 | Must be 0 for approval |
-      | High | 0 | Must be 0 for approval |
-      | Medium | {X} | Review and accept risk |
-      | Low | {Y} | Monitor in future updates |
-
-      ## License Summary
-      | License | Count | Compatible |
-      |---------|-------|------------|
-      | MIT | {X} | ✅ Yes |
-      | Apache 2.0 | {Y} | ✅ Yes |
-      | BSD | {Z} | ✅ Yes |
-      | ISC | {W} | ✅ Yes |
-
-      ## Bundle Size Analysis
-      | Bundle | Size (gzipped) | Notes |
-      |--------|----------------|-------|
-      | Client JS | ~{X} KB | Target: < 200 KB |
-      | CSS | ~{Y} KB | Tailwind purged |
-      | Total First Load | ~{Z} KB | Target: < 300 KB |
-
-      ## Update Strategy
-      | Type | Frequency | Automation |
-      |------|-----------|------------|
-      | Patch | Weekly | Dependabot |
-      | Minor | Monthly | Manual review |
-      | Major | Quarterly | Team decision |
-
-      ## Risk Assessment
-      | Dependency | Risk | Mitigation |
-      |------------|------|------------|
+      filename: dependencies.json
+      {
+        "package_manager": "pnpm",
+        "lockfile": "pnpm-lock.yaml",
+        "baseline": {
+          "dependencies": [
+            {
+              "name": "<package>",
+              "range": "^1.0.0",
+              "reason": "<why this is needed>",
+              "links": ["REQ-..."],
+              "category": "core"
+            }
+          ],
+          "devDependencies": [
+            {
+              "name": "<package>",
+              "range": "^1.0.0",
+              "reason": "<why this is needed>",
+              "links": ["DX-..."],
+              "category": "dev"
+            }
+          ]
+        },
+        "addons": [
+          {
+            "capability": "storage_r2",
+            "packages": [
+              { "name": "@aws-sdk/client-s3", "range": "^3.x", "reason": "S3 client for Cloudflare R2", "links": ["REQ-..."], "category": "utils" }
+            ]
+          }
+        ],
+        "banned": ["request", "left-pad"],
+        "commands": {
+          "pnpm": {
+            "install": "pnpm install",
+            "ci": "pnpm install --frozen-lockfile",
+            "add": "pnpm add <pkg>",
+            "addDev": "pnpm add -D <pkg>"
+          },
+          "npm": {
+            "install": "npm install",
+            "ci": "npm ci",
+            "add": "npm install <pkg>",
+            "addDev": "npm install -D <pkg>"
+          },
+          "bun": {
+            "install": "bun install",
+            "ci": "bun install --frozen-lockfile",
+            "add": "bun add <pkg>",
+            "addDev": "bun add -d <pkg>"
+          }
+        }
+      }
       | {package} | {risk description} | {mitigation strategy} |
 
       ## Approval Checklist
@@ -2126,21 +2221,24 @@ validators:
       has_deployment: "Deployment platform specified"
       has_rationale: "stack-rationale.md exists with decision matrix"
     implementation: "stack_validator"
+
+  stack_json_check:
+    description: "Validate stack.json exists and includes required keys"
+    implementation: "json_schema_check"
+    artifact: "stack.json"
+    required_fields: ["template_id", "architecture_type", "package_manager", "database", "auth", "storage"]
     
   dependencies_approved:
     description: "Check if dependencies have been approved by user"
     implementation: "database_field_check"
     field: "dependencies_approved"
     expected_value: true
-    
-  policy_check:
-    description: "Run dependency policy scripts"
-    scripts:
-      - "npm_audit"
-      - "pip_audit"
-      - "no_deprecated"
-      - "no_outdated"
-    implementation: "script_execution"
+
+  dependencies_json_check:
+    description: "Validate dependencies.json exists and includes required keys"
+    implementation: "json_schema_check"
+    artifact: "dependencies.json"
+    required_fields: ["package_manager", "baseline", "commands"]
     
   tasks_dag:
     description: "Ensure no circular dependencies in task list"
@@ -2420,8 +2518,10 @@ file_structure:
       - "README.md"
       - "HANDOFF.md"
     specs_folder:
+      - "stack-proposal.md"
       - "stack-decision.md"
       - "stack-rationale.md"
+      - "stack.json"
       - "PRD.md"
       - "data-model.md"
       - "api-spec.json"
@@ -2433,6 +2533,7 @@ file_structure:
       - "tasks.md"
       - "plan.md"
       - "DEPENDENCIES.md"
+      - "dependencies.json"
     config_folder:
       - ".ai-config/analyst_prompt.md"
       - ".ai-config/pm_prompt.md"

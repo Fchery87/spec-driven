@@ -97,8 +97,12 @@ ${slug}/
 | [HANDOFF.md](./HANDOFF.md) | Complete handoff document for LLM code generation |
 | [constitution.md](./specs/ANALYSIS/constitution.md) | Project guiding principles |
 | [project-brief.md](./specs/ANALYSIS/project-brief.md) | Project overview and requirements |
-| [stack-decision.md](./specs/STACK_SELECTION/stack-decision.md) | Technology stack selection |
+| [stack-proposal.md](./specs/STACK_SELECTION/stack-proposal.md) | Stack recommendation summary |
+| [stack-decision.md](./specs/STACK_SELECTION/stack-decision.md) | Approved technology stack selection |
+| [stack.json](./specs/STACK_SELECTION/stack.json) | Machine-readable stack contract |
 | [PRD.md](./specs/SPEC/PRD.md) | Product Requirements Document |
+| [DEPENDENCIES.md](./specs/DEPENDENCIES/DEPENDENCIES.md) | Dependency rationale and grouping |
+| [dependencies.json](./specs/DEPENDENCIES/dependencies.json) | Machine-readable dependencies contract |
 | [design-system.md](./specs/SPEC/design-system.md) | Design tokens and UI guidelines |
 | [component-inventory.md](./specs/SPEC/component-inventory.md) | UI component specifications |
 | [user-flows.md](./specs/SPEC/user-flows.md) | User journey definitions |
@@ -194,8 +198,10 @@ This document should be read in the following order for best understanding:
 > **Note:** Any \`[AI ASSUMED: assumption - rationale]\` markers indicate AI-generated assumptions. Review these carefully.
 
 ### Phase 2: Stack Decision (STACK_SELECTION)
-4. **stack-decision.md** - Chosen technology stack and composition
-5. **stack-rationale.md** - Why this stack was selected, alternatives considered
+4. **stack-proposal.md** - Recommendation summary
+5. **stack-decision.md** - Approved technology stack and composition
+6. **stack-rationale.md** - Why this stack was selected, alternatives considered
+7. **stack.json** - Canonical machine-readable stack contract
 
 ### Phase 3: Specifications (SPEC)
 6. **PRD.md** - Product requirements and features
@@ -206,7 +212,8 @@ This document should be read in the following order for best understanding:
 11. **user-flows.md** - Key user journeys and interactions
 
 ### Phase 4: Dependencies (DEPENDENCIES)
-12. **DEPENDENCIES.md** - Required packages and dependencies
+12. **DEPENDENCIES.md** - Dependency rationale (human-readable)
+13. **dependencies.json** - Canonical machine-readable dependencies contract
 
 ### Phase 5: Implementation Plan (SOLUTIONING)
 13. **architecture.md** - System architecture and design patterns
@@ -273,7 +280,7 @@ Please review the attached specifications in the order listed above, then:
 - Implement all API endpoints in api-spec
 - Include all database tables from data-model
 - Satisfy all requirements in PRD.md
-- Use the specified technology stack from stack-decision.md
+- Use the specified technology stack from stack.json (and stack-decision.md for narrative)
 - Follow security baseline requirements
 - **Tasks with [P] markers** can be implemented in parallel
 - **Review [AI ASSUMED] markers** - verify AI assumptions are acceptable
@@ -317,6 +324,12 @@ ${artifacts['ANALYSIS/personas.md'] || 'Personas document not available'}
 
 ## Stack Selection
 
+### Stack Proposal
+
+\`\`\`markdown
+${artifacts['STACK_SELECTION/stack-proposal.md'] || 'Stack proposal document not available'}
+\`\`\`
+
 ### Stack Decision
 
 \`\`\`markdown
@@ -327,6 +340,12 @@ ${artifacts['STACK_SELECTION/stack-decision.md'] || 'Stack decision document not
 
 \`\`\`markdown
 ${artifacts['STACK_SELECTION/stack-rationale.md'] || 'Stack rationale document not available'}
+\`\`\`
+
+### Stack Contract (stack.json)
+
+\`\`\`json
+${artifacts['STACK_SELECTION/stack.json'] || 'stack.json not available'}
 \`\`\`
 
 ---
@@ -377,6 +396,12 @@ ${artifacts['SPEC/user-flows.md'] || 'User flows document not available'}
 
 \`\`\`markdown
 ${artifacts['DEPENDENCIES/DEPENDENCIES.md'] || 'Dependencies document not available'}
+\`\`\`
+
+### Dependencies Contract (dependencies.json)
+
+\`\`\`json
+${artifacts['DEPENDENCIES/dependencies.json'] || 'dependencies.json not available'}
 \`\`\`
 
 ### Architecture

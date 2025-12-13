@@ -1396,9 +1396,9 @@ function getPhaseDescription(phase: string): string {
 function getPhaseOutputs(phase: string): string[] {
   const outputs: Record<string, string[]> = {
     ANALYSIS: ['constitution.md', 'project-brief.md', 'personas.md'],
-    STACK_SELECTION: ['stack-decision.md', 'stack-rationale.md'],
+    STACK_SELECTION: ['stack-proposal.md', 'stack-decision.md', 'stack-rationale.md', 'stack.json'],
     SPEC: ['PRD.md', 'data-model.md', 'api-spec.json', 'design-system.md', 'component-inventory.md', 'user-flows.md'],
-    DEPENDENCIES: ['DEPENDENCIES.md', 'dependency-proposal.md', 'approval.md'],
+    DEPENDENCIES: ['DEPENDENCIES.md', 'dependencies.json'],
     SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],
     VALIDATE: ['validation-report.md', 'coverage-matrix.md'],
     DONE: ['README.md', 'HANDOFF.md']

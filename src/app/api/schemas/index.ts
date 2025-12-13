@@ -80,6 +80,9 @@ export const ApproveStackSchema = z.object({
   
   // Technical preferences (applies to both modes)
   technical_preferences: TechnicalPreferencesSchema.optional(),
+
+  // Package manager choice (default pnpm)
+  package_manager: z.enum(['pnpm', 'npm', 'bun']).optional().default('pnpm'),
   
   // Reasoning for the selection (from architect proposal or user)
   reasoning: z

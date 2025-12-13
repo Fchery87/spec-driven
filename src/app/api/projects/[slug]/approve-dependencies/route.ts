@@ -7,6 +7,81 @@ import { ApproveDependenciesSchema, type DependencyPackage, type DependencyOptio
 
 export const runtime = 'nodejs';
 
+type PackageManager = 'pnpm' | 'npm' | 'bun';
+
+function getLockfile(pm: PackageManager): string {
+  switch (pm) {
+    case 'npm':
+      return 'package-lock.json';
+    case 'bun':
+      return 'bun.lock';
+    default:
+      return 'pnpm-lock.yaml';
+  }
+}
+
+function buildDependenciesJson(params: {
+  packageManager: PackageManager;
+  option?: DependencyOption;
+  customStack?: { frontend: string; backend: string; database: string; deployment: string; dependencies: string[]; requests?: string };
+}): string {
+  const toEntry = (pkg: DependencyPackage) => ({
+    name: pkg.name,
+    range: pkg.version,
+    category: pkg.category,
+    reason: `${pkg.category} dependency`,
+    links: [pkg.category === 'dev' ? 'DX-TOOLING' : 'ARCH-STACK'],
+  });
+
+  const baseline = params.option
+    ? {
+        dependencies: params.option.packages.filter(p => p.category !== 'dev').map(toEntry),
+        devDependencies: params.option.packages.filter(p => p.category === 'dev').map(toEntry),
+      }
+    : params.customStack
+      ? {
+          dependencies: params.customStack.dependencies.map((d) => ({
+            name: d,
+            range: '*',
+            category: 'core',
+            reason: 'Custom dependency',
+            links: ['ARCH-STACK'],
+          })),
+          devDependencies: [],
+        }
+      : { dependencies: [], devDependencies: [] };
+
+  const json = {
+    package_manager: params.packageManager,
+    lockfile: getLockfile(params.packageManager),
+    baseline,
+    addons: [],
+    banned: ['request', 'left-pad'],
+    commands: {
+      pnpm: {
+        install: 'pnpm install',
+        ci: 'pnpm install --frozen-lockfile',
+        add: 'pnpm add <pkg>',
+        addDev: 'pnpm add -D <pkg>',
+      },
+      npm: {
+        install: 'npm install',
+        ci: 'npm ci',
+        add: 'npm install <pkg>',
+        addDev: 'npm install -D <pkg>',
+      },
+      bun: {
+        install: 'bun install',
+        ci: 'bun install --frozen-lockfile',
+        add: 'bun add <pkg>',
+        addDev: 'bun add -d <pkg>',
+      },
+    },
+  };
+
+  return JSON.stringify(json, null, 2);
+}
+
 /**
  * Generate DEPENDENCIES.md content from selected packages
  */
@@ -81,14 +156,17 @@ ${option.highlights.map(h => `- ${h}`).join('\n')}
 ## Installation
 
 \`\`\`bash
-# Install all dependencies
+# pnpm (default)
 pnpm install
+pnpm install --frozen-lockfile
 
-# Or with npm
+# npm
 npm install
+npm ci
 
-# Or with yarn
-yarn install
+# bun
+bun install
+bun install --frozen-lockfile
 \`\`\`
 
 ## Approval Notes
@@ -229,8 +307,18 @@ export const POST = withAuth(
       // Generate DEPENDENCIES.md content
       const dependenciesContent = generateDependenciesMarkdown(option, customStack, architecture, notes);
 
+      const packageManager = (metadata.package_manager || 'pnpm') as PackageManager;
+      const dependenciesJsonContent = buildDependenciesJson({
+        packageManager,
+        option,
+        customStack,
+      });
+
       // Write DEPENDENCIES.md artifact to filesystem
       await writeArtifact(slug, 'DEPENDENCIES', 'DEPENDENCIES.md', dependenciesContent);
+
+      // Canonical machine-readable artifact
+      await writeArtifact(slug, 'DEPENDENCIES', 'dependencies.json', dependenciesJsonContent);
 
       // Also write approval.md for backward compatibility
       const approvalContent = `---
@@ -272,6 +360,14 @@ ${new Date().toISOString()}
             dependenciesContent
           );
 
+          // Save dependencies.json
+          await dbService.saveArtifact(
+            dbProject.id,
+            'DEPENDENCIES',
+            'dependencies.json',
+            dependenciesJsonContent
+          );
+
           // Save approval.md
           await dbService.saveArtifact(
             dbProject.id,
@@ -307,6 +403,7 @@ ${new Date().toISOString()}
         dependencies_mode: mode,
         dependencies_architecture: architecture,
         dependencies_preset: option?.id,
+        dependencies_package_manager: packageManager,
         created_by_id: metadata.created_by_id || session.user.id,
         updated_at: new Date().toISOString(),
       };

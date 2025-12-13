@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -63,7 +63,7 @@ const dependencyOptions: Record<Exclude<ArchitectureType, "custom">, DependencyO
       summary: "Modern full-stack with type-safe ORM and serverless-ready database",
       frontend: "Next.js 14 App Router + Tailwind CSS",
       backend: "Next.js API Routes + Server Actions",
-      database: "PostgreSQL + Drizzle ORM + Neon",
+      database: "Neon Postgres + Drizzle ORM",
       deployment: "Vercel / Railway",
       packages: [
         { name: "next", version: "^14.2.0", size: "~150KB", category: "core" },
@@ -72,6 +72,8 @@ const dependencyOptions: Record<Exclude<ArchitectureType, "custom">, DependencyO
         { name: "tailwindcss", version: "^3.4.0", size: "varies", category: "ui" },
         { name: "drizzle-orm", version: "^0.30.0", size: "~20KB", category: "data" },
         { name: "@neondatabase/serverless", version: "^0.9.0", size: "~15KB", category: "data" },
+        { name: "@aws-sdk/client-s3", version: "^3.937.0", category: "utils" },
+        { name: "@aws-sdk/s3-request-presigner", version: "^3.937.0", category: "utils" },
         { name: "better-auth", version: "^1.0.0", size: "~25KB", category: "auth" },
         { name: "@tanstack/react-query", version: "^5.32.0", size: "~40KB", category: "data" },
         { name: "zod", version: "^3.23.0", size: "~12KB", category: "utils" },
@@ -82,6 +84,7 @@ const dependencyOptions: Record<Exclude<ArchitectureType, "custom">, DependencyO
       highlights: [
         "Type-safe database queries with Drizzle",
         "Serverless-ready with Neon PostgreSQL",
+        "S3-compatible media storage with Cloudflare R2",
         "Modern form handling with react-hook-form + zod",
         "Optimistic updates with TanStack Query",
       ],
@@ -252,13 +255,22 @@ export function DependencySelector({
   // Map legacy stack IDs to new architecture types
   const mapToArchitecture = (stack?: string): ArchitectureType => {
     if (!stack) return "web_application"
-    if (stack === "web_application" || stack === "monolithic_fullstack" || stack.includes("nextjs_only")) return "web_application"
-    if (stack === "mobile_application" || stack.includes("expo")) return "mobile_application"
-    if (stack === "api_first_platform" || stack === "decoupled_services") return "api_first_platform"
+    if (stack === "custom") return "custom"
+    if (stack === "web_application" || stack === "monolithic_fullstack" || stack.includes("nextjs") || stack.includes("web")) return "web_application"
+    if (stack === "mobile_application" || stack.includes("expo") || stack.includes("react_native") || stack.includes("flutter")) return "mobile_application"
+    if (stack === "api_first_platform" || stack === "decoupled_services" || stack.includes("hono") || stack.includes("api")) return "api_first_platform"
     return "web_application"
   }
 
-  const [architecture, setArchitecture] = useState<ArchitectureType>(mapToArchitecture(selectedArchitecture))
+  const derivedArchitecture = useMemo(() => mapToArchitecture(selectedArchitecture), [selectedArchitecture])
+  const [architecture, setArchitecture] = useState<ArchitectureType>(derivedArchitecture)
+
+  useEffect(() => {
+    if (!selectedArchitecture) return
+    // Keep the selector aligned to the approved stack choice unless the user explicitly switches to custom deps.
+    if (architecture === "custom") return
+    setArchitecture(derivedArchitecture)
+  }, [derivedArchitecture, architecture, selectedArchitecture])
   const [selectedOption, setSelectedOption] = useState<DependencyOption | null>(null)
   const [notes, setNotes] = useState("")
   const [customStack, setCustomStack] = useState<CustomStack>({
@@ -348,6 +360,7 @@ export function DependencySelector({
                 type="button"
                 variant={architecture === arch ? "default" : "outline"}
                 className="flex items-center gap-2"
+                disabled={Boolean(selectedArchitecture) && derivedArchitecture !== "custom" && arch !== derivedArchitecture}
                 onClick={() => {
                   setArchitecture(arch)
                   setSelectedOption(null)
