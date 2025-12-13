@@ -6,21 +6,14 @@ import { projects, artifacts, phaseHistory, stackChoices, dependencyApprovals } 
 import { eq, and, inArray } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { withAuth, type AuthSession } from '@/app/api/middleware/auth-guard';
-import { getProjectsPath } from '@/app/api/lib/project-utils';
+import { getProjectMetadata, getProjectsPath, saveProjectMetadata, type ProjectMetadata } from '@/app/api/lib/project-utils';
 import { listR2Artifacts, deleteFromR2 } from '@/lib/r2-storage';
 
 export const runtime = 'nodejs';
 
 // Phase order for determining which phases to clear
-const PHASE_ORDER = [
-  'ANALYSIS',
-  'STACK_SELECTION',
-  'SPEC',
-  'SOLUTIONING',
-  'DEPENDENCIES',
-  'VALIDATE',
-  'DONE'
-];
+// NOTE: Must match the canonical order used throughout the app (ProjectPage, phase-status utils, /phase route)
+const PHASE_ORDER = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE', 'DONE'];
 
 export const POST = withAuth(
   async (
@@ -132,6 +125,55 @@ export const POST = withAuth(
     await db.update(projects)
       .set(updates)
       .where(eq(projects.id, project.id));
+
+    // Keep metadata.json (R2 / filesystem) in sync with DB so the UI reflects the reverted phase.
+    // The UI reads project state via GET /api/projects/[slug] -> getProjectMetadata(), which prefers R2/filesystem.
+    const existingMetadata = await getProjectMetadata(slug, session.user.id);
+    const nowIso = new Date().toISOString();
+
+    const baseMetadata: ProjectMetadata = existingMetadata ?? {
+      id: project.id,
+      slug: project.slug,
+      name: project.name,
+      description: project.description,
+      current_phase: project.currentPhase,
+      phases_completed: project.phasesCompleted,
+      stack_choice: project.stackChoice,
+      stack_approved: project.stackApproved,
+      dependencies_approved: project.dependenciesApproved,
+      created_by_id: session.user.id,
+      created_at: project.createdAt?.toISOString?.(),
+      updated_at: project.updatedAt?.toISOString?.(),
+    };
+
+    const updatedMetadata: ProjectMetadata = {
+      ...baseMetadata,
+      created_by_id: baseMetadata.created_by_id || session.user.id,
+      current_phase: targetPhase,
+      phases_completed: completedPhases,
+      updated_at: nowIso,
+    };
+
+    // Mirror the DB reset logic into metadata
+    if (targetPhaseIndex <= PHASE_ORDER.indexOf('STACK_SELECTION')) {
+      updatedMetadata.stack_choice = null;
+      updatedMetadata.stack_approved = false;
+    }
+
+    if (targetPhaseIndex <= PHASE_ORDER.indexOf('DEPENDENCIES')) {
+      updatedMetadata.dependencies_approved = false;
+    }
+
+    if (targetPhase === 'ANALYSIS') {
+      updatedMetadata.clarification_state = undefined;
+    }
+
+    if (project.currentPhase === 'DONE') {
+      updatedMetadata.handoff_generated = false;
+      updatedMetadata.handoff_generated_at = undefined;
+    }
+
+    await saveProjectMetadata(slug, updatedMetadata);
 
     // Delete local filesystem artifacts for cleared phases
     for (const phase of phasesToClear) {
