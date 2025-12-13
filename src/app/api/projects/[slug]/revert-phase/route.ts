@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { existsSync, rmSync } from 'fs';
+import { resolve } from 'path';
 import { db } from '@/backend/lib/drizzle';
 import { projects, artifacts, phaseHistory, stackChoices, dependencyApprovals } from '@/backend/lib/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
+import { withAuth, type AuthSession } from '@/app/api/middleware/auth-guard';
+import { getProjectsPath } from '@/app/api/lib/project-utils';
+import { listR2Artifacts, deleteFromR2 } from '@/lib/r2-storage';
+
+export const runtime = 'nodejs';
 
 // Phase order for determining which phases to clear
 const PHASE_ORDER = [
@@ -15,10 +22,12 @@ const PHASE_ORDER = [
   'DONE'
 ];
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ slug: string }> }
-) {
+export const POST = withAuth(
+  async (
+    request: NextRequest,
+    { params }: { params: Promise<{ slug: string }> },
+    session: AuthSession
+  ) => {
   try {
     const { slug } = await params;
     const body = await request.json();
@@ -31,9 +40,9 @@ export async function POST(
       );
     }
 
-    // Find the project
+    // Find the project (scoped to owner for security)
     const project = await db.query.projects.findFirst({
-      where: eq(projects.slug, slug),
+      where: and(eq(projects.slug, slug), eq(projects.ownerId, session.user.id)),
     });
 
     if (!project) {
@@ -119,12 +128,41 @@ export async function POST(
       updates.handoffGenerated = false;
     }
 
-    // Update project
+    // Update project in database
     await db.update(projects)
       .set(updates)
       .where(eq(projects.id, project.id));
 
-    logger.info('Project reverted to phase', { slug, targetPhase });
+    // Delete local filesystem artifacts for cleared phases
+    for (const phase of phasesToClear) {
+      try {
+        const phaseDir = resolve(getProjectsPath(), slug, 'specs', phase);
+        if (existsSync(phaseDir)) {
+          rmSync(phaseDir, { recursive: true, force: true });
+          logger.debug('Deleted local phase directory', { slug, phase });
+        }
+      } catch (fsError) {
+        const err = fsError instanceof Error ? fsError : new Error(String(fsError));
+        logger.warn('Failed to delete local phase artifacts', { slug, phase, error: err.message });
+      }
+    }
+
+    // Delete R2 artifacts for cleared phases (if R2 is configured)
+    for (const phase of phasesToClear) {
+      try {
+        const r2Artifacts = await listR2Artifacts(slug, phase);
+        for (const artifact of r2Artifacts) {
+          await deleteFromR2(slug, phase, artifact.name);
+        }
+        logger.debug('Deleted R2 phase artifacts', { slug, phase, count: r2Artifacts.length });
+      } catch (r2Error) {
+        // R2 might not be configured - that's okay
+        const err = r2Error instanceof Error ? r2Error : new Error(String(r2Error));
+        logger.debug('R2 cleanup skipped or failed', { slug, phase, error: err.message });
+      }
+    }
+
+    logger.info('Project reverted to phase', { slug, targetPhase, userId: session.user.id });
 
     return NextResponse.json(
       {
@@ -150,4 +188,4 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+});
