@@ -625,17 +625,16 @@ agents:
          - `[NEEDS CLARIFICATION: Is offline functionality required for the mobile app?]`
       
       5. **Clarification Mode**: {{clarificationMode}}
-         - If "interactive": Generate markers and STOP for user input
+         - If "interactive": Generate [NEEDS CLARIFICATION] markers and STOP for user input
+         - If "hybrid" (DEFAULT): Generate [NEEDS CLARIFICATION] markers; user will choose which to answer
          - If "auto_resolve": Make reasonable assumptions and document with [AI ASSUMED]
            IMPORTANT: When auto_resolve mode is active, you MUST NOT leave any [NEEDS CLARIFICATION] markers.
            Instead, make a reasonable assumption and use [AI ASSUMED: assumption - rationale]
-         - If "hybrid": Generate markers; user will choose which to answer
          
-      6. **CRITICAL**: If clarificationMode is "auto_resolve" or not specified:
-         - DO NOT output any [NEEDS CLARIFICATION: ...] markers
-         - For EVERY uncertainty, make a reasonable assumption
-         - Document assumptions with [AI ASSUMED: ...]
-         - This ensures validation passes without unresolved clarifications
+      6. **CLARIFICATION BEHAVIOR BY MODE**:
+         - "interactive" or "hybrid": GENERATE [NEEDS CLARIFICATION: ...] markers for uncertainties
+         - "auto_resolve" ONLY: DO NOT generate markers, use [AI ASSUMED: ...] instead
+         - If mode is not specified, treat as "hybrid" and GENERATE markers
       # =============================================================================
 
       # CRITICAL REQUIREMENTS
