@@ -906,16 +906,25 @@ agents:
       - [ ] No circular dependencies between requirements
       - [ ] Success metrics are SMART (Specific, Measurable, Achievable, Relevant, Time-bound)
       
-      # PERSONA CONSISTENCY (CRITICAL)
+      # PERSONA CONSISTENCY (CRITICAL - VALIDATION WILL FAIL WITHOUT THIS)
       You MUST reference personas from personas.md BY THEIR EXACT NAMES:
       - In the Persona(s) field of each requirement
       - In the Actor field of each use case
       - In the Persona column of the traceability matrix
       
-      Example: If personas.md defines "Ava, the Freelance Fashion Photographer", 
-      use "Ava" or "Ava, the Freelance Fashion Photographer" in your PRD.
+      IMPORTANT: Extract the EXACT persona names from the Personas section above.
+      For example, if personas.md defines:
+      - "Alex - the indie full-stack developer"
+      - "Maya - the DevRel team lead"
+      - "Sam - the platform engineer"
       
+      Then in your PRD, use these EXACT names:
+      - **Persona(s)**: Alex, Maya
+      - **Actor**: Sam
+      
+      DO NOT use generic terms like "Developer", "User", or "Admin".
       DO NOT create new persona names that don't exist in personas.md.
+      EVERY requirement MUST reference at least one persona by name.
 
       # SECURITY REQUIREMENTS (MANDATORY FOR ALL PROJECTS)
       Include these NFRs by default:

@@ -298,6 +298,7 @@ async function executeArchitectAgent(
     const stackTemplates: Record<string, string> = {
       'nextjs_fullstack_expo': 'Next.js 14 + TypeScript + Expo for mobile',
       'nextjs_web_only': 'Next.js 14 + TypeScript (web only, no mobile)',
+      'nextjs_web_app': 'Next.js 14 + TypeScript (web application)',
       'hybrid_nextjs_fastapi': 'Next.js frontend + FastAPI Python backend',
       'react_express': 'React SPA + Express.js backend',
       'vue_nuxt': 'Vue 3 + Nuxt 3',
@@ -306,7 +307,7 @@ async function executeArchitectAgent(
       'go_react': 'Go backend + React frontend',
     };
     const chosenStack = stackChoice || 'nextjs_web_only';
-    const stackDescription = stackTemplates[chosenStack] || chosenStack;
+    const stackDescription = stackTemplates[chosenStack] || `Custom stack: ${chosenStack}`;
 
     const architecturePrompt = `You are a Chief Architect designing the system architecture for "${name}".
 
