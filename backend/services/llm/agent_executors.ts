@@ -280,9 +280,9 @@ async function executeArchitectAgent(
   } else {
     expectedFiles = ['architecture.md'];
     // Use a dedicated, shorter prompt for SOLUTIONING architecture generation
-    // The full template is ~17KB which leaves no room for output
-    const truncatedBrief = projectBrief.slice(0, 6000);
-    const truncatedPrd = prd.slice(0, 15000);
+    // Increased limits to provide more context while staying within 64K context window
+    const truncatedBrief = projectBrief.slice(0, 10000);
+    const truncatedPrd = prd.slice(0, 25000);
     const currentDate = new Date().toISOString().split('T')[0];
     const name = projectName || 'Untitled Project';
     
@@ -414,7 +414,7 @@ Generate the complete architecture.md now:`;
     const fallbackPrompt = `You are a Chief Architect. Generate ONLY an OpenAPI 3.0.3 specification based on the following PRD.
 
 ## PRD Summary:
-${prd.slice(0, 8000)}
+${prd.slice(0, 20000)}
 
 ## Requirements:
 1. Output ONLY valid JSON - no markdown, no explanation
@@ -451,7 +451,7 @@ Output the complete OpenAPI JSON now:`;
     logger.warn('[SPEC] data-model.md missing or too short, triggering fallback generation');
     
     // Extract key entities from PRD to focus the generation
-    const prdSummary = prd.slice(0, 6000);
+    const prdSummary = prd.slice(0, 15000);
     
     const fallbackPrompt = `You are a Chief Architect. Generate a CONCISE but complete data-model.md.
 
@@ -550,10 +550,10 @@ async function executeScrumMasterAgent(
   const currentDate = new Date().toISOString().split('T')[0];
   const name = projectName || 'Untitled Project';
 
-  // Truncate context to avoid huge prompts
-  const prdContext = prd.slice(0, 12000);
-  const dataModelContext = dataModel.slice(0, 4000);
-  const apiSpecContext = apiSpec.slice(0, 4000);
+  // Truncate context to fit within 64K context window while providing good context
+  const prdContext = prd.slice(0, 20000);
+  const dataModelContext = dataModel.slice(0, 6000);
+  const apiSpecContext = apiSpec.slice(0, 6000);
 
   // Extract requirement IDs from FULL PRD (not truncated) to ensure all are mapped
   const requirementIds = prd.match(/REQ-[A-Z]+-\d+/g) || [];
@@ -638,7 +638,7 @@ Epics (with Requirements):
 ${epicsContext}
 
 PRD Summary:
-${prdContext.slice(0, 6000)}
+${prdContext.slice(0, 15000)}
 
 ## PRD Requirements to Implement (${uniqueReqs.length} total - MANDATORY - ALL MUST BE MAPPED)
 The following requirements MUST each have at least one implementing task:
@@ -941,13 +941,13 @@ async function executeDesignAgent(
 ## Project: ${projectName || 'Untitled Project'}
 
 ## Context:
-${projectBrief.slice(0, 3000)}
+${projectBrief.slice(0, 8000)}
 
 ## User Personas:
-${personas.slice(0, 2000)}
+${personas.slice(0, 4000)}
 
 ## Requirements (from PRD):
-${prd.slice(0, 4000)}
+${prd.slice(0, 15000)}
 
 ## CRITICAL DESIGN PRINCIPLES (from fire-your-design-team.md):
 
@@ -1024,7 +1024,7 @@ status: "draft"
 ## Project: ${projectName || 'Untitled Project'}
 
 ## PRD Features:
-${prd.slice(0, 5000)}
+${prd.slice(0, 15000)}
 
 Generate component-inventory.md listing ALL UI components needed for this project.
 
@@ -1078,10 +1078,10 @@ status: "draft"
 ## Project: ${projectName || 'Untitled Project'}
 
 ## User Personas:
-${personas.slice(0, 2000)}
+${personas.slice(0, 4000)}
 
 ## PRD Features:
-${prd.slice(0, 4000)}
+${prd.slice(0, 15000)}
 
 Generate user-flows.md documenting the key user journeys.
 
