@@ -555,9 +555,14 @@ async function executeScrumMasterAgent(
   const dataModelContext = dataModel.slice(0, 4000);
   const apiSpecContext = apiSpec.slice(0, 4000);
 
-  // Extract requirement IDs from PRD for mapping
-  const requirementIds = prdContext.match(/REQ-[A-Z]+-\d+/g) || [];
+  // Extract requirement IDs from FULL PRD (not truncated) to ensure all are mapped
+  const requirementIds = prd.match(/REQ-[A-Z]+-\d+/g) || [];
   const uniqueReqs = Array.from(new Set(requirementIds));
+  
+  logger.info('[SOLUTIONING] Extracted requirements from PRD', { 
+    totalRequirements: uniqueReqs.length,
+    requirements: uniqueReqs.slice(0, 30).join(', ')
+  });
   
   // === CALL 1: Generate epics.md ===
   logger.info('[SOLUTIONING] Generating epics.md...');
