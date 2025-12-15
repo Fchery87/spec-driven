@@ -1,5 +1,12 @@
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { LLMConfig, LLMResponse, AgentContext, AgentOutput, LLMConfigWithOverrides, PhaseOverride } from '@/types/llm';
+import {
+  LLMConfig,
+  LLMResponse,
+  AgentContext,
+  AgentOutput,
+  LLMConfigWithOverrides,
+  PhaseOverride,
+} from '@/types/llm';
 import { logger } from '@/lib/logger';
 import { LLMProvider } from './providers/base';
 
@@ -26,8 +33,12 @@ function getGeminiLimiter(apiKey: string): GeminiLimiterState {
     Number.parseInt(process.env.GEMINI_MAX_CONCURRENCY || '1', 10) || 1
   );
 
-  const rpm = Number.parseInt(process.env.GEMINI_REQUESTS_PER_MINUTE || '60', 10);
-  const minTimeMs = Number.isFinite(rpm) && rpm > 0 ? Math.ceil(60_000 / rpm) : 0;
+  const rpm = Number.parseInt(
+    process.env.GEMINI_REQUESTS_PER_MINUTE || '60',
+    10
+  );
+  const minTimeMs =
+    Number.isFinite(rpm) && rpm > 0 ? Math.ceil(60_000 / rpm) : 0;
 
   const state: GeminiLimiterState = {
     inFlight: 0,
@@ -57,7 +68,10 @@ function releaseGeminiSlot(state: GeminiLimiterState): void {
   if (next) next();
 }
 
-async function scheduleGeminiRequest<T>(apiKey: string, fn: () => Promise<T>): Promise<T> {
+async function scheduleGeminiRequest<T>(
+  apiKey: string,
+  fn: () => Promise<T>
+): Promise<T> {
   const state = getGeminiLimiter(apiKey);
   await acquireGeminiSlot(state);
 
@@ -75,7 +89,10 @@ async function scheduleGeminiRequest<T>(apiKey: string, fn: () => Promise<T>): P
   }
 }
 
-async function readResponseTextLimited(response: Response, maxChars = 4000): Promise<string> {
+async function readResponseTextLimited(
+  response: Response,
+  maxChars = 4000
+): Promise<string> {
   try {
     const text = await response.text();
     if (text.length <= maxChars) return text;
@@ -87,7 +104,9 @@ async function readResponseTextLimited(response: Response, maxChars = 4000): Pro
 
 export class GeminiClient implements LLMProvider {
   private config: LLMConfigWithOverrides;
-  private baseUrl: string = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta';
+  private baseUrl: string =
+    process.env.GEMINI_BASE_URL ||
+    'https://generativelanguage.googleapis.com/v1beta';
 
   constructor(config: LLMConfigWithOverrides) {
     this.config = config;
@@ -98,7 +117,7 @@ export class GeminiClient implements LLMProvider {
    */
   private getEffectiveConfig(phase?: string): LLMConfig {
     const targetPhase = phase || this.config.phase;
-    
+
     if (!targetPhase || !this.config.phase_overrides) {
       return this.config;
     }
@@ -140,7 +159,12 @@ export class GeminiClient implements LLMProvider {
   /**
    * Generate completion from Gemini API with retry logic
    */
-  async generateCompletion(prompt: string, context?: string[], retries = 3, phase?: string): Promise<LLMResponse> {
+  async generateCompletion(
+    prompt: string,
+    context?: string[],
+    retries = 3,
+    phase?: string
+  ): Promise<LLMResponse> {
     if (!this.config.api_key) {
       throw new Error('Gemini API key not configured');
     }
@@ -159,36 +183,56 @@ export class GeminiClient implements LLMProvider {
       maxTokens: effectiveConfig.max_tokens,
       topP: effectiveConfig.top_p,
       phase: phase || this.config.phase || 'default',
-      contextDocsCount: context?.length || 0
+      contextDocsCount: context?.length || 0,
     });
 
     if (approxPromptTokens > 120000) {
-      logger.warn('Gemini prompt appears very large; consider trimming context to avoid throttling or timeouts.', {
-        approxPromptTokens,
-        model: effectiveConfig.model,
-        phase: phase || this.config.phase || 'default'
-      });
+      logger.warn(
+        'Gemini prompt appears very large; consider trimming context to avoid throttling or timeouts.',
+        {
+          approxPromptTokens,
+          model: effectiveConfig.model,
+          phase: phase || this.config.phase || 'default',
+        }
+      );
     }
 
-    // Gemini models have stricter output token caps; keep this conservative to avoid 400s.
-    // Users can still lower this via config; raising above this may not be supported by the API/model.
-    const GEMINI_MAX_OUTPUT_TOKENS = 8192;
+    // Gemini models have different output token limits based on version.
+    // Gemini 2.5 Flash supports up to 65536 output tokens.
+    // Gemini 2.0/1.5 models typically support 8192 output tokens.
+    const getGeminiMaxOutputTokens = (model: string): number => {
+      const modelLower = model.toLowerCase();
+      // Gemini 2.5 models (including gemini-2.5-flash, gemini-2.5-pro, etc.)
+      if (modelLower.includes('2.5') || modelLower.includes('2-5'))
+        return 65536;
+      // Gemini 2.0 models
+      if (modelLower.includes('2.0') || modelLower.includes('2-0')) return 8192;
+      // Gemini 1.5 models
+      if (modelLower.includes('1.5') || modelLower.includes('1-5')) return 8192;
+      // Default to safe limit for unknown models
+      return 8192;
+    };
+
     let maxOutputTokens = effectiveConfig.max_tokens;
-    if (maxOutputTokens > GEMINI_MAX_OUTPUT_TOKENS) {
-      logger.warn('Gemini max_tokens exceeds typical model limit; capping to avoid API errors.', {
-        requested: maxOutputTokens,
-        cappedTo: GEMINI_MAX_OUTPUT_TOKENS,
-        model: effectiveConfig.model,
-        phase: phase || this.config.phase || 'default'
-      });
-      maxOutputTokens = GEMINI_MAX_OUTPUT_TOKENS;
+    const modelMaxTokens = getGeminiMaxOutputTokens(effectiveConfig.model);
+    if (maxOutputTokens > modelMaxTokens) {
+      logger.warn(
+        'Gemini max_tokens exceeds model limit; capping to avoid API errors.',
+        {
+          requested: maxOutputTokens,
+          cappedTo: modelMaxTokens,
+          model: effectiveConfig.model,
+          phase: phase || this.config.phase || 'default',
+        }
+      );
+      maxOutputTokens = modelMaxTokens;
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const generationConfig: Record<string, any> = {
       temperature: effectiveConfig.temperature,
       maxOutputTokens,
-      candidateCount: 1
+      candidateCount: 1,
     };
 
     // Add top_p if specified
@@ -202,56 +246,73 @@ export class GeminiClient implements LLMProvider {
           role: 'user',
           parts: [
             {
-              text: fullPrompt
-            }
-          ]
-        }
+              text: fullPrompt,
+            },
+          ],
+        },
       ],
-      generationConfig
+      generationConfig,
     };
 
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const response = await scheduleGeminiRequest(this.config.api_key, async () => {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), timeoutSeconds * 1000);
+        const response = await scheduleGeminiRequest(
+          this.config.api_key,
+          async () => {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(
+              () => controller.abort(),
+              timeoutSeconds * 1000
+            );
 
-          try {
-            return await fetch(`${this.baseUrl}/models/${effectiveConfig.model}:generateContent`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': this.config.api_key,
-              },
-              body: JSON.stringify(requestBody),
-              signal: controller.signal,
-            });
-          } finally {
-            clearTimeout(timeoutId);
+            try {
+              return await fetch(
+                `${this.baseUrl}/models/${effectiveConfig.model}:generateContent`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'x-goog-api-key': this.config.api_key,
+                  },
+                  body: JSON.stringify(requestBody),
+                  signal: controller.signal,
+                }
+              );
+            } finally {
+              clearTimeout(timeoutId);
+            }
           }
-        });
+        );
 
         if (response.status === 429) {
           // Rate limit - wait and retry with exponential backoff (1s, 2s, 4s, 8s)
           if (attempt >= retries) {
             const errorText = await readResponseTextLimited(response);
             throw new Error(
-              `Rate limited by Gemini API (HTTP 429). ${errorText ? `Details: ${errorText}` : ''}`.trim()
+              `Rate limited by Gemini API (HTTP 429). ${
+                errorText ? `Details: ${errorText}` : ''
+              }`.trim()
             );
           }
 
           const retryAfterHeader = response.headers.get('retry-after');
-          const retryAfterSeconds = retryAfterHeader ? Number.parseFloat(retryAfterHeader) : Number.NaN;
-          const retryAfterMs = Number.isFinite(retryAfterSeconds) ? Math.ceil(retryAfterSeconds * 1000) : undefined;
+          const retryAfterSeconds = retryAfterHeader
+            ? Number.parseFloat(retryAfterHeader)
+            : Number.NaN;
+          const retryAfterMs = Number.isFinite(retryAfterSeconds)
+            ? Math.ceil(retryAfterSeconds * 1000)
+            : undefined;
 
           const jitterMs = Math.floor(Math.random() * 250);
           const backoffMs = Math.pow(2, attempt) * 1000;
           const waitTime = (retryAfterMs ?? backoffMs) + jitterMs;
 
           logger.info(
-            `Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`
+            `Rate limited. Waiting ${waitTime}ms before retry ${
+              attempt + 1
+            }/${retries}...`
           );
           await sleep(waitTime);
           continue;
@@ -259,64 +320,84 @@ export class GeminiClient implements LLMProvider {
 
         if (!response.ok) {
           const errorText = await readResponseTextLimited(response);
-          const error = new Error(`Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
+          const error = new Error(
+            `Gemini API error: ${response.status} ${response.statusText} - ${errorText}`
+          );
           logger.error('Gemini API error details:', error, {
             status: response.status,
             statusText: response.statusText,
             errorText,
             model: this.config.model,
-            attempt: attempt + 1
+            attempt: attempt + 1,
           });
           throw error;
         }
 
         const data = await response.json();
         const finishReason = data.candidates?.[0]?.finishReason;
-        
+
         logger.info('Gemini API success:', {
           model: data.modelVersion,
           candidatesCount: data.candidates?.length,
-          finishReason: finishReason
+          finishReason: finishReason,
         });
 
         // Warn if response was truncated
         if (finishReason === 'MAX_TOKENS') {
-          logger.warn('Gemini response was truncated due to MAX_TOKENS limit. Consider increasing max_tokens or reducing prompt size.', {
-            model: effectiveConfig.model,
-            maxTokens: effectiveConfig.max_tokens,
-            phase: phase || this.config.phase
-          });
+          logger.warn(
+            'Gemini response was truncated due to MAX_TOKENS limit. Consider increasing max_tokens or reducing prompt size.',
+            {
+              model: effectiveConfig.model,
+              maxTokens: effectiveConfig.max_tokens,
+              phase: phase || this.config.phase,
+            }
+          );
         }
 
         return this.parseResponse(data);
       } catch (error) {
         lastError = error as Error;
-        logger.error('Gemini API call error:', error instanceof Error ? error : new Error(String(error)), {
-          attempt: attempt + 1,
-          maxRetries: retries,
-          model: effectiveConfig.model,
-          phase: phase || this.config.phase || 'default'
-        });
+        logger.error(
+          'Gemini API call error:',
+          error instanceof Error ? error : new Error(String(error)),
+          {
+            attempt: attempt + 1,
+            maxRetries: retries,
+            model: effectiveConfig.model,
+            phase: phase || this.config.phase || 'default',
+          }
+        );
 
-        const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
-        const isRateLimited = message.includes('rate limited') || message.includes('429');
-        const isTimeout = message.includes('timeout') || message.includes('abort');
+        const message =
+          error instanceof Error
+            ? error.message.toLowerCase()
+            : String(error).toLowerCase();
+        const isRateLimited =
+          message.includes('rate limited') || message.includes('429');
+        const isTimeout =
+          message.includes('timeout') || message.includes('abort');
 
         if (isRateLimited) {
           if (attempt < retries) {
             const jitterMs = Math.floor(Math.random() * 250);
             const waitTime = Math.pow(2, attempt) * 1000 + jitterMs;
             logger.info(
-              `Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`
+              `Rate limited. Waiting ${waitTime}ms before retry ${
+                attempt + 1
+              }/${retries}...`
             );
             await sleep(waitTime);
             continue;
           }
-          throw error instanceof Error ? error : new Error('Rate limited by Gemini API');
+          throw error instanceof Error
+            ? error
+            : new Error('Rate limited by Gemini API');
         }
 
         if (isTimeout) {
-          throw new Error(`Gemini API request timeout after ${timeoutSeconds}s`);
+          throw new Error(
+            `Gemini API request timeout after ${timeoutSeconds}s`
+          );
         }
 
         // Non rate-limit errors: fail fast (no retries)
@@ -330,7 +411,11 @@ export class GeminiClient implements LLMProvider {
   /**
    * Generate completion with context documents
    */
-  async generateWithContext(prompt: string, artifacts: Record<string, string>, phase?: string): Promise<LLMResponse> {
+  async generateWithContext(
+    prompt: string,
+    artifacts: Record<string, string>,
+    phase?: string
+  ): Promise<LLMResponse> {
     const context = Object.values(artifacts);
     return this.generateCompletion(prompt, context, 3, phase);
   }
@@ -356,23 +441,22 @@ export class GeminiClient implements LLMProvider {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private parseResponse(data: any): LLMResponse {
     const candidate = data.candidates?.[0];
-    
+
     if (!candidate) {
       throw new Error('No candidates in Gemini response');
     }
 
     const content = candidate.content?.parts?.[0]?.text || '';
-    
+
     return {
       content,
       usage: {
         prompt_tokens: data.usageMetadata?.promptTokenCount || 0,
         completion_tokens: data.usageMetadata?.candidatesTokenCount || 0,
-        total_tokens: data.usageMetadata?.totalTokenCount || 0
+        total_tokens: data.usageMetadata?.totalTokenCount || 0,
       },
       model: this.config.model,
-      finish_reason: candidate.finishReason
+      finish_reason: candidate.finishReason,
     };
   }
-
 }
