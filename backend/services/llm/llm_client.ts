@@ -274,7 +274,7 @@ export class GeminiClient implements LLMProvider {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
-                    'x-goog-api-key': this.config.api_key,
+                    'x-goog-api-key': this.config.api_key!,
                   },
                   body: JSON.stringify(requestBody),
                   signal: controller.signal,
