@@ -266,40 +266,29 @@ async function updateArtifactsWithResolutions(
     try {
       let content = await readArtifact(slug, 'ANALYSIS', artifactName);
       let modified = false;
-      
-      for (const question of resolvedQuestions) {
-        if (question.aiAssumed) {
-          // Create regex to find this specific clarification marker
-          // Match [NEEDS CLARIFICATION: ...] where the content matches the question
-          const questionText = question.question.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const pattern = new RegExp(
-            `\\[NEEDS CLARIFICATION:\\s*${questionText.substring(0, 50)}[^\\]]*\\]`,
-            'gi'
-          );
-          
-          const replacement = `[AI ASSUMED: ${question.aiAssumed.assumption} - ${question.aiAssumed.rationale}]`;
-          
-          if (pattern.test(content)) {
-            content = content.replace(pattern, replacement);
-            modified = true;
-          }
-        }
+
+      const indexToResolvedQuestion = new Map<number, ClarificationQuestion>();
+      for (const q of resolvedQuestions) {
+        if (!q.id.startsWith(`${artifactName}-`)) continue;
+        const index = Number.parseInt(q.id.split('-').pop() || '', 10);
+        if (Number.isFinite(index)) indexToResolvedQuestion.set(index, q);
       }
-      
-      // Also do a general cleanup of any remaining NEEDS CLARIFICATION markers
-      // that might not have been matched (in case question text changed)
-      const remainingPattern = /\[NEEDS CLARIFICATION:[^\]]+\]/gi;
-      const remainingMatches = content.match(remainingPattern);
-      
-      if (remainingMatches && remainingMatches.length > 0) {
-        // Replace with a generic AI assumption
-        content = content.replace(remainingPattern, '[AI ASSUMED: Standard industry practice will be followed - Auto-resolved during clarification phase]');
+
+      // Replace only the markers that correspond to the questions being auto-resolved.
+      const markerRegex = /\[NEEDS CLARIFICATION:\s*[^\]]+\]/g;
+      let markerIndex = 0;
+      const replaced = content.replace(markerRegex, (fullMatch) => {
+        const question = indexToResolvedQuestion.get(markerIndex);
+        markerIndex += 1;
+
+        if (!question?.aiAssumed) return fullMatch;
+
+        return `[AI ASSUMED: ${question.aiAssumed.assumption} - ${question.aiAssumed.rationale}]`;
+      });
+
+      if (replaced !== content) {
+        content = replaced;
         modified = true;
-        logger.info('Cleaned up remaining NEEDS CLARIFICATION markers', { 
-          slug, 
-          artifact: artifactName, 
-          count: remainingMatches.length 
-        });
       }
       
       if (modified) {

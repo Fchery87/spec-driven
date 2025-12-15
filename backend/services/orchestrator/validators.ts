@@ -4,14 +4,23 @@ import { existsSync, readFileSync, statSync } from 'fs';
 import { resolve } from 'path';
 import { execSync } from 'child_process';
 import { logger } from '@/lib/logger';
+import { buildArtifactCacheForProject, ORCHESTRATOR_PHASES } from './artifact_access';
 
 export class Validators {
   private validators: Record<string, Validator>;
   private projectsBasePath: string;
+  private artifactCache: Map<string, string> | null = null;
+  private artifactCacheProjectId: string | null = null;
 
   constructor(validators?: Record<string, Validator>) {
     this.validators = validators || {};
     this.projectsBasePath = resolve(process.cwd(), 'projects');
+  }
+
+  private async ensureArtifactCache(project: Project): Promise<void> {
+    if (this.artifactCache && this.artifactCacheProjectId === project.id) return;
+    this.artifactCache = await buildArtifactCacheForProject(project.id);
+    this.artifactCacheProjectId = project.id;
   }
 
   /**
@@ -24,6 +33,8 @@ export class Validators {
       errors: [],
       warnings: []
     };
+
+    await this.ensureArtifactCache(project);
 
     for (const validatorName of validatorNames) {
       const validator = this.validators[validatorName];
@@ -132,7 +143,30 @@ export class Validators {
           validator.artifact as string,
           (validator.required_fields as string[]) || []
         );
-      
+
+      case 'clarification_marker_check':
+        return this.validateClarificationMarkers(
+          project,
+          (validator.allowed_unresolved as number) ?? 0,
+          (validator.auto_resolved_marker as string) || '[AI ASSUMED:'
+        );
+
+      case 'test_first_validator':
+        return this.validateTestFirstCompliance(project);
+
+      case 'constitutional_validator':
+        return this.validateConstitutionalCompliance(project, (validator.articles as Record<string, unknown>) || {});
+
+      case 'design_validator':
+        return this.validateDesignSystemCompliance(
+          project,
+          (validator.checks as Record<string, unknown>) || {},
+          (validator.anti_patterns as string[]) || []
+        );
+
+      case 'stack_validator':
+        return this.validateStackCompleteness(project);
+	      
       default:
         return {
           status: 'warn',
@@ -140,6 +174,386 @@ export class Validators {
           warnings: [`Unknown validator implementation: ${validator.implementation}`]
         };
     }
+  }
+
+  private validateClarificationMarkers(
+    project: Project,
+    allowedUnresolved: number,
+    autoResolvedMarker: string
+  ): ValidationResult {
+    const checks: Record<string, boolean> = {};
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    const analysisFiles = ['constitution.md', 'project-brief.md', 'personas.md'];
+    const needsClarificationRegex = /\[NEEDS CLARIFICATION:/g;
+
+    let totalUnresolved = 0;
+    for (const filename of analysisFiles) {
+      const content = this.getArtifactContent(project.id, filename, 'ANALYSIS');
+      const matches = content.match(needsClarificationRegex) || [];
+      totalUnresolved += matches.length;
+      checks[`unresolved:${filename}`] = matches.length === 0;
+
+      if (content.includes('[NEEDS CLARIFICATION') && !content.match(/\bCLAR-\d{3}\b/)) {
+        warnings.push(`${filename} contains [NEEDS CLARIFICATION] markers but no CLAR-### IDs in an Open Questions list`);
+      }
+
+      if (content.includes(autoResolvedMarker) && !content.match(/\bASM-\d{3}\b/)) {
+        warnings.push(`${filename} contains [AI ASSUMED] markers but no ASM-### IDs in an Assumptions Log`);
+      }
+    }
+
+    checks['no_unresolved_clarifications'] = totalUnresolved <= allowedUnresolved;
+
+    if (totalUnresolved > allowedUnresolved) {
+      errors.push(`Found ${totalUnresolved} unresolved [NEEDS CLARIFICATION] markers (allowed: ${allowedUnresolved})`);
+    }
+
+    return {
+      status: errors.length > 0 ? 'fail' : warnings.length > 0 ? 'warn' : 'pass',
+      checks,
+      errors: errors.length > 0 ? errors : undefined,
+      warnings: warnings.length > 0 ? warnings : undefined
+    };
+  }
+
+  private validateTestFirstCompliance(project: Project): ValidationResult {
+    const checks: Record<string, boolean> = {};
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    const tasksContent = this.getArtifactContent(project.id, 'tasks.md', 'SOLUTIONING');
+    if (!tasksContent) {
+      return {
+        status: 'warn',
+        checks: { 'tasks_exists': false },
+        warnings: ['tasks.md not found - skipping test-first compliance validation']
+      };
+    }
+
+    const taskHeaderRegex = /^###\s+TASK-[A-Z0-9]+-[0-9]+:/gm;
+    const headers = Array.from(tasksContent.matchAll(taskHeaderRegex));
+    checks['tasks_found'] = headers.length > 0;
+
+    if (headers.length === 0) {
+      return {
+        status: 'warn',
+        checks,
+        warnings: ['No TASK headings found in tasks.md - cannot validate test-first ordering']
+      };
+    }
+
+    let compliant = 0;
+    let missingTestSpecs = 0;
+    let missingImplementationNotes = 0;
+    let wrongOrder = 0;
+    let missingTestTypes = 0;
+    let missingRealServicesMention = 0;
+
+    for (let i = 0; i < headers.length; i++) {
+      const start = headers[i].index ?? 0;
+      const end = i + 1 < headers.length ? (headers[i + 1].index ?? tasksContent.length) : tasksContent.length;
+      const taskBlock = tasksContent.slice(start, end);
+
+      const testIndex = taskBlock.search(/##\s*TESTS FIRST\b|Test Specifications/i);
+      const implIndex = taskBlock.search(/Implementation Notes/i);
+
+      if (testIndex === -1) {
+        missingTestSpecs++;
+        continue;
+      }
+      if (implIndex === -1) {
+        missingImplementationNotes++;
+        continue;
+      }
+      if (testIndex > implIndex) {
+        wrongOrder++;
+        continue;
+      }
+
+      const hasContract = /Contract/i.test(taskBlock);
+      const hasIntegration = /Integration/i.test(taskBlock);
+      const hasE2E = /\bE2E\b/i.test(taskBlock);
+      const hasUnit = /\bUnit\b/i.test(taskBlock);
+      if (!(hasContract && hasIntegration && hasE2E && hasUnit)) {
+        missingTestTypes++;
+      }
+
+      const mentionsRealServices =
+        /real\s+postgre(sql)?/i.test(taskBlock) ||
+        /real\s+database/i.test(taskBlock) ||
+        /test\s+instance/i.test(taskBlock);
+      const mentionsSQLite = /\bsqlite\b/i.test(taskBlock);
+      if (!mentionsRealServices || mentionsSQLite) {
+        missingRealServicesMention++;
+      }
+
+      compliant++;
+    }
+
+    checks['test_specs_present'] = missingTestSpecs === 0;
+    checks['implementation_notes_present'] = missingImplementationNotes === 0;
+    checks['test_before_implementation'] = wrongOrder === 0;
+
+    if (missingTestSpecs > 0) {
+      errors.push(`${missingTestSpecs} tasks missing a Test Specifications section`);
+    }
+    if (missingImplementationNotes > 0) {
+      warnings.push(`${missingImplementationNotes} tasks missing an Implementation Notes section (cannot validate ordering)`);
+    }
+    if (wrongOrder > 0) {
+      errors.push(`${wrongOrder} tasks list implementation before tests (violates Article 2)`);
+    }
+    if (missingTestTypes > 0) {
+      warnings.push(`${missingTestTypes} tasks do not clearly include Contract/Integration/E2E/Unit test types`);
+    }
+    if (missingRealServicesMention > 0) {
+      warnings.push(`${missingRealServicesMention} tasks do not clearly specify real services for integration tests (Article 5)`);
+    }
+
+    checks['tasks_compliant'] = compliant === headers.length && errors.length === 0;
+
+    return {
+      status: errors.length > 0 ? 'fail' : warnings.length > 0 ? 'warn' : 'pass',
+      checks,
+      errors: errors.length > 0 ? errors : undefined,
+      warnings: warnings.length > 0 ? warnings : undefined
+    };
+  }
+
+  private validateDesignSystemCompliance(
+    project: Project,
+    checksConfig: Record<string, unknown>,
+    antiPatterns: string[]
+  ): ValidationResult {
+    const checks: Record<string, boolean> = {};
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    const content = this.getArtifactContent(project.id, 'design-system.md', 'SPEC');
+    if (!content) {
+      return {
+        status: 'warn',
+        checks: { 'design_system_exists': false },
+        warnings: ['design-system.md not found - skipping design system compliance validation']
+      };
+    }
+
+    const hasOKLCH = /oklch\(/i.test(content) || /\bOKLCH\b/i.test(content);
+    checks['oklch_color_format'] = hasOKLCH;
+    if (!hasOKLCH) {
+      errors.push('design-system.md does not appear to use OKLCH color format');
+    }
+
+    const forbiddenColorMatch = content.match(/\b(primary|accent)\b[^\n]{0,120}\b(purple|indigo|violet)\b/i);
+    checks['no_purple_primary'] = !forbiddenColorMatch;
+    if (forbiddenColorMatch) {
+      errors.push('design-system.md appears to use purple/indigo/violet for primary/accent tokens');
+    }
+
+    const hasReducedMotion = /useReducedMotion/i.test(content) || /reduced\s+motion/i.test(content);
+    checks['reduced_motion_support'] = hasReducedMotion;
+    if (!hasReducedMotion) {
+      warnings.push('design-system.md does not mention reduced motion support (useReducedMotion)');
+    }
+
+    const hasAnimationTokens = /duration/i.test(content) && /spring/i.test(content);
+    checks['has_animation_tokens'] = hasAnimationTokens;
+    if (!hasAnimationTokens) {
+      warnings.push('design-system.md does not clearly define animation tokens (durations + springs)');
+    }
+
+    const typographySectionMatch = content.match(/##\s*Typography[\s\S]*?(?=\n##\s|\n#\s|$)/i);
+    const typographySection = typographySectionMatch ? typographySectionMatch[0] : content;
+    const tokenMatches = typographySection.match(/\b(body|label|heading|display)\b/gi) || [];
+    const uniqueTokens = Array.from(new Set(tokenMatches.map(t => t.toLowerCase())));
+    checks['typography_tokens_present'] = uniqueTokens.includes('body') && uniqueTokens.includes('label') && uniqueTokens.includes('heading') && uniqueTokens.includes('display');
+    if (!checks['typography_tokens_present']) {
+      warnings.push('Typography section does not clearly define the 4 required tokens: body, label, heading, display');
+    }
+
+    // Spacing divisibility check (only inside the spacing section if present)
+    const spacingSectionMatch = content.match(/##\s*Spacing[\s\S]*?(?=\n##\s|\n#\s|$)/i);
+    const spacingSection = spacingSectionMatch ? spacingSectionMatch[0] : '';
+    if (spacingSection) {
+      const pxMatches = Array.from(spacingSection.matchAll(/\b(\d+(?:\.\d+)?)\s*px\b/g)).map(m => Number(m[1]));
+      const invalid = pxMatches.filter(n => Number.isFinite(n) && n % 4 !== 0);
+      checks['spacing_divisible_by_4'] = invalid.length === 0;
+      if (invalid.length > 0) {
+        warnings.push(`Found spacing values not divisible by 4 in Spacing section: ${invalid.slice(0, 8).join(', ')}`);
+      }
+    } else {
+      warnings.push('No Spacing section found; cannot validate spacing token grid');
+    }
+
+    // Anti-pattern heuristic checks (warn-only; content may list anti-patterns explicitly)
+    for (const pattern of antiPatterns) {
+      const needle = String(pattern).toLowerCase();
+      if (needle && content.toLowerCase().includes(needle) && !needle.includes('avoid') && !needle.includes('no ')) {
+        checks[`anti_pattern_mentioned:${pattern}`] = true;
+      }
+    }
+
+    // Allow config to tighten checks later; currently informational
+    checks['design_checks_config_present'] = Object.keys(checksConfig || {}).length > 0;
+
+    return {
+      status: errors.length > 0 ? 'fail' : warnings.length > 0 ? 'warn' : 'pass',
+      checks,
+      errors: errors.length > 0 ? errors : undefined,
+      warnings: warnings.length > 0 ? warnings : undefined
+    };
+  }
+
+  private validateConstitutionalCompliance(
+    project: Project,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    articles: Record<string, any>
+  ): ValidationResult {
+    const checks: Record<string, boolean> = {};
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    const architecture = this.getArtifactContent(project.id, 'architecture.md', 'SOLUTIONING');
+    const tasks = this.getArtifactContent(project.id, 'tasks.md', 'SOLUTIONING');
+    const dependencies = this.getArtifactContent(project.id, 'DEPENDENCIES.md', 'DEPENDENCIES');
+
+    // Article 1: Library-first / modular boundaries (heuristic)
+    const hasModuleLanguage = /module|boundary|bounded context|layered/i.test(architecture);
+    checks['article_1_modularity'] = hasModuleLanguage;
+    if (!hasModuleLanguage) {
+      warnings.push('Architecture does not clearly describe module boundaries (Article 1)');
+    }
+
+    // Article 2 + 5: reuse test-first validator signal
+    const testFirst = this.validateTestFirstCompliance(project);
+    checks['article_2_test_first'] = testFirst.status !== 'fail';
+    if (testFirst.status === 'fail') {
+      errors.push(...(testFirst.errors || ['Test-first compliance failed (Article 2)']));
+    } else if (testFirst.status === 'warn') {
+      warnings.push(...(testFirst.warnings || []));
+    }
+
+    const hasRealServicesMention = /real\s+postgre(sql)?|real\s+database|test\s+instance/i.test(tasks);
+    checks['article_5_real_services'] = hasRealServicesMention;
+    if (!hasRealServicesMention) {
+      warnings.push('Tasks do not clearly specify real services for integration tests (Article 5)');
+    }
+
+    // Article 3: <= 3 services for MVP unless justified (heuristic)
+    const servicesSection = architecture.match(/##\s*Services[\s\S]*?(?=\n##\s|\n#\s|$)/i)?.[0] || '';
+    const serviceBullets = servicesSection ? (servicesSection.match(/^\s*[-*]\s+/gm) || []) : [];
+    const hasJustification = /justify|justification|rationale/i.test(architecture);
+    const serviceCount = serviceBullets.length;
+    checks['article_3_simplicity'] = serviceCount === 0 ? true : serviceCount <= 3 || hasJustification;
+    if (serviceCount > 3 && !hasJustification) {
+      warnings.push(`Architecture appears to define >3 services (${serviceCount}) without explicit justification (Article 3)`);
+    }
+
+    // Article 4: anti-abstraction (heuristic)
+    const hasAbstractionJustification = /anti-abstraction|abstraction|why not|alternatives/i.test(dependencies);
+    checks['article_4_anti_abstraction'] = hasAbstractionJustification;
+    if (!hasAbstractionJustification) {
+      warnings.push('Dependencies document does not clearly justify abstraction layers (Article 4)');
+    }
+
+    checks['articles_config_present'] = Object.keys(articles || {}).length > 0;
+
+    return {
+      status: errors.length > 0 ? 'fail' : warnings.length > 0 ? 'warn' : 'pass',
+      checks,
+      errors: errors.length > 0 ? errors : undefined,
+      warnings: warnings.length > 0 ? warnings : undefined
+    };
+  }
+
+  private validateStackCompleteness(project: Project): ValidationResult {
+    const checks: Record<string, boolean> = {};
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    const stackJsonRaw = this.getArtifactContent(project.id, 'stack.json', 'STACK_SELECTION');
+    let stackJson: Record<string, unknown> | null = null;
+    if (stackJsonRaw) {
+      try {
+        stackJson = JSON.parse(stackJsonRaw) as Record<string, unknown>;
+        checks['stack.json_valid'] = true;
+      } catch {
+        checks['stack.json_valid'] = false;
+        errors.push('stack.json is not valid JSON');
+      }
+    } else {
+      checks['stack.json_present'] = false;
+      warnings.push('stack.json not found; cannot validate infra defaults');
+    }
+
+    const decision = this.getArtifactContent(project.id, 'stack-decision.md', 'STACK_SELECTION');
+    const rationale = this.getArtifactContent(project.id, 'stack-rationale.md', 'STACK_SELECTION');
+
+    if (!decision) {
+      return {
+        status: 'fail',
+        checks: { 'stack-decision.md': false },
+        errors: ['stack-decision.md not found']
+      };
+    }
+
+    const requiredLayers = ['Frontend', 'Backend', 'Database', 'Deployment', 'Mobile'];
+    for (const layer of requiredLayers) {
+      const ok = new RegExp(`\\b${layer}\\b`, 'i').test(decision);
+      checks[`layer:${layer}`] = ok;
+      if (!ok) {
+        warnings.push(`stack-decision.md does not clearly specify the ${layer} layer`);
+      }
+    }
+
+    const hasCompositionTable = /\|\s*Layer\s*\|\s*Technology\s*\|/i.test(decision);
+    checks['has_composition_table'] = hasCompositionTable;
+    if (!hasCompositionTable) {
+      warnings.push('stack-decision.md does not include the expected Composition table');
+    }
+
+    const hasDecisionMatrix = /Decision Matrix/i.test(rationale) || /\|\s*Factor\s*\|\s*Weight\s*\|/i.test(rationale);
+    checks['has_decision_matrix'] = hasDecisionMatrix;
+    if (!hasDecisionMatrix) {
+      warnings.push('stack-rationale.md does not include a clear Decision Matrix');
+    }
+
+    // Enforce default infra wiring for the default Next.js web template.
+    if (stackJson) {
+      const templateId = String(stackJson['template_id'] || '');
+      const isDefaultNextWeb = templateId === 'nextjs_web_app' || templateId === 'nextjs_web_only';
+
+      if (isDefaultNextWeb) {
+        const database = (stackJson['database'] || {}) as Record<string, unknown>;
+        const storage = (stackJson['storage'] || {}) as Record<string, unknown>;
+        const auth = (stackJson['auth'] || {}) as Record<string, unknown>;
+
+        const dbProvider = String(database['provider'] || '');
+        const dbOrm = String(database['orm'] || '');
+        const storageProvider = String(storage['provider'] || '');
+        const authProvider = String(auth['provider'] || '');
+
+        checks['default_web_db_provider_neon'] = /neon/i.test(dbProvider);
+        checks['default_web_db_orm_drizzle'] = /drizzle/i.test(dbOrm);
+        checks['default_web_storage_r2'] = /cloudflare\s*r2/i.test(storageProvider);
+        checks['default_web_auth_better_auth'] = /better\s*auth/i.test(authProvider);
+
+        if (!checks['default_web_db_provider_neon']) errors.push(`Default web stack must use Neon (stack.json database.provider: "${dbProvider || 'MISSING'}")`);
+        if (!checks['default_web_db_orm_drizzle']) errors.push(`Default web stack must use Drizzle (stack.json database.orm: "${dbOrm || 'MISSING'}")`);
+        if (!checks['default_web_storage_r2']) errors.push(`Default web stack must use Cloudflare R2 (stack.json storage.provider: "${storageProvider || 'MISSING'}")`);
+        if (!checks['default_web_auth_better_auth']) errors.push(`Default web stack must use Better Auth (stack.json auth.provider: "${authProvider || 'MISSING'}")`);
+      }
+    }
+
+    // Hard-fail only if we are missing the decision itself; the rest is warn-level to avoid false negatives.
+    return {
+      status: errors.length > 0 ? 'fail' : warnings.length > 0 ? 'warn' : 'pass',
+      checks,
+      errors: errors.length > 0 ? errors : undefined,
+      warnings: warnings.length > 0 ? warnings : undefined
+    };
   }
 
   private validateJsonSchema(project: Project, artifactName: string, requiredFields: string[]): ValidationResult {
@@ -1299,7 +1713,8 @@ export class Validators {
       STACK_SELECTION: ['stack-proposal.md', 'stack-decision.md', 'stack-rationale.md', 'stack.json'],
       SPEC: ['PRD.md', 'data-model.md', 'api-spec.json', 'design-system.md', 'component-inventory.md', 'user-flows.md'],
       DEPENDENCIES: ['DEPENDENCIES.md', 'dependencies.json'],
-      SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md'],
+      SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],
+      VALIDATE: ['validation-report.md', 'coverage-matrix.md'],
       DONE: ['HANDOFF.md']
     };
     
@@ -1316,26 +1731,28 @@ export class Validators {
     let targetName = artifactName;
 
     if (artifactName.includes('/')) {
-      const [phaseFromName, nameFromArtifact] = artifactName.split('/');
+      const [phaseFromName, ...rest] = artifactName.split('/');
       targetPhase = phaseFromName;
-      targetName = nameFromArtifact;
+      targetName = rest.join('/');
     }
 
-    // Construct artifact path: /projects/{projectId}/specs/{phase}/v1/{artifactName}
-    const artifactPath = resolve(
-      this.projectsBasePath,
-      projectId,
-      'specs',
-      targetPhase || 'ANALYSIS',
-      'v1',
-      targetName
-    );
-
-    try {
-      if (!existsSync(artifactPath)) {
-        return '';
+    // Prefer cache (R2/DB-aware) if available
+    if (this.artifactCache) {
+      if (targetPhase) {
+        const cached = this.artifactCache.get(`${targetPhase}/${targetName}`);
+        if (cached !== undefined) return cached;
+      } else {
+        for (const phaseCandidate of ORCHESTRATOR_PHASES) {
+          const cached = this.artifactCache.get(`${phaseCandidate}/${targetName}`);
+          if (cached !== undefined) return cached;
+        }
       }
+    }
 
+    // Fallback: filesystem only
+    const artifactPath = resolve(this.projectsBasePath, projectId, 'specs', targetPhase || 'ANALYSIS', 'v1', targetName);
+    try {
+      if (!existsSync(artifactPath)) return '';
       return readFileSync(artifactPath, 'utf8');
     } catch (error) {
       logger.warn(`Error reading artifact ${artifactName}: ${error instanceof Error ? error.message : String(error)}`, {

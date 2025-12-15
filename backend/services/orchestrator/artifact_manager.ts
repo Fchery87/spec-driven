@@ -6,6 +6,7 @@ import { Archiver } from '../file_system/archiver';
 import { ProjectStorage } from '../file_system/project_storage';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { logger } from '@/lib/logger';
+import { listArtifactNamesMerged } from './artifact_access';
 
 export class ArtifactManager {
   private basePath: string = resolve(process.cwd(), 'projects');
@@ -25,13 +26,37 @@ export class ArtifactManager {
     const checks: Record<string, boolean> = {};
     const errors: string[] = [];
 
+    // Group required artifacts by inferred phase to avoid repeated remote listing
+    const byPhase = new Map<string, string[]>();
     for (const artifact of requiredArtifacts) {
-      const artifactPath = this.getArtifactPath(projectId, artifact);
-      const exists = existsSync(artifactPath);
-      checks[artifact] = exists;
-      
-      if (!exists) {
-        errors.push(`Missing artifact: ${artifact}`);
+      const phase = this.inferPhaseFromArtifact(artifact);
+      const list = byPhase.get(phase) || [];
+      list.push(artifact);
+      byPhase.set(phase, list);
+    }
+
+    for (const [phase, artifacts] of byPhase.entries()) {
+      let remoteNames: Set<string> | null = null;
+
+      // Prefer R2/DB-aware listing; fall back to filesystem-only if it fails.
+      try {
+        const names = await listArtifactNamesMerged(projectId, phase);
+        remoteNames = new Set(names);
+      } catch (error) {
+        logger.debug('validateArtifacts: remote list failed, using filesystem fallback', {
+          projectId,
+          phase,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      for (const artifact of artifacts) {
+        const artifactPath = this.getArtifactPath(projectId, artifact, phase);
+        const existsOnFs = existsSync(artifactPath);
+        const existsRemotely = remoteNames ? remoteNames.has(artifact) : false;
+        const exists = existsOnFs || existsRemotely;
+        checks[artifact] = exists;
+        if (!exists) errors.push(`Missing artifact: ${artifact}`);
       }
     }
 
@@ -172,6 +197,7 @@ export class ArtifactManager {
       'specs/SPEC/v1',
       'specs/DEPENDENCIES/v1',
       'specs/SOLUTIONING/v1',
+      'specs/VALIDATE/v1',
       '.ai-config',
       'docs'
     ];
@@ -240,6 +266,8 @@ export class ArtifactManager {
       'epics.md': 'SOLUTIONING',
       'tasks.md': 'SOLUTIONING',
       'plan.md': 'SOLUTIONING',
+      'validation-report.md': 'VALIDATE',
+      'coverage-matrix.md': 'VALIDATE',
       'README.md': 'DONE',
       'HANDOFF.md': 'DONE'
     };

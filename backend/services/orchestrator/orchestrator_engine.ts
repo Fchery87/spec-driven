@@ -12,13 +12,16 @@ import {
 import { ConfigLoader } from './config_loader';
 import { Validators } from './validators';
 import { ArtifactManager } from './artifact_manager';
+import { existsSync } from 'fs';
+import { resolve } from 'path';
 import {
   getAnalystExecutor,
   getPMExecutor,
   getArchitectExecutor,
   getScruMasterExecutor,
   getDevOpsExecutor,
-  getDesignExecutor
+  getDesignExecutor,
+  getStackSelectionExecutor
 } from '../llm/agent_executors';
 import { GeminiClient } from '../llm/llm_client';
 import { createLLMClient, ProviderType, getProviderApiKeyAsync } from '../llm/providers';
@@ -420,12 +423,17 @@ export class OrchestratorEngine {
           break;
 
         case 'STACK_SELECTION':
-          // Stack selection is user-driven, not agent-driven
-          return {
-            success: true,
-            artifacts: {},
-            message: 'Stack selection phase requires user input'
-          };
+          generatedArtifacts = await getStackSelectionExecutor(
+            llmClient,
+            projectId,
+            artifacts,
+            projectName
+          );
+          break;
+
+        case 'VALIDATE':
+          generatedArtifacts = await this.generateValidationArtifacts(project);
+          break;
 
         case 'DONE':
           // Handoff generation happens via separate endpoint
@@ -517,6 +525,85 @@ export class OrchestratorEngine {
         }`
       );
     }
+  }
+
+  private async generateValidationArtifacts(project: Project): Promise<Record<string, string>> {
+    const currentDate = new Date().toISOString().split('T')[0];
+    const validatorNames = (this.spec.phases['VALIDATE']?.validators as string[]) || [];
+    const results = await this.validators.runValidators(validatorNames, project);
+
+    const phasesToReport = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE'] as const;
+    const coverageRows: Array<{ phase: string; artifact: string; exists: boolean }> = [];
+    const validateOutputs = new Set(['validation-report.md', 'coverage-matrix.md']);
+
+    for (const phase of phasesToReport) {
+      const outputs = this.spec.phases[phase]?.outputs;
+      const outputList = Array.isArray(outputs) ? (outputs as string[]) : [];
+      for (const artifact of outputList) {
+        const artifactPath = resolve(project.project_path, 'specs', phase, 'v1', artifact);
+        const exists = phase === 'VALIDATE' && validateOutputs.has(artifact) ? true : existsSync(artifactPath);
+        coverageRows.push({ phase, artifact, exists });
+      }
+    }
+
+    const total = coverageRows.length;
+    const present = coverageRows.filter(r => r.exists).length;
+    const missing = total - present;
+
+    const coverageMatrix = `---
+title: Coverage Matrix
+owner: validator
+version: 1.0
+date: ${currentDate}
+status: draft
+---
+
+# Coverage Matrix
+
+## Summary
+| Metric | Value |
+|--------|-------|
+| Total expected artifacts | ${total} |
+| Present | ${present} |
+| Missing | ${missing} |
+
+## Matrix
+| Phase | Artifact | Present |
+|------|---------|---------|
+${coverageRows.map(r => `| ${r.phase} | ${r.artifact} | ${r.exists ? '✅' : '❌'} |`).join('\n')}
+`;
+
+    const validationReport = `---
+title: Validation Report
+owner: validator
+version: 1.0
+date: ${currentDate}
+status: draft
+---
+
+# Validation Report
+
+## Overall Status: ${results.status.toUpperCase()}
+
+## Validators Run
+- ${validatorNames.length > 0 ? validatorNames.join('\n- ') : '(none configured)'}
+
+## Checks
+\`\`\`json
+${JSON.stringify(results.checks || {}, null, 2)}
+\`\`\`
+
+## Errors
+${results.errors && results.errors.length > 0 ? results.errors.map(e => `- ${e}`).join('\n') : '- None'}
+
+## Warnings
+${results.warnings && results.warnings.length > 0 ? results.warnings.map(w => `- ${w}`).join('\n') : '- None'}
+`;
+
+    return {
+      'validation-report.md': validationReport,
+      'coverage-matrix.md': coverageMatrix
+    };
   }
 
 

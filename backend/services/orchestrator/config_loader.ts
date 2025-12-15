@@ -141,10 +141,21 @@ export class ConfigLoader {
           owner: ['architect', 'scrummaster'],
           duration_minutes: 60,
           inputs: ['PRD.md', 'data-model.md', 'api-spec.json', 'DEPENDENCIES.md'],
-          outputs: ['architecture.md', 'epics.md', 'tasks.md'],
+          outputs: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],
           depends_on: ['SPEC', 'DEPENDENCIES'],
-          next_phase: 'DONE',
+          next_phase: 'VALIDATE',
           validators: ['markdown_frontmatter', 'tasks_dag', 'presence', 'content_coverage']
+        },
+        VALIDATE: {
+          name: 'VALIDATE',
+          description: 'Cross-artifact consistency and coverage analysis',
+          owner: 'validator',
+          duration_minutes: 15,
+          inputs: ['all_previous_artifacts'],
+          outputs: ['validation-report.md', 'coverage-matrix.md'],
+          depends_on: ['SOLUTIONING'],
+          next_phase: 'DONE',
+          validators: ['cross_artifact_consistency', 'requirement_traceability']
         },
         DONE: {
           name: 'DONE',
@@ -152,8 +163,8 @@ export class ConfigLoader {
           owner: 'orchestrator',
           duration_minutes: 10,
           inputs: ['all_previous_artifacts'],
-          outputs: ['HANDOFF.md', 'project.zip'],
-          depends_on: ['SOLUTIONING'],
+          outputs: ['README.md', 'HANDOFF.md', 'project.zip'],
+          depends_on: ['VALIDATE'],
           next_phase: 'DONE',
           validators: ['handoff_complete', 'zip_created']
         }

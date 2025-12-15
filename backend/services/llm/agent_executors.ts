@@ -243,20 +243,25 @@ async function executePMAgent(
 /**
  * Execute Architect Agent
  * Can generate different outputs based on phase:
+ * - STACK_SELECTION phase: stack-proposal.md, stack-decision.md, stack-rationale.md, stack.json
  * - SPEC phase: data-model.md, api-spec.json
  * - SOLUTIONING phase: architecture.md
  */
 async function executeArchitectAgent(
   llmClient: LLMProvider,
   configLoader: ConfigLoader,
-  phase: 'SPEC' | 'SOLUTIONING',
+  phase: 'STACK_SELECTION' | 'SPEC' | 'SOLUTIONING',
   projectBrief: string,
+  personas: string,
+  constitution: string,
   prd: string = '',
   stackChoice?: string,
   projectName?: string
 ): Promise<Record<string, string>> {
   logger.info(`[${phase}] Executing Architect Agent`, {
     briefLength: projectBrief?.length || 0,
+    personasLength: personas?.length || 0,
+    constitutionLength: constitution?.length || 0,
     prdLength: prd?.length || 0,
     stackChoice,
     projectName
@@ -268,12 +273,25 @@ async function executeArchitectAgent(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let variables: Record<string, any>;
 
-  if (phase === 'SPEC') {
+  if (phase === 'STACK_SELECTION') {
+    expectedFiles = ['stack-proposal.md', 'stack-decision.md', 'stack-rationale.md', 'stack.json'];
+    variables = {
+      brief: projectBrief,
+      personas,
+      constitution,
+      prd: '',
+      phase: 'STACK_SELECTION',
+      stackChoice: stackChoice || 'web_application',
+      projectName: projectName || 'Untitled Project'
+    };
+  } else if (phase === 'SPEC') {
     expectedFiles = ['data-model.md', 'api-spec.json'];
     variables = {
       brief: projectBrief,
+      personas,
+      constitution,
       prd: prd,
-      phase: 'spec',
+      phase: 'SPEC',
       stackChoice: stackChoice || 'web_application',
       projectName: projectName || 'Untitled Project'
     };
@@ -331,16 +349,17 @@ Generate a comprehensive architecture.md document. CRITICAL REQUIREMENTS:
 3. **Include the stack template name** in the Technology Stack section
 4. Map architecture components to PRD requirements where applicable
 
-## Sections to Include:
-1. **System Overview** - High-level architecture diagram (Mermaid)
-2. **Technology Stack** - MUST match approved stack: ${chosenStack}
-3. **Component Design** - Major components with requirement mappings
-4. **Frontend Architecture** - Per the ${chosenStack} template
-5. **Backend Architecture** - Per the ${chosenStack} template
-6. **Database Design** - Schema overview, indexes, relationships
-7. **Security Architecture** - Auth flow, authorization, OWASP mitigations
-8. **Performance & Scalability** - Caching, CDN, scaling strategy
-9. **Deployment Architecture** - Environments, CI/CD, infrastructure
+    ## Sections to Include:
+    1. **System Overview** - High-level architecture diagram (Mermaid)
+    2. **Technology Stack** - MUST match approved stack: ${chosenStack}
+    3. **Component Design** - Major components with requirement mappings
+    4. **Frontend Architecture** - Per the ${chosenStack} template
+    5. **Backend Architecture** - Per the ${chosenStack} template
+    6. **Database Design** - Schema overview, indexes, relationships
+    7. **Security Architecture** - Auth flow, authorization, OWASP mitigations
+    8. **Performance & Scalability** - Caching, CDN, scaling strategy
+    9. **Deployment Architecture** - Environments, CI/CD, infrastructure
+    10. **Observability & Operations** - Logging, metrics, tracing, alerting, runbooks
 
 ## Output Format
 Output a single fenced code block:
@@ -822,7 +841,7 @@ async function executeDevOpsAgent(
   llmClient: LLMProvider,
   configLoader: ConfigLoader,
   prd: string,
-  stackChoice: string = 'web_application',
+  stackChoice: string = 'nextjs_web_app',
   projectName?: string
 ): Promise<Record<string, string>> {
   logger.info('[DEPENDENCIES] Executing DevOps Agent');
@@ -885,8 +904,24 @@ export async function getArchitectExecutor(
 ): Promise<Record<string, string>> {
   const configLoader = new ConfigLoader();
   const brief = artifacts['ANALYSIS/project-brief.md'] || '';
+  const personas = artifacts['ANALYSIS/personas.md'] || '';
+  const constitution = artifacts['ANALYSIS/constitution.md'] || '';
   const prd = artifacts['SPEC/PRD.md'] || '';
-  return executeArchitectAgent(llmClient, configLoader, phase, brief, prd, stackChoice, projectName);
+  return executeArchitectAgent(llmClient, configLoader, phase, brief, personas, constitution, prd, stackChoice, projectName);
+}
+
+export async function getStackSelectionExecutor(
+  llmClient: LLMProvider,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  projectId: string,
+  artifacts: Record<string, string>,
+  projectName?: string
+): Promise<Record<string, string>> {
+  const configLoader = new ConfigLoader();
+  const brief = artifacts['ANALYSIS/project-brief.md'] || '';
+  const personas = artifacts['ANALYSIS/personas.md'] || '';
+  const constitution = artifacts['ANALYSIS/constitution.md'] || '';
+  return executeArchitectAgent(llmClient, configLoader, 'STACK_SELECTION', brief, personas, constitution, '', undefined, projectName);
 }
 
 export async function getScruMasterExecutor(
@@ -911,7 +946,7 @@ export async function getDevOpsExecutor(
 ): Promise<Record<string, string>> {
   const configLoader = new ConfigLoader();
   const prd = artifacts['SPEC/PRD.md'] || '';
-  return executeDevOpsAgent(llmClient, configLoader, prd, stackChoice || 'web_application', projectName);
+  return executeDevOpsAgent(llmClient, configLoader, prd, stackChoice || 'nextjs_web_app', projectName);
 }
 
 // ============================================================================

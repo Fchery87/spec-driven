@@ -271,6 +271,7 @@ fixtures/
 # Local development
 .local/
 .dev/
+.tools/
 
 # ============================================================================
 # PLAYWRIGHT E2E TESTS - IGNORE ALL

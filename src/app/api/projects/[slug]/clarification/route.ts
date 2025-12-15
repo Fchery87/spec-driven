@@ -233,39 +233,51 @@ async function updateArtifactsWithResolutions(
     try {
       let content = await readArtifact(slug, 'ANALYSIS', artifactName);
       let modified = false;
-      
-      // Replace resolved questions with their answers/assumptions
-      for (const question of questions) {
-        if (question.resolved) {
-          const questionText = question.question.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const pattern = new RegExp(
-            `\\[NEEDS CLARIFICATION:\\s*${questionText.substring(0, 50)}[^\\]]*\\]`,
-            'gi'
-          );
-          
-          let replacement: string;
-          if (question.resolvedBy === 'user' && question.userAnswer) {
-            replacement = `[RESOLVED: ${question.userAnswer}]`;
-          } else if (question.aiAssumed) {
-            replacement = `[AI ASSUMED: ${question.aiAssumed.assumption} - ${question.aiAssumed.rationale}]`;
-          } else {
-            replacement = '[AI ASSUMED: Standard practice will be followed - Auto-resolved]';
-          }
-          
-          if (pattern.test(content)) {
-            content = content.replace(pattern, replacement);
-            modified = true;
-          }
+
+      // Replace markers by stable (artifactName + index) rather than brittle substring matching.
+      const questionsForArtifact = questions
+        .filter(q => q.id.startsWith(`${artifactName}-`))
+        .sort((a, b) => {
+          const ai = Number.parseInt(a.id.split('-').pop() || '0', 10);
+          const bi = Number.parseInt(b.id.split('-').pop() || '0', 10);
+          return ai - bi;
+        });
+
+      const markerRegex = /\[NEEDS CLARIFICATION:\s*[^\]]+\]/g;
+      let markerIndex = 0;
+
+      const replaced = content.replace(markerRegex, (fullMatch) => {
+        const question = questionsForArtifact[markerIndex];
+        markerIndex += 1;
+
+        if (!question) {
+          return skipped
+            ? '[AI ASSUMED: Standard industry practice will be followed - Skipped by user]'
+            : fullMatch;
         }
-      }
-      
-      // If skipped, replace ALL remaining markers with generic assumption
-      if (skipped) {
-        const remainingPattern = /\[NEEDS CLARIFICATION:[^\]]+\]/gi;
-        if (remainingPattern.test(content)) {
-          content = content.replace(remainingPattern, '[AI ASSUMED: Standard industry practice will be followed - Skipped by user]');
-          modified = true;
+
+        if (!question.resolved) {
+          return skipped
+            ? '[AI ASSUMED: Standard industry practice will be followed - Skipped by user]'
+            : fullMatch;
         }
+
+        if (question.resolvedBy === 'user' && question.userAnswer) {
+          return `[RESOLVED: ${question.userAnswer}]`;
+        }
+
+        if (question.aiAssumed) {
+          return `[AI ASSUMED: ${question.aiAssumed.assumption} - ${question.aiAssumed.rationale}]`;
+        }
+
+        return skipped
+          ? '[AI ASSUMED: Standard industry practice will be followed - Skipped by user]'
+          : '[AI ASSUMED: Standard practice will be followed - Auto-resolved]';
+      });
+
+      if (replaced !== content) {
+        content = replaced;
+        modified = true;
       }
       
       if (modified) {

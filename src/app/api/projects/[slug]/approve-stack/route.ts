@@ -312,13 +312,6 @@ export const POST = withAuth(
         platform,
       } = validationResult.data;
 
-      const configLoader = new ConfigLoader();
-      const spec = configLoader.loadSpec() as unknown as RawSpecWithTemplates;
-      const stackTemplates = spec.stack_templates || {};
-      const template = stackTemplates[stack_choice];
-      const architectureType = inferArchitectureType(stack_choice, template?.composition, mode);
-      const packageManager = (package_manager || 'pnpm') as PackageManager;
-
       const metadata = await getProjectMetadata(slug, session.user.id);
 
       if (!metadata || metadata.created_by_id !== session.user.id) {
@@ -327,6 +320,28 @@ export const POST = withAuth(
           { status: 404 }
         );
       }
+
+      const configLoader = new ConfigLoader();
+      const spec = configLoader.loadSpec() as unknown as RawSpecWithTemplates;
+      const stackTemplates = spec.stack_templates || {};
+      const template = stackTemplates[stack_choice];
+
+      if (mode === 'template' && !template && stack_choice !== 'custom') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Unknown stack_choice template: "${stack_choice}"`,
+            details: {
+              stack_choice,
+              available_templates: Object.keys(stackTemplates).sort(),
+            },
+          },
+          { status: 400 }
+        );
+      }
+
+      const architectureType = inferArchitectureType(stack_choice, template?.composition, mode);
+      const packageManager = (package_manager || 'pnpm') as PackageManager;
 
       // Generate stack-decision.md
       const stackDecisionContent = generateStackDecisionContent(

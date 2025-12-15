@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getProjectMetadata, saveProjectMetadata, saveArtifact, persistProjectToDB } from '@/app/api/lib/project-utils';
+import {
+  getProjectMetadata,
+  saveProjectMetadata,
+  saveArtifact,
+  persistProjectToDB,
+  listArtifacts,
+  readArtifact,
+} from '@/app/api/lib/project-utils';
 import { HandoffGenerator } from '@/backend/services/file_system/handoff_generator';
 import { ProjectDBService } from '@/backend/services/database/drizzle_project_db_service';
 import { withAuth, type AuthSession } from '@/app/api/middleware/auth-guard';
@@ -44,19 +51,22 @@ export const POST = withAuth(
       await saveArtifact(slug, 'DONE', 'HANDOFF.md', handoffContent);
 
       // Collect artifacts for README generation
-      const allPhases = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE'];
-      const artifacts: Record<string, string> = {};
-      for (const phase of allPhases) {
-        try {
-          const { listArtifacts: listPhaseArtifacts } = await import('@/app/api/lib/project-utils');
-          const phaseArtifacts = await listPhaseArtifacts(slug, phase);
-          for (const artifact of phaseArtifacts) {
-            artifacts[`${phase}/${artifact.name}`] = artifact.content || '';
-          }
-        } catch {
-          // Continue even if some phases don't have artifacts
-        }
-      }
+	      const allPhases = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE'];
+	      const artifacts: Record<string, string> = {};
+	      for (const phase of allPhases) {
+	        try {
+	          const phaseArtifacts = await listArtifacts(slug, phase);
+	          for (const artifact of phaseArtifacts) {
+	            try {
+	              artifacts[`${phase}/${artifact.name}`] = await readArtifact(slug, phase, artifact.name);
+	            } catch {
+	              artifacts[`${phase}/${artifact.name}`] = '';
+	            }
+	          }
+	        } catch {
+	          // Continue even if some phases don't have artifacts
+	        }
+	      }
 
       // Generate and save README.md
       const readmeContent = await generator.generateReadme(slug, metadata, artifacts);
