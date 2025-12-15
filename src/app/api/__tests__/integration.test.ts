@@ -262,7 +262,7 @@ describe('Integration: Auth → Validation → DB Flow', () => {
         {
           method: 'POST',
           body: JSON.stringify({
-            stack_choice: 'Node.js + React + PostgreSQL',
+            stack_choice: 'nextjs_web_app',
             reasoning: 'Best for scalability and performance',
             platform: 'cloud'
           })
@@ -281,7 +281,7 @@ describe('Integration: Auth → Validation → DB Flow', () => {
         'test-project',
         'STACK_SELECTION',
         'stack-decision.md',
-        expect.stringContaining('Node.js + React + PostgreSQL')
+        expect.stringContaining('nextjs_web_app')
       );
       expect(projectUtils.writeArtifact).toHaveBeenCalledWith(
         'test-project',
@@ -309,7 +309,7 @@ describe('Integration: Auth → Validation → DB Flow', () => {
         'test-project',
         expect.objectContaining({
           stack_approved: true,
-          stack_choice: 'Node.js + React + PostgreSQL'
+          stack_choice: 'nextjs_web_app'
         })
       );
     });
@@ -362,7 +362,7 @@ describe('Integration: Auth → Validation → DB Flow', () => {
         {
           method: 'POST',
           body: JSON.stringify({
-            stack_choice: 'Node.js + React + PostgreSQL'
+            stack_choice: 'nextjs_web_app'
           })
         }
       );

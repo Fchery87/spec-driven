@@ -11,7 +11,8 @@ describe('PasswordService', () => {
   let service: PasswordService;
 
   beforeEach(() => {
-    service = new PasswordService();
+    // Use a lower cost factor in tests to avoid flakiness/timeouts in CI.
+    service = new PasswordService(8);
   });
 
   describe('hashPassword', () => {

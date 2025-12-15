@@ -46,6 +46,7 @@ export class ProjectStorage {
       'specs/SPEC/v1',
       'specs/DEPENDENCIES/v1',
       'specs/SOLUTIONING/v1',
+      'specs/VALIDATE/v1',
       '.ai-config',
       'docs'
     ];

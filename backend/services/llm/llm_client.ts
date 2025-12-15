@@ -3,9 +3,91 @@ import { LLMConfig, LLMResponse, AgentContext, AgentOutput, LLMConfigWithOverrid
 import { logger } from '@/lib/logger';
 import { LLMProvider } from './providers/base';
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+type GeminiLimiterState = {
+  inFlight: number;
+  waitQueue: Array<() => void>;
+  nextStartAtMs: number;
+  maxConcurrent: number;
+  minTimeMs: number;
+};
+
+const geminiLimiterByApiKey = new Map<string, GeminiLimiterState>();
+
+function getGeminiLimiter(apiKey: string): GeminiLimiterState {
+  const existing = geminiLimiterByApiKey.get(apiKey);
+  if (existing) return existing;
+
+  const maxConcurrent = Math.max(
+    1,
+    Number.parseInt(process.env.GEMINI_MAX_CONCURRENCY || '1', 10) || 1
+  );
+
+  const rpm = Number.parseInt(process.env.GEMINI_REQUESTS_PER_MINUTE || '60', 10);
+  const minTimeMs = Number.isFinite(rpm) && rpm > 0 ? Math.ceil(60_000 / rpm) : 0;
+
+  const state: GeminiLimiterState = {
+    inFlight: 0,
+    waitQueue: [],
+    nextStartAtMs: 0,
+    maxConcurrent,
+    minTimeMs,
+  };
+
+  geminiLimiterByApiKey.set(apiKey, state);
+  return state;
+}
+
+async function acquireGeminiSlot(state: GeminiLimiterState): Promise<void> {
+  if (state.inFlight < state.maxConcurrent) {
+    state.inFlight += 1;
+    return;
+  }
+
+  await new Promise<void>((resolve) => state.waitQueue.push(resolve));
+  state.inFlight += 1;
+}
+
+function releaseGeminiSlot(state: GeminiLimiterState): void {
+  state.inFlight = Math.max(0, state.inFlight - 1);
+  const next = state.waitQueue.shift();
+  if (next) next();
+}
+
+async function scheduleGeminiRequest<T>(apiKey: string, fn: () => Promise<T>): Promise<T> {
+  const state = getGeminiLimiter(apiKey);
+  await acquireGeminiSlot(state);
+
+  try {
+    const now = Date.now();
+    const waitMs = Math.max(0, state.nextStartAtMs - now);
+    if (waitMs > 0) {
+      await sleep(waitMs);
+    }
+    state.nextStartAtMs = Math.max(state.nextStartAtMs, now) + state.minTimeMs;
+
+    return await fn();
+  } finally {
+    releaseGeminiSlot(state);
+  }
+}
+
+async function readResponseTextLimited(response: Response, maxChars = 4000): Promise<string> {
+  try {
+    const text = await response.text();
+    if (text.length <= maxChars) return text;
+    return text.slice(0, maxChars) + '…(truncated)';
+  } catch {
+    return '';
+  }
+}
+
 export class GeminiClient implements LLMProvider {
   private config: LLMConfigWithOverrides;
-  private baseUrl: string = 'https://generativelanguage.googleapis.com/v1beta';
+  private baseUrl: string = process.env.GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta';
 
   constructor(config: LLMConfigWithOverrides) {
     this.config = config;
@@ -65,6 +147,7 @@ export class GeminiClient implements LLMProvider {
 
     // Get effective config with phase-specific overrides
     const effectiveConfig = this.getEffectiveConfig(phase);
+    const timeoutSeconds = effectiveConfig.timeout_seconds || 120;
 
     const fullPrompt = this.buildPrompt(prompt, context);
     const approxPromptTokens = Math.ceil(fullPrompt.length / 4); // rough heuristic
@@ -87,10 +170,24 @@ export class GeminiClient implements LLMProvider {
       });
     }
 
+    // Gemini models have stricter output token caps; keep this conservative to avoid 400s.
+    // Users can still lower this via config; raising above this may not be supported by the API/model.
+    const GEMINI_MAX_OUTPUT_TOKENS = 8192;
+    let maxOutputTokens = effectiveConfig.max_tokens;
+    if (maxOutputTokens > GEMINI_MAX_OUTPUT_TOKENS) {
+      logger.warn('Gemini max_tokens exceeds typical model limit; capping to avoid API errors.', {
+        requested: maxOutputTokens,
+        cappedTo: GEMINI_MAX_OUTPUT_TOKENS,
+        model: effectiveConfig.model,
+        phase: phase || this.config.phase || 'default'
+      });
+      maxOutputTokens = GEMINI_MAX_OUTPUT_TOKENS;
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const generationConfig: Record<string, any> = {
       temperature: effectiveConfig.temperature,
-      maxOutputTokens: effectiveConfig.max_tokens,
+      maxOutputTokens,
       candidateCount: 1
     };
 
@@ -102,6 +199,7 @@ export class GeminiClient implements LLMProvider {
     const requestBody = {
       contents: [
         {
+          role: 'user',
           parts: [
             {
               text: fullPrompt
@@ -116,33 +214,51 @@ export class GeminiClient implements LLMProvider {
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const response = await fetch(
-          `${this.baseUrl}/models/${this.config.model}:generateContent`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-goog-api-key': this.config.api_key,
-            },
-            body: JSON.stringify(requestBody)
+        const response = await scheduleGeminiRequest(this.config.api_key, async () => {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), timeoutSeconds * 1000);
+
+          try {
+            return await fetch(`${this.baseUrl}/models/${effectiveConfig.model}:generateContent`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': this.config.api_key,
+              },
+              body: JSON.stringify(requestBody),
+              signal: controller.signal,
+            });
+          } finally {
+            clearTimeout(timeoutId);
           }
-        );
+        });
 
         if (response.status === 429) {
           // Rate limit - wait and retry with exponential backoff (1s, 2s, 4s, 8s)
           if (attempt >= retries) {
-            throw new Error('Rate limited by Gemini API');
+            const errorText = await readResponseTextLimited(response);
+            throw new Error(
+              `Rate limited by Gemini API (HTTP 429). ${errorText ? `Details: ${errorText}` : ''}`.trim()
+            );
           }
-          const waitTime = Math.pow(2, attempt) * 1000;
+
+          const retryAfterHeader = response.headers.get('retry-after');
+          const retryAfterSeconds = retryAfterHeader ? Number.parseFloat(retryAfterHeader) : Number.NaN;
+          const retryAfterMs = Number.isFinite(retryAfterSeconds) ? Math.ceil(retryAfterSeconds * 1000) : undefined;
+
+          const jitterMs = Math.floor(Math.random() * 250);
+          const backoffMs = Math.pow(2, attempt) * 1000;
+          const waitTime = (retryAfterMs ?? backoffMs) + jitterMs;
+
           logger.info(
             `Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`
           );
-          await new Promise((resolve) => setTimeout(resolve, waitTime));
+          await sleep(waitTime);
           continue;
         }
 
         if (!response.ok) {
-          const errorText = await response.text();
+          const errorText = await readResponseTextLimited(response);
           const error = new Error(`Gemini API error: ${response.status} ${response.statusText} - ${errorText}`);
           logger.error('Gemini API error details:', error, {
             status: response.status,
@@ -177,22 +293,30 @@ export class GeminiClient implements LLMProvider {
         lastError = error as Error;
         logger.error('Gemini API call error:', error instanceof Error ? error : new Error(String(error)), {
           attempt: attempt + 1,
-          maxRetries: retries
+          maxRetries: retries,
+          model: effectiveConfig.model,
+          phase: phase || this.config.phase || 'default'
         });
 
         const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
         const isRateLimited = message.includes('rate limited') || message.includes('429');
+        const isTimeout = message.includes('timeout') || message.includes('abort');
 
         if (isRateLimited) {
           if (attempt < retries) {
-            const waitTime = Math.pow(2, attempt) * 1000;
+            const jitterMs = Math.floor(Math.random() * 250);
+            const waitTime = Math.pow(2, attempt) * 1000 + jitterMs;
             logger.info(
               `Rate limited. Waiting ${waitTime}ms before retry ${attempt + 1}/${retries}...`
             );
-            await new Promise((resolve) => setTimeout(resolve, waitTime));
+            await sleep(waitTime);
             continue;
           }
-          throw new Error('Rate limited by Gemini API');
+          throw error instanceof Error ? error : new Error('Rate limited by Gemini API');
+        }
+
+        if (isTimeout) {
+          throw new Error(`Gemini API request timeout after ${timeoutSeconds}s`);
         }
 
         // Non rate-limit errors: fail fast (no retries)

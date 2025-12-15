@@ -239,7 +239,9 @@ phases:
     outputs: ["validation-report.md", "coverage-matrix.md"]
     depends_on: ["SOLUTIONING"]
     next_phase: "DONE"
-    validators: ["cross_reference_check", "requirement_coverage", "dependency_consistency", "constitutional_compliance"]
+    # NOTE: Validator names (below) must exist under the top-level `validators:` section.
+    # These checks are enforced deterministically (not via LLM) to prevent spec/implementation drift.
+    validators: ["requirement_traceability", "api_endpoint_coverage", "cross_artifact_consistency", "constitutional_compliance"]
     quality_checklist:
       - "Every REQ-XXX in PRD maps to at least one task"
       - "All API endpoints have corresponding data model entities"
@@ -301,16 +303,18 @@ stack_templates:
   # === FULL-STACK WEB + MOBILE ===
   nextjs_fullstack_expo:
     name: "Next.js Full-Stack + Expo Mobile"
-    description: "Unified TypeScript codebase with Next.js App Router and Expo mobile"
+    description: "Unified TypeScript codebase with Next.js App Router, Expo mobile, and a serverless-ready Neon + Drizzle backend"
     composition:
       frontend: "Next.js 14 (App Router)"
       mobile: "Expo with React Native"
       backend: "Next.js API routes / tRPC"
-      database: "PostgreSQL with Prisma"
+      database: "Neon Postgres + Drizzle ORM"
+      auth: "Better Auth"
+      storage: "Cloudflare R2 (S3-compatible)"
       deployment: "Vercel"
     best_for: ["MVPs", "dashboards", "CRUD SaaS", "low ops footprint"]
     strengths: ["Single language", "unified codebase", "fast iteration", "integrated API"]
-    tradeoffs: ["Less suitable for heavy backend compute", "long-running jobs"]
+    tradeoffs: ["Less suitable for heavy backend compute", "mobile distribution adds release complexity"]
     scaling: "Good for <10k DAU, managed infrastructure"
     
   hybrid_nextjs_fastapi:
@@ -654,6 +658,15 @@ agents:
          - If mode is not specified, treat as "hybrid" and GENERATE markers
       # =============================================================================
 
+      # REQUIRED LOGS (MUST BE EASY TO PARSE)
+      Include the following in BOTH constitution.md and project-brief.md:
+      - **Open Questions (Clarifications)**: A numbered list with stable IDs (CLAR-001, CLAR-002, ...)
+        - Each entry must be a single specific question
+        - If clarificationMode is "auto_resolve", this section must say: "None (auto-resolved)"
+      - **Assumptions Log**: A numbered list with stable IDs (ASM-001, ASM-002, ...)
+        - Each entry must use the exact marker: [AI ASSUMED: ... - ...]
+        - If no assumptions were needed, say "None"
+
       # CRITICAL REQUIREMENTS
 
       ## 1. constitution.md - Project Guiding Principles
@@ -672,9 +685,9 @@ agents:
       - **Problem Statement**: What pain point does this solve? Include data/evidence if available
       - **Solution Overview**: High-level description of the proposed solution
       - **Target Market Analysis**:
-        - TAM (Total Addressable Market): Industry size
-        - SAM (Serviceable Addressable Market): Reachable segment
-        - SOM (Serviceable Obtainable Market): Realistic first-year target
+        - TAM/SAM/SOM OR a clear "Not applicable" rationale (e.g., internal tool, niche B2B, pre-market)
+        - If you cannot justify numeric estimates from the provided description, do NOT invent them:
+          use [AI ASSUMED: ... - ...] or [NEEDS CLARIFICATION: ...]
       - **Competitive Landscape**: 3-5 competitors with differentiation analysis
       - **Key Features**: Prioritized feature list (Must-have / Should-have / Nice-to-have)
       - **MVP Scope**: Clear boundary of what's included in Phase 1
@@ -927,12 +940,10 @@ agents:
       EVERY requirement MUST reference at least one persona by name.
 
       # SECURITY REQUIREMENTS (MANDATORY FOR ALL PROJECTS)
-      Include these NFRs by default:
-      - NFR-SEC-001: All passwords hashed with bcrypt (cost 10+)
-      - NFR-SEC-002: JWT tokens with maximum 1-hour expiry
-      - NFR-SEC-003: HTTPS only, no HTTP endpoints
-      - NFR-SEC-004: Input validation on all user inputs
-      - NFR-SEC-005: Audit logging for authentication events (no PII in logs)
+      Include security NFRs appropriate to the chosen auth/session model.
+      - If the product stores passwords: include bcrypt/argon2 hashing requirements
+      - If the product uses JWTs: include max expiry + rotation/refresh strategy
+      - Always include: HTTPS-only, input validation, and audit logging rules (no PII in logs)
 
       Generate the complete PRD now with comprehensive coverage.
       
@@ -949,17 +960,24 @@ agents:
       Your outputs will be used by developers to implement the system.
 
       # PHASE: {{phase}}
+      The phase will be exactly one of: STACK_SELECTION | SPEC | SOLUTIONING.
 
       # CONTEXT
       Project Brief:
       {{brief}}
 
+      Personas:
+      {{personas}}
+
+      Constitution:
+      {{constitution}}
+
       PRD:
       {{prd}}
 
-      ## PHASE-SPECIFIC INSTRUCTIONS
+      ## PHASE-SPECIFIC INSTRUCTIONS (FOLLOW EXACTLY)
 
-      ### FOR PHASE: stack_selection
+      ### FOR PHASE: STACK_SELECTION
       Analyze project requirements and propose the optimal technology stack.
 
       **CRITICAL: DO NOT default to Next.js/Expo. Analyze requirements first.**
@@ -1159,8 +1177,10 @@ agents:
       }
       ```
 
-      ### FOR PHASE: spec
-      Generate FIVE files: data-model.md, api-spec.json, design-system.md, component-inventory.md, user-flows.md
+      ### FOR PHASE: SPEC
+      Generate ONLY these two files (design artifacts are handled by a separate design agent):
+      - data-model.md
+      - api-spec.json
 
       #### OUTPUT 1: data-model.md
       MUST include:
@@ -1464,102 +1484,6 @@ agents:
       | sm | 0 1px 2px | Subtle elevation |
       | md | 0 4px 6px | Cards, dropdowns |
       | lg | 0 10px 15px | Modals, popovers |
-      ```
-
-      ```
-      filename: component-inventory.md
-      ---
-      title: Component Inventory
-      owner: architect
-      version: 1.0
-      date: {{currentDate}}
-      status: draft
-      ---
-
-      # Component Inventory for {{projectName}}
-
-      ## shadcn/ui Components Required
-      | Component | Purpose | PRD Requirement | Docs |
-      |-----------|---------|-----------------|------|
-      | Button | Primary actions | REQ-XXX-YYY | [Docs](https://ui.shadcn.com/docs/components/button) |
-      | Card | Content containers | REQ-XXX-YYY | [Docs](https://ui.shadcn.com/docs/components/card) |
-      | Dialog | Modal confirmations | REQ-XXX-YYY | [Docs](https://ui.shadcn.com/docs/components/dialog) |
-      | Input | Form inputs | REQ-XXX-YYY | [Docs](https://ui.shadcn.com/docs/components/input) |
-      | [Add all required components] |
-
-      ## Installation Commands
-      ```bash
-      pnpm dlx shadcn@latest add button card dialog input [other components]
-      pnpm add framer-motion
-      ```
-
-      ## Framer Motion Patterns Required
-      | Pattern | Components Using | Animation Spec |
-      |---------|------------------|----------------|
-      | FadeUp | Page sections, cards | opacity: 0→1, y: 20→0, spring: gentle |
-      | SlideIn | Modals, drawers | x: -100%→0, spring: snappy |
-      | Scale | Buttons, cards | scale: 1→1.02 on hover, spring: snappy |
-      | Stagger | Lists, grids | staggerChildren: 0.05 |
-
-      ## Custom Components Needed
-      | Component | Reason | Base shadcn | Framer Motion |
-      |-----------|--------|-------------|---------------|
-      | AnimatedCard | List items need stagger | Card | motion.div wrapper |
-      | PageTransition | Route changes | - | AnimatePresence |
-
-      ## Accessibility Requirements
-      - All interactive elements have aria-labels
-      - Keyboard navigation supported
-      - useReducedMotion implemented for all animations
-      - Minimum touch target: 44x44px
-      - WCAG AA contrast ratios
-      ```
-
-      ```
-      filename: user-flows.md
-      ---
-      title: User Flows
-      owner: architect
-      version: 1.0
-      date: {{currentDate}}
-      status: draft
-      ---
-
-      # User Flows for {{projectName}}
-
-      ## Flow 1: [Primary User Flow from PRD]
-      **Persona**: [From personas.md]
-      **PRD Requirements**: REQ-XXX-YYY, REQ-XXX-ZZZ
-
-      ```mermaid
-      graph TD
-          A[Start State] -->|User Action| B[Next State]
-          B -->|Action| C{Decision Point}
-          C -->|Option 1| D[State D]
-          C -->|Option 2| E[State E]
-          D -->|Complete| F[End State]
-          E -->|Complete| F
-      ```
-
-      ### Animation Notes for Flow 1
-      | Transition | Animation | Duration |
-      |------------|-----------|----------|
-      | A → B | FadeUp | normal (250ms) |
-      | B → C | SlideIn | normal (250ms) |
-      | Success | Scale + FadeUp | fast (150ms) |
-      | Error | Shake | fast (150ms) |
-
-      ## Flow 2: [Secondary User Flow]
-      [Repeat structure for each major flow from PRD]
-
-      ## Error States
-      | Error Type | UI Response | Animation |
-      |------------|-------------|-----------|
-      | Validation | Inline error message | FadeUp |
-      | Network | Toast notification | SlideIn from top |
-      | Auth | Redirect to login | FadeOut → FadeIn |
-      ```
-
       For SOLUTIONING phase:
       ```
       filename: architecture.md
@@ -1581,15 +1505,6 @@ agents:
       - [ ] api-spec.json is valid JSON (test with JSON.parse)
       - [ ] OpenAPI version is 3.0.3
       - [ ] All endpoints have error responses defined
-      - [ ] design-system.md has NO purple/indigo as primary color
-      - [ ] design-system.md uses OKLCH color format
-      - [ ] design-system.md has exactly 4 typography sizes
-      - [ ] design-system.md spacing values all divisible by 4 or 8
-      - [ ] design-system.md includes Framer Motion animation tokens
-      - [ ] component-inventory.md links to shadcn docs for each component
-      - [ ] component-inventory.md includes Framer Motion patterns
-      - [ ] user-flows.md has Mermaid diagrams for all major PRD flows
-      - [ ] user-flows.md includes animation notes per transition
 
       For SOLUTIONING phase:
       - [ ] All 10 architecture sections are present
@@ -1702,6 +1617,12 @@ agents:
       - [ ] Performance benchmarks met
       - [ ] Documentation updated
       - [ ] Monitoring configured
+
+      ### 9. Definition of Done
+      - MVP acceptance criteria: all MVP REQ-IDs implemented and tested
+      - Quality gates: lint + unit + integration + e2e green
+      - Security gates: baseline NFRs met; secrets handled correctly
+      - Docs gates: README + key operational runbooks present
 
       ### 9. Support Model
       - Incident response process
@@ -1906,9 +1827,9 @@ agents:
       | **Purpose** | {What it does for this project} |
       | **PRD Requirement** | REQ-XXX-YYY (link to requirement it supports) |
       | **License** | MIT / Apache 2.0 / BSD / ISC |
-      | **Security Status** | ✅ No known vulnerabilities / ⚠️ Low risk / ❌ Needs attention |
-      | **Maintenance** | Active (last release: {date}) |
-      | **Bundle Impact** | {X} KB (gzipped) |
+      | **Security Status** | ✅ No known vulnerabilities / ⚠️ Low risk / ❌ Needs attention / ❓ NEEDS VERIFICATION |
+      | **Maintenance** | Active (last release: {date}) / ❓ NEEDS VERIFICATION |
+      | **Bundle Impact** | {X} KB (gzipped) / ❓ NEEDS VERIFICATION |
       | **Alternatives** | {alt1} (why not chosen), {alt2} (why not chosen) |
 
       # REQUIRED DEPENDENCIES BY STACK

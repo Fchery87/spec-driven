@@ -179,6 +179,8 @@ DEPENDENCIES (Approval Gate)
    ↓
 SOLUTIONING
    ↓
+VALIDATE
+   ↓
 DONE (ZIP Ready)
 ```
 
@@ -648,11 +650,31 @@ DONE (ZIP Ready)
 - `presence` - All three files exist
 - `content_coverage` - At least 10 tasks, clear dependencies
 
+**Next:** → VALIDATE
+
+---
+
+#### Phase 6: VALIDATE
+
+**Duration:** 10-15 minutes
+**Owner:** Validator (automation)
+**Input:** All previous phase outputs
+**Output:**
+- `validation-report.md` - Cross-artifact consistency results (errors + warnings)
+- `coverage-matrix.md` - Artifact presence/coverage by phase
+
+**Process:**
+1. Verify PRD requirements map to tasks
+2. Verify API endpoints are reflected in tasks
+3. Verify cross-artifact consistency (personas/REQs/EPICs/stack)
+4. Verify constitutional compliance (test-first, simplicity, anti-abstraction)
+5. Produce reports for user review before packaging
+
 **Next:** → DONE
 
 ---
 
-#### Phase 6: DONE
+#### Phase 7: DONE
 
 **Duration:** 5-10 minutes
 **Owner:** Orchestrator (automation)

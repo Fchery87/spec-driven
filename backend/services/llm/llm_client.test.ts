@@ -11,14 +11,23 @@ const baseConfig = {
 };
 
 describe('GeminiClient rate-limit handling', () => {
+  const previousEnv = {
+    rpm: process.env.GEMINI_REQUESTS_PER_MINUTE,
+    concurrency: process.env.GEMINI_MAX_CONCURRENCY,
+  };
+
   beforeEach(() => {
     vi.useFakeTimers();
     vi.spyOn(Math, 'random').mockReturnValue(0.5); // eliminate jitter variance
+    process.env.GEMINI_REQUESTS_PER_MINUTE = '100000';
+    process.env.GEMINI_MAX_CONCURRENCY = '10';
   });
 
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    process.env.GEMINI_REQUESTS_PER_MINUTE = previousEnv.rpm;
+    process.env.GEMINI_MAX_CONCURRENCY = previousEnv.concurrency;
   });
 
   it('retries on 429 up to max attempts then fails with rate-limit error', async () => {
@@ -40,7 +49,10 @@ describe('GeminiClient rate-limit handling', () => {
 
     const client = new GeminiClient(baseConfig as any);
 
-    await expect(client.generateCompletion('prompt', undefined, 2, 'TEST')).rejects.toThrow(/Gemini API error/);
+    const promise = client.generateCompletion('prompt', undefined, 2, 'TEST');
+    const expectation = expect(promise).rejects.toThrow(/Gemini API error/);
+    await vi.runAllTimersAsync();
+    await expectation;
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

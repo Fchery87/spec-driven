@@ -582,7 +582,7 @@ describe('Projects API Routes', () => {
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug/approve-stack'), {
         method: 'POST',
         body: JSON.stringify({
-          stack_choice: 'Node.js + React + PostgreSQL',
+          stack_choice: 'nextjs_web_app',
           reasoning: 'Best for scalability',
           platform: 'cloud'
         })
@@ -594,7 +594,7 @@ describe('Projects API Routes', () => {
       expect(response.status).toBe(200);
       expect(json.success).toBe(true);
       expect(json.data.stack_approved).toBe(true);
-      expect(json.data.stack_choice).toBe('Node.js + React + PostgreSQL');
+      expect(json.data.stack_choice).toBe('nextjs_web_app');
     });
 
     it('should return 400 when stack_choice is missing', async () => {
@@ -621,7 +621,7 @@ describe('Projects API Routes', () => {
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/missing-slug/approve-stack'), {
         method: 'POST',
         body: JSON.stringify({
-          stack_choice: 'Node.js + React + PostgreSQL'
+          stack_choice: 'nextjs_web_app'
         })
       });
 
@@ -648,7 +648,7 @@ describe('Projects API Routes', () => {
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug/approve-stack'), {
         method: 'POST',
         body: JSON.stringify({
-          stack_choice: 'Node.js + React + PostgreSQL',
+          stack_choice: 'nextjs_web_app',
           reasoning: 'Best for scalability',
           platform: 'cloud'
         })
@@ -676,7 +676,7 @@ describe('Projects API Routes', () => {
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug/approve-stack'), {
         method: 'POST',
         body: JSON.stringify({
-          stack_choice: 'Node.js + React + PostgreSQL'
+          stack_choice: 'nextjs_web_app'
         })
       });
 
@@ -686,7 +686,7 @@ describe('Projects API Routes', () => {
         'test-slug',
         expect.objectContaining({
           stack_approved: true,
-          stack_choice: 'Node.js + React + PostgreSQL'
+          stack_choice: 'nextjs_web_app'
         })
       );
     });
@@ -707,7 +707,7 @@ describe('Projects API Routes', () => {
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug/approve-stack'), {
         method: 'POST',
         body: JSON.stringify({
-          stack_choice: 'Node.js + React + PostgreSQL'
+          stack_choice: 'nextjs_web_app'
         })
       });
 
@@ -740,7 +740,7 @@ describe('Projects API Routes', () => {
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug/approve-stack'), {
         method: 'POST',
         body: JSON.stringify({
-          stack_choice: 'Node.js + React + PostgreSQL'
+          stack_choice: 'nextjs_web_app'
         })
       });
 

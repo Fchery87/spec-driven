@@ -189,24 +189,16 @@ export const listAllProjects = () => {
 export const listArtifacts = async (slug: string, phase: string) => {
   logger.info('listArtifacts called', { slug, phase, r2Configured: !!isR2Configured() });
 
-  let r2Artifacts: Array<{ name: string; size: number }> = [];
+  const artifactsByName = new Map<string, number>();
 
   // Try R2 first if configured
   if (isR2Configured()) {
     try {
       const artifacts = await listR2Artifacts(slug, phase);
-      r2Artifacts = artifacts.map(artifact => ({
-        name: artifact.name,
-        size: artifact.size,
-      }));
-
-      // If R2 returns artifacts, use them
-      if (r2Artifacts.length > 0) {
-        logger.info('Artifacts listed from R2', { slug, phase, count: r2Artifacts.length });
-        return r2Artifacts;
+      for (const artifact of artifacts) {
+        artifactsByName.set(artifact.name, artifact.size);
       }
-
-      logger.info('R2 returned empty results, trying database fallback', { slug, phase });
+      logger.info('Artifacts listed from R2', { slug, phase, count: artifacts.length });
     } catch (r2Error) {
       logger.warn('Failed to list artifacts from R2, trying database fallback', {
         slug,
@@ -229,10 +221,11 @@ export const listArtifacts = async (slug: string, phase: string) => {
 
       if (dbArtifacts.length > 0) {
         logger.info('Artifacts listed from database', { slug, phase, count: dbArtifacts.length });
-        return dbArtifacts.map((artifact: { filename: string; content: string | null }) => ({
-          name: artifact.filename,
-          size: artifact.content ? Buffer.byteLength(artifact.content, 'utf8') : 0
-        }));
+        for (const artifact of dbArtifacts as Array<{ filename: string; content: string }>) {
+          const size = artifact.content ? Buffer.byteLength(artifact.content, 'utf8') : 0;
+          const existing = artifactsByName.get(artifact.filename);
+          artifactsByName.set(artifact.filename, Math.max(existing || 0, size));
+        }
       }
     } else {
       logger.warn('Project not found in database', { slug, phase });
@@ -245,19 +238,27 @@ export const listArtifacts = async (slug: string, phase: string) => {
   const phasePath = resolve(getProjectsPath(), slug, 'specs', phase, 'v1');
   if (existsSync(phasePath)) {
     try {
-      const localArtifacts = readdirSync(phasePath).map(name => ({
-        name,
-        size: statSync(resolve(phasePath, name)).size
-      }));
-      logger.info('Artifacts listed from local filesystem', { slug, phase, count: localArtifacts.length });
-      return localArtifacts;
+      const names = readdirSync(phasePath);
+      for (const name of names) {
+        const size = statSync(resolve(phasePath, name)).size;
+        const existing = artifactsByName.get(name);
+        artifactsByName.set(name, Math.max(existing || 0, size));
+      }
+      logger.info('Artifacts listed from local filesystem', { slug, phase, count: names.length });
     } catch {
       // Fall through to empty array
     }
   }
 
-  logger.warn('No artifacts found in any storage layer', { slug, phase });
-  return [];
+  const merged = Array.from(artifactsByName.entries())
+    .map(([name, size]) => ({ name, size }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  if (merged.length === 0) {
+    logger.warn('No artifacts found in any storage layer', { slug, phase });
+  }
+
+  return merged;
 };
 
 /**

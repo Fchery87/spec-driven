@@ -255,12 +255,12 @@ Please review the attached specifications in the order listed above, then:
 
 1. **Understand the requirements** - Read through all specification documents
 2. **Validate consistency** - Ensure all documents are consistent and complete
-3. **Generate code** - Create production-ready code following all specifications
-4. **Structure properly** - Organize code with proper folder structure and conventions
-5. **Add documentation** - Include inline comments and README files
-6. **Consider scalability** - Implement with future growth in mind
-7. **Security first** - Follow security best practices throughout
-8. **Test-First (MANDATORY)** - Write tests BEFORE implementation code
+3. **Plan delivery in milestones** - Do NOT attempt the entire codebase in a single response
+4. **Generate scaffolding first** - Project skeleton, config, and test harness before features
+5. **Implement incrementally** - Follow `tasks.md` in order; implement 3–5 tasks per milestone
+6. **Test-First (MANDATORY)** - Write tests BEFORE implementation code
+7. **Run and fix** - After each milestone, run relevant tests and fix failures before proceeding
+8. **Document efficiently** - Prefer high-quality READMEs and minimal essential comments (avoid comment-noise)
 
 **Constitutional Articles (MUST FOLLOW):**
 1. **Library-First** - Build features as reusable modules with clear boundaries
@@ -294,8 +294,13 @@ Please review the attached specifications in the order listed above, then:
   - AVOID: purple defaults, gradient blobs, Inter font, excessive border radius
 
 **Output:**
-Return a complete, production-ready codebase with all source files, configuration, and documentation.
-Include test files alongside implementation files.
+Work milestone-by-milestone. For each milestone:
+1. List the tasks being implemented (TASK IDs + REQ IDs)
+2. Provide code changes as file outputs (prefer unified diffs or `filename:` blocks)
+3. Provide the exact commands to run tests/lint/build
+4. Summarize what’s done and what’s next
+
+If context limits prevent reading all documents, ask for ONLY the next required artifact section(s). Do not guess.
 \`\`\`
 
 ---
