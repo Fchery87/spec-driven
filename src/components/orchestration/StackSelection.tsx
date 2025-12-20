@@ -4,28 +4,10 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { CheckCircle2, AlertCircle, Globe, Shield, Smartphone, Layers, Sparkles, Server, Loader2 } from "lucide-react"
-
-interface StackTemplate {
-  id: string
-  name: string
-  description: string
-  composition: {
-    frontend?: string
-    mobile?: string
-    backend?: string
-    database?: string
-    deployment?: string
-    pattern?: string
-    examples?: string
-  }
-  best_for: string[]
-  strengths: string[]
-  tradeoffs: string[]
-  scaling: string
-}
+import { CheckCircle2, AlertCircle, Sparkles, Shield, Loader2 } from "lucide-react"
+import { StackRecommendationView } from "./StackRecommendationView"
+import { StackCard, StackTemplate } from "./StackCard"
 
 interface TechnicalPreferences {
   state_management?: string
@@ -42,25 +24,34 @@ interface StackSelectionProps {
   selectedStack?: string
   onStackSelect: (stackId: string, reasoning?: string, preferences?: TechnicalPreferences) => void
   isLoading?: boolean
+  analysisContent?: string
+  classificationContent?: string
 }
 
 export function StackSelection({
   selectedStack,
   onStackSelect,
-  isLoading = false
+  isLoading = false,
+  analysisContent,
+  classificationContent
 }: StackSelectionProps) {
   const [templates, setTemplates] = useState<StackTemplate[]>([])
   const [preferenceOptions, setPreferenceOptions] = useState<Record<string, string[]>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  
+  // Custom stack state
   const [customStack, setCustomStack] = useState('')
   const [showCustom, setShowCustom] = useState(false)
+  
+  // Selection state
+  const [pendingStack, setPendingStack] = useState<string | null>(null)
   const [reasoning, setReasoning] = useState('')
   const [preferences, setPreferences] = useState<TechnicalPreferences>({})
   
-  // Two-step selection: pendingStack is what user clicked, selectedStack is what's confirmed
-  const [pendingStack, setPendingStack] = useState<string | null>(null)
-
+  // View state: 'recommendation' | 'browse'
+  const [viewMode, setViewMode] = useState<'recommendation' | 'browse'>('recommendation')
+  
   // Fetch stack templates from API
   useEffect(() => {
     async function fetchTemplates() {
@@ -82,20 +73,30 @@ export function StackSelection({
     fetchTemplates()
   }, [])
 
-  // Step 1: User clicks a card - only highlights it (no submission)
+  // Switch to browse mode if no analysis content is available
+  useEffect(() => {
+    if (!loading && !analysisContent) {
+      setViewMode('browse')
+    }
+  }, [loading, analysisContent])
+
   const handleStackClick = (stackId: string) => {
-    setPendingStack(stackId)
-    setShowCustom(false) // Clear custom mode if selecting a template
+    if (stackId === 'custom') {
+      setShowCustom(true)
+      setPendingStack(null)
+    } else {
+      setPendingStack(stackId)
+      setShowCustom(false)
+    }
   }
 
-  // Step 2: User confirms their selection - NOW we submit
   const confirmStackSelection = () => {
     if (pendingStack) {
       onStackSelect(pendingStack, reasoning, preferences)
     }
   }
 
-  const handleCustomStack = () => {
+  const handleCustomStackSubmit = () => {
     if (customStack.trim()) {
       onStackSelect('custom', reasoning, preferences)
     }
@@ -106,33 +107,6 @@ export function StackSelection({
     setReasoning('')
     setPreferences({})
     setShowCustom(false)
-    setCustomStack('')
-  }
-
-  const getStackIcon = (stackId: string) => {
-    if (stackId.includes('mobile') || stackId.includes('expo') || stackId.includes('flutter') || stackId.includes('native')) {
-      return <Smartphone className="h-6 w-6 text-violet-500" />
-    }
-    if (stackId.includes('api') || stackId.includes('serverless') || stackId.includes('edge')) {
-      return <Layers className="h-6 w-6 text-cyan-500" />
-    }
-    if (stackId.includes('go') || stackId.includes('django') || stackId.includes('fastapi')) {
-      return <Server className="h-6 w-6 text-orange-500" />
-    }
-    return <Globe className="h-6 w-6 text-primary" />
-  }
-
-  const getStackColor = (stackId: string) => {
-    if (stackId.includes('mobile') || stackId.includes('expo') || stackId.includes('flutter') || stackId.includes('native')) {
-      return 'border-violet-500/40 bg-violet-500/10'
-    }
-    if (stackId.includes('api') || stackId.includes('serverless') || stackId.includes('edge')) {
-      return 'border-cyan-500/40 bg-cyan-500/10'
-    }
-    if (stackId.includes('go') || stackId.includes('django') || stackId.includes('fastapi')) {
-      return 'border-orange-500/40 bg-orange-500/10'
-    }
-    return 'border-primary/40 bg-primary/10'
   }
 
   if (loading) {
@@ -157,6 +131,8 @@ export function StackSelection({
     )
   }
 
+  const showRecommendationView = viewMode === 'recommendation' && analysisContent
+
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6">
       {/* Header */}
@@ -165,168 +141,107 @@ export function StackSelection({
           <Sparkles className="h-6 w-6 text-[hsl(var(--chart-2))]" />
           Choose Your Technology Stack
         </h2>
-        <p className="text-muted-foreground max-w-2xl mx-auto mb-4">
-          Select from {templates.length} predefined stack templates or define a fully custom stack.
-          Each template is optimized for specific use cases.
-        </p>
-        <Badge variant="outline" className="text-sm">
-          Hybrid Mode: Architect proposes, you approve or customize
-        </Badge>
-      </div>
-
-      {/* Stack Template Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {templates.map((template) => {
-          const isSelected = pendingStack === template.id
-          return (
-          <Card
-            key={template.id}
-            className={`
-              cursor-pointer transition-all hover:shadow-lg
-              ${isSelected ? 'ring-2 ring-primary ' + getStackColor(template.id) : 'hover:scale-[1.02]'}
-            `}
-            onClick={() => handleStackClick(template.id)}
-          >
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {getStackIcon(template.id)}
-                  <CardTitle className="text-base">{template.name}</CardTitle>
-                </div>
-                {isSelected && (
-                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                )}
-              </div>
-              <CardDescription className="text-sm line-clamp-2">
-                {template.description}
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent className="space-y-3">
-              {/* Composition */}
-              {template.composition && (
-                <div>
-                  <h4 className="font-semibold text-xs mb-1.5 text-muted-foreground uppercase">Stack</h4>
-                  <div className="flex flex-wrap gap-1">
-                    {template.composition.frontend && (
-                      <Badge variant="secondary" className="text-xs">{template.composition.frontend}</Badge>
-                    )}
-                    {template.composition.backend && (
-                      <Badge variant="secondary" className="text-xs">{template.composition.backend}</Badge>
-                    )}
-                    {template.composition.database && (
-                      <Badge variant="secondary" className="text-xs">{template.composition.database}</Badge>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Best For */}
-              <div>
-                <h4 className="font-semibold text-xs mb-1.5 text-muted-foreground uppercase">Best For</h4>
-                <div className="flex flex-wrap gap-1">
-                  {template.best_for.slice(0, 3).map((item) => (
-                    <Badge key={item} className="text-xs bg-muted text-muted-foreground hover:bg-muted">
-                      {item}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-
-              {/* Strengths */}
-              <div>
-                <h4 className="font-semibold text-xs mb-1.5 text-muted-foreground uppercase">Strengths</h4>
-                <ul className="text-xs space-y-0.5">
-                  {template.strengths.slice(0, 3).map((strength, index) => (
-                    <li key={index} className="flex items-start gap-1.5">
-                      <CheckCircle2 className="h-3 w-3 text-emerald-500 mt-0.5 flex-shrink-0" />
-                      <span className="line-clamp-1">{strength}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Tradeoffs */}
-              {template.tradeoffs.length > 0 && (
-                <div>
-                  <h4 className="font-semibold text-xs mb-1.5 text-muted-foreground uppercase">Trade-offs</h4>
-                  <ul className="text-xs space-y-0.5">
-                    {template.tradeoffs.slice(0, 2).map((tradeoff, index) => (
-                      <li key={index} className="flex items-start gap-1.5">
-                        <AlertCircle className="h-3 w-3 text-amber-500 mt-0.5 flex-shrink-0" />
-                        <span className="line-clamp-1">{tradeoff}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Scaling */}
-              {template.scaling && (
-                <div className="pt-2 border-t">
-                  <span className="text-xs text-muted-foreground">{template.scaling}</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )})}
-      </div>
-
-      {/* Custom Stack Option */}
-      <Card className="border-dashed border-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-6 w-6 text-muted-foreground" />
-            Custom Stack
-          </CardTitle>
-          <CardDescription>
-            Define your own technology stack if the predefined templates don&apos;t match your needs.
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-4">
-          {!showCustom ? (
-            <Button
-              variant="outline"
-              onClick={() => setShowCustom(true)}
-              className="w-full"
-            >
-              Define Custom Stack
-            </Button>
-          ) : (
-            <div className="space-y-4">
-              <Input
-                placeholder="Describe your custom stack (e.g., SvelteKit + Go API + Turso SQLite + Fly.io)"
-                value={customStack}
-                onChange={(e) => setCustomStack(e.target.value)}
-                className="w-full"
-              />
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleCustomStack}
-                  disabled={!customStack.trim() || isLoading}
-                  className="flex-1"
-                >
-                  Use Custom Stack
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowCustom(false)
-                    setCustomStack('')
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
+        <div className="flex items-center justify-center gap-2 text-sm">
+          {analysisContent && (
+             <Button 
+               variant={viewMode === 'recommendation' ? "secondary" : "ghost"}
+               onClick={() => setViewMode('recommendation')}
+               size="sm"
+             >
+               AI Recommendations
+             </Button>
           )}
-        </CardContent>
-      </Card>
+          <Button 
+            variant={viewMode === 'browse' ? "secondary" : "ghost"}
+            onClick={() => setViewMode('browse')}
+            size="sm"
+          >
+            Browse All Templates
+          </Button>
+        </div>
+      </div>
 
-      {/* Technical Preferences */}
+      {/* Main Content Area */}
+      {showRecommendationView ? (
+        <StackRecommendationView
+          stackAnalysisContent={analysisContent!}
+          classificationContent={classificationContent}
+          templates={templates}
+          onSelect={handleStackClick}
+          selectedStackId={pendingStack}
+          isLoading={isLoading}
+        />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {templates.map((template) => (
+            <StackCard
+              key={template.id}
+              template={template}
+              isSelected={pendingStack === template.id}
+              onSelect={handleStackClick}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Custom Stack Option (Visible in Browse Mode or if selected) */}
+      {(viewMode === 'browse' || showCustom) && (
+        <Card className={`border-dashed border-border ${showCustom ? 'ring-2 ring-primary' : ''}`}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="h-6 w-6 text-muted-foreground" />
+              Custom Stack
+            </CardTitle>
+            <CardDescription>
+              Define your own technology stack if the predefined templates don&apos;t match your needs.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            {!showCustom ? (
+              <Button
+                variant="outline"
+                onClick={() => setShowCustom(true)}
+                className="w-full"
+              >
+                Define Custom Stack
+              </Button>
+            ) : (
+              <div className="space-y-4">
+                <Input
+                  placeholder="Describe your custom stack (e.g., SvelteKit + Go API + Turso SQLite + Fly.io)"
+                  value={customStack}
+                  onChange={(e) => setCustomStack(e.target.value)}
+                  className="w-full"
+                />
+                <div className="flex gap-2">
+                   <Button
+                    onClick={handleCustomStackSubmit}
+                    disabled={!customStack.trim() || isLoading}
+                    className="flex-1"
+                  >
+                    Use Custom Stack
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowCustom(false)
+                      setCustomStack('')
+                      setPendingStack(null) // clear logic
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Technical Preferences - Only show if pendingStack OR showCustom */}
       {(pendingStack || showCustom) && Object.keys(preferenceOptions).length > 0 && (
-        <Card>
+        <Card className="animate-in slide-in-from-bottom-5 fade-in duration-300">
           <CardHeader>
             <CardTitle>Technical Preferences (Optional)</CardTitle>
             <CardDescription>
@@ -364,7 +279,7 @@ export function StackSelection({
 
       {/* Confirm Selection Panel */}
       {(pendingStack || showCustom) && (
-        <Card className="border-2 border-primary/50 bg-primary/5">
+        <Card className="border-2 border-primary/50 bg-primary/5 sticky bottom-4 shadow-lg z-10 animate-in slide-in-from-bottom-10 fade-in duration-500">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-primary" />
@@ -379,7 +294,7 @@ export function StackSelection({
             <div>
               <label className="text-sm font-medium mb-2 block">Why did you choose this stack? (Optional)</label>
               <textarea
-                className="w-full p-3 border rounded-md resize-none h-24"
+                className="w-full p-3 border rounded-md resize-none h-24 bg-background"
                 placeholder="e.g., We need fast iteration for our MVP. The unified TypeScript codebase helps our small team move quickly..."
                 value={reasoning}
                 onChange={(e) => setReasoning(e.target.value)}
@@ -392,7 +307,7 @@ export function StackSelection({
                   if (pendingStack) {
                     confirmStackSelection()
                   } else if (showCustom) {
-                    handleCustomStack()
+                    handleCustomStackSubmit()
                   }
                 }}
                 disabled={isLoading || (!pendingStack && !customStack.trim())}

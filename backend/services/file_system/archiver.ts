@@ -263,87 +263,91 @@ ${brief ? this.extractDescription(brief) : 'Project description not available.'}
    - Target audience
    - Key features at a glance
 
-3. **personas.md** (10 min read)
+3. **project-classification.json** (2 min read)
+   - Project type, scale, platforms
+   - Backend complexity level
+
+4. **personas.md** (10 min read)
    - User personas (3-5 profiles)
    - Pain points and goals
    - Usage patterns
 
 ### Phase 2: Stack Decision (STACK_SELECTION)
-4. **stack-proposal.md** (3 min read)
+5. **stack-analysis.md** (3 min read)
    - High-level recommendation summary
    - Options considered
 
-5. **stack-decision.md** (5 min read)
+6. **stack-decision.md** (5 min read)
    - Approved technology stack composition
    - Frontend, backend, database, deployment layers
    - Technical preferences applied
 
-6. **stack-rationale.md** (5 min read)
+7. **stack-rationale.md** (5 min read)
    - Why this stack was selected
    - Alternatives considered and why not chosen
    - Trade-offs accepted
 
-7. **stack.json** (reference)
+8. **stack.json** (reference)
    - Canonical machine-readable stack contract
 
 ### Phase 3: Specifications (SPEC)
-6. **PRD.md** (20 min read)
+9. **PRD.md** (20 min read)
    - Detailed product requirements
    - Functional & non-functional requirements
    - User stories with acceptance criteria
    - MVP vs Phase 2 features (marked clearly)
 
-7. **data-model.md** (10 min read)
+10. **data-model.md** (10 min read)
    - Database schema
    - Tables, columns, relationships
    - Key constraints
 
-8. **api-spec.json** (reference)
+11. **api-spec.json** (reference)
    - OpenAPI specification
    - All endpoints, methods, payloads
 
-9. **design-system.md** (10 min read)
+12. **design-system.md** (10 min read)
    - Color palette (project-specific, NOT purple defaults)
    - Typography (ONLY 4 sizes: body, label, heading, display)
    - Spacing (8pt grid: 8, 16, 24, 32, 48, 64)
    - Motion tokens (Framer Motion durations and springs)
    - Border radius, shadows, breakpoints
 
-10. **component-inventory.md** (10 min read)
+13. **component-inventory.md** (10 min read)
     - UI components mapped to shadcn/ui
     - Custom components with props/variants
     - Animation requirements per component
 
-11. **user-flows.md** (10 min read)
+14. **user-flows.md** (10 min read)
     - Key user journeys with steps
     - Screens and interaction states
     - Error states and recovery paths
 
 ### Phase 4: Dependencies (DEPENDENCIES)
-12. **DEPENDENCIES.md** (10 min read)
+15. **DEPENDENCIES.md** (10 min read)
     - All required packages
     - Why each dependency was chosen
     - Security and licensing notes
 
-13. **dependencies.json** (reference)
+16. **dependencies.json** (reference)
     - Canonical machine-readable dependencies contract
 
 ### Phase 5: Implementation Plan (SOLUTIONING)
-13. **architecture.md** (15 min read)
+17. **architecture.md** (15 min read)
     - System design and component overview
     - Tech stack rationale
     - Security & compliance design
     - Scaling strategy
 
-14. **epics.md** (10 min read)
+18. **epics.md** (10 min read)
     - Feature set breakdown
     - Which requirements each epic covers
 
-15. **tasks.md** (reference during implementation)
+19. **tasks.md** (reference during implementation)
     - Detailed task list with execution context
     - Implementation hints and acceptance criteria
 
-16. **README.md** (2 min read)
+20. **README.md** (2 min read)
     - Quick start guide for developers
 
 ## Approved Technology Stack
@@ -392,28 +396,29 @@ Implement the project following these documents (read in order):
 ### Phase 1: Foundation
 1. constitution.md - Project guiding principles
 2. project-brief.md - Vision and context
-3. personas.md - User types and needs
+3. project-classification.json - Machine-readable classification
+4. personas.md - User types and needs
 
 ### Phase 2: Stack
-4. stack-proposal.md - Recommendation summary
-5. stack-decision.md - Approved technology stack
-6. stack-rationale.md - Why this stack was selected
-7. stack.json - Machine-readable stack contract
+5. stack-analysis.md - Recommendation summary
+6. stack-decision.md - Approved technology stack
+7. stack-rationale.md - Why this stack was selected
+8. stack.json - Machine-readable stack contract
 
 ### Phase 3: Specifications
-6. PRD.md - Complete requirements (MVP vs Phase 2)
-7. data-model.md - Database schema
-8. api-spec.json - API contracts
-9. design-system.md - UI design tokens
-10. component-inventory.md - UI components
-11. user-flows.md - User journeys
+9. PRD.md - Complete requirements (MVP vs Phase 2)
+10. data-model.md - Database schema
+11. api-spec.json - API contracts
+12. design-system.md - UI design tokens
+13. component-inventory.md - UI components
+14. user-flows.md - User journeys
 
 ### Phase 4-5: Implementation
-12. DEPENDENCIES.md - Approved packages
-13. dependencies.json - Machine-readable dependency contract
-14. architecture.md - System design
-15. epics.md - Feature breakdown
-16. tasks.md - Implementation sequence
+15. DEPENDENCIES.md - Approved packages
+16. dependencies.json - Machine-readable dependency contract
+17. architecture.md - System design
+18. epics.md - Feature breakdown
+19. tasks.md - Implementation sequence
 
 ## Key Constraints
 
@@ -467,10 +472,11 @@ ${projectSlug}/
 │   ├── ANALYSIS/               ← Phase 1: Project Foundation
 │   │   ├── constitution.md     ← Guiding principles
 │   │   ├── project-brief.md    ← Vision & objectives
+│   │   ├── project-classification.json ← Machine-readable classification
 │   │   └── personas.md         ← User personas
 │   │
 │   ├── STACK_SELECTION/        ← Phase 2: Stack Decision
-│   │   ├── stack-proposal.md   ← Recommendation summary
+│   │   ├── stack-analysis.md   ← Recommendation summary
 │   │   ├── stack-decision.md   ← Approved technology stack
 │   │   ├── stack-rationale.md  ← Why this stack was selected
 │   │   └── stack.json          ← Machine-readable stack contract

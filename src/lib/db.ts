@@ -18,7 +18,10 @@ export interface ProjectData {
   phases_completed?: string;
   stack_choice?: string | null;
   stack_approved?: boolean;
-  dependencies_approved?: boolean;
+  project_type?: string | null;
+  scale_tier?: string | null;
+  recommended_stack?: string | null;
+  workflow_version?: number;
   handoff_generated?: boolean;
   handoff_generated_at?: Date | string | null;
   owner_id?: string;
@@ -103,14 +106,6 @@ export async function updateProjectMetadata(
     );
   }
 
-  if (metadata.dependencies_approved) {
-    return dbService.approveDependencies(
-      slug,
-      String(metadata.dependencies_approval_notes || ''),
-      ownerId
-    );
-  }
-
   if (metadata.handoff_generated) {
     return dbService.markHandoffGenerated(slug, ownerId);
   }
@@ -119,6 +114,44 @@ export async function updateProjectMetadata(
   if ('description' in metadata) {
     const description = metadata.description === null ? null : (typeof metadata.description === 'string' ? metadata.description : String(metadata.description));
     return dbService.updateProjectDescription(slug, description, ownerId);
+  }
+
+  if (
+    'project_type' in metadata ||
+    'scale_tier' in metadata ||
+    'recommended_stack' in metadata ||
+    'workflow_version' in metadata
+  ) {
+    return dbService.updateProjectWorkflowMetadata(
+      slug,
+      {
+        projectType:
+          typeof metadata.project_type === 'string'
+            ? metadata.project_type
+            : metadata.project_type === null
+              ? null
+              : undefined,
+        scaleTier:
+          typeof metadata.scale_tier === 'string'
+            ? metadata.scale_tier
+            : metadata.scale_tier === null
+              ? null
+              : undefined,
+        recommendedStack:
+          typeof metadata.recommended_stack === 'string'
+            ? metadata.recommended_stack
+            : metadata.recommended_stack === null
+              ? null
+              : undefined,
+        workflowVersion:
+          typeof metadata.workflow_version === 'number'
+            ? metadata.workflow_version
+            : metadata.workflow_version === null
+              ? null
+              : undefined,
+      },
+      ownerId
+    );
   }
 
   // Handle clarification_state updates

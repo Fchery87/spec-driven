@@ -6,6 +6,10 @@ const databaseUrl = DB_CONFIG.url || process.env.DATABASE_URL;
 
 // Determine which database to use
 const isProduction = process.env.NODE_ENV === 'production';
+const isTest =
+  process.env.NODE_ENV === 'test' ||
+  process.env.VITEST === 'true' ||
+  Boolean(process.env.VITEST);
 const isLocalDev = !databaseUrl && !isProduction;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -31,9 +35,27 @@ if (isLocalDev) {
     );
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (error) {
-    throw new Error(
-      'Failed to initialize SQLite. Install better-sqlite3: npm install better-sqlite3'
-    );
+    if (isTest) {
+      db = new Proxy(
+        {},
+        {
+          get() {
+            throw new Error(
+              'Database is not initialized in test mode. Install better-sqlite3 or set DATABASE_URL.'
+            );
+          },
+        }
+      );
+      if (!isTest) {
+        console.warn(
+          '[Database] Using stubbed DB. Install better-sqlite3 for SQLite support.'
+        );
+      }
+    } else {
+      throw new Error(
+        'Failed to initialize SQLite. Install better-sqlite3: npm install better-sqlite3'
+      );
+    }
   }
 } else {
   // Use Neon/Postgres for production or when DATABASE_URL is set

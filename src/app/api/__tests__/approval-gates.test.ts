@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-import { POST as approveDependencies } from '@/app/api/projects/[slug]/approve-dependencies/route';
 import { POST as executePhase } from '@/app/api/projects/[slug]/execute-phase/route';
 
 const mockSession = vi.hoisted(() => ({
@@ -54,7 +53,6 @@ describe('Approval Gates and Phase Execution', () => {
     phases_completed: ['ANALYSIS', 'STACK_SELECTION'],
     stack_choice: 'Node.js + React',
     stack_approved: true,
-    dependencies_approved: false,
     created_by_id: 'test-user-123',
     created_at: '2025-01-01T00:00:00Z',
     updated_at: '2025-01-01T00:00:00Z',
@@ -70,7 +68,6 @@ describe('Approval Gates and Phase Execution', () => {
     phasesCompleted: ['ANALYSIS', 'STACK_SELECTION'],
     stackChoice: 'Node.js + React',
     stackApproved: true,
-    dependenciesApproved: false,
     ownerId: 'test-user-123',
     createdAt: new Date('2025-01-01'),
     updatedAt: new Date('2025-01-01')
@@ -80,208 +77,6 @@ describe('Approval Gates and Phase Execution', () => {
     vi.clearAllMocks();
   });
 
-  describe('POST /api/projects/[slug]/approve-dependencies', () => {
-    it('should approve dependencies successfully', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.writeArtifact as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (ProjectDBService.prototype.saveArtifact as any).mockResolvedValue(undefined);
-
-      const request = new NextRequest(
-        new URL('http://localhost:3000/api/projects/test-project/approve-dependencies'),
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            notes: 'All dependencies reviewed and approved'
-          })
-        }
-      );
-
-      const response = await approveDependencies(request, { params: { slug: 'test-project' } });
-      const json = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(json.success).toBe(true);
-      expect(json.data.dependencies_approved).toBe(true);
-    });
-
-    it('should reject approval if not in DEPENDENCIES phase', async () => {
-      const metadataInWrongPhase = {
-        ...mockMetadata,
-        current_phase: 'ANALYSIS'
-      };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.getProjectMetadata as any).mockReturnValue(metadataInWrongPhase);
-
-      const request = new NextRequest(
-        new URL('http://localhost:3000/api/projects/test-project/approve-dependencies'),
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            notes: 'Some notes'
-          })
-        }
-      );
-
-      const response = await approveDependencies(request, { params: { slug: 'test-project' } });
-      const json = await response.json();
-
-      expect(response.status).toBe(400);
-      expect(json.success).toBe(false);
-      expect(json.error).toContain('Must be in DEPENDENCIES phase');
-    });
-
-    it('should return 404 if project not found', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.getProjectMetadata as any).mockReturnValue(null);
-
-      const request = new NextRequest(
-        new URL('http://localhost:3000/api/projects/missing/approve-dependencies'),
-        {
-          method: 'POST',
-          body: JSON.stringify({})
-        }
-      );
-
-      const response = await approveDependencies(request, { params: { slug: 'missing' } });
-      const json = await response.json();
-
-      expect(response.status).toBe(404);
-      expect(json.success).toBe(false);
-      expect(json.error).toBe('Project not found');
-    });
-
-    it('should save approval metadata with timestamp', async () => {
-      const saveSpy = vi.spyOn(projectUtils, 'saveProjectMetadata');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.writeArtifact as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (ProjectDBService.prototype.saveArtifact as any).mockResolvedValue(undefined);
-
-      const request = new NextRequest(
-        new URL('http://localhost:3000/api/projects/test-project/approve-dependencies'),
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            notes: 'Approved'
-          })
-        }
-      );
-
-      await approveDependencies(request, { params: { slug: 'test-project' } });
-
-      expect(saveSpy).toHaveBeenCalledWith(
-        'test-project',
-        expect.objectContaining({
-          dependencies_approved: true,
-          dependencies_approval_date: expect.any(String),
-          dependencies_approval_notes: 'Approved'
-        })
-      );
-    });
-
-    it('should write approval artifact to filesystem', async () => {
-      const writeArtifactSpy = vi.spyOn(projectUtils, 'writeArtifact');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (ProjectDBService.prototype.saveArtifact as any).mockResolvedValue(undefined);
-
-      const request = new NextRequest(
-        new URL('http://localhost:3000/api/projects/test-project/approve-dependencies'),
-        {
-          method: 'POST',
-          body: JSON.stringify({})
-        }
-      );
-
-      await approveDependencies(request, { params: { slug: 'test-project' } });
-
-      expect(writeArtifactSpy).toHaveBeenCalledWith(
-        'test-project',
-        'DEPENDENCIES',
-        'approval.md',
-        expect.stringContaining('Dependencies Approval')
-      );
-    });
-
-    it('should persist changes to database', async () => {
-      const persistSpy = vi.spyOn(projectUtils, 'persistProjectToDB');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.writeArtifact as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (ProjectDBService.prototype.saveArtifact as any).mockResolvedValue(undefined);
-
-      const request = new NextRequest(
-        new URL('http://localhost:3000/api/projects/test-project/approve-dependencies'),
-        {
-          method: 'POST',
-          body: JSON.stringify({})
-        }
-      );
-
-      await approveDependencies(request, { params: { slug: 'test-project' } });
-
-      expect(persistSpy).toHaveBeenCalledWith('test-project', expect.any(Object));
-    });
-
-    it('should handle database logging errors gracefully', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.writeArtifact as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (ProjectDBService.prototype.saveArtifact as any).mockRejectedValue(new Error('DB error'));
-
-      const request = new NextRequest(
-        new URL('http://localhost:3000/api/projects/test-project/approve-dependencies'),
-        {
-          method: 'POST',
-          body: JSON.stringify({})
-        }
-      );
-
-      const response = await approveDependencies(request, { params: { slug: 'test-project' } });
-      const json = await response.json();
-
-      // Should still succeed despite DB error
-      expect(response.status).toBe(200);
-      expect(json.success).toBe(true);
-    });
-  });
-
   describe('POST /api/projects/[slug]/execute-phase', () => {
     const metadataForAnalysis = {
       ...mockMetadata,
@@ -289,13 +84,38 @@ describe('Approval Gates and Phase Execution', () => {
       phases_completed: []
     };
 
-    it('should reject execution for STACK_SELECTION phase (requires user input)', async () => {
+    it('should allow execution for STACK_SELECTION phase', async () => {
       const metadataStackSelection = {
         ...mockMetadata,
         current_phase: 'STACK_SELECTION'
       };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.getProjectMetadata as any).mockReturnValue(metadataStackSelection);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (projectUtils.listArtifacts as any).mockReturnValue([]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (projectUtils.writeArtifact as any).mockImplementation(() => {});
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (ProjectDBService.prototype.recordPhaseHistory as any).mockResolvedValue(undefined);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (OrchestratorEngine.prototype.runPhaseAgent as any).mockResolvedValue({
+        success: true,
+        message: 'Stack selection executed',
+        artifacts: { 'STACK_SELECTION/stack-analysis.md': 'content' }
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (OrchestratorEngine.prototype.resolveStackSelectionMetadata as any).mockReturnValue({
+        projectType: 'web_app',
+        scaleTier: 'startup',
+        recommendedStack: 'nextjs_web_app',
+        workflowVersion: 2
+      });
 
       const request = new NextRequest(
         new URL('http://localhost:3000/api/projects/test-project/execute-phase'),
@@ -305,9 +125,8 @@ describe('Approval Gates and Phase Execution', () => {
       const response = await executePhase(request, { params: { slug: 'test-project' } });
       const json = await response.json();
 
-      expect(response.status).toBe(400);
-      expect(json.success).toBe(false);
-      expect(json.error).toContain('requires user input');
+      expect(response.status).toBe(200);
+      expect(json.success).toBe(true);
     });
 
     it('should reject execution for DONE phase', async () => {
@@ -576,38 +395,4 @@ describe('Approval Gates and Phase Execution', () => {
     });
   });
 
-  describe('Error Handling', () => {
-    it('should handle invalid request body gracefully', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
-
-      const request = new NextRequest(
-        new URL('http://localhost:3000/api/projects/test-project/approve-dependencies'),
-        {
-          method: 'POST',
-          body: 'invalid json'
-        }
-      );
-
-      await expect(async () => {
-        await request.json();
-      }).rejects.toThrow();
-    });
-
-    it('should include appropriate error messages in responses', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (projectUtils.getProjectMetadata as any).mockReturnValue(null);
-
-      const request = new NextRequest(
-        new URL('http://localhost:3000/api/projects/missing/approve-dependencies'),
-        { method: 'POST', body: JSON.stringify({}) }
-      );
-
-      const response = await approveDependencies(request, { params: { slug: 'missing' } });
-      const json = await response.json();
-
-      expect(json.error).toBeDefined();
-      expect(typeof json.error).toBe('string');
-    });
-  });
 });

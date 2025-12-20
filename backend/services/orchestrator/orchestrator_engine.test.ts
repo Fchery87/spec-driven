@@ -18,8 +18,7 @@ describe('OrchestratorEngine', () => {
         slug: 'test',
         current_phase: 'ANALYSIS',
         phases_completed: '',
-        stack_approved: false,
-        dependencies_approved: false
+        stack_approved: false
       }
 
       // Mock validation result - all pass
@@ -57,17 +56,6 @@ describe('OrchestratorEngine', () => {
       expect(canAdvanceToSpec).toBe(false)
     })
 
-    it('should enforce DEPENDENCIES gate', () => {
-      // Test DEPENDENCIES gate
-      const project = {
-        current_phase: 'DEPENDENCIES',
-        dependencies_approved: false
-      }
-
-      // Cannot advance without dependencies approval
-      const canAdvanceToSolutioning = project.dependencies_approved === true
-      expect(canAdvanceToSolutioning).toBe(false)
-    })
   })
 
   describe('Phase History Tracking', () => {

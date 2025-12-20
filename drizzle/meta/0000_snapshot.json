@@ -286,89 +286,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.DependencyApproval": {
-      "name": "DependencyApproval",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "project_id": {
-          "name": "project_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "approved_at": {
-          "name": "approved_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "approved_by": {
-          "name": "approved_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "notes": {
-          "name": "notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "DependencyApproval_project_id_idx": {
-          "name": "DependencyApproval_project_id_idx",
-          "columns": [
-            {
-              "expression": "project_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "DependencyApproval_project_id_Project_id_fk": {
-          "name": "DependencyApproval_project_id_Project_id_fk",
-          "tableFrom": "DependencyApproval",
-          "tableTo": "Project",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "DependencyApproval_project_id_unique": {
-          "name": "DependencyApproval_project_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "project_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.PhaseHistory": {
       "name": "PhaseHistory",
       "schema": "",
@@ -534,12 +451,30 @@
           "notNull": true,
           "default": false
         },
-        "dependencies_approved": {
-          "name": "dependencies_approved",
-          "type": "boolean",
+        "project_type": {
+          "name": "project_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scale_tier": {
+          "name": "scale_tier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recommended_stack": {
+          "name": "recommended_stack",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "workflow_version": {
+          "name": "workflow_version",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "default": false
+          "default": 2
         },
         "owner_id": {
           "name": "owner_id",
@@ -627,8 +562,6 @@
           "name": "Project_owner_id_User_id_fk",
           "tableFrom": "Project",
           "tableTo": "User",
-          "schemaFrom": "",
-          "schemaTo": "",
           "columnsFrom": [
             "owner_id"
           ],
@@ -636,8 +569,7 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action",
-          "matchType": "simple"
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},

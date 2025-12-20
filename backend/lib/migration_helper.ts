@@ -91,15 +91,6 @@ export async function migrateProjectToDatabase(slug: string) {
       );
     }
 
-    // Migrate dependencies approval if applicable
-    if (metadata.dependencies_approved) {
-      await dbService.approveDependencies(
-        slug,
-        'Migrated from file-based storage',
-        ownerId
-      );
-    }
-
     logger.info(`✅ Migration completed successfully for: ${slug}`);
     return project;
   } catch (error) {
@@ -154,7 +145,6 @@ export async function verifyMigration(slug: string) {
   logger.info(`Phases Completed: ${project.phasesCompleted || 'none'}`);
   logger.info(`Total Artifacts: ${project.artifacts.length}`);
   logger.info(`Stack Approved: ${project.stackApproved}`);
-  logger.info(`Dependencies Approved: ${project.dependenciesApproved}`);
   logger.info(`Handoff Generated: ${project.handoffGenerated}`);
 
   // Count artifacts by phase

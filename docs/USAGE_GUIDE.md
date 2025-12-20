@@ -2,7 +2,7 @@
 
 Quick reference for using the Spec-Driven platform features.
 
-**Version 3.0** - Updated with Hybrid Clarification, VALIDATE phase, and Constitutional Articles.
+**Version 3.1** - Updated with AI-driven Stack Selection, Streamlined Dependencies, and Intelligent Defaults.
 
 ---
 
@@ -12,15 +12,15 @@ Quick reference for using the Spec-Driven platform features.
 ANALYSIS → STACK_SELECTION → SPEC → DEPENDENCIES → SOLUTIONING → VALIDATE → DONE
 ```
 
-| Phase | User Action | Outputs |
-|-------|-------------|---------|
-| ANALYSIS | Answer clarification questions (or let AI assume) | constitution.md, project-brief.md, personas.md |
-| STACK_SELECTION | Approve/customize technology stack (GATE) | stack-decision.md, stack-rationale.md |
-| SPEC | Review generated specs | PRD.md, data-model.md, api-spec.json, design-system.md |
-| DEPENDENCIES | Approve dependencies (GATE) | DEPENDENCIES.md, dependency-proposal.md |
-| SOLUTIONING | Review architecture and tasks | architecture.md, epics.md, tasks.md, plan.md |
-| VALIDATE | Run validation checks, review results | validation-report.md, coverage-matrix.md |
-| DONE | Download handoff | README.md, HANDOFF.md, project.zip |
+| Phase           | User Action                                              | Outputs                                                  |
+| --------------- | -------------------------------------------------------- | -------------------------------------------------------- |
+| ANALYSIS        | Answer clarification questions (or let AI assume)        | constitution.md, project-brief.md, personas.md           |
+| STACK_SELECTION | Review AI recommendation, approve/customize stack (GATE) | stack-analysis.md, stack-decision.md, stack-rationale.md |
+| SPEC            | Review generated specs                                   | PRD.md, data-model.md, api-spec.json, design-system.md   |
+| DEPENDENCIES    | Auto-generated from approved stack (no approval needed)  | DEPENDENCIES.md, dependencies.json                       |
+| SOLUTIONING     | Review architecture and tasks                            | architecture.md, epics.md, tasks.md, plan.md             |
+| VALIDATE        | Run validation checks, review results                    | validation-report.md, coverage-matrix.md                 |
+| DONE            | Download handoff                                         | README.md, HANDOFF.md, project.zip                       |
 
 ---
 
@@ -30,11 +30,11 @@ When the AI encounters ambiguity during ANALYSIS, it marks uncertainties with `[
 
 ### Three Modes
 
-| Mode | Description | When to Use |
-|------|-------------|-------------|
-| **Interactive** | Answer ALL questions manually | Complex projects, compliance-heavy, precise requirements |
-| **Hybrid** | Pick which to answer; AI resolves rest | Balanced control and speed (DEFAULT) |
-| **Auto-resolve** | AI assumes all and documents | Fast iteration, MVPs, familiar domains |
+| Mode             | Description                            | When to Use                                              |
+| ---------------- | -------------------------------------- | -------------------------------------------------------- |
+| **Interactive**  | Answer ALL questions manually          | Complex projects, compliance-heavy, precise requirements |
+| **Hybrid**       | Pick which to answer; AI resolves rest | Balanced control and speed (DEFAULT)                     |
+| **Auto-resolve** | AI assumes all and documents           | Fast iteration, MVPs, familiar domains                   |
 
 ### UI Flow
 
@@ -51,9 +51,11 @@ When the AI encounters ambiguity during ANALYSIS, it marks uncertainties with `[
 
 ```markdown
 ## Authentication
+
 [NEEDS CLARIFICATION: Should users login with email/password, OAuth, or SSO?]
 
 ## Scale
+
 [AI ASSUMED: 1,000-10,000 monthly active users - typical for B2B SaaS MVP]
 ```
 
@@ -65,18 +67,18 @@ The VALIDATE phase runs 10 automated consistency checks before generating the fi
 
 ### Validation Checks
 
-| Check | Category | What It Validates |
-|-------|----------|-------------------|
-| Requirement to Task Mapping | Mapping | Every PRD requirement has implementing task |
-| API to Data Model Mapping | Consistency | All API schemas have corresponding entities |
-| Persona Consistency | Consistency | All personas referenced exist |
-| Stack Consistency | Consistency | Technologies match across artifacts |
-| Epic to Task Consistency | Mapping | All task EPICs are defined |
-| No Unresolved Clarifications | Completeness | All `[NEEDS CLARIFICATION]` resolved |
-| AI Assumptions Documented | Completeness | All `[AI ASSUMED]` tracked |
-| Design System Compliance | Compliance | Follows design guidelines |
-| Test-First Compliance | Compliance | Tests specified before implementation |
-| Constitutional Compliance | Compliance | All 5 articles followed |
+| Check                        | Category     | What It Validates                           |
+| ---------------------------- | ------------ | ------------------------------------------- |
+| Requirement to Task Mapping  | Mapping      | Every PRD requirement has implementing task |
+| API to Data Model Mapping    | Consistency  | All API schemas have corresponding entities |
+| Persona Consistency          | Consistency  | All personas referenced exist               |
+| Stack Consistency            | Consistency  | Technologies match across artifacts         |
+| Epic to Task Consistency     | Mapping      | All task EPICs are defined                  |
+| No Unresolved Clarifications | Completeness | All `[NEEDS CLARIFICATION]` resolved        |
+| AI Assumptions Documented    | Completeness | All `[AI ASSUMED]` tracked                  |
+| Design System Compliance     | Compliance   | Follows design guidelines                   |
+| Test-First Compliance        | Compliance   | Tests specified before implementation       |
+| Constitutional Compliance    | Compliance   | All 5 articles followed                     |
 
 ### UI Flow
 
@@ -99,22 +101,27 @@ The VALIDATE phase runs 10 automated consistency checks before generating the fi
 Five governing principles enforced across ALL generated specifications:
 
 ### Article 1: Library-First Principle
+
 **Mandate:** Every feature begins as a reusable module with clear boundaries.
 **Enforcement:** `architecture.md` must show modular boundaries for each feature.
 
 ### Article 2: Test-First Imperative (NON-NEGOTIABLE)
+
 **Mandate:** No implementation code before tests are specified.
 **Enforcement:** `tasks.md` lists test specifications BEFORE implementation notes.
 
 ### Article 3: Simplicity Gate
+
 **Mandate:** Maximum 3 services for MVP; justify additional complexity.
 **Enforcement:** `architecture.md` includes complexity tracking section.
 
 ### Article 4: Anti-Abstraction
+
 **Mandate:** Use framework directly; no unnecessary wrappers.
 **Enforcement:** `DEPENDENCIES.md` justifies each abstraction layer.
 
 ### Article 5: Integration-First Testing
+
 **Mandate:** Prefer real databases over mocks in tests.
 **Enforcement:** Test configuration in `tasks.md` specifies real service usage.
 
@@ -128,15 +135,15 @@ The platform supports **hybrid stack selection** with 12+ predefined templates o
 
 Select from predefined templates:
 
-| Template | Best For |
-|----------|----------|
+| Template                | Best For                                    |
+| ----------------------- | ------------------------------------------- |
 | `nextjs_fullstack_expo` | Full-stack web + mobile (shared TypeScript) |
-| `nextjs_web_only` | Web-only SaaS, dashboards |
-| `vue_nuxt` | Vue ecosystem with Nuxt 3 |
-| `svelte_kit` | Lightweight, performant apps |
-| `django_htmx` | Python backend with HTMX |
-| `go_react` | High-performance Go API |
-| `flutter_firebase` | Cross-platform mobile |
+| `nextjs_web_only`       | Web-only SaaS, dashboards                   |
+| `vue_nuxt`              | Vue ecosystem with Nuxt 3                   |
+| `svelte_kit`            | Lightweight, performant apps                |
+| `django_htmx`           | Python backend with HTMX                    |
+| `go_react`              | High-performance Go API                     |
+| `flutter_firebase`      | Cross-platform mobile                       |
 
 ### Custom Mode
 
@@ -172,6 +179,7 @@ Define your own stack composition:
 ### Generated Artifacts
 
 After stack approval:
+
 - `stack-decision.md` - Selected stack with composition table
 - `stack-rationale.md` - Decision reasoning and alternatives
 
@@ -183,15 +191,16 @@ The SPEC phase generates design system artifacts following [fire-your-design-tea
 
 ### Artifacts Generated
 
-| Artifact | Content |
-|----------|---------|
-| `design-system.md` | Colors, typography (4 sizes max), spacing (8pt grid), motion tokens |
-| `component-inventory.md` | UI components mapped to shadcn/ui |
-| `user-flows.md` | Key user journeys with wireframes |
+| Artifact                 | Content                                                             |
+| ------------------------ | ------------------------------------------------------------------- |
+| `design-system.md`       | Colors, typography (4 sizes max), spacing (8pt grid), motion tokens |
+| `component-inventory.md` | UI components mapped to shadcn/ui                                   |
+| `user-flows.md`          | Key user journeys with wireframes                                   |
 
 ### Anti-Patterns Avoided
 
 The system enforces design constraints to prevent "AI slop":
+
 - No purple gradients as default primary color
 - No Inter font as default (choose project-specific)
 - No gradient blob backgrounds
@@ -211,7 +220,11 @@ Apply rate limiting to expensive operations (LLM calls, file uploads, etc.).
 ### Basic Usage
 
 ```typescript
-import { llmLimiter, getRateLimitKey, createRateLimitResponse } from '@/lib/rate-limiter';
+import {
+  llmLimiter,
+  getRateLimitKey,
+  createRateLimitResponse,
+} from '@/lib/rate-limiter';
 
 export async function POST(req: Request) {
   // Get rate limit key (uses user ID if available, falls back to IP)
@@ -238,13 +251,13 @@ import { RateLimiter, generalLimiter, authLimiter } from '@/lib/rate-limiter';
 
 // Use pre-configured limiters
 const allowed = await generalLimiter.isAllowed(key); // 100 req/min
-const allowed = await authLimiter.isAllowed(key);     // 5 req/min
+const allowed = await authLimiter.isAllowed(key); // 5 req/min
 
 // Create custom limiter
 const customLimiter = new RateLimiter({
-  points: 20,        // Allow 20 requests
-  duration: 60,      // Per 60 seconds
-  blockDuration: 600 // Block for 10 minutes
+  points: 20, // Allow 20 requests
+  duration: 60, // Per 60 seconds
+  blockDuration: 600, // Block for 10 minutes
 });
 ```
 
@@ -283,7 +296,8 @@ export async function GET(req: Request) {
 import { getCorrelationId, withCorrelationIdFetch } from '@/lib/correlation-id';
 
 // Automatic correlation ID injection
-const response = await fetch('/api/endpoint',
+const response = await fetch(
+  '/api/endpoint',
   withCorrelationIdFetch('/api/endpoint', {
     method: 'POST',
     body: JSON.stringify(data),
@@ -383,7 +397,11 @@ Centralize configuration with type-safe helpers.
 ### Basic Usage
 
 ```typescript
-import { ARTIFACT_CONFIG, getArtifactPath, getRequiredFilesForPhase } from '@/lib/config';
+import {
+  ARTIFACT_CONFIG,
+  getArtifactPath,
+  getRequiredFilesForPhase,
+} from '@/lib/config';
 
 // Use pre-built paths
 const path = getArtifactPath('my-project', 'SPEC', 'PRD.md');
@@ -532,16 +550,13 @@ const safePhaseExecution = withConcurrencyGuard(
   },
   {
     // Deduplicate: same (projectId, phase) = same execution
-    deduplicationKey: (projectId, phase) =>
-      `phase:${projectId}:${phase}`,
+    deduplicationKey: (projectId, phase) => `phase:${projectId}:${phase}`,
 
     // Idempotency: same idempotency-key = same result
-    idempotencyKey: (projectId, phase) =>
-      req.headers.get('idempotency-key'),
+    idempotencyKey: (projectId, phase) => req.headers.get('idempotency-key'),
 
     // Lock: coordinate across instances
-    lockKey: (projectId, phase) =>
-      `lock:project:${projectId}`,
+    lockKey: (projectId, phase) => `lock:project:${projectId}`,
 
     // Owner for lock tracking
     ownerId: userId,
@@ -561,7 +576,11 @@ const result = await safePhaseExecution(projectId, phase);
 ```typescript
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
-import { llmLimiter, getRateLimitKey, createRateLimitResponse } from '@/lib/rate-limiter';
+import {
+  llmLimiter,
+  getRateLimitKey,
+  createRateLimitResponse,
+} from '@/lib/rate-limiter';
 import { withCorrelationId, getCorrelationId } from '@/lib/correlation-id';
 import { lockManager } from '@/lib/execution-guard';
 
@@ -613,10 +632,14 @@ export const POST = withCorrelationId(async (req: NextRequest) => {
     }
   } catch (error) {
     // 7. Log error with context
-    logger.error('Phase execution failed', error instanceof Error ? error : new Error(String(error)), {
-      projectId,
-      correlationId,
-    });
+    logger.error(
+      'Phase execution failed',
+      error instanceof Error ? error : new Error(String(error)),
+      {
+        projectId,
+        correlationId,
+      }
+    );
 
     return NextResponse.json(
       {
@@ -673,15 +696,19 @@ export function UploadForm() {
   };
 
   return (
-    <form onSubmit={(e) => {
-      e.preventDefault();
-      const file = (e.target as HTMLFormElement).elements['file'] as HTMLInputElement;
-      if (file.files?.[0]) {
-        handleUpload(file.files[0]);
-      }
-    }}>
-      <input type="file" name="file" required />
-      <button type="submit" disabled={loading}>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const file = (e.target as HTMLFormElement).elements[
+          'file'
+        ] as HTMLInputElement;
+        if (file.files?.[0]) {
+          handleUpload(file.files[0]);
+        }
+      }}
+    >
+      <input type='file' name='file' required />
+      <button type='submit' disabled={loading}>
         {loading ? 'Uploading...' : 'Upload'}
       </button>
     </form>

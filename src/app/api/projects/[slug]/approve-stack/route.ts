@@ -44,14 +44,14 @@ function generateStackProposalContent(params: {
 }): string {
   const date = new Date().toISOString().split('T')[0];
   return `---
-title: "Technology Stack Proposal"
+title: "Stack Analysis Report"
 owner: "architect"
 version: "1"
 date: "${date}"
 status: "draft"
 ---
 
-# Technology Stack Proposal
+# Stack Analysis Report
 
 ## Recommendation
 - **Recommended Template**: ${params.mode === 'custom' ? 'custom' : params.stackChoice}
@@ -59,8 +59,8 @@ status: "draft"
 - **Package Manager**: ${params.packageManager}
 
 ## Notes
-This proposal is a lightweight summary captured at approval time.
-If you want an AI-authored recommendation matrix, run the STACK_SELECTION phase proposal generator (when available).
+This analysis is a lightweight summary captured at approval time.
+If you want an AI-authored recommendation matrix, run the STACK_SELECTION phase analysis generator (when available).
 `;
 }
 
@@ -382,7 +382,7 @@ export const POST = withAuth(
 
       const stackJsonContent = JSON.stringify(stackJson, null, 2);
 
-      await writeArtifact(slug, 'STACK_SELECTION', 'stack-proposal.md', stackProposalContent);
+      await writeArtifact(slug, 'STACK_SELECTION', 'stack-analysis.md', stackProposalContent);
       await writeArtifact(slug, 'STACK_SELECTION', 'stack-decision.md', stackDecisionContent);
       await writeArtifact(slug, 'STACK_SELECTION', 'stack-rationale.md', stackRationaleContent);
       await writeArtifact(slug, 'STACK_SELECTION', 'stack.json', stackJsonContent);
@@ -396,7 +396,7 @@ export const POST = withAuth(
           await dbService.saveArtifact(
             dbProject.id,
             'STACK_SELECTION',
-            'stack-proposal.md',
+            'stack-analysis.md',
             stackProposalContent
           );
           await dbService.saveArtifact(

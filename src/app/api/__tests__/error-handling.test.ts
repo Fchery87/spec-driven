@@ -66,7 +66,6 @@ describe('API Error Handling', () => {
     phases_completed: [],
     stack_choice: null,
     stack_approved: false,
-    dependencies_approved: false,
     created_by_id: 'test-user-123',
     created_at: '2025-01-01T00:00:00Z',
     updated_at: '2025-01-01T00:00:00Z',

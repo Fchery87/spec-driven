@@ -1,7 +1,7 @@
 # Spec-Driven Platform: Orchestrator Design Document
 
-**Version:** 3.0
-**Date:** 2025-12-10
+**Version:** 3.1
+**Date:** 2025-12-20
 **Status:** Production
 **Owner:** Spec-Driven Team
 
@@ -32,6 +32,7 @@ Spec-Driven is transforming from a simple project scaffolder into a **comprehens
 **Core Principle:** The system generates **complete, structured markdown specifications and planning documents** that users download as a ZIP, upload to their IDE, and use as context for their LLM of choice to generate production code. **No code generation happens in Spec-Driven itself.**
 
 **Key Improvements:**
+
 - ✅ Formal orchestrator spec (YAML) defining phases, artifacts, validators, and agents
 - ✅ Explicit approval gates for stack selection and dependency approval
 - ✅ Multi-agent role-based specification generation (Analyst, PM, Architect, Scrum Master, DevOps)
@@ -48,6 +49,7 @@ Spec-Driven is transforming from a simple project scaffolder into a **comprehens
 ### The Problem
 
 Traditional AI-assisted development suffers from "vibe coding" – unstructured prompting without clear specifications. This results in:
+
 - Inconsistent implementations that diverge from intent
 - Missing edge cases and non-functional requirements
 - Difficulty iterating or extending the project
@@ -175,7 +177,7 @@ STACK_SELECTION (Approval Gate)
    ↓
 SPEC
    ↓
-DEPENDENCIES (Approval Gate)
+DEPENDENCIES (Auto-generated)
    ↓
 SOLUTIONING
    ↓
@@ -192,11 +194,13 @@ DONE (ZIP Ready)
 **Owner:** Analyst Agent
 **Input:** User's project description/idea
 **Output:**
+
 - `constitution.md` - Project constitution/guiding principles
 - `project-brief.md` - High-level vision, target market, key objectives
 - `personas.md` - User personas (3-5 detailed profiles)
 
 **Process:**
+
 1. User describes their project idea
 2. Analyst Agent asks clarifying questions:
    - "Who are your primary users?"
@@ -208,6 +212,7 @@ DONE (ZIP Ready)
 4. User reviews and proceeds to STACK_SELECTION
 
 **Validation:**
+
 - `markdown_frontmatter` - Each file has required meta (title, owner, version, date)
 - `presence` - All three files exist
 - `content_quality` - Files aren't empty or obviously incomplete
@@ -222,27 +227,30 @@ DONE (ZIP Ready)
 **Owner:** Architect Agent (proposal), User (approval)
 **Input:** project-brief.md, personas.md
 **Output:**
+
 - `stack-decision.md` - Approved stack with composition details
 - `stack-rationale.md` - Decision reasoning and alternatives considered
 
 **Process:**
+
 1. **Proposal Generation (Hybrid Mode):**
+
    - Architect Agent analyzes project requirements and proposes a stack from 12+ templates:
 
-     | Template | Use Case |
-     |----------|----------|
+     | Template                | Use Case                                            |
+     | ----------------------- | --------------------------------------------------- |
      | `nextjs_fullstack_expo` | Full-stack web + mobile with shared TypeScript code |
-     | `nextjs_web_only` | Web-only SaaS, dashboards, CRUD applications |
-     | `hybrid_nextjs_fastapi` | AI/ML workloads, Python backend + Next.js frontend |
-     | `vue_nuxt` | Vue ecosystem with Nuxt 3 SSR/SSG |
-     | `svelte_kit` | Lightweight, performant web applications |
-     | `astro_static` | Content-heavy sites with partial hydration |
-     | `serverless_edge` | Edge-first serverless architecture |
-     | `django_htmx` | Python backend with HTMX interactivity |
-     | `go_react` | High-performance Go API + React frontend |
-     | `flutter_firebase` | Cross-platform mobile with Firebase |
-     | `react_native_supabase` | React Native + Supabase backend |
-     | `react_express` | Traditional MERN stack pattern |
+     | `nextjs_web_only`       | Web-only SaaS, dashboards, CRUD applications        |
+     | `hybrid_nextjs_fastapi` | AI/ML workloads, Python backend + Next.js frontend  |
+     | `vue_nuxt`              | Vue ecosystem with Nuxt 3 SSR/SSG                   |
+     | `svelte_kit`            | Lightweight, performant web applications            |
+     | `astro_static`          | Content-heavy sites with partial hydration          |
+     | `serverless_edge`       | Edge-first serverless architecture                  |
+     | `django_htmx`           | Python backend with HTMX interactivity              |
+     | `go_react`              | High-performance Go API + React frontend            |
+     | `flutter_firebase`      | Cross-platform mobile with Firebase                 |
+     | `react_native_supabase` | React Native + Supabase backend                     |
+     | `react_express`         | Traditional MERN stack pattern                      |
 
    - Architect provides reasoning based on:
      - Project requirements from `project-brief.md`
@@ -250,6 +258,7 @@ DONE (ZIP Ready)
      - Technical constraints from `constitution.md`
 
 2. **User Approval Options:**
+
    - **Template Mode:** Select from predefined templates
    - **Custom Mode:** Define custom stack composition:
      ```yaml
@@ -273,6 +282,7 @@ DONE (ZIP Ready)
      ```
 
 3. **Technical Preferences:**
+
    - User can specify library preferences:
      - State management: zustand, redux, jotai
      - Data fetching: tanstack-query, swr
@@ -293,6 +303,7 @@ DONE (ZIP Ready)
    - Updates project metadata: `stack_choice`, `stack_mode`, `stack_approved = true`
 
 **Validation:**
+
 - `presence` - stack-decision.md and stack-rationale.md exist
 - `stack_approved == true` - User has explicitly approved a stack
 - `stack_completeness` - All required layers defined
@@ -307,6 +318,7 @@ DONE (ZIP Ready)
 **Owner:** Product Manager Agent + Architect Agent
 **Input:** project-brief.md, personas.md, approved stack choice
 **Output:**
+
 - `PRD.md` - Product Requirements Document (detailed specs)
 - `data-model.md` - Database schema, data structures
 - `api-spec.json` - OpenAPI specification for API contracts
@@ -316,7 +328,9 @@ DONE (ZIP Ready)
 - Review checkpoint (user can request refinements)
 
 **Process:**
+
 1. **PRD Generation (PM Agent):**
+
    - Comprehensive Product Requirements Document including:
      - Functional requirements (numbered, linked to features)
      - Non-functional requirements (performance, security, UX)
@@ -326,12 +340,14 @@ DONE (ZIP Ready)
    - Front-matter metadata: title, owner, version, date, status
 
 2. **Data Model Generation (Architect Agent):**
+
    - Database schema based on PRD requirements
    - Entity-Relationship Diagram (ASCII or reference)
    - Table definitions with column types, constraints
    - Relationships and foreign keys
 
 3. **API Specification (Architect Agent):**
+
    - OpenAPI 3.0 JSON schema
    - All endpoints derived from PRD requirements
    - Request/response models
@@ -340,25 +356,28 @@ DONE (ZIP Ready)
 
 4. **Design System Generation (Architect Agent):**
    Following principles from `fire-your-design-team.md`:
-   
+
    - **design-system.md:**
+
      - Color palette (project-specific, no purple defaults)
      - Typography scale (max 4 sizes: body, label, heading, display)
      - Spacing tokens (8pt grid: 8, 16, 24, 32, 48, 64)
      - Motion tokens (Framer Motion: duration scale, spring configs)
      - Accessibility requirements (WCAG compliance)
-   
+
    - **component-inventory.md:**
+
      - UI components mapped to shadcn/ui
      - Custom components with props and variants
      - Animation patterns using Framer Motion
-   
+
    - **user-flows.md:**
      - Key user journeys as wireframes
      - Interaction states and transitions
      - Error and empty states
-   
+
    Anti-patterns enforced:
+
    - No gradient blob backgrounds
    - No default Inter font
    - No purple as primary color (unless brand-specific)
@@ -370,6 +389,7 @@ DONE (ZIP Ready)
    - If user requests refinement, PRD is regenerated (versioned)
 
 **Validation:**
+
 - `markdown_frontmatter` - PRD.md has required metadata
 - `api_openapi` - api-spec.json is valid OpenAPI 3.0
 - `presence` - All 6 files exist (PRD, data-model, api-spec, design-system, component-inventory, user-flows)
@@ -380,29 +400,37 @@ DONE (ZIP Ready)
 
 ---
 
-#### Phase 4: DEPENDENCIES (Approval Gate)
+#### Phase 4: DEPENDENCIES (Auto-generated)
 
-**Duration:** 15-30 minutes
-**Owner:** DevOps Agent (proposal), User (approval)
-**Input:** PRD.md, approved stack choice
+**Duration:** 5-10 minutes (automated)
+**Owner:** DevOps Agent (auto-generation)
+**Input:** PRD.md, approved stack choice, project-classification.json
 **Output:**
-- `DEPENDENCIES.md` - Comprehensive dependency proposal
-- `dependency-proposal.md` - JSON/detailed version (for policy checks)
-- Policy validation scripts
+
+- `DEPENDENCIES.md` - Comprehensive dependency list with rationale
+- `dependencies.json` - Machine-readable dependency manifest
+
+> **Note:** Dependencies are now auto-generated based on the approved stack. No separate user approval is required—stack approval implies dependency approval.
 
 **Process:**
+
 1. **Dependency Proposal Generation:**
+
    - DevOps Agent generates `DEPENDENCIES.md` listing all required packages:
 
    **For Option A (Next.js-Only + Expo):**
+
    ```markdown
    ## Frontend & Mobile Dependencies
+
    - next@14.x - React framework
+
      - Why: App Router, file-based routing, built-in API
      - Security: Maintained, frequent updates, good track record
      - License: MIT
 
    - react@18.x - UI library
+
      - Why: Industry standard, excellent ecosystem
 
    - typescript@5.x - Type safety
@@ -414,28 +442,33 @@ DONE (ZIP Ready)
    - axios@latest - HTTP client
 
    ## tRPC (TypeScript RPC)
+
    - @trpc/client
    - @trpc/server
    - @trpc/next
    - Why: End-to-end type safety between frontend and API
 
    ## Database
+
    - @prisma/client@latest - ORM
    - prisma@latest (dev) - CLI & migrations
    - Why: Type-safe database access, excellent TypeScript support
 
    ## Testing
+
    - vitest@latest - Unit tests
    - @testing-library/react@latest - Component testing
    - playwright@latest - E2E tests
 
    ## Dev Tools
+
    - eslint@latest - Linting
    - prettier@latest - Formatting
    - husky@latest - Git hooks
    - lint-staged@latest - Run linters on staged files
 
    ## Security & Scanning
+
    - All dependencies subject to:
      - npm audit (zero HIGH/CRITICAL vulnerabilities)
      - npm outdated (must use latest minor version within constraints)
@@ -443,8 +476,10 @@ DONE (ZIP Ready)
    ```
 
    **For Option B (Hybrid) - adds:**
+
    ```markdown
    ## Backend Dependencies (Python)
+
    - fastapi@0.104+ - Web framework
    - pydantic@2.x - Data validation
    - uvicorn@0.24+ - ASGI server
@@ -458,21 +493,25 @@ DONE (ZIP Ready)
    - python-dotenv@1.x - Environment variables
 
    ## Policy Checks:
+
    - pip-audit (zero HIGH/CRITICAL)
    - pip-compile requirements.in (with hashes)
    - No deprecated packages
    ```
 
-2. **User Approval:**
-   - Frontend displays DEPENDENCIES.md in a readable format
-   - Shows which stack is active
-   - Provides "Approve Dependencies" button
-   - Option to "Request Custom Packages" or "Override"
+2. **Auto-Generation Flow:**
+
+   - Dependencies are deterministically generated from the approved stack
+   - Template-specific dependency presets are loaded from `backend/config/dependency-presets.ts`
+   - PRD.md is scanned for feature keywords (e.g., "payments" → Stripe, "real-time" → WebSocket libs)
+   - No user approval required - stack approval implies dependency approval
 
 3. **Policy Script Execution:**
+
    - On approval, backend runs dependency policy scripts:
 
      **Node Script** (`scripts/node/ensure_deps.mjs`):
+
      ```bash
      pnpm install --frozen-lockfile
      npm outdated → fail if any outdated
@@ -481,6 +520,7 @@ DONE (ZIP Ready)
      ```
 
      **Python Script** (`scripts/python/ensure_deps.sh`):
+
      ```bash
      pip-compile requirements.in --generate-hashes
      pip install --require-hashes -r requirements.txt
@@ -488,6 +528,7 @@ DONE (ZIP Ready)
      ```
 
 4. **Lockfile Storage:**
+
    - On success, store lockfiles in project:
      - `frontend/pnpm-lock.yaml` (or package-lock.json)
      - `backend/requirements.txt` (with hashes)
@@ -498,9 +539,10 @@ DONE (ZIP Ready)
    - Useful for compliance/security tracking
 
 **Validation:**
-- `presence` - DEPENDENCIES.md exists
-- `dependencies_approved == true` - User has approved
-- Policy scripts exit with code 0 (no warnings, no outdated, no HIGH/CRITICAL)
+
+- `presence` - DEPENDENCIES.md and dependencies.json exist
+- `dependencies_json_check` - dependencies.json is valid and contains required package entries
+- Policy scripts exit with code 0 (no HIGH/CRITICAL vulnerabilities)
 
 **Next:** → SOLUTIONING
 
@@ -512,6 +554,7 @@ DONE (ZIP Ready)
 **Owner:** Architect Agent + Scrum Master Agent
 **Input:** PRD.md, data-model.md, api-spec.json, DEPENDENCIES.md
 **Output:**
+
 - `architecture.md` - Complete system architecture & design
 - `epics.md` - Epic breakdown of features
 - `tasks.md` - Structured task list with context
@@ -520,6 +563,7 @@ DONE (ZIP Ready)
 **Process:**
 
 1. **Architecture Document (Architect Agent):**
+
    - **System Overview:** Diagrams (text or ASCII) of components and flow
    - **Tech Stack Details:**
      - Frontend: Components, state management, routing
@@ -536,35 +580,42 @@ DONE (ZIP Ready)
    - **Scalability Plan:** How to scale as traffic grows
 
 2. **Epics Breakdown (Scrum Master Agent):**
+
    - `epics.md` lists all epics (feature sets) from PRD
    - Format:
+
      ```markdown
      ## Epic 1: User Authentication & Account Management
 
      **Requirements Covered:**
+
      - REQ-AUTH-001: User registration
      - REQ-AUTH-002: User login
      - REQ-AUTH-003: Password reset
 
      **User Stories:**
+
      - 1.1: User can register with email/password
      - 1.2: User can log in
      - 1.3: User can reset forgotten password
      - 1.4: User account dashboard
 
      **Components (Frontend):**
+
      - LoginScreen.tsx
      - RegisterScreen.tsx
      - ResetPasswordScreen.tsx
      - AccountDashboard.tsx
 
      **APIs (Backend):**
+
      - POST /auth/register
      - POST /auth/login
      - POST /auth/reset-password
      - GET /user/account
 
      **Acceptance Criteria:**
+
      - Users can create accounts with email validation
      - Login returns valid JWT token
      - Sessions expire after 1 hour
@@ -572,6 +623,7 @@ DONE (ZIP Ready)
      ```
 
 3. **Tasks Breakdown (Scrum Master Agent):**
+
    - `tasks.md` contains detailed task list with execution context
    - Each task includes:
      - **Task ID & Title**
@@ -586,6 +638,7 @@ DONE (ZIP Ready)
      - **MVP:** Yes/No (if Phase 2 feature, mark as Phase 2)
 
    **Example Task:**
+
    ```markdown
    ## Task 1.1: User Registration Backend API
 
@@ -594,6 +647,7 @@ DONE (ZIP Ready)
    **User Story:** As a new user, I want to register an account with my email and password
 
    **Acceptance Criteria:**
+
    - POST /auth/register accepts { email, password, name }
    - Email validation: Must be valid email format
    - Password validation: Min 8 chars, requires uppercase, number, special char
@@ -605,6 +659,7 @@ DONE (ZIP Ready)
    **Architecture Component:** See architecture.md § Backend Services → Auth Service
 
    **Implementation Hints:**
+
    - Use Pydantic for request validation (if FastAPI) or zod (if Node)
    - Implement strong password validation per OWASP guidelines
    - Use bcrypt with cost factor 10 (not less, for security)
@@ -614,9 +669,11 @@ DONE (ZIP Ready)
    - Consider async execution for password hashing
 
    **Database Changes:**
+
    - No new migrations (users table already defined in data-model.md)
 
    **Tests Expected:**
+
    - Valid registration succeeds
    - Duplicate email returns 409
    - Weak password returns 400
@@ -624,6 +681,7 @@ DONE (ZIP Ready)
    - Email validation works correctly
 
    **Dependencies:**
+
    - Project structure setup (from Task 0.0)
    - Database initialized and migrations applied
 
@@ -633,6 +691,7 @@ DONE (ZIP Ready)
    ```
 
 4. **Task Organization:**
+
    - Tasks numbered with epic prefix (1.1, 1.2, 2.1, etc.)
    - Organized by execution order
    - Parallel tasks clearly marked
@@ -645,6 +704,7 @@ DONE (ZIP Ready)
    - Can manually edit tasks if needed
 
 **Validation:**
+
 - `markdown_frontmatter` - All files have metadata
 - `tasks_dag` - No circular dependencies in task list
 - `presence` - All three files exist
@@ -660,10 +720,12 @@ DONE (ZIP Ready)
 **Owner:** Validator (automation)
 **Input:** All previous phase outputs
 **Output:**
+
 - `validation-report.md` - Cross-artifact consistency results (errors + warnings)
 - `coverage-matrix.md` - Artifact presence/coverage by phase
 
 **Process:**
+
 1. Verify PRD requirements map to tasks
 2. Verify API endpoints are reflected in tasks
 3. Verify cross-artifact consistency (personas/REQs/EPICs/stack)
@@ -680,6 +742,7 @@ DONE (ZIP Ready)
 **Owner:** Orchestrator (automation)
 **Input:** All previous phase outputs
 **Output:**
+
 - `HANDOFF.md` - Master handoff document for LLM code generation
 - Project ZIP archive ready for download
 - `metadata.json` - Complete project state
@@ -687,12 +750,14 @@ DONE (ZIP Ready)
 **Process:**
 
 1. **HANDOFF.md Auto-Generation:**
+
    - Create master document referencing all artifacts
    - Include ready-to-use LLM prompt template
    - Specify document reading order
    - Summarize stack, dependencies, security baseline
 
    **Example HANDOFF.md:**
+
    ```markdown
    # Handoff: Freelancer Time Tracking App
 
@@ -702,6 +767,7 @@ DONE (ZIP Ready)
    **Status:** Ready for Code Generation
 
    ## What This Project Is
+
    A mobile app (iOS/Android) and web dashboard for freelancers to track billable time,
    generate invoices, and manage client relationships. MVP focuses on core time tracking
    and invoice generation.
@@ -709,20 +775,24 @@ DONE (ZIP Ready)
    ## Read Documents in This Order
 
    1. **constitution.md** (5 min read)
+
       - Project guiding principles
       - Non-negotiable values
 
    2. **project-brief.md** (5 min read)
+
       - Vision and objectives
       - Target audience
       - Key features at a glance
 
    3. **personas.md** (10 min read)
+
       - User personas (3-5 profiles)
       - Pain points and goals
       - Usage patterns
 
    4. **PRD.md** (20 min read)
+
       - Detailed product requirements
       - Functional & non-functional requirements
       - User stories with acceptance criteria
@@ -730,16 +800,19 @@ DONE (ZIP Ready)
       - MVP vs Phase 2 features (marked clearly)
 
    5. **data-model.md** (10 min read)
+
       - Database schema
       - Tables, columns, relationships
       - Key constraints
 
    6. **api-spec.json** (reference)
+
       - OpenAPI specification
       - All endpoints, methods, payloads
       - Used during API implementation
 
    7. **architecture.md** (15 min read)
+
       - System design and component overview
       - Tech stack rationale
       - Security & compliance design
@@ -747,16 +820,19 @@ DONE (ZIP Ready)
       - Performance considerations
 
    8. **DEPENDENCIES.md** (10 min read)
+
       - All required packages
       - Why each dependency was chosen
       - Security and licensing notes
 
    9. **epics.md** (10 min read)
+
       - Feature set breakdown
       - Which requirements each epic covers
       - Components and APIs per epic
 
    10. **tasks.md** (reference during implementation)
+
        - Detailed task list with execution context
        - Each task references PRD, architecture, data-model
        - Implementation hints and acceptance criteria
@@ -769,23 +845,28 @@ DONE (ZIP Ready)
    ## Approved Technology Stack
 
    **Frontend:**
+
    - Next.js 14 with App Router
    - React 18 with TypeScript
    - Tailwind CSS for styling
    - shadcn/ui for components
 
    **Mobile:**
+
    - Expo with React Native
    - Shared TypeScript codebase with web
 
    **Backend:**
+
    - Next.js API routes (or tRPC for better type safety)
    - Prisma ORM for database access
 
    **Database:**
+
    - PostgreSQL
 
    **DevOps:**
+
    - Vercel for frontend/API deployment
    - GitHub Actions for CI/CD
 
@@ -802,6 +883,7 @@ DONE (ZIP Ready)
    - [ ] Export to CSV/PDF
 
    Phase 2 (not in MVP):
+
    - AI-assisted invoice draft
    - Advanced reporting
    - Team collaboration features
@@ -829,8 +911,8 @@ DONE (ZIP Ready)
    ## LLM Code Generation Prompt
 
    **Copy the text below and paste into your IDE's LLM (Claude, ChatGPT, Gemini, etc.):**
-
    ```
+
    You are a senior full-stack engineer implementing a production project.
 
    ## Project Context
@@ -838,6 +920,7 @@ DONE (ZIP Ready)
    You are implementing: Freelancer Time Tracking App
 
    This is a mobile app (iOS/Android via Expo) and web dashboard for freelancers to:
+
    - Track billable time by project/client
    - Generate invoices automatically
    - Manage client relationships
@@ -888,6 +971,7 @@ DONE (ZIP Ready)
    - Each task's acceptance criteria met exactly
 
    Good luck! You have a complete spec. Build excellent software. 🚀
+
    ```
 
    ---
@@ -895,32 +979,34 @@ DONE (ZIP Ready)
    ## What's Included in This ZIP
 
    ```
+
    freelancer-time-tracker/
-   ├── constitution.md              ← Project guiding principles
-   ├── project-brief.md             ← Vision & objectives
-   ├── personas.md                  ← User personas
-   ├── README.md                    ← Quick start for this folder
-   ├── HANDOFF.md                   ← This file (your guide)
+   ├── constitution.md ← Project guiding principles
+   ├── project-brief.md ← Vision & objectives
+   ├── personas.md ← User personas
+   ├── README.md ← Quick start for this folder
+   ├── HANDOFF.md ← This file (your guide)
    │
    ├── specs/
-   │   ├── PRD.md                   ← Complete product requirements
-   │   ├── data-model.md            ← Database schema
-   │   ├── api-spec.json            ← OpenAPI specification
-   │   ├── architecture.md          ← System design
-   │   ├── epics.md                 ← Feature breakdown
-   │   ├── tasks.md                 ← Detailed task list
-   │   ├── plan.md                  ← Project plan & approved stack
-   │   └── DEPENDENCIES.md          ← Package choices & rationale
+   │ ├── PRD.md ← Complete product requirements
+   │ ├── data-model.md ← Database schema
+   │ ├── api-spec.json ← OpenAPI specification
+   │ ├── architecture.md ← System design
+   │ ├── epics.md ← Feature breakdown
+   │ ├── tasks.md ← Detailed task list
+   │ ├── plan.md ← Project plan & approved stack
+   │ └── DEPENDENCIES.md ← Package choices & rationale
    │
    ├── .ai-config/
-   │   ├── analyst_prompt.md        ← Analyst role guidelines (reference)
-   │   ├── pm_prompt.md             ← PM role guidelines (reference)
-   │   ├── architect_prompt.md      ← Architect role guidelines (reference)
-   │   └── validators.yml           ← Validation rules used (reference)
+   │ ├── analyst_prompt.md ← Analyst role guidelines (reference)
+   │ ├── pm_prompt.md ← PM role guidelines (reference)
+   │ ├── architect_prompt.md ← Architect role guidelines (reference)
+   │ └── validators.yml ← Validation rules used (reference)
    │
    └── docs/
-       ├── security-baseline.md     ← Security requirements & implementation
-       └── DEPS_NOTES.md            ← Dependency policy notes & overrides
+   ├── security-baseline.md ← Security requirements & implementation
+   └── DEPS_NOTES.md ← Dependency policy notes & overrides
+
    ```
 
    ## Next Steps
@@ -944,6 +1030,7 @@ DONE (ZIP Ready)
    ```
 
 2. **ZIP Archive Creation:**
+
    - Collect all spec files
    - Include HANDOFF.md
    - Include .ai-config/ (role prompts, validators)
@@ -952,6 +1039,7 @@ DONE (ZIP Ready)
    - Zip everything with project slug as filename: `{project-slug}.zip`
 
 3. **Metadata Finalization:**
+
    - Update `metadata.json`:
      ```json
      {
@@ -959,10 +1047,15 @@ DONE (ZIP Ready)
        "project_slug": "freelancer-time-tracker",
        "project_name": "Freelancer Time Tracking App",
        "current_phase": "DONE",
-       "phases_completed": ["ANALYSIS", "STACK_SELECTION", "SPEC", "DEPENDENCIES", "SOLUTIONING"],
+       "phases_completed": [
+         "ANALYSIS",
+         "STACK_SELECTION",
+         "SPEC",
+         "DEPENDENCIES",
+         "SOLUTIONING"
+       ],
        "stack_choice": "nextjs_only_expo",
        "stack_approved": true,
-       "dependencies_approved": true,
        "created_at": "2025-11-14T10:30:00Z",
        "last_updated": "2025-11-14T11:45:00Z",
        "artifact_versions": {
@@ -986,6 +1079,7 @@ DONE (ZIP Ready)
    - Copy HANDOFF.md prompt to clipboard
 
 **Validation:**
+
 - All previous phases complete
 - HANDOFF.md generated and valid
 - ZIP archive created successfully
@@ -1005,11 +1099,13 @@ The Analyst is the "CEO/CPO" perspective. They ask clarifying questions to deepl
 **Primary Responsibility:** Phase 1 (ANALYSIS)
 
 **Outputs:**
+
 - `constitution.md` - Project guiding principles, non-negotiable values, core mission
 - `project-brief.md` - High-level vision, target market, competitive analysis, key objectives
 - `personas.md` - Detailed user personas (3-5 profiles with motivations, pain points, goals)
 
 **Key Questions Asked:**
+
 - Who are your primary users? (Detailed demographics)
 - What problem does this solve? (Pain point analysis)
 - Who are your competitors? (Competitive landscape)
@@ -1019,6 +1115,7 @@ The Analyst is the "CEO/CPO" perspective. They ask clarifying questions to deepl
 - What's your timeline and budget? (Resource constraints)
 
 **Prompt Template:**
+
 ```
 You are a Business Analyst and Product Strategist (CEO/CPO perspective).
 Your goal is to deeply understand the user's project vision.
@@ -1048,6 +1145,7 @@ The PM is the "CPO" who converts vision into concrete specifications. They docum
 **Primary Responsibility:** Phase 3 (SPEC - specifications)
 
 **Outputs:**
+
 - `PRD.md` - Complete Product Requirements Document
   - Functional requirements (numbered, linked to features)
   - Non-functional requirements (performance, security, UX)
@@ -1057,12 +1155,14 @@ The PM is the "CPO" who converts vision into concrete specifications. They docum
 - Contributes to review gates and refinement loops
 
 **Key Decisions:**
+
 - Which features are MVP vs Phase 2?
 - How are requirements prioritized?
 - What are the acceptance criteria for each feature?
 - How do user stories map to requirements?
 
 **Prompt Template:**
+
 ```
 You are a Product Manager (CPO perspective).
 Your task: Create a detailed Product Requirements Document (PRD).
@@ -1098,7 +1198,8 @@ The Architect is the "CTO" who designs the system and makes technology choices. 
 **Primary Responsibility:** Phase 2 (STACK_SELECTION - proposal), Phase 3 (SPEC - data model & API), Phase 5 (SOLUTIONING - full architecture)
 
 **Outputs:**
-- `stack-proposal.md` - Two stack options with trade-offs (Phase 2)
+
+- `stack-analysis.md` - Two stack options with trade-offs (Phase 2)
 - `data-model.md` - Database schema and data structures (Phase 3)
 - `api-spec.json` - OpenAPI specification (Phase 3)
 - `architecture.md` - Complete system architecture (Phase 5)
@@ -1110,6 +1211,7 @@ The Architect is the "CTO" who designs the system and makes technology choices. 
   - Performance and scaling strategy
 
 **Key Decisions:**
+
 - Which technology stack fits the project?
 - How should the system be architected?
 - What database schema and relationships?
@@ -1117,6 +1219,7 @@ The Architect is the "CTO" who designs the system and makes technology choices. 
 - How to ensure security and scalability?
 
 **Prompt Template:**
+
 ```
 You are a Chief Architect (CTO perspective).
 Your task: Design the system architecture and technology choices.
@@ -1150,7 +1253,9 @@ The Scrum Master is the "VP Engineering" who breaks work into tasks, plans execu
 **Primary Responsibility:** Phase 5 (SOLUTIONING - task breakdown)
 
 **Outputs:**
+
 - `epics.md` - Epic breakdown of features from PRD
+
   - Maps each epic to requirements
   - Lists components and APIs per epic
   - Defines user stories per epic
@@ -1164,6 +1269,7 @@ The Scrum Master is the "VP Engineering" who breaks work into tasks, plans execu
   - Implementation hints
 
 **Key Decisions:**
+
 - How should requirements be broken into tasks?
 - What's the execution order?
 - Which tasks can run in parallel?
@@ -1171,6 +1277,7 @@ The Scrum Master is the "VP Engineering" who breaks work into tasks, plans execu
 - What are hard dependencies?
 
 **Prompt Template:**
+
 ```
 You are a Scrum Master and Project Manager (VP Engineering perspective).
 Your task: Break requirements into executable tasks.
@@ -1210,6 +1317,7 @@ The DevOps Engineer ensures the project is deployment-ready, secure, and follows
 **Primary Responsibility:** Phase 4 (DEPENDENCIES)
 
 **Outputs:**
+
 - `DEPENDENCIES.md` - Comprehensive dependency proposal
   - Lists all packages with justification
   - Security and licensing notes
@@ -1218,6 +1326,7 @@ The DevOps Engineer ensures the project is deployment-ready, secure, and follows
 - Policy validation scripts execution results
 
 **Key Decisions:**
+
 - Which packages are necessary?
 - What version constraints are safe?
 - Are there licensing concerns?
@@ -1225,6 +1334,7 @@ The DevOps Engineer ensures the project is deployment-ready, secure, and follows
 - Are there deprecated or outdated packages?
 
 **Prompt Template:**
+
 ```
 You are a DevOps Engineer (Infrastructure & SRE perspective).
 Your task: Define all dependencies for the approved stack.
@@ -1265,6 +1375,7 @@ Include policy notes: no deprecated, no outdated, zero HIGH/CRITICAL vulns.
 **Purpose:** Central orchestration engine that manages phase state, validates gates, and coordinates artifacts.
 
 **Files:**
+
 - `main.py` - API routes for orchestration
 - `orchestrator_engine.py` - Core state machine and gate validation
 - `config_loader.py` - Load and manage orchestrator_spec.yml
@@ -1305,6 +1416,7 @@ class DependencyManager:
 **Purpose:** Agent-agnostic LLM wrapper that executes phase agents and produces artifacts.
 
 **Files:**
+
 - `main.py` - API routes for LLM operations
 - `llm_client.py` - Abstract LLM client (Gemini wrapper)
 - `prompt_templates.py` - Prompts for each agent and phase
@@ -1340,6 +1452,7 @@ class PromptManager:
 **Purpose:** Manage project directory structure and artifact storage.
 
 **Files:**
+
 - `project_storage.py` - Create and manage project directories
 - `artifact_writer.py` - Write markdown and JSON files
 - `archiver.py` - Create ZIP archives
@@ -1369,21 +1482,26 @@ class Archiver:
 **Purpose:** Project CRUD with orchestration state tracking.
 
 **Updates:**
+
 - Add `stack_choice: Optional[str]` field
 - Add `stack_approved: bool = False` field
-- Add `dependencies_approved: bool = False` field
+- Add `project_type: Optional[str]` field (AI-driven classification)
+- Add `scale_tier: Optional[str]` field
+- Add `recommended_stack: Optional[str]` field
+- Add `workflow_version: int = 2` field
 - Add `orchestration_state: Optional[dict]` field
 - Add phase-specific metadata
 
 **New Endpoints:**
+
 - `POST /projects/{slug}/phase/advance` - Advance to next phase with validation
 - `POST /projects/{slug}/stack/approve` - Approve stack selection
-- `GET /projects/{slug}/stack/proposal` - Get stack proposal
-- `POST /projects/{slug}/dependencies/approve` - Approve dependencies
-- `GET /projects/{slug}/dependencies/proposal` - Get dependency proposal
+- `GET /projects/{slug}/stack/proposal` - Get stack proposal (AI recommendations)
 - `GET /projects/{slug}/artifacts/{artifact_name}` - Get specific artifact
 - `GET /projects/{slug}/download` - Download ZIP
 - `POST /projects/{slug}/rollback` - Rollback last phase
+
+> **Note:** The `/dependencies/approve` endpoint has been removed. Dependencies are now auto-generated.
 
 ---
 
@@ -1394,6 +1512,7 @@ class Archiver:
 **What:** Master document that bridges specs to code generation.
 
 **Content:**
+
 - Project context and vision summary
 - Document reading order with time estimates
 - Approved tech stack summary
@@ -1407,6 +1526,7 @@ class Archiver:
 **Used by:** User's IDE + LLM for code generation
 
 **Benefits:**
+
 - Users don't have to craft prompts manually
 - LLM has clear, structured context
 - Reduces context confusion and errors
@@ -1419,6 +1539,7 @@ class Archiver:
 **What:** Detailed explanation of why each dependency was chosen.
 
 **Content per Package:**
+
 - Package name and version
 - Purpose and what it does
 - Why it was chosen (alternatives considered?)
@@ -1428,6 +1549,7 @@ class Archiver:
 - Deprecation status
 
 **Benefits:**
+
 - Users understand technology choices
 - LLM respects and maintains chosen dependencies
 - Security concerns documented
@@ -1440,6 +1562,7 @@ class Archiver:
 **What:** Each task is self-contained with full implementation context.
 
 **Includes:**
+
 - Requirement reference (which PRD req #)
 - Architecture component (which part of system)
 - User story and acceptance criteria
@@ -1449,6 +1572,7 @@ class Archiver:
 - Test expectations
 
 **Benefits:**
+
 - Developers/LLMs can implement one task in isolation
 - No context switching needed
 - Acceptance criteria are explicit and testable
@@ -1463,6 +1587,7 @@ class Archiver:
 **Stored in:** orchestrator_spec.yml
 
 **Example:**
+
 ```yaml
 phases:
   ANALYSIS:
@@ -1480,6 +1605,7 @@ phases:
 ```
 
 **Benefits:**
+
 - Prevents using specs out of order
 - Enables intelligent rollback
 - Clear dependency graph for automation
@@ -1491,12 +1617,14 @@ phases:
 **What:** Optional review gates after major phases (ANALYSIS, SPEC, SOLUTIONING).
 
 **User Options:**
+
 - Proceed to next phase
 - Review documents
 - Ask LLM to refine (regenerate phase)
 - Manually edit documents
 
 **Benefits:**
+
 - Quality control without blocking flow
 - Catch misalignment early
 - Support iterative refinement
@@ -1509,12 +1637,14 @@ phases:
 **What:** Users can choose Option A, Option B, or Custom.
 
 **For Custom:**
+
 - User provides stack description (frontend, backend, db, tools)
 - System respects custom choice
 - Generates dependency list for custom stack
 - Full orchestration continues normally
 
 **Benefits:**
+
 - No user locked out by predefined options
 - System remains flexible and adaptable
 - Structure maintained even with custom choices
@@ -1526,6 +1656,7 @@ phases:
 **What:** Artifact versioning with history.
 
 **Storage:**
+
 ```
 /projects/{slug}/specs/
   ├── ANALYSIS/
@@ -1544,11 +1675,13 @@ phases:
 ```
 
 **User Actions:**
+
 - Compare versions
 - Rollback to previous version
 - Keep audit trail of spec evolution
 
 **Benefits:**
+
 - Safe experimentation
 - Change tracking
 - Ability to undo mistakes
@@ -1563,6 +1696,7 @@ phases:
 **Defined in:** orchestrator_spec.yml
 
 **Example:**
+
 ```yaml
 security_baseline:
   authentication:
@@ -1594,6 +1728,7 @@ security_baseline:
 **Checked by:** LLM during code generation
 
 **Benefits:**
+
 - Security not an afterthought
 - Consistent across all projects
 - Easy to audit and verify
@@ -1606,33 +1741,40 @@ security_baseline:
 **What:** Features tagged as MVP vs Phase 2 vs Future.
 
 **In PRD:**
+
 ```markdown
 ## Functional Requirements
 
 ### Phase 1 (MVP) - Must Have
+
 - REQ-AUTH-001: User registration
 - REQ-CRUD-001: Create resource
 
 ### Phase 2 - Should Have
+
 - REQ-EXPORT-001: Export to PDF
 - REQ-REPORT-001: Advanced reporting
 
 ### Phase 3+ - Nice to Have
+
 - REQ-AI-001: AI recommendations
 ```
 
 **In tasks.md:**
+
 ```markdown
 ## Task 1.1: User Auth Backend
 
 **Priority:** MVP (Phase 1)
 **Acceptance Criteria:**
+
 - Users can register and log in
 - Sessions expire after 1 hour
-...
+  ...
 ```
 
 **Benefits:**
+
 - Clear scope definition
 - Prevents scope creep
 - Incremental implementation possible
@@ -1660,7 +1802,7 @@ security_baseline:
 │   │   └── v1/
 │   │       ├── plan.md
 │   │       ├── README.md
-│   │       └── stack-proposal.md (tmp)
+│   │       └── stack-analysis.md (tmp)
 │   │
 │   ├── SPEC/
 │   │   └── v1/
@@ -1737,6 +1879,7 @@ freelancer-time-tracker/
 #### Phase Management
 
 **GET /api/projects/{slug}/phase**
+
 ```
 Get current phase status
 Response: {
@@ -1748,6 +1891,7 @@ Response: {
 ```
 
 **POST /api/projects/{slug}/phase/advance**
+
 ```
 Attempt to advance to next phase
 Request: { "confirm": true }
@@ -1765,6 +1909,7 @@ OR
 ```
 
 **POST /api/projects/{slug}/phase/run-agent**
+
 ```
 Run agent for current phase manually
 Response: {
@@ -1777,6 +1922,7 @@ Response: {
 #### Stack Selection
 
 **GET /api/projects/{slug}/stack/proposal**
+
 ```
 Get stack selection proposal
 Response: {
@@ -1797,6 +1943,7 @@ Response: {
 ```
 
 **POST /api/projects/{slug}/stack/approve**
+
 ```
 Approve a stack choice
 Request: {
@@ -1816,6 +1963,7 @@ Response: {
 #### Dependencies
 
 **GET /api/projects/{slug}/dependencies/proposal**
+
 ```
 Get dependency proposal
 Response: {
@@ -1828,26 +1976,28 @@ Response: {
 }
 ```
 
-**POST /api/projects/{slug}/dependencies/approve**
+**GET /api/projects/{slug}/dependencies**
+
 ```
-Approve dependencies and run policy scripts
-Request: { "confirm": true }
+Get auto-generated dependencies for project
 Response: {
   "success": true,
-  "dependencies_approved": true,
+  "dependencies_md": "# Dependencies\n\n## Frontend...",
+  "dependencies_json": { ... },
   "policy_check": {
     "npm_audit": "pass",
-    "pip_audit": "pass",
-    "no_deprecated": true,
-    "no_outdated": true
+    "no_high_critical": true
   },
-  "lockfiles_generated": true
+  "generated_at": "2025-11-14T10:30:00Z"
 }
 ```
+
+> **Note:** Dependencies are auto-generated from the approved stack. No approval endpoint required.
 
 #### Artifacts
 
 **GET /api/projects/{slug}/artifacts**
+
 ```
 List all artifacts for project
 Response: {
@@ -1865,6 +2015,7 @@ Response: {
 ```
 
 **GET /api/projects/{slug}/artifacts/{artifact_name}**
+
 ```
 Get specific artifact content
 Response: {
@@ -1882,6 +2033,7 @@ Response: {
 ```
 
 **POST /api/projects/{slug}/artifacts/validate**
+
 ```
 Validate all artifacts for current phase
 Response: {
@@ -1911,6 +2063,7 @@ Response: {
 #### Download & Handoff
 
 **GET /api/projects/{slug}/handoff-prompt**
+
 ```
 Get the auto-generated handoff prompt
 Response: {
@@ -1920,6 +2073,7 @@ Response: {
 ```
 
 **GET /api/projects/{slug}/download**
+
 ```
 Download project ZIP
 Response: Binary ZIP file
@@ -1928,6 +2082,7 @@ Content-Disposition: attachment; filename="freelancer-time-tracker.zip"
 ```
 
 **POST /api/projects/{slug}/rollback**
+
 ```
 Rollback to previous phase or version
 Request: { "target_phase": "SOLUTIONING", "version": 1 }
@@ -1941,6 +2096,7 @@ Response: {
 #### Status & Health
 
 **GET /api/orchestrator/spec**
+
 ```
 Get orchestrator specification (YAML as JSON)
 Response: {
@@ -1977,9 +2133,11 @@ class Project(SQLModel, table=True):
     stack_approved: bool = False
     stack_approval_date: Optional[datetime] = None
 
-    # Dependencies
-    dependencies_approved: bool = False
-    dependencies_approval_date: Optional[datetime] = None
+    # AI-Driven Metadata (v2 workflow)
+    project_type: Optional[str] = None  # web_app, mobile_app, fullstack_with_mobile, etc.
+    scale_tier: Optional[str] = None  # prototype, startup, growth, enterprise
+    recommended_stack: Optional[str] = None  # AI-recommended stack template ID
+    workflow_version: int = 2  # 2 = AI-driven workflow
 
     # Artifact Tracking
     orchestration_state: Optional[dict] = Field(default=None, sa_column=Column(JSON))
@@ -1991,8 +2149,7 @@ class Project(SQLModel, table=True):
     #   },
     #   "validation_results": {...},
     #   "approval_gates": {
-    #     "stack_approved": true,
-    #     "dependencies_approved": true
+    #     "stack_approved": true
     #   }
     # }
 
@@ -2070,6 +2227,7 @@ class ProjectArtifact(SQLModel, table=True):
 ### MVP Scope (Week 1-4)
 
 **Week 1: Foundation**
+
 - [ ] Create orchestrator_spec.yml with all phases, artifacts, stacks
 - [ ] Build Orchestrator Service core (phase machine, validators)
 - [ ] Implement stack selection workflow (proposal + approval)
@@ -2077,6 +2235,7 @@ class ProjectArtifact(SQLModel, table=True):
 - [ ] Create basic frontend phase stepper
 
 **Week 2: LLM & Spec Generation**
+
 - [ ] Create LLM Service wrapper for Gemini
 - [ ] Implement Analyst Agent (ANALYSIS phase)
 - [ ] Implement PM Agent (SPEC phase)
@@ -2084,6 +2243,7 @@ class ProjectArtifact(SQLModel, table=True):
 - [ ] Wire frontend to show stack approval UI
 
 **Week 3: Dependencies & Solutioning**
+
 - [ ] Implement DependencyManager (proposal + policy checks)
 - [ ] Implement Scrum Master Agent (tasks breakdown)
 - [ ] Create policy validation scripts (npm audit, pip-audit)
@@ -2091,6 +2251,7 @@ class ProjectArtifact(SQLModel, table=True):
 - [ ] Frontend: Phase stepper showing all phases
 
 **Week 4: Handoff & Download**
+
 - [ ] Auto-generate HANDOFF.md with prompt
 - [ ] Implement ZIP archive creation
 - [ ] Create file system service (project storage)
@@ -2100,16 +2261,19 @@ class ProjectArtifact(SQLModel, table=True):
 ### Phase 2 (Future)
 
 **Partial Re-Generation**
+
 - Allow users to regenerate individual phases
 - Validate consistency with previous phases
 - Preserve versioning
 
 **Extended Agents**
+
 - Security Agent (detailed security review)
 - Compliance Agent (regulatory requirements)
 - Marketing Agent (go-to-market strategy)
 
 **Advanced Features**
+
 - Side-by-side document comparison
 - Collaborative editing of specs
 - Integration with GitHub for automatic repo creation
@@ -2133,6 +2297,7 @@ class ProjectArtifact(SQLModel, table=True):
 ### 2. Why Persistent File Storage vs Database?
 
 **Artifacts stored as files because:**
+
 - Markdown files are human-readable and editable
 - Version control friendly (can use Git)
 - Easy to ZIP and download
@@ -2140,6 +2305,7 @@ class ProjectArtifact(SQLModel, table=True):
 - Users can manually edit specs if needed
 
 **Project metadata stored in DB because:**
+
 - Need to track phase state, approvals, users
 - Relationships and queries easier in DB
 - Audit trail for compliance
@@ -2151,6 +2317,7 @@ class ProjectArtifact(SQLModel, table=True):
 ### 3. Why No Code Generation in Backend?
 
 **Benefits:**
+
 - **Simpler backend:** No code scaffolding complexity
 - **More flexible:** Users choose their LLM and tools
 - **LLM-agnostic:** Works with Claude, GPT-4, Gemini, local models
@@ -2166,16 +2333,19 @@ class ProjectArtifact(SQLModel, table=True):
 ### 4. Why Phase Gates?
 
 **Stack Selection Gate:**
+
 - Ensures tech decisions are explicit and documented
 - Prevents specifying requirements for wrong tech stack
 - Creates approval checkpoint for major decision
 
 **Dependencies Gate:**
+
 - Ensures security policy compliance before proceeding
 - Locks in versions before spec generation begins
 - Creates audit trail of approved dependencies
 
 **Benefits:**
+
 - Quality assurance at critical points
 - Clear decision documentation
 - Prevents downstream issues from upstream choices
@@ -2185,11 +2355,13 @@ class ProjectArtifact(SQLModel, table=True):
 ### 5. Why Artifact Versioning?
 
 **Supports iteration:**
+
 - Users can refine specs without losing history
 - Rollback if something goes wrong
 - Compare versions to see what changed
 
 **Trade-off:**
+
 - Adds complexity to storage
 - Need cleanup strategy for old versions (keep last N, auto-delete after 30 days?)
 
@@ -2200,6 +2372,7 @@ class ProjectArtifact(SQLModel, table=True):
 ## Success Criteria
 
 **MVP Launch Success:**
+
 - ✅ User can create project → ANALYSIS phase auto-starts
 - ✅ Analyst Agent generates constitution, brief, personas (< 5 min)
 - ✅ Stack proposal shown, user approves choice
@@ -2215,6 +2388,7 @@ class ProjectArtifact(SQLModel, table=True):
 - ✅ LLM can generate production code from specs
 
 **Quality Standards:**
+
 - All markdown files have front-matter
 - PRD has minimum 15 requirements with acceptance criteria
 - API spec is valid OpenAPI 3.0
@@ -2253,14 +2427,14 @@ phases:
 # Stacks
 stacks:
   nextjs_only_expo:
-    name: "Next.js-Only + Expo"
+    name: 'Next.js-Only + Expo'
     composition: [...]
     best_for: [...]
     strengths: [...]
     tradeoffs: [...]
 
   hybrid_nextjs_fastapi_expo:
-    name: "Hybrid Next.js + FastAPI + Expo"
+    name: 'Hybrid Next.js + FastAPI + Expo'
     composition: [...]
     best_for: [...]
     strengths: [...]
@@ -2268,14 +2442,14 @@ stacks:
 
 # Agents
 agents:
-  analyst: { role: "Product Strategist", outputs: [...] }
-  pm: { role: "Product Manager", outputs: [...] }
+  analyst: { role: 'Product Strategist', outputs: [...] }
+  pm: { role: 'Product Manager', outputs: [...] }
   # ... etc
 
 # Validators
 validators:
   markdown_frontmatter: { checks: [title, owner, version, date] }
-  api_openapi: { version: "3.0", checks: [endpoints, schemas] }
+  api_openapi: { version: '3.0', checks: [endpoints, schemas] }
   tasks_dag: { checks: [acyclic, dependencies_valid] }
   presence: { checks: [file_exists] }
 
@@ -2299,18 +2473,18 @@ A new 7th phase added between SOLUTIONING and DONE that performs automated cross
 
 **Validation Checks (10 total):**
 
-| Check | Category | Description |
-|-------|----------|-------------|
-| Requirement to Task Mapping | Mapping | Every REQ-XXX in PRD maps to at least one task |
-| API to Data Model Mapping | Consistency | All API schemas have corresponding data model entities |
-| Persona Consistency | Consistency | All personas referenced in PRD exist in personas.md |
-| Stack Consistency | Consistency | Technologies in architecture.md match stack-decision.md |
-| Epic to Task Consistency | Mapping | All EPIC-IDs in tasks.md exist in epics.md |
-| No Unresolved Clarifications | Completeness | No `[NEEDS CLARIFICATION]` markers remain |
-| AI Assumptions Documented | Completeness | All `[AI ASSUMED]` items tracked |
-| Design System Compliance | Compliance | Follows design system guidelines |
-| Test-First Compliance | Compliance | Tests specified before implementation |
-| Constitutional Compliance | Compliance | All 5 Constitutional Articles followed |
+| Check                        | Category     | Description                                             |
+| ---------------------------- | ------------ | ------------------------------------------------------- |
+| Requirement to Task Mapping  | Mapping      | Every REQ-XXX in PRD maps to at least one task          |
+| API to Data Model Mapping    | Consistency  | All API schemas have corresponding data model entities  |
+| Persona Consistency          | Consistency  | All personas referenced in PRD exist in personas.md     |
+| Stack Consistency            | Consistency  | Technologies in architecture.md match stack-decision.md |
+| Epic to Task Consistency     | Mapping      | All EPIC-IDs in tasks.md exist in epics.md              |
+| No Unresolved Clarifications | Completeness | No `[NEEDS CLARIFICATION]` markers remain               |
+| AI Assumptions Documented    | Completeness | All `[AI ASSUMED]` items tracked                        |
+| Design System Compliance     | Compliance   | Follows design system guidelines                        |
+| Test-First Compliance        | Compliance   | Tests specified before implementation                   |
+| Constitutional Compliance    | Compliance   | All 5 Constitutional Articles followed                  |
 
 **Outputs:** `validation-report.md`, `coverage-matrix.md`
 
@@ -2318,13 +2492,14 @@ A new 7th phase added between SOLUTIONING and DONE that performs automated cross
 
 New feature in ANALYSIS phase allowing users to choose how to resolve ambiguities:
 
-| Mode | Description |
-|------|-------------|
-| Interactive | User answers all clarification questions manually |
-| Hybrid | User picks which to answer; AI resolves rest with documented assumptions |
-| Auto-resolve | AI makes all assumptions and documents them (fastest) |
+| Mode         | Description                                                              |
+| ------------ | ------------------------------------------------------------------------ |
+| Interactive  | User answers all clarification questions manually                        |
+| Hybrid       | User picks which to answer; AI resolves rest with documented assumptions |
+| Auto-resolve | AI makes all assumptions and documents them (fastest)                    |
 
 **Markers:**
+
 - `[NEEDS CLARIFICATION: question]` - Requires user input
 - `[AI ASSUMED: assumption - rationale]` - AI-generated assumption
 
@@ -2341,6 +2516,7 @@ Five governing principles enforced across all specifications:
 ### Test-First Requirements
 
 SOLUTIONING phase now enforces test-first approach:
+
 - Tasks must list test specifications BEFORE implementation notes
 - Gherkin-style acceptance criteria required
 - Test order: Contract → Integration → E2E → Unit
@@ -2351,9 +2527,11 @@ Tasks in `tasks.md` now include `[P]` markers to identify tasks that can run con
 
 ```markdown
 ## Sequential Tasks
+
 - TASK-001: Setup database schema
 
 ## Parallel Tasks [P]
+
 - TASK-002: Implement user service [P]
 - TASK-003: Implement auth service [P]
 - TASK-004: Create UI components [P]
@@ -2365,20 +2543,21 @@ Each phase now includes a `quality_checklist` in `orchestrator_spec.yml` for sel
 
 ### Infrastructure Updates
 
-| Component | Change |
-|-----------|--------|
-| Database | Added clarification_state, clarification_mode, clarification_completed columns |
-| Storage | Cloudflare R2 integration for artifact storage |
-| API | New routes: `/clarification`, `/clarification/auto-resolve`, `/validate` |
-| UI | New components: ClarificationPanel, ValidationResultsPanel |
+| Component | Change                                                                         |
+| --------- | ------------------------------------------------------------------------------ |
+| Database  | Added clarification_state, clarification_mode, clarification_completed columns |
+| Storage   | Cloudflare R2 integration for artifact storage                                 |
+| API       | New routes: `/clarification`, `/clarification/auto-resolve`, `/validate`       |
+| UI        | New components: ClarificationPanel, ValidationResultsPanel                     |
 
 ---
 
 ## Document History
 
-| Version | Date       | Author | Changes |
-|---------|------------|--------|---------|
-| 1.0     | 2025-11-14 | Team   | Initial design document |
+| Version | Date       | Author | Changes                                                                                           |
+| ------- | ---------- | ------ | ------------------------------------------------------------------------------------------------- |
+| 1.0     | 2025-11-14 | Team   | Initial design document                                                                           |
+| 3.1     | 2025-12-20 | Team   | AI-driven Stack Selection, auto-generated dependencies (removed gate), intelligent defaults       |
 | 3.0     | 2025-12-10 | Team   | Added VALIDATE phase, Hybrid Clarification, Constitutional Articles, Test-First, Task Parallelism |
 
 ---
@@ -2386,12 +2565,14 @@ Each phase now includes a `quality_checklist` in `orchestrator_spec.yml` for sel
 ## Questions & Contact
 
 For questions about this design, refer to:
+
 - Architecture decisions: See "Technical Decisions" section
 - Implementation questions: See "Core Components" section
 - API details: See "API Specification" section
 - Phase details: See "Phase Workflow" section
 
 **Next Steps:**
+
 1. Review this document with stakeholders
 2. Finalize orchestrator_spec.yml
 3. Begin Week 1 implementation

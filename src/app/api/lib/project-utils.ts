@@ -23,7 +23,10 @@ export interface ProjectMetadata {
   phases_completed: string | string[];
   stack_choice?: string | null;
   stack_approved: boolean;
-  dependencies_approved: boolean;
+  project_type?: string | null;
+  scale_tier?: string | null;
+  recommended_stack?: string | null;
+  workflow_version?: number;
   created_by_id?: string;
   handoff_generated?: boolean;
   handoff_generated_at?: string;
@@ -124,7 +127,10 @@ export const getProjectMetadata = async (slug: string, ownerId?: string) => {
         phases_completed: project.phasesCompleted,
         stack_choice: project.stackChoice,
         stack_approved: project.stackApproved,
-        dependencies_approved: project.dependenciesApproved,
+        project_type: project.projectType,
+        scale_tier: project.scaleTier,
+        recommended_stack: project.recommendedStack,
+        workflow_version: project.workflowVersion,
         handoff_generated: project.handoffGenerated,
         handoff_generated_at: project.handoffGeneratedAt?.toISOString?.(),
         created_by_id: project.ownerId,
@@ -431,6 +437,24 @@ export async function persistProjectToDB(slug: string, metadata: ProjectMetadata
         owner_id: ownerId,
         phases_completed: phasesCompleted,
       });
+
+      const workflowUpdate: Record<string, unknown> = { owner_id: ownerId };
+      if (metadata.project_type !== undefined) {
+        workflowUpdate.project_type = metadata.project_type;
+      }
+      if (metadata.scale_tier !== undefined) {
+        workflowUpdate.scale_tier = metadata.scale_tier;
+      }
+      if (metadata.recommended_stack !== undefined) {
+        workflowUpdate.recommended_stack = metadata.recommended_stack;
+      }
+      if (metadata.workflow_version !== undefined) {
+        workflowUpdate.workflow_version = metadata.workflow_version;
+      }
+
+      if (Object.keys(workflowUpdate).length > 1) {
+        await db.updateProjectMetadata(slug, workflowUpdate);
+      }
     } else {
       await db.createProject({
         slug,
@@ -440,11 +464,28 @@ export async function persistProjectToDB(slug: string, metadata: ProjectMetadata
         phases_completed: phasesCompleted,
         stack_choice: metadata.stack_choice,
         stack_approved: metadata.stack_approved,
-        dependencies_approved: metadata.dependencies_approved,
         handoff_generated: metadata.handoff_generated,
         handoff_generated_at: metadata.handoff_generated_at,
         owner_id: ownerId,
       });
+
+      const workflowUpdate: Record<string, unknown> = { owner_id: ownerId };
+      if (metadata.project_type !== undefined) {
+        workflowUpdate.project_type = metadata.project_type;
+      }
+      if (metadata.scale_tier !== undefined) {
+        workflowUpdate.scale_tier = metadata.scale_tier;
+      }
+      if (metadata.recommended_stack !== undefined) {
+        workflowUpdate.recommended_stack = metadata.recommended_stack;
+      }
+      if (metadata.workflow_version !== undefined) {
+        workflowUpdate.workflow_version = metadata.workflow_version;
+      }
+
+      if (Object.keys(workflowUpdate).length > 1) {
+        await db.updateProjectMetadata(slug, workflowUpdate);
+      }
     }
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));

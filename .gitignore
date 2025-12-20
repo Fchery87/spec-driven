@@ -40,6 +40,7 @@ private/
 *.sqlite3
 *.sql
 *.sql.gz
+!drizzle/*.sql
 db-backup/
 database-backup/
 

@@ -27,7 +27,6 @@ interface Project {
   current_phase: string;
   stack_choice?: string;
   stack_approved: boolean;
-  dependencies_approved: boolean;
   created_at: string;
   stats?: {
     total_artifacts: number;
@@ -126,7 +125,7 @@ export default function Dashboard() {
   const totalProjects = projects.length;
   const completedProjects = projects.filter(p => p.current_phase === 'DONE').length;
   const inProgressProjects = projects.filter(p => p.current_phase !== 'DONE').length;
-  const awaitingApprovals = projects.filter(p => !p.stack_approved || !p.dependencies_approved).length;
+  const awaitingApprovals = projects.filter(p => !p.stack_approved).length;
   const averageProgress = totalProjects
     ? Math.round(
         projects.reduce((sum, project) => sum + getPhaseProgress(project.current_phase), 0) /
@@ -160,7 +159,7 @@ export default function Dashboard() {
               </div>
               <h1 className="text-3xl font-bold text-foreground">Projects Dashboard</h1>
               <p className="text-muted-foreground max-w-xl">
-                Monitor progress, manage approvals, and track artifacts across all your spec-driven initiatives.
+                Monitor progress, manage stack approvals, and track artifacts across all your spec-driven initiatives.
               </p>
             </div>
 
@@ -430,12 +429,6 @@ export default function Dashboard() {
                           project.stack_approved ? 'bg-emerald-500' : 'bg-amber-500'
                         }`} />
                         Stack {project.stack_approved ? 'approved' : 'pending'}
-                      </div>
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <span className={`h-2 w-2 rounded-full ${
-                          project.dependencies_approved ? 'bg-emerald-500' : 'bg-amber-500'
-                        }`} />
-                        Dependencies {project.dependencies_approved ? 'approved' : 'pending'}
                       </div>
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Clock className="h-3.5 w-3.5" />

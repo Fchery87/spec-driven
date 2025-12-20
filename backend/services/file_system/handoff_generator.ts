@@ -91,7 +91,7 @@ ${slug}/
 ├── HANDOFF.md          # Complete project handoff for LLM code generation
 ├── README.md           # This file
 ├── specs/              # All specification documents
-│   ├── ANALYSIS/       # Analysis phase outputs (constitution, brief, personas)
+│   ├── ANALYSIS/       # Analysis phase outputs (constitution, brief, classification, personas)
 │   ├── STACK_SELECTION/# Technology stack decisions
 │   ├── SPEC/           # PRD, data models, API specs, design system
 │   ├── DEPENDENCIES/   # Dependency definitions with security notes
@@ -107,7 +107,8 @@ ${slug}/
 | [HANDOFF.md](./HANDOFF.md) | Complete handoff document for LLM code generation |
 | [constitution.md](./specs/ANALYSIS/constitution.md) | Project guiding principles |
 | [project-brief.md](./specs/ANALYSIS/project-brief.md) | Project overview and requirements |
-| [stack-proposal.md](./specs/STACK_SELECTION/stack-proposal.md) | Stack recommendation summary |
+| [project-classification.json](./specs/ANALYSIS/project-classification.json) | Machine-readable project classification |
+| [stack-analysis.md](./specs/STACK_SELECTION/stack-analysis.md) | Stack recommendation summary |
 | [stack-decision.md](./specs/STACK_SELECTION/stack-decision.md) | Approved technology stack selection |
 | [stack.json](./specs/STACK_SELECTION/stack.json) | Machine-readable stack contract |
 | [PRD.md](./specs/SPEC/PRD.md) | Product Requirements Document |
@@ -224,12 +225,13 @@ This document should be read in the following order for best understanding:
 ### Phase 1: Project Foundation (ANALYSIS)
 1. **constitution.md** - Project philosophy and guiding principles
 2. **project-brief.md** - High-level overview and context
-3. **personas.md** - User personas and target audience
+3. **project-classification.json** - Machine-readable project classification
+4. **personas.md** - User personas and target audience
 
 > **Note:** Any \`[AI ASSUMED: assumption - rationale]\` markers indicate AI-generated assumptions. Review these carefully.
 
 ### Phase 2: Stack Decision (STACK_SELECTION)
-4. **stack-proposal.md** - Recommendation summary
+4. **stack-analysis.md** - Recommendation summary
 5. **stack-decision.md** - Approved technology stack and composition
 6. **stack-rationale.md** - Why this stack was selected, alternatives considered
 7. **stack.json** - Canonical machine-readable stack contract
@@ -369,7 +371,7 @@ ${artifacts['ANALYSIS/personas.md'] || 'Personas document not available'}
 
 \`\`\`markdown
 ${
-  artifacts['STACK_SELECTION/stack-proposal.md'] ||
+  artifacts['STACK_SELECTION/stack-analysis.md'] ||
   'Stack proposal document not available'
 }
 \`\`\`

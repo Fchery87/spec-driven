@@ -10,7 +10,6 @@ export interface ProjectState {
     current_phase: string
     stack_choice?: string
     stack_approved: boolean
-    dependencies_approved: boolean
     created_at: string
   }>
   currentProjectSlug: string | null

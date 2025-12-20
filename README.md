@@ -2,7 +2,7 @@
 
 A multi-agent system that guides users through a **7-phase workflow** to generate production-ready project specifications, which are then used as prompts for LLM-based code generation.
 
-**Version 3.0** - Now featuring Hybrid Clarification Mode, Constitutional Articles, VALIDATE phase, and Test-First requirements.
+**Version 3.1** - Now featuring AI-driven Stack Selection, Hybrid Clarification Mode, Constitutional Articles, and VALIDATE phase.
 
 ## 🚀 Quick Start
 
@@ -43,9 +43,9 @@ The platform guides users through **7 sequential phases**:
 User Input (project idea)
   ↓ [ANALYSIS] - Analyst generates constitution, brief, personas
   │             ★ NEW: Hybrid Clarification Mode (interactive/auto-resolve/hybrid)
-  ↓ [STACK_SELECTION] - Architect proposes stack, user approves/customizes (GATE)
+  ↓ [STACK_SELECTION] - AI recommends optimal stack with alternatives (GATE)
   ↓ [SPEC] - PM generates PRD, data model, API spec + design system artifacts
-  ↓ [DEPENDENCIES] - DevOps proposes packages (GATE)
+  ↓ [DEPENDENCIES] - AI auto-generates dependencies from approved stack
   ↓ [SOLUTIONING] - Architect & Scrum Master create design, epics, tasks
   │                 ★ NEW: Test-First requirements, Task Parallelism [P] markers
   ↓ [VALIDATE] - ★ NEW: Cross-artifact consistency & compliance checks
@@ -55,29 +55,29 @@ User Input (project idea)
 
 ### New in Version 3.0
 
-| Feature | Description |
-|---------|-------------|
-| **Hybrid Clarification** | Choose to answer questions manually, let AI assume, or mix both |
-| **Constitutional Articles** | 5 governing principles enforced across all specs |
-| **VALIDATE Phase** | Automated consistency checks before handoff |
-| **Test-First** | Tests specified before implementation in task breakdown |
-| **Task Parallelism** | `[P]` markers identify tasks that can run concurrently |
-| **Quality Checklists** | Self-verification gates for each phase |
+| Feature                     | Description                                                     |
+| --------------------------- | --------------------------------------------------------------- |
+| **Hybrid Clarification**    | Choose to answer questions manually, let AI assume, or mix both |
+| **Constitutional Articles** | 5 governing principles enforced across all specs                |
+| **VALIDATE Phase**          | Automated consistency checks before handoff                     |
+| **Test-First**              | Tests specified before implementation in task breakdown         |
+| **Task Parallelism**        | `[P]` markers identify tasks that can run concurrently          |
+| **Quality Checklists**      | Self-verification gates for each phase                          |
 
 ### Hybrid Stack Selection
 
 The platform supports **12+ predefined stack templates** or fully **custom stack definitions**:
 
-| Template | Use Case |
-|----------|----------|
-| `nextjs_fullstack_expo` | Full-stack web + mobile with shared code |
-| `nextjs_web_only` | Web-only SaaS applications |
-| `vue_nuxt` | Vue ecosystem with Nuxt 3 |
-| `svelte_kit` | Lightweight, performant web apps |
-| `django_htmx` | Python backend with HTMX interactivity |
-| `go_react` | High-performance Go API + React frontend |
-| `flutter_firebase` | Cross-platform mobile with Firebase |
-| ...and more | See `orchestrator_spec.yml` for full list |
+| Template                | Use Case                                  |
+| ----------------------- | ----------------------------------------- |
+| `nextjs_fullstack_expo` | Full-stack web + mobile with shared code  |
+| `nextjs_web_only`       | Web-only SaaS applications                |
+| `vue_nuxt`              | Vue ecosystem with Nuxt 3                 |
+| `svelte_kit`            | Lightweight, performant web apps          |
+| `django_htmx`           | Python backend with HTMX interactivity    |
+| `go_react`              | High-performance Go API + React frontend  |
+| `flutter_firebase`      | Cross-platform mobile with Firebase       |
+| ...and more             | See `orchestrator_spec.yml` for full list |
 
 **Custom Mode:** Define your own stack with frontend, backend, database, and deployment layers.
 
@@ -85,25 +85,26 @@ The platform supports **12+ predefined stack templates** or fully **custom stack
 
 Five governing principles that are enforced across ALL generated specifications:
 
-| Article | Name | Mandate |
-|---------|------|---------|
-| 1 | **Library-First** | Every feature begins as a reusable module with clear boundaries |
-| 2 | **Test-First** | No implementation code before tests are specified (NON-NEGOTIABLE) |
-| 3 | **Simplicity Gate** | Maximum 3 services for MVP; justify additional complexity |
-| 4 | **Anti-Abstraction** | Use framework directly; no unnecessary wrappers |
-| 5 | **Integration-First** | Prefer real databases over mocks in tests |
+| Article | Name                  | Mandate                                                            |
+| ------- | --------------------- | ------------------------------------------------------------------ |
+| 1       | **Library-First**     | Every feature begins as a reusable module with clear boundaries    |
+| 2       | **Test-First**        | No implementation code before tests are specified (NON-NEGOTIABLE) |
+| 3       | **Simplicity Gate**   | Maximum 3 services for MVP; justify additional complexity          |
+| 4       | **Anti-Abstraction**  | Use framework directly; no unnecessary wrappers                    |
+| 5       | **Integration-First** | Prefer real databases over mocks in tests                          |
 
 ### Hybrid Clarification Mode (ANALYSIS Phase)
 
 When AI encounters ambiguity, users choose how to resolve it:
 
-| Mode | Description | Best For |
-|------|-------------|----------|
-| **Interactive** | Answer all questions manually | Complex projects, precise requirements |
-| **Auto-resolve** | AI makes assumptions and documents them | Fast iteration, MVPs |
-| **Hybrid** | Pick which to answer; AI resolves rest | Balanced control and speed |
+| Mode             | Description                             | Best For                               |
+| ---------------- | --------------------------------------- | -------------------------------------- |
+| **Interactive**  | Answer all questions manually           | Complex projects, precise requirements |
+| **Auto-resolve** | AI makes assumptions and documents them | Fast iteration, MVPs                   |
+| **Hybrid**       | Pick which to answer; AI resolves rest  | Balanced control and speed             |
 
 Uncertainty markers in generated artifacts:
+
 - `[NEEDS CLARIFICATION: question]` - Requires user input
 - `[AI ASSUMED: assumption - rationale]` - AI made a documented assumption
 
@@ -129,6 +130,7 @@ Generates: `validation-report.md`, `coverage-matrix.md`
 ### Tech Stack
 
 **Frontend:**
+
 - Next.js 14.2.15
 - React 18
 - TypeScript
@@ -137,6 +139,7 @@ Generates: `validation-report.md`, `coverage-matrix.md`
 - Framer Motion (animations)
 
 **Backend:**
+
 - Node.js + TypeScript
 - Drizzle ORM
 - PostgreSQL (Neon - serverless)
@@ -145,6 +148,7 @@ Generates: `validation-report.md`, `coverage-matrix.md`
 - Better-Auth for authentication
 
 **Testing & Quality:**
+
 - Vitest for unit testing
 - Testing Library for component testing
 - TypeScript for type safety
@@ -302,6 +306,7 @@ Comprehensive documentation is available in the `docs/` folder:
 - **[TESTING.md](docs/TESTING.md)** - Testing guide with examples
 
 **Design Reference:**
+
 - **[fire-your-design-team.md](fire-your-design-team.md)** - Design system principles, Framer Motion patterns, anti-patterns to avoid
 
 ## 🗂️ Configuration Files
@@ -319,13 +324,13 @@ The single source of truth for the entire workflow:
 ```yaml
 phases:
   ANALYSIS:
-    owner: "analyst"
+    owner: 'analyst'
     outputs: [constitution.md, project-brief.md, personas.md]
     validators: [presence, markdown_frontmatter, content_quality]
 
 agents:
   analyst:
-    role: "Business Analyst and Product Strategist"
+    role: 'Business Analyst and Product Strategist'
     prompt_template: |
       You are a Business Analyst...
 ```
@@ -361,6 +366,7 @@ The project includes comprehensive test coverage:
 - **Validation Schema Tests** (20+ cases)
 
 Coverage targets:
+
 - Lines: 80%
 - Functions: 80%
 - Statements: 80%
@@ -409,31 +415,32 @@ npm run db:migrate
 
 Six specialized agents work together:
 
-| Agent | Phase | Role | Output |
-|-------|-------|------|--------|
-| **Analyst** | ANALYSIS | Clarify requirements with uncertainty markers | Constitution, Brief, Personas |
-| **Architect** | STACK_SELECTION | Propose technology stack | stack-decision.md, stack-rationale.md |
-| **PM** | SPEC | Document product | PRD, Data Model, API Spec, Design System |
-| **DevOps** | DEPENDENCIES | Specify dependencies | Dependency list, security baseline |
-| **Scrum Master** | SOLUTIONING | Break down work (test-first, parallelism) | Epics, Tasks with `[P]` markers |
-| **Validator** | VALIDATE | Cross-artifact consistency checks | validation-report.md, coverage-matrix.md |
+| Agent            | Phase           | Role                                          | Output                                   |
+| ---------------- | --------------- | --------------------------------------------- | ---------------------------------------- |
+| **Analyst**      | ANALYSIS        | Clarify requirements with uncertainty markers | Constitution, Brief, Personas            |
+| **Architect**    | STACK_SELECTION | Propose technology stack                      | stack-decision.md, stack-rationale.md    |
+| **PM**           | SPEC            | Document product                              | PRD, Data Model, API Spec, Design System |
+| **DevOps**       | DEPENDENCIES    | Specify dependencies                          | Dependency list, security baseline       |
+| **Scrum Master** | SOLUTIONING     | Break down work (test-first, parallelism)     | Epics, Tasks with `[P]` markers          |
+| **Validator**    | VALIDATE        | Cross-artifact consistency checks             | validation-report.md, coverage-matrix.md |
 
 ### Approval Gates
 
-Two gates ensure user intentionality:
+One gate ensures user intentionality:
 
-1. **STACK_SELECTION Gate** - Requires explicit stack approval before proceeding to SPEC phase
-2. **DEPENDENCIES Gate** - Requires security review before proceeding to SOLUTIONING phase
+1. **STACK_SELECTION Gate** - AI recommends optimal stack with alternatives; requires explicit approval before proceeding to SPEC phase
+
+> **Note:** Dependencies are now auto-generated from the approved stack without requiring a separate approval gate.
 
 ### Design System Integration
 
 The SPEC phase generates design system artifacts following the **[fire-your-design-team.md](fire-your-design-team.md)** principles:
 
-| Artifact | Purpose |
-|----------|---------|
-| `design-system.md` | Colors, typography (4 sizes max), spacing (8pt grid), motion tokens |
-| `component-inventory.md` | UI components with shadcn/ui mappings |
-| `user-flows.md` | Key user journey wireframes and interactions |
+| Artifact                 | Purpose                                                             |
+| ------------------------ | ------------------------------------------------------------------- |
+| `design-system.md`       | Colors, typography (4 sizes max), spacing (8pt grid), motion tokens |
+| `component-inventory.md` | UI components with shadcn/ui mappings                               |
+| `user-flows.md`          | Key user journey wireframes and interactions                        |
 
 **Anti-pattern prevention:** The system avoids "AI slop" aesthetics (purple gradients, Inter font defaults, gradient blobs) by enforcing design constraints.
 
@@ -558,7 +565,17 @@ For questions or issues:
 
 **Last Updated:** December 10, 2025
 
-**Version:** 3.0.0
+**Version:** 3.1.0
+
+### Changelog (v3.1.0)
+
+- Added AI-driven stack selection with intelligent recommendations
+- Removed dependencies approval gate (auto-generated from approved stack)
+- Added intelligent defaults based on project type
+- Added `project-classification.json` artifact for ANALYSIS phase
+- Added `stack-analysis.md` artifact (replaces stack-proposal.md)
+- New database columns: `project_type`, `scale_tier`, `recommended_stack`, `workflow_version`
+- New StackRecommendationView and StackCard UI components
 
 ### Changelog (v3.0.0)
 

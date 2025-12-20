@@ -80,7 +80,7 @@ phases:
     owner: "analyst"
     duration_minutes: 30
     inputs: ["user_idea"]
-    outputs: ["constitution.md", "project-brief.md", "personas.md"]
+    outputs: ["constitution.md", "project-brief.md", "project-classification.json", "personas.md"]
     next_phase: "STACK_SELECTION"
     validators: ["presence", "markdown_frontmatter", "content_quality", "no_unresolved_clarifications"]
     allow_regeneration: true
@@ -116,7 +116,7 @@ phases:
     
     # Quality Checklist for this phase
     quality_checklist:
-      - "All THREE files generated (constitution, brief, personas)"
+      - "All FOUR files generated (constitution, brief, classification, personas)"
       - "No unresolved [NEEDS CLARIFICATION] markers (unless auto-resolved)"
       - "3-5 distinct personas (not variations of same user)"
       - "Each persona has specific pain points (not generic)"
@@ -127,27 +127,28 @@ phases:
     
   STACK_SELECTION:
     name: "STACK_SELECTION"
-    description: "Architect proposes optimal stack based on requirements; user approves, modifies, or customizes"
+    description: "AI-driven stack recommendation with scored alternatives; user approves, modifies, or customizes"
     owner: "architect"
     duration_minutes: 25
-    inputs: ["project-brief.md", "personas.md", "constitution.md"]
-    outputs: ["stack-proposal.md", "stack-decision.md", "stack-rationale.md", "stack.json"]
+    inputs: ["project-brief.md", "project-classification.json", "personas.md", "constitution.md"]
+    outputs: ["stack-analysis.md", "stack-decision.md", "stack-rationale.md", "stack.json"]
     depends_on: ["ANALYSIS"]
     gates: ["stack_approved"]
     next_phase: "SPEC"
     validators: ["presence", "stack_approved", "stack_completeness", "stack_json_check"]
-    mode: "hybrid"
+    mode: "ai_recommend_with_alternatives"
     process:
-      - "1. Architect analyzes requirements from project-brief.md"
-      - "2. Architect considers scale, platforms, team expertise, integrations"
-      - "3. Architect proposes best-fit template OR custom stack"
-      - "4. User can: Accept proposal, Pick different template, Fully customize"
+      - "1. Architect reviews project-brief.md, project-classification.json, personas.md, constitution.md"
+      - "2. Score ALL stack templates across platform, scale, expertise, complexity, integrations"
+      - "3. Produce stack-analysis.md with primary + 2 alternatives and decision matrix"
+      - "4. User can: Accept primary, choose alternative, or customize"
       - "5. Approval gate confirms final choice"
     quality_checklist:
+      - "stack-analysis.md includes Recommendation Summary with primary + alternatives"
+      - "Decision matrix with scores and reasoning provided"
+      - "Alternatives include 2-3 relevant options (not duplicates)"
       - "stack-decision.md and stack-rationale.md both exist"
       - "All required layers defined (frontend, mobile, backend, database, deployment)"
-      - "Decision matrix with weighted scoring provided"
-      - "Alternatives considered with rationale for rejection"
       - "Trade-offs explicitly documented with mitigations"
       - "Scaling considerations addressed"
       - "Technical preferences from brief applied or justified if overridden"
@@ -183,15 +184,14 @@ phases:
     
   DEPENDENCIES:
     name: "DEPENDENCIES"
-    description: "Define and approve project dependencies"
+    description: "Auto-generate project dependencies from approved stack"
     owner: "devops"
     duration_minutes: 30
     inputs: ["PRD.md", "approved_stack"]
     outputs: ["DEPENDENCIES.md", "dependencies.json"]
     depends_on: ["SPEC"]
-    gates: ["dependencies_approved"]
     next_phase: "SOLUTIONING"
-    validators: ["presence", "dependencies_approved", "dependencies_json_check"]
+    validators: ["presence", "dependencies_json_check"]
     quality_checklist:
       - "All dependencies have version pinned (exact or caret)"
       - "Every production dependency links to a PRD requirement"
@@ -605,6 +605,7 @@ agents:
     responsibilities:
       - "Ask clarifying questions to understand project vision"
       - "Generate constitution, project brief, and personas"
+      - "Classify project type, scale tier, platforms, and backend complexity"
       - "Mark uncertainties for user resolution or AI auto-resolution"
     prompt_template: |
       # ROLE
@@ -612,7 +613,7 @@ agents:
       Your expertise spans market analysis, user research, and strategic planning.
 
       # OBJECTIVE
-      Generate three comprehensive analysis documents that will guide all subsequent development phases.
+      Generate three comprehensive analysis documents plus a classification summary that will guide all subsequent development phases.
       These documents must be detailed enough to serve as the foundation for PRD creation and architecture decisions.
 
       # PROJECT DESCRIPTION
@@ -717,6 +718,14 @@ agents:
       - **Key Quote**: A representative statement capturing their mindset
       - **Success Scenario**: What does success look like for this persona?
 
+      ## 4. project-classification.json - Machine-readable classification
+      MUST include:
+      - **project_type**: One of `web_app`, `mobile_app`, `api_platform`, `static_site`, `fullstack_with_mobile`, `backend_heavy`
+      - **scale_tier**: One of `prototype`, `startup`, `growth`, `enterprise`
+      - **platform_targets**: Array of platforms (e.g., ["web"] or ["ios", "android"])
+      - **backend_complexity**: One of `simple_crud`, `moderate_business_logic`, `complex_realtime`, `ml_ai_intensive`
+      If uncertain, choose the best-fit value based on the brief and personas.
+
       # OUTPUT FORMAT
       Generate each file in a SEPARATE code block with this EXACT format:
 
@@ -757,6 +766,16 @@ agents:
       ---
 
       [Detailed content following the structure above]
+      ```
+
+      ```
+      filename: project-classification.json
+      {
+        "project_type": "web_app | mobile_app | api_platform | static_site | fullstack_with_mobile | backend_heavy",
+        "scale_tier": "prototype | startup | growth | enterprise",
+        "platform_targets": ["web", "ios", "android", "desktop"],
+        "backend_complexity": "simple_crud | moderate_business_logic | complex_realtime | ml_ai_intensive"
+      }
       ```
 
       # QUALITY CHECKLIST (Self-verify before output)
@@ -978,27 +997,31 @@ agents:
       ## PHASE-SPECIFIC INSTRUCTIONS (FOLLOW EXACTLY)
 
       ### FOR PHASE: STACK_SELECTION
-      Analyze project requirements and propose the optimal technology stack.
+      Analyze project requirements and recommend the optimal stack with scored alternatives.
 
-      **CRITICAL: DO NOT default to Next.js/Expo. Analyze requirements first.**
+      **CRITICAL: Use intelligent defaults ONLY if inputs are incomplete.**
 
       #### INPUT ANALYSIS
       Review these documents for stack-relevant signals:
       - **project-brief.md**: Scale expectations, MVP scope, success metrics
+      - **project-classification.json**: Project type, platforms, scale tier, backend complexity
       - **personas.md**: Technical proficiency of users, platforms they use
       - **constitution.md**: Non-negotiable constraints, technical preferences
 
-      #### DECISION FACTORS (Weight each based on project needs)
-      1. **Target Platforms**: Web-only? Mobile required? Desktop?
-      2. **Scale Requirements**: <1k users, 1k-10k, 10k-100k, 100k+ DAU
-      3. **Team Expertise**: Languages/frameworks mentioned in preferences
-      4. **Backend Complexity**: CRUD-only, AI/ML, real-time, long-running jobs
-      5. **Mobile Requirements**: None, responsive web, PWA, native app
-      6. **Database Needs**: Relational, document, real-time sync, edge
-      7. **Deployment Constraints**: Managed platforms, self-hosted, edge
-      8. **Budget Constraints**: Free tier needed, enterprise budget available
-      9. **Integration Requirements**: Third-party APIs, existing systems
-      10. **Performance Needs**: Real-time, batch processing, global latency
+      Project Classification (raw JSON):
+      {{classification}}
+
+      Intelligent Default (fallback only):
+      - **Default Template**: {{defaultStack}}
+      - **Reason**: {{defaultStackReason}}
+      Set DEFAULT_FALLBACK_USED to true ONLY if you relied on the fallback due to missing signals.
+
+      #### SCORING CRITERIA (0-20 points each)
+      1. **Platform Coverage**: Web/mobile/desktop alignment
+      2. **Scale Appropriateness**: Infrastructure for expected load
+      3. **Team Expertise**: Skills mentioned in constitution/brief
+      4. **Backend Complexity Fit**: CRUD vs realtime vs ML
+      5. **Integration Fit**: Third-party APIs, existing systems
 
       #### AVAILABLE STACK TEMPLATES
       Review stack_templates in orchestrator_spec.yml. Choose the best fit OR propose custom.
@@ -1019,38 +1042,59 @@ agents:
       - react_native_supabase: React Native + Supabase
       - CUSTOM: Define each layer manually
 
-      #### OUTPUT 0: stack-proposal.md
+      #### OUTPUT 0: stack-analysis.md
       ```
-      filename: stack-proposal.md
+      filename: stack-analysis.md
       ---
-      title: Technology Stack Proposal
+      title: Stack Analysis Report
       owner: architect
       version: 1.0
       date: {{currentDate}}
       status: draft
       ---
 
-      # Technology Stack Proposal
+      # Stack Analysis Report
+
+      ## Project Classification
+      - Type: [web_app | mobile_app | api_platform | static_site | fullstack_with_mobile | backend_heavy]
+      - Scale Tier: [prototype | startup | growth | enterprise]
+      - Platforms: [web | ios | android | desktop]
+      - Backend Complexity: [simple_crud | moderate_business_logic | complex_realtime | ml_ai_intensive]
+
+      ## Recommendation Summary
+      - PRIMARY_RECOMMENDATION: [template_id or CUSTOM]
+      - ALTERNATIVE_1: [template_id or CUSTOM]
+      - ALTERNATIVE_2: [template_id or CUSTOM]
+      - DEFAULT_FALLBACK_USED: [true | false]
+
+      ## Evaluation Results
+
+      ### 🏆 Primary Recommendation: [template_id]
+      **Score: [0-100]**
+      - ✅ Platform Coverage: ...
+      - ✅ Scale Appropriateness: ...
+      - ✅ Backend Complexity: ...
+      - ✅ Team Expertise: ...
+      - ✅ Integration Fit: ...
+
+      ### 🥈 Alternative 1: [template_id]
+      **Score: [0-100]**
+      - ✅ ...
+      - ⚠️ ...
+
+      ### 🥉 Alternative 2: [template_id or CUSTOM]
+      **Score: [0-100 or N/A]**
+      - ✅ ...
+      - ⚠️ ...
+
+      ## Decision Matrix
+      | Template | Platform Fit | Scale Fit | Expertise Fit | Backend Fit | Integration Fit | Total Score | Notes |
+      |----------|--------------|-----------|---------------|-------------|-----------------|-------------|-------|
+      | [template_id] | 18 | 19 | 20 | 17 | 21 | 95 | ... |
+      | [template_id] | 14 | 16 | 12 | 15 | 18 | 75 | ... |
 
       ## Recommendation
-      - **Recommended Template**: [template_id or "custom"]
-      - **Architecture Type**: [web_application | mobile_application | api_first_platform | static_site | backend_heavy | custom]
-      - **Package Manager**: pnpm (default) | npm | bun
-
-      ## Decision Summary
-      [A concise explanation (5-10 bullets) mapping requirements → stack choices]
-
-      ## Options Considered
-      | Option | Fit | Key Pros | Key Cons | Why/Why Not |
-      |--------|-----|----------|----------|-------------|
-      | [template_id] | High/Med/Low | ... | ... | ... |
-      | [template_id] | High/Med/Low | ... | ... | ... |
-
-      ## Default Infra Wiring (if web)
-      - **Database**: Neon Postgres
-      - **ORM**: Drizzle
-      - **Storage**: Cloudflare R2 (S3-compatible)
-      - **Auth**: Better Auth
+      Accept the **PRIMARY_RECOMMENDATION** unless a specific constraint requires an alternative.
       ```
 
       #### OUTPUT 1: stack-decision.md
@@ -1808,6 +1852,13 @@ agents:
       {{prd}}
 
       Stack Choice: {{stackChoice}}
+      Detected Features: {{detectedFeatures}}
+      Note: Dependencies are auto-generated; no approval gate is required.
+
+      # PRESET DEPENDENCIES (AUTHORITATIVE)
+      Use this preset list as the baseline. Only add packages when a PRD requirement
+      explicitly demands them, and document the rationale.
+      {{dependencyPreset}}
 
       # PRINCIPLES
       1. **QUALITY OVER QUANTITY**: Fewer, battle-tested packages
@@ -2149,12 +2200,6 @@ validators:
     artifact: "stack.json"
     required_fields: ["template_id", "architecture_type", "package_manager", "database", "auth", "storage"]
     
-  dependencies_approved:
-    description: "Check if dependencies have been approved by user"
-    implementation: "database_field_check"
-    field: "dependencies_approved"
-    expected_value: true
-
   dependencies_json_check:
     description: "Validate dependencies.json exists and includes required keys"
     implementation: "json_schema_check"
@@ -2435,11 +2480,12 @@ file_structure:
     root_files:
       - "constitution.md"
       - "project-brief.md"
+      - "project-classification.json"
       - "personas.md"
       - "README.md"
       - "HANDOFF.md"
     specs_folder:
-      - "stack-proposal.md"
+      - "stack-analysis.md"
       - "stack-decision.md"
       - "stack-rationale.md"
       - "stack.json"
@@ -2552,6 +2598,5 @@ project_defaults:
   phases_completed: []
   stack_choice: null
   stack_approved: false
-  dependencies_approved: false
   artifact_versions: {}
   zip_ready: false

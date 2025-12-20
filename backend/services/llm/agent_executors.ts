@@ -1,6 +1,15 @@
 import { LLMProvider } from './providers/base';
 import { ConfigLoader } from '../orchestrator/config_loader';
 import { logger } from '@/lib/logger';
+import {
+  deriveIntelligentDefaultStack,
+  parseProjectClassification,
+} from '@/backend/lib/stack_defaults';
+import {
+  buildDependencyContract,
+  detectFeaturesFromPRD,
+  formatDependencyPresetForPrompt,
+} from '@/backend/config/dependency-presets';
 
 /**
  * PURE FUNCTION ARCHITECTURE
@@ -186,7 +195,7 @@ function parseArtifacts(content: string, expectedFiles: string[]): Record<string
 
 /**
  * Execute Analyst Agent (ANALYSIS phase)
- * Generates: constitution.md, project-brief.md, personas.md
+ * Generates: constitution.md, project-brief.md, project-classification.json, personas.md
  */
 async function executeAnalystAgent(
   llmClient: LLMProvider,
@@ -206,6 +215,7 @@ async function executeAnalystAgent(
   const artifacts = parseArtifacts(response.content, [
     'constitution.md',
     'project-brief.md',
+    'project-classification.json',
     'personas.md'
   ]);
 
@@ -243,7 +253,7 @@ async function executePMAgent(
 /**
  * Execute Architect Agent
  * Can generate different outputs based on phase:
- * - STACK_SELECTION phase: stack-proposal.md, stack-decision.md, stack-rationale.md, stack.json
+ * - STACK_SELECTION phase: stack-analysis.md, stack-decision.md, stack-rationale.md, stack.json
  * - SPEC phase: data-model.md, api-spec.json
  * - SOLUTIONING phase: architecture.md
  */
@@ -256,7 +266,10 @@ async function executeArchitectAgent(
   constitution: string,
   prd: string = '',
   stackChoice?: string,
-  projectName?: string
+  projectName?: string,
+  projectClassification?: string,
+  defaultStack?: string,
+  defaultStackReason?: string
 ): Promise<Record<string, string>> {
   logger.info(`[${phase}] Executing Architect Agent`, {
     briefLength: projectBrief?.length || 0,
@@ -274,7 +287,7 @@ async function executeArchitectAgent(
   let variables: Record<string, any>;
 
   if (phase === 'STACK_SELECTION') {
-    expectedFiles = ['stack-proposal.md', 'stack-decision.md', 'stack-rationale.md', 'stack.json'];
+    expectedFiles = ['stack-analysis.md', 'stack-decision.md', 'stack-rationale.md', 'stack.json'];
     variables = {
       brief: projectBrief,
       personas,
@@ -282,7 +295,10 @@ async function executeArchitectAgent(
       prd: '',
       phase: 'STACK_SELECTION',
       stackChoice: stackChoice || 'web_application',
-      projectName: projectName || 'Untitled Project'
+      projectName: projectName || 'Untitled Project',
+      classification: projectClassification || '',
+      defaultStack: defaultStack || 'nextjs_web_app',
+      defaultStackReason: defaultStackReason || 'Fallback default for web applications'
     };
   } else if (phase === 'SPEC') {
     expectedFiles = ['data-model.md', 'api-spec.json'];
@@ -849,10 +865,26 @@ async function executeDevOpsAgent(
   logger.info('[DEPENDENCIES] Executing DevOps Agent');
 
   const agentConfig = configLoader.getSection('agents').devops;
+  const dependencyContract = buildDependencyContract({
+    templateId: stackChoice,
+    prdContent: prd,
+    packageManager: 'pnpm',
+  });
+  const detectedFeatures = detectFeaturesFromPRD(prd, stackChoice);
+  const dependencyPreset = formatDependencyPresetForPrompt({
+    templateId: stackChoice,
+    contract: dependencyContract,
+    detectedFeatures,
+  });
+
   const prompt = buildPrompt(agentConfig.prompt_template, {
     prd: prd,
     stackChoice: stackChoice,
-    projectName: projectName || 'Untitled Project'
+    projectName: projectName || 'Untitled Project',
+    dependencyPreset,
+    detectedFeatures: detectedFeatures.length
+      ? detectedFeatures.join(', ')
+      : 'None'
   });
 
   const response = await llmClient.generateCompletion(prompt, undefined, 3, 'DEPENDENCIES');
@@ -860,6 +892,51 @@ async function executeDevOpsAgent(
     'DEPENDENCIES.md',
     'dependencies.json'
   ]);
+
+  if (!artifacts['DEPENDENCIES.md']) {
+    artifacts['DEPENDENCIES.md'] = `---
+title: Dependencies
+owner: devops
+version: 1.0
+date: ${new Date().toISOString().split('T')[0]}
+status: draft
+---
+
+# Dependencies
+
+## Stack Template
+- ${stackChoice}
+
+## Core Dependencies
+${dependencyContract.baseline.dependencies
+  .map((dep) => `- ${dep.name}@${dep.range}`)
+  .join('\n')}
+
+## Dev Dependencies
+${dependencyContract.baseline.devDependencies.length > 0
+  ? dependencyContract.baseline.devDependencies
+      .map((dep) => `- ${dep.name}@${dep.range}`)
+      .join('\n')
+  : '- None'}
+
+## Add-ons
+${dependencyContract.addons.length > 0
+  ? dependencyContract.addons
+      .map((addon) =>
+        `### ${addon.capability}\n${addon.packages
+          .map((dep) => `- ${dep.name}@${dep.range}`)
+          .join('\n')}`
+      )
+      .join('\n\n')
+  : 'None'}
+`;
+  }
+
+  artifacts['dependencies.json'] = JSON.stringify(
+    dependencyContract,
+    null,
+    2
+  );
 
   logger.info('[DEPENDENCIES] DevOps Agent completed', { artifacts: Object.keys(artifacts) });
   return artifacts;
@@ -923,7 +1000,24 @@ export async function getStackSelectionExecutor(
   const brief = artifacts['ANALYSIS/project-brief.md'] || '';
   const personas = artifacts['ANALYSIS/personas.md'] || '';
   const constitution = artifacts['ANALYSIS/constitution.md'] || '';
-  return executeArchitectAgent(llmClient, configLoader, 'STACK_SELECTION', brief, personas, constitution, '', undefined, projectName);
+  const classificationRaw =
+    artifacts['ANALYSIS/project-classification.json'] || '';
+  const classification = parseProjectClassification(classificationRaw);
+  const defaultStack = deriveIntelligentDefaultStack(classification, brief);
+  return executeArchitectAgent(
+    llmClient,
+    configLoader,
+    'STACK_SELECTION',
+    brief,
+    personas,
+    constitution,
+    '',
+    undefined,
+    projectName,
+    classificationRaw,
+    defaultStack.stack,
+    defaultStack.reason
+  );
 }
 
 export async function getScruMasterExecutor(

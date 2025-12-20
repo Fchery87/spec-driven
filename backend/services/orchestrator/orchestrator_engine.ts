@@ -31,6 +31,10 @@ import {
 } from '../llm/providers';
 import { DynamicPhaseTokenCalculator } from '../llm/dynamic_phase_token_calculator';
 import { ModelParameterResolver } from '../llm/model_parameter_resolver';
+import {
+  deriveIntelligentDefaultStack,
+  parseProjectClassification,
+} from '@/backend/lib/stack_defaults';
 
 export class OrchestratorEngine {
   private spec: OrchestratorSpec;
@@ -695,6 +699,186 @@ export class OrchestratorEngine {
     }
   }
 
+  public parseStackAnalysis(
+    content: string
+  ): {
+    primary?: string;
+    alternative1?: string;
+    alternative2?: string;
+    defaultFallbackUsed?: boolean;
+    scores?: {
+      primary?: number;
+      alternative1?: number;
+      alternative2?: number;
+    };
+    decisionMatrix?: Array<Record<string, string>>;
+  } {
+    if (!content) {
+      return {};
+    }
+
+    const extractValue = (label: string): string | null => {
+      const regex = new RegExp(`${label}\\s*:\\s*([^\\n]+)`, 'i');
+      const match = content.match(regex);
+      return match ? match[1].trim() : null;
+    };
+
+    const normalizeStackId = (value: string | null): string | undefined => {
+      if (!value) return undefined;
+      const cleaned = value
+        .replace(/[*`]/g, '')
+        .replace(/\(.*?\)/g, '')
+        .replace(/"/g, '')
+        .trim();
+      if (!cleaned) return undefined;
+      const lowered = cleaned.toLowerCase();
+      if (lowered === 'custom' || lowered === 'custom stack') {
+        return 'custom';
+      }
+      return lowered
+        .replace(/\s+/g, '_')
+        .replace(/[^a-z0-9_]/g, '');
+    };
+
+    const primary =
+      normalizeStackId(extractValue('PRIMARY_RECOMMENDATION')) ||
+      normalizeStackId(extractValue('Recommended Template')) ||
+      normalizeStackId(
+        content.match(/Primary Recommendation:\s*([^\n]+)/i)?.[1] || null
+      );
+
+    const alternative1 =
+      normalizeStackId(extractValue('ALTERNATIVE_1')) ||
+      normalizeStackId(
+        content.match(/Alternative 1:\s*([^\n]+)/i)?.[1] || null
+      );
+
+    const alternative2 =
+      normalizeStackId(extractValue('ALTERNATIVE_2')) ||
+      normalizeStackId(
+        content.match(/Alternative 2:\s*([^\n]+)/i)?.[1] || null
+      );
+
+    const fallbackRaw = extractValue('DEFAULT_FALLBACK_USED');
+    const defaultFallbackUsed =
+      typeof fallbackRaw === 'string'
+        ? fallbackRaw.trim().toLowerCase() === 'true'
+        : undefined;
+
+    const scores: {
+      primary?: number;
+      alternative1?: number;
+      alternative2?: number;
+    } = {};
+    const decisionMatrix: Array<Record<string, string>> = [];
+    let currentSection: 'primary' | 'alternative1' | 'alternative2' | null =
+      null;
+    let inDecisionMatrix = false;
+    let matrixHeaders: string[] = [];
+
+    const parseRow = (line: string): string[] => {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) {
+        return [];
+      }
+      return trimmed
+        .slice(1, -1)
+        .split('|')
+        .map((cell) => cell.trim());
+    };
+
+    for (const line of content.split('\n')) {
+      if (/^###\s*.*Primary Recommendation/i.test(line)) {
+        currentSection = 'primary';
+      } else if (/^###\s*.*Alternative 1/i.test(line)) {
+        currentSection = 'alternative1';
+      } else if (/^###\s*.*Alternative 2/i.test(line)) {
+        currentSection = 'alternative2';
+      }
+
+      const scoreMatch = line.match(/score[^0-9]*([0-9]{1,3})/i);
+      if (currentSection && scoreMatch) {
+        const scoreValue = Number(scoreMatch[1]);
+        if (!Number.isNaN(scoreValue)) {
+          scores[currentSection] = scoreValue;
+        }
+      }
+
+      if (/Decision Matrix/i.test(line)) {
+        inDecisionMatrix = true;
+        matrixHeaders = [];
+        continue;
+      }
+
+      if (inDecisionMatrix) {
+        if (!line.trim().startsWith('|')) {
+          inDecisionMatrix = false;
+          continue;
+        }
+
+        const row = parseRow(line);
+        if (row.length === 0) {
+          continue;
+        }
+
+        if (matrixHeaders.length === 0) {
+          matrixHeaders = row;
+          continue;
+        }
+
+        if (row.every((cell) => /^[-:]+$/.test(cell))) {
+          continue;
+        }
+
+        if (row.length === matrixHeaders.length) {
+          const entry: Record<string, string> = {};
+          matrixHeaders.forEach((header, index) => {
+            entry[header] = row[index] ?? '';
+          });
+          decisionMatrix.push(entry);
+        }
+      }
+    }
+
+    return {
+      primary,
+      alternative1,
+      alternative2,
+      defaultFallbackUsed,
+      scores: Object.keys(scores).length ? scores : undefined,
+      decisionMatrix: decisionMatrix.length ? decisionMatrix : undefined,
+    };
+  }
+
+  public resolveStackSelectionMetadata(
+    artifacts: Record<string, string>
+  ): {
+    projectType?: string;
+    scaleTier?: string;
+    recommendedStack?: string;
+    workflowVersion: number;
+  } {
+    const classificationRaw =
+      artifacts['ANALYSIS/project-classification.json'] || '';
+    const classification = parseProjectClassification(classificationRaw);
+    const brief = artifacts['ANALYSIS/project-brief.md'] || '';
+    const defaults = deriveIntelligentDefaultStack(classification, brief);
+    const stackAnalysis =
+      artifacts['STACK_SELECTION/stack-analysis.md'] ||
+      artifacts['stack-analysis.md'] ||
+      '';
+
+    const parsed = this.parseStackAnalysis(stackAnalysis);
+    const recommendedStack = parsed.primary || defaults.stack;
+
+    return {
+      projectType: classification?.project_type,
+      scaleTier: classification?.scale_tier,
+      recommendedStack,
+      workflowVersion: 2,
+    };
+  }
+
   private async generateValidationArtifacts(
     project: Project
   ): Promise<Record<string, string>> {
@@ -917,8 +1101,6 @@ ${
     switch (gate) {
       case 'stack_approved':
         return project.stack_approved;
-      case 'dependencies_approved':
-        return project.dependencies_approved;
       default:
         return project.orchestration_state.approval_gates[gate] || false;
     }

@@ -251,8 +251,9 @@ export class ArtifactManager {
     const artifactPhases: Record<string, string> = {
       'constitution.md': 'ANALYSIS',
       'project-brief.md': 'ANALYSIS',
+      'project-classification.json': 'ANALYSIS',
       'personas.md': 'ANALYSIS',
-      'stack-proposal.md': 'STACK_SELECTION',
+      'stack-analysis.md': 'STACK_SELECTION',
       'stack-decision.md': 'STACK_SELECTION',
       'stack-rationale.md': 'STACK_SELECTION',
       'stack.json': 'STACK_SELECTION',

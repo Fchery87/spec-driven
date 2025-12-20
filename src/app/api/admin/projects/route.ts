@@ -15,7 +15,6 @@ export const GET = withAdminAuth(async () => {
         currentPhase: projects.currentPhase,
         stackChoice: projects.stackChoice,
         stackApproved: projects.stackApproved,
-        dependenciesApproved: projects.dependenciesApproved,
         handoffGenerated: projects.handoffGenerated,
         createdAt: projects.createdAt,
         updatedAt: projects.updatedAt,

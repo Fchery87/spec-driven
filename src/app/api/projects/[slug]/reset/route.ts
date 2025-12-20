@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { existsSync, rmSync } from 'fs';
 import { resolve } from 'path';
 import { db } from '@/backend/lib/drizzle';
-import { projects, artifacts, phaseHistory, stackChoices, dependencyApprovals } from '@/backend/lib/schema';
+import { projects, artifacts, phaseHistory, stackChoices } from '@/backend/lib/schema';
 import { and, eq } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { withAuth, type AuthSession } from '@/app/api/middleware/auth-guard';
@@ -57,7 +57,6 @@ export const POST = withAuth(
       await db.delete(artifacts).where(eq(artifacts.projectId, project.id));
       await db.delete(phaseHistory).where(eq(phaseHistory.projectId, project.id));
       await db.delete(stackChoices).where(eq(stackChoices.projectId, project.id));
-      await db.delete(dependencyApprovals).where(eq(dependencyApprovals.projectId, project.id));
 
       // Reset project DB row to initial state
       await db.update(projects)
@@ -66,7 +65,6 @@ export const POST = withAuth(
           phasesCompleted: '',
           stackChoice: null,
           stackApproved: false,
-          dependenciesApproved: false,
           handoffGenerated: false,
           handoffGeneratedAt: null,
           clarificationState: null,
@@ -105,7 +103,6 @@ export const POST = withAuth(
           created_by_id: session.user.id,
           created_at: project.createdAt?.toISOString?.() || nowIso,
           stack_approved: false,
-          dependencies_approved: false,
           phases_completed: [],
           current_phase: 'ANALYSIS',
         }),
@@ -117,7 +114,6 @@ export const POST = withAuth(
         phases_completed: [],
         stack_choice: null,
         stack_approved: false,
-        dependencies_approved: false,
         handoff_generated: false,
         handoff_generated_at: undefined,
         orchestration_state: { artifact_versions: {}, phase_history: [], approval_gates: {} },

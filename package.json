@@ -24,7 +24,8 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
-    "test:e2e:headed": "playwright test --headed"
+    "test:e2e:headed": "playwright test --headed",
+    "verify-setup": "tsx scripts/verify-setup.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.937.0",
@@ -46,6 +47,7 @@
     "clsx": "^2.0.0",
     "dotenv": "^17.2.3",
     "drizzle-orm": "^0.44.7",
+    "framer-motion": "^12.23.26",
     "js-yaml": "^4.1.0",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.344.0",
