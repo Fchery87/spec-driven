@@ -70,6 +70,8 @@ export default function ProjectPage() {
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionInput, setDescriptionInput] = useState('');
   const [savingDescription, setSavingDescription] = useState(false);
+  const [stackAnalysisContent, setStackAnalysisContent] = useState<string | undefined>(undefined);
+  const [classificationContent, setClassificationContent] = useState<string | undefined>(undefined);
   
   // Clarification state (ANALYSIS phase)
   const [clarificationQuestions, setClarificationQuestions] = useState<ClarificationQuestion[]>([]);
@@ -364,6 +366,46 @@ export default function ProjectPage() {
       setDescriptionInput(project.description || '');
     }
   }, [project?.description, editingDescription]);
+
+  // Fetch stack analysis and project classification when in STACK_SELECTION phase (or generally if artifacts exist)
+  useEffect(() => {
+    async function loadStackContext() {
+       // Reset if not relevant
+       if (!project) return;
+       
+       // Try to load classification from ANALYSIS phase
+       const classificationArtifact = artifacts['ANALYSIS']?.find(a => a.name === 'project-classification.json');
+       if (classificationArtifact) {
+         try {
+           const response = await fetch(`/api/projects/${slug}/artifacts/ANALYSIS/${classificationArtifact.name}`);
+           if (response.ok) {
+             const text = await response.text();
+             setClassificationContent(text);
+           }
+         } catch (err) {
+           console.error('Failed to load project classification', err);
+         }
+       }
+
+       // Try to load stack analysis from STACK_SELECTION phase
+       const analysisArtifact = artifacts['STACK_SELECTION']?.find(a => a.name === 'stack-analysis.md');
+       if (analysisArtifact) {
+         try {
+           const response = await fetch(`/api/projects/${slug}/artifacts/STACK_SELECTION/${analysisArtifact.name}`);
+           if (response.ok) {
+             const text = await response.text();
+             setStackAnalysisContent(text);
+           }
+         } catch (err) {
+           console.error('Failed to load stack analysis', err);
+         }
+       }
+    }
+    
+    if (project && artifacts) {
+      loadStackContext();
+    }
+  }, [project, artifacts, slug]);
 
   const handleExecutePhase = useCallback(async () => {
     setExecuting(true);
@@ -857,6 +899,8 @@ export default function ProjectPage() {
               <StackSelection
                 selectedStack={project.stack_choice || undefined}
                 onStackSelect={handleStackApprove}
+                analysisContent={stackAnalysisContent}
+                classificationContent={classificationContent}
               />
             </CardContent>
           </Card>
