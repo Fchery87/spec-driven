@@ -24,6 +24,10 @@ export interface ProjectMetadata {
   stack_choice?: string | null;
   stack_approved: boolean;
   dependencies_approved: boolean;
+  project_type?: string | null;
+  scale_tier?: string | null;
+  recommended_stack?: string | null;
+  workflow_version?: number;
   created_by_id?: string;
   handoff_generated?: boolean;
   handoff_generated_at?: string;
@@ -125,6 +129,10 @@ export const getProjectMetadata = async (slug: string, ownerId?: string) => {
         stack_choice: project.stackChoice,
         stack_approved: project.stackApproved,
         dependencies_approved: project.dependenciesApproved,
+        project_type: project.projectType,
+        scale_tier: project.scaleTier,
+        recommended_stack: project.recommendedStack,
+        workflow_version: project.workflowVersion,
         handoff_generated: project.handoffGenerated,
         handoff_generated_at: project.handoffGeneratedAt?.toISOString?.(),
         created_by_id: project.ownerId,

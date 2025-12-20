@@ -186,7 +186,7 @@ function parseArtifacts(content: string, expectedFiles: string[]): Record<string
 
 /**
  * Execute Analyst Agent (ANALYSIS phase)
- * Generates: constitution.md, project-brief.md, personas.md
+ * Generates: constitution.md, project-brief.md, project-classification.json, personas.md
  */
 async function executeAnalystAgent(
   llmClient: LLMProvider,
@@ -206,6 +206,7 @@ async function executeAnalystAgent(
   const artifacts = parseArtifacts(response.content, [
     'constitution.md',
     'project-brief.md',
+    'project-classification.json',
     'personas.md'
   ]);
 
@@ -243,7 +244,7 @@ async function executePMAgent(
 /**
  * Execute Architect Agent
  * Can generate different outputs based on phase:
- * - STACK_SELECTION phase: stack-proposal.md, stack-decision.md, stack-rationale.md, stack.json
+ * - STACK_SELECTION phase: stack-analysis.md, stack-decision.md, stack-rationale.md, stack.json
  * - SPEC phase: data-model.md, api-spec.json
  * - SOLUTIONING phase: architecture.md
  */
@@ -274,7 +275,7 @@ async function executeArchitectAgent(
   let variables: Record<string, any>;
 
   if (phase === 'STACK_SELECTION') {
-    expectedFiles = ['stack-proposal.md', 'stack-decision.md', 'stack-rationale.md', 'stack.json'];
+    expectedFiles = ['stack-analysis.md', 'stack-decision.md', 'stack-rationale.md', 'stack.json'];
     variables = {
       brief: projectBrief,
       personas,

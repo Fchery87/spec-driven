@@ -1,6 +1,6 @@
 {
-  "id": "cbbcf1bb-58a9-4bd5-8218-05eb5e0e3eb9",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "7e07ac88-d431-4a2c-b111-2ceeec70ba86",
+  "prevId": "cbbcf1bb-58a9-4bd5-8218-05eb5e0e3eb9",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -566,14 +566,34 @@
           "notNull": true,
           "default": 2
         },
+        "handoff_generated": {
+          "name": "handoff_generated",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "owner_id": {
           "name": "owner_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "handoff_generated": {
-          "name": "handoff_generated",
+        "clarification_state": {
+          "name": "clarification_state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "clarification_mode": {
+          "name": "clarification_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'hybrid'"
+        },
+        "clarification_completed": {
+          "name": "clarification_completed",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
@@ -672,6 +692,45 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.Secret": {
+      "name": "Secret",
+      "schema": "",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "encrypted_value": {
+          "name": "encrypted_value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -935,6 +994,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'user'"
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1016,6 +1082,20 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
       "indexes": {

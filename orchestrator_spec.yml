@@ -80,7 +80,7 @@ phases:
     owner: "analyst"
     duration_minutes: 30
     inputs: ["user_idea"]
-    outputs: ["constitution.md", "project-brief.md", "personas.md"]
+    outputs: ["constitution.md", "project-brief.md", "project-classification.json", "personas.md"]
     next_phase: "STACK_SELECTION"
     validators: ["presence", "markdown_frontmatter", "content_quality", "no_unresolved_clarifications"]
     allow_regeneration: true
@@ -116,7 +116,7 @@ phases:
     
     # Quality Checklist for this phase
     quality_checklist:
-      - "All THREE files generated (constitution, brief, personas)"
+      - "All FOUR files generated (constitution, brief, classification, personas)"
       - "No unresolved [NEEDS CLARIFICATION] markers (unless auto-resolved)"
       - "3-5 distinct personas (not variations of same user)"
       - "Each persona has specific pain points (not generic)"
@@ -130,8 +130,8 @@ phases:
     description: "Architect proposes optimal stack based on requirements; user approves, modifies, or customizes"
     owner: "architect"
     duration_minutes: 25
-    inputs: ["project-brief.md", "personas.md", "constitution.md"]
-    outputs: ["stack-proposal.md", "stack-decision.md", "stack-rationale.md", "stack.json"]
+    inputs: ["project-brief.md", "project-classification.json", "personas.md", "constitution.md"]
+    outputs: ["stack-analysis.md", "stack-decision.md", "stack-rationale.md", "stack.json"]
     depends_on: ["ANALYSIS"]
     gates: ["stack_approved"]
     next_phase: "SPEC"
@@ -605,6 +605,7 @@ agents:
     responsibilities:
       - "Ask clarifying questions to understand project vision"
       - "Generate constitution, project brief, and personas"
+      - "Classify project type, scale tier, platforms, and backend complexity"
       - "Mark uncertainties for user resolution or AI auto-resolution"
     prompt_template: |
       # ROLE
@@ -612,7 +613,7 @@ agents:
       Your expertise spans market analysis, user research, and strategic planning.
 
       # OBJECTIVE
-      Generate three comprehensive analysis documents that will guide all subsequent development phases.
+      Generate three comprehensive analysis documents plus a classification summary that will guide all subsequent development phases.
       These documents must be detailed enough to serve as the foundation for PRD creation and architecture decisions.
 
       # PROJECT DESCRIPTION
@@ -717,6 +718,14 @@ agents:
       - **Key Quote**: A representative statement capturing their mindset
       - **Success Scenario**: What does success look like for this persona?
 
+      ## 4. project-classification.json - Machine-readable classification
+      MUST include:
+      - **project_type**: One of `web_app`, `mobile_app`, `api_platform`, `static_site`, `fullstack_with_mobile`, `backend_heavy`
+      - **scale_tier**: One of `prototype`, `startup`, `growth`, `enterprise`
+      - **platform_targets**: Array of platforms (e.g., ["web"] or ["ios", "android"])
+      - **backend_complexity**: One of `simple_crud`, `moderate_business_logic`, `complex_realtime`, `ml_ai_intensive`
+      If uncertain, choose the best-fit value based on the brief and personas.
+
       # OUTPUT FORMAT
       Generate each file in a SEPARATE code block with this EXACT format:
 
@@ -757,6 +766,16 @@ agents:
       ---
 
       [Detailed content following the structure above]
+      ```
+
+      ```
+      filename: project-classification.json
+      {
+        "project_type": "web_app | mobile_app | api_platform | static_site | fullstack_with_mobile | backend_heavy",
+        "scale_tier": "prototype | startup | growth | enterprise",
+        "platform_targets": ["web", "ios", "android", "desktop"],
+        "backend_complexity": "simple_crud | moderate_business_logic | complex_realtime | ml_ai_intensive"
+      }
       ```
 
       # QUALITY CHECKLIST (Self-verify before output)
@@ -985,6 +1004,7 @@ agents:
       #### INPUT ANALYSIS
       Review these documents for stack-relevant signals:
       - **project-brief.md**: Scale expectations, MVP scope, success metrics
+      - **project-classification.json**: Project type, platforms, scale tier, backend complexity
       - **personas.md**: Technical proficiency of users, platforms they use
       - **constitution.md**: Non-negotiable constraints, technical preferences
 
@@ -1019,18 +1039,18 @@ agents:
       - react_native_supabase: React Native + Supabase
       - CUSTOM: Define each layer manually
 
-      #### OUTPUT 0: stack-proposal.md
+      #### OUTPUT 0: stack-analysis.md
       ```
-      filename: stack-proposal.md
+      filename: stack-analysis.md
       ---
-      title: Technology Stack Proposal
+      title: Stack Analysis Report
       owner: architect
       version: 1.0
       date: {{currentDate}}
       status: draft
       ---
 
-      # Technology Stack Proposal
+      # Stack Analysis Report
 
       ## Recommendation
       - **Recommended Template**: [template_id or "custom"]
@@ -2435,11 +2455,12 @@ file_structure:
     root_files:
       - "constitution.md"
       - "project-brief.md"
+      - "project-classification.json"
       - "personas.md"
       - "README.md"
       - "HANDOFF.md"
     specs_folder:
-      - "stack-proposal.md"
+      - "stack-analysis.md"
       - "stack-decision.md"
       - "stack-rationale.md"
       - "stack.json"

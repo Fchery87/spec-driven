@@ -112,6 +112,10 @@ export interface Project {
   stack_approval_date?: Date;
   dependencies_approved: boolean;
   dependencies_approval_date?: Date;
+  project_type?: string;
+  scale_tier?: string;
+  recommended_stack?: string;
+  workflow_version?: number;
   orchestration_state: OrchestrationState;
   project_path: string;
   created_at: Date;

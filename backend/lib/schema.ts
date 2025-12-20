@@ -14,6 +14,10 @@ export const projects = pgTable('Project', {
   stackChoice: text('stack_choice'),
   stackApproved: boolean('stack_approved').notNull().default(false),
   dependenciesApproved: boolean('dependencies_approved').notNull().default(false),
+  projectType: text('project_type'),
+  scaleTier: text('scale_tier'),
+  recommendedStack: text('recommended_stack'),
+  workflowVersion: integer('workflow_version').notNull().default(2),
   handoffGenerated: boolean('handoff_generated').notNull().default(false),
   ownerId: uuid('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
 

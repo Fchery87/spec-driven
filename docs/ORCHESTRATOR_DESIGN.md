@@ -1098,7 +1098,7 @@ The Architect is the "CTO" who designs the system and makes technology choices. 
 **Primary Responsibility:** Phase 2 (STACK_SELECTION - proposal), Phase 3 (SPEC - data model & API), Phase 5 (SOLUTIONING - full architecture)
 
 **Outputs:**
-- `stack-proposal.md` - Two stack options with trade-offs (Phase 2)
+- `stack-analysis.md` - Two stack options with trade-offs (Phase 2)
 - `data-model.md` - Database schema and data structures (Phase 3)
 - `api-spec.json` - OpenAPI specification (Phase 3)
 - `architecture.md` - Complete system architecture (Phase 5)
@@ -1660,7 +1660,7 @@ security_baseline:
 │   │   └── v1/
 │   │       ├── plan.md
 │   │       ├── README.md
-│   │       └── stack-proposal.md (tmp)
+│   │       └── stack-analysis.md (tmp)
 │   │
 │   ├── SPEC/
 │   │   └── v1/

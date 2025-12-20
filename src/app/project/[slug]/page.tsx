@@ -1382,7 +1382,7 @@ function hasArtifactsForPhase(phase: string, artifacts: Record<string, Artifact[
 
 function getPhaseDescription(phase: string): string {
   const descriptions: Record<string, string> = {
-    ANALYSIS: 'Analyze and clarify project requirements. AI agents will generate your project constitution, brief, and user personas. Uncertainties are marked for resolution.',
+    ANALYSIS: 'Analyze and clarify project requirements. AI agents will generate your project constitution, brief, classification, and user personas. Uncertainties are marked for resolution.',
     STACK_SELECTION: 'Select and approve the technology stack for your project.',
     SPEC: 'Generate detailed product and technical specifications including PRD, data model, and API specifications.',
     DEPENDENCIES: 'Define and approve all project dependencies including npm packages and system requirements.',
@@ -1395,8 +1395,8 @@ function getPhaseDescription(phase: string): string {
 
 function getPhaseOutputs(phase: string): string[] {
   const outputs: Record<string, string[]> = {
-    ANALYSIS: ['constitution.md', 'project-brief.md', 'personas.md'],
-    STACK_SELECTION: ['stack-proposal.md', 'stack-decision.md', 'stack-rationale.md', 'stack.json'],
+    ANALYSIS: ['constitution.md', 'project-brief.md', 'project-classification.json', 'personas.md'],
+    STACK_SELECTION: ['stack-analysis.md', 'stack-decision.md', 'stack-rationale.md', 'stack.json'],
     SPEC: ['PRD.md', 'data-model.md', 'api-spec.json', 'design-system.md', 'component-inventory.md', 'user-flows.md'],
     DEPENDENCIES: ['DEPENDENCIES.md', 'dependencies.json'],
     SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],

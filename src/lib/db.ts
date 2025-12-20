@@ -19,6 +19,10 @@ export interface ProjectData {
   stack_choice?: string | null;
   stack_approved?: boolean;
   dependencies_approved?: boolean;
+  project_type?: string | null;
+  scale_tier?: string | null;
+  recommended_stack?: string | null;
+  workflow_version?: number;
   handoff_generated?: boolean;
   handoff_generated_at?: Date | string | null;
   owner_id?: string;
