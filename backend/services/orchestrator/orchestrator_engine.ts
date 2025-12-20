@@ -25,6 +25,7 @@ import {
 } from '../llm/agent_executors';
 import { GeminiClient } from '../llm/llm_client';
 import { createLLMClient, ProviderType, getProviderApiKeyAsync } from '../llm/providers';
+import { DynamicPhaseTokenCalculator } from '../llm/dynamic_phase_token_calculator';
 
 export class OrchestratorEngine {
   private spec: OrchestratorSpec;
@@ -66,17 +67,50 @@ export class OrchestratorEngine {
       throw error;
     }
 
-    // Initialize Gemini client with LLM config from orchestrator spec
-    // Include phase_overrides for phase-specific temperature/token settings
+    // Initialize LLM client with dynamic phase token allocation
+    // The DynamicPhaseTokenCalculator automatically scales phase tokens based on the model's maxOutputTokens
+    const modelId = this.spec.llm_config.model as string;
+    const phaseOverrides = (this.spec.llm_config as any).phase_overrides || {};
+
+    // Validate phase overrides configuration
+    const validationErrors = DynamicPhaseTokenCalculator.validatePhaseOverrides(phaseOverrides);
+    if (validationErrors.length > 0) {
+      logger.warn('[OrchestratorEngine] Phase override validation warnings:', validationErrors);
+    }
+
+    // Calculate dynamic phase token limits based on model capability
+    const dynamicPhaseLimits = DynamicPhaseTokenCalculator.calculatePhaseTokenLimits(
+      modelId,
+      phaseOverrides
+    );
+
+    // Create enhanced phase_overrides with calculated dynamic tokens
+    const enhancedPhaseOverrides = { ...phaseOverrides };
+    for (const [phase, tokens] of Object.entries(dynamicPhaseLimits)) {
+      if (!enhancedPhaseOverrides[phase]) {
+        enhancedPhaseOverrides[phase] = {};
+      }
+      // Store the calculated max_tokens (this will be used by LLM client)
+      (enhancedPhaseOverrides[phase] as any).max_tokens = tokens;
+    }
+
+    // Log the phase token allocation summary
+    const allocationSummary = DynamicPhaseTokenCalculator.generateSummary(
+      modelId,
+      phaseOverrides
+    );
+    logger.info('[OrchestratorEngine] Phase Token Allocation' + allocationSummary);
+
+    // Initialize LLM client with calculated phase token limits
     const llmConfig = {
       provider: this.spec.llm_config.provider as string,
-      model: this.spec.llm_config.model as string,
+      model: modelId,
       max_tokens: this.spec.llm_config.max_tokens as number,
       temperature: this.spec.llm_config.temperature as number,
       timeout_seconds: this.spec.llm_config.timeout_seconds as number,
       api_key: process.env.GEMINI_API_KEY,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      phase_overrides: (this.spec.llm_config as any).phase_overrides || {}
+      phase_overrides: enhancedPhaseOverrides
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.llmClient = new GeminiClient(llmConfig as any);
