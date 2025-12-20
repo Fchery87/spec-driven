@@ -15,7 +15,9 @@
       "Bash(npm audit:*)",
       "Bash(npx eslint:*)",
       "Bash(npm run lint)",
-      "Bash(npm run test)"
+      "Bash(npm run test)",
+      "Bash(mkdir:*)",
+      "Bash(npm run test:*)"
     ],
     "deny": [],
     "ask": []
