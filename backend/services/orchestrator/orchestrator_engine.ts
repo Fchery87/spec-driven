@@ -7,7 +7,7 @@ import {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   OrchestrationState,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  PhaseHistory
+  PhaseHistory,
 } from '@/types/orchestrator';
 import { ConfigLoader } from './config_loader';
 import { Validators } from './validators';
@@ -21,10 +21,14 @@ import {
   getScruMasterExecutor,
   getDevOpsExecutor,
   getDesignExecutor,
-  getStackSelectionExecutor
+  getStackSelectionExecutor,
 } from '../llm/agent_executors';
 import { GeminiClient } from '../llm/llm_client';
-import { createLLMClient, ProviderType, getProviderApiKeyAsync } from '../llm/providers';
+import {
+  createLLMClient,
+  ProviderType,
+  getProviderApiKeyAsync,
+} from '../llm/providers';
 import { DynamicPhaseTokenCalculator } from '../llm/dynamic_phase_token_calculator';
 import { ModelParameterResolver } from '../llm/model_parameter_resolver';
 
@@ -42,21 +46,30 @@ export class OrchestratorEngine {
         hasPhases: !!this.spec?.phases,
         phaseKeys: this.spec?.phases ? Object.keys(this.spec.phases) : [],
         hasValidators: !!this.spec?.validators,
-        hasLlmConfig: !!this.spec?.llm_config
+        hasLlmConfig: !!this.spec?.llm_config,
       });
 
       // Defensive validation: ensure spec is properly initialized
-      if (!this.spec || !this.spec.phases || Object.keys(this.spec.phases).length === 0) {
+      if (
+        !this.spec ||
+        !this.spec.phases ||
+        Object.keys(this.spec.phases).length === 0
+      ) {
         logger.error('[OrchestratorEngine] Constructor validation failed!');
-        logger.error('[OrchestratorEngine] this.spec: ' + JSON.stringify(this.spec));
+        logger.error(
+          '[OrchestratorEngine] this.spec: ' + JSON.stringify(this.spec)
+        );
         throw new Error(
           'OrchestratorEngine failed to load spec with phases. ' +
-          'Check that orchestrator_spec.yml exists, is valid YAML, and has a phases section defined.'
+            'Check that orchestrator_spec.yml exists, is valid YAML, and has a phases section defined.'
         );
       }
       logger.info('[OrchestratorEngine] Constructor validation passed');
     } catch (error) {
-      logger.error('[OrchestratorEngine] Constructor error:', error instanceof Error ? error : new Error(String(error)));
+      logger.error(
+        '[OrchestratorEngine] Constructor error:',
+        error instanceof Error ? error : new Error(String(error))
+      );
       throw error;
     }
 
@@ -64,7 +77,10 @@ export class OrchestratorEngine {
       this.validators = new Validators(this.spec.validators);
       this.artifactManager = new ArtifactManager();
     } catch (error) {
-      logger.error('[OrchestratorEngine] Failed to initialize validators/artifact manager:', error instanceof Error ? error : new Error(String(error)));
+      logger.error(
+        '[OrchestratorEngine] Failed to initialize validators/artifact manager:',
+        error instanceof Error ? error : new Error(String(error))
+      );
       throw error;
     }
 
@@ -75,16 +91,20 @@ export class OrchestratorEngine {
     const phaseOverrides = (this.spec.llm_config as any).phase_overrides || {};
 
     // Validate phase overrides configuration
-    const validationErrors = DynamicPhaseTokenCalculator.validatePhaseOverrides(phaseOverrides);
+    const validationErrors =
+      DynamicPhaseTokenCalculator.validatePhaseOverrides(phaseOverrides);
     if (validationErrors.length > 0) {
-      logger.warn('[OrchestratorEngine] Phase override validation warnings:', validationErrors);
+      logger.warn('[OrchestratorEngine] Phase override validation warnings:', {
+        errors: validationErrors,
+      });
     }
 
     // Calculate dynamic phase token limits based on model capability
-    const dynamicPhaseLimits = DynamicPhaseTokenCalculator.calculatePhaseTokenLimits(
-      modelId,
-      phaseOverrides
-    );
+    const dynamicPhaseLimits =
+      DynamicPhaseTokenCalculator.calculatePhaseTokenLimits(
+        modelId,
+        phaseOverrides
+      );
 
     // Create enhanced phase_overrides with calculated dynamic tokens
     const enhancedPhaseOverrides = { ...phaseOverrides };
@@ -101,7 +121,9 @@ export class OrchestratorEngine {
       modelId,
       phaseOverrides
     );
-    logger.info('[OrchestratorEngine] Phase Token Allocation' + allocationSummary);
+    logger.info(
+      '[OrchestratorEngine] Phase Token Allocation' + allocationSummary
+    );
 
     // Resolve optimal generation parameters for the model
     let resolvedParams;
@@ -116,13 +138,21 @@ export class OrchestratorEngine {
       });
 
       // Log the parameter resolution summary
-      const paramSummary = ModelParameterResolver.generateSummary(modelId, resolvedParams);
-      logger.info('[OrchestratorEngine] Model Parameter Resolution' + paramSummary);
-    } catch (error) {
-      logger.warn('[OrchestratorEngine] Failed to resolve parameters, using YAML defaults', {
+      const paramSummary = ModelParameterResolver.generateSummary(
         modelId,
-        error: error instanceof Error ? error.message : String(error),
-      });
+        resolvedParams
+      );
+      logger.info(
+        '[OrchestratorEngine] Model Parameter Resolution' + paramSummary
+      );
+    } catch (error) {
+      logger.warn(
+        '[OrchestratorEngine] Failed to resolve parameters, using YAML defaults',
+        {
+          modelId,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
       // Fall back to YAML config if resolution fails
       resolvedParams = {
         temperature: this.spec.llm_config.temperature as number,
@@ -131,7 +161,7 @@ export class OrchestratorEngine {
         source: 'preset' as const,
         calculationDetails: {
           modelId,
-          provider: (this.spec.llm_config.provider as string) as any,
+          provider: this.spec.llm_config.provider as string as any,
           modelMaxTokens: this.spec.llm_config.max_tokens as number,
           baseTemperature: this.spec.llm_config.temperature as number,
           finalTemperature: this.spec.llm_config.temperature as number,
@@ -151,7 +181,7 @@ export class OrchestratorEngine {
       timeout_seconds: resolvedParams.timeout, // Use resolved parameters
       api_key: process.env.GEMINI_API_KEY,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      phase_overrides: enhancedPhaseOverrides
+      phase_overrides: enhancedPhaseOverrides,
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.llmClient = new GeminiClient(llmConfig as any);
@@ -171,25 +201,37 @@ export class OrchestratorEngine {
       const { db } = await import('@/backend/lib/drizzle');
       const { settings } = await import('@/backend/lib/schema');
       const { like } = await import('drizzle-orm');
-      
-      const llmSettings = await db.select().from(settings).where(like(settings.key, 'llm_%'));
-      
+
+      const llmSettings = await db
+        .select()
+        .from(settings)
+        .where(like(settings.key, 'llm_%'));
+
       const result: Record<string, string> = {};
       llmSettings.forEach((s: { key: string; value: string }) => {
         result[s.key] = s.value;
       });
-      
+
       return {
         provider: result['llm_provider'] || undefined,
         model: result['llm_model'] || undefined,
-        temperature: result['llm_temperature'] ? parseFloat(result['llm_temperature']) : undefined,
-        max_tokens: result['llm_max_tokens'] ? parseInt(result['llm_max_tokens'], 10) : undefined,
-        timeout: result['llm_timeout'] ? parseInt(result['llm_timeout'], 10) : undefined
+        temperature: result['llm_temperature']
+          ? parseFloat(result['llm_temperature'])
+          : undefined,
+        max_tokens: result['llm_max_tokens']
+          ? parseInt(result['llm_max_tokens'], 10)
+          : undefined,
+        timeout: result['llm_timeout']
+          ? parseInt(result['llm_timeout'], 10)
+          : undefined,
       };
     } catch (error) {
-      logger.warn('Failed to fetch LLM settings from database, using YAML defaults', {
-        error: error instanceof Error ? error.message : String(error)
-      });
+      logger.warn(
+        'Failed to fetch LLM settings from database, using YAML defaults',
+        {
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
       return {};
     }
   }
@@ -203,7 +245,7 @@ export class OrchestratorEngine {
       return {
         status: 'fail',
         checks: {},
-        errors: [`Unknown phase: ${project.current_phase}`]
+        errors: [`Unknown phase: ${project.current_phase}`],
       };
     }
 
@@ -221,8 +263,14 @@ export class OrchestratorEngine {
 
     // Combine results
     const allChecks = { ...artifactResults.checks, ...validatorResults.checks };
-    const allErrors = [...(artifactResults.errors || []), ...(validatorResults.errors || [])];
-    const allWarnings = [...(artifactResults.warnings || []), ...(validatorResults.warnings || [])];
+    const allErrors = [
+      ...(artifactResults.errors || []),
+      ...(validatorResults.errors || []),
+    ];
+    const allWarnings = [
+      ...(artifactResults.warnings || []),
+      ...(validatorResults.warnings || []),
+    ];
 
     const hasErrors = allErrors.length > 0;
     const hasWarnings = allWarnings.length > 0;
@@ -231,7 +279,7 @@ export class OrchestratorEngine {
       status: hasErrors ? 'fail' : hasWarnings ? 'warn' : 'pass',
       checks: allChecks,
       errors: hasErrors ? allErrors : undefined,
-      warnings: hasWarnings ? allWarnings : undefined
+      warnings: hasWarnings ? allWarnings : undefined,
     };
   }
 
@@ -267,7 +315,10 @@ export class OrchestratorEngine {
   /**
    * Advance project to next phase
    */
-  async advancePhase(project: Project, userId: string): Promise<{
+  async advancePhase(
+    project: Project,
+    userId: string
+  ): Promise<{
     success: boolean;
     newPhase?: string;
     message: string;
@@ -277,7 +328,7 @@ export class OrchestratorEngine {
     if (validation.status === 'fail') {
       return {
         success: false,
-        message: `Cannot advance phase: ${validation.errors?.join(', ')}`
+        message: `Cannot advance phase: ${validation.errors?.join(', ')}`,
       };
     }
 
@@ -285,7 +336,8 @@ export class OrchestratorEngine {
     if (!this.canAdvanceToPhase(project)) {
       return {
         success: false,
-        message: 'Cannot advance phase: gates not passed or dependencies not met'
+        message:
+          'Cannot advance phase: gates not passed or dependencies not met',
       };
     }
 
@@ -298,19 +350,27 @@ export class OrchestratorEngine {
     project.updated_at = new Date();
 
     // Record phase transition
-    await this.recordPhaseTransition(project, project.current_phase, nextPhaseName, userId);
+    await this.recordPhaseTransition(
+      project,
+      project.current_phase,
+      nextPhaseName,
+      userId
+    );
 
     return {
       success: true,
       newPhase: nextPhaseName,
-      message: `Advanced to ${nextPhaseName} phase`
+      message: `Advanced to ${nextPhaseName} phase`,
     };
   }
 
   /**
    * Run agent for current phase
    */
-  async runPhaseAgent(project: Project, artifacts: Record<string, string> = {}): Promise<{
+  async runPhaseAgent(
+    project: Project,
+    artifacts: Record<string, string> = {}
+  ): Promise<{
     success: boolean;
     artifacts: Record<string, string>;
     message: string;
@@ -321,7 +381,9 @@ export class OrchestratorEngine {
     const stackChoice = project.stack_choice;
     const orchestrationState = project.orchestration_state;
 
-    logger.info('[OrchestratorEngine] runPhaseAgent called for phase: ' + currentPhaseName);
+    logger.info(
+      '[OrchestratorEngine] runPhaseAgent called for phase: ' + currentPhaseName
+    );
 
     try {
       logger.info(`Executing agent for phase: ${currentPhaseName}`);
@@ -331,7 +393,9 @@ export class OrchestratorEngine {
 
       // Validate spec is loaded
       if (!spec || !spec.phases) {
-        throw new Error('[CRITICAL] Failed to load orchestrator spec with phases');
+        throw new Error(
+          '[CRITICAL] Failed to load orchestrator spec with phases'
+        );
       }
 
       // Validate phase exists
@@ -346,34 +410,39 @@ export class OrchestratorEngine {
 
       // Fetch LLM settings from database (admin overrides)
       const dbSettings = await this.getLLMSettingsFromDB();
-      
+
       // Determine provider (database setting takes precedence)
-      const provider = (dbSettings.provider || spec.llm_config.provider || 'gemini') as ProviderType;
+      const provider = (dbSettings.provider ||
+        spec.llm_config.provider ||
+        'gemini') as ProviderType;
       const apiKey = await getProviderApiKeyAsync(provider);
-      
+
       // Create LLM client with database settings taking precedence over YAML
       const llmConfig = {
         provider,
-        model: dbSettings.model || spec.llm_config.model as string,
-        max_tokens: dbSettings.max_tokens || spec.llm_config.max_tokens as number,
-        temperature: dbSettings.temperature || spec.llm_config.temperature as number,
-        timeout_seconds: dbSettings.timeout || spec.llm_config.timeout_seconds as number,
+        model: dbSettings.model || (spec.llm_config.model as string),
+        max_tokens:
+          dbSettings.max_tokens || (spec.llm_config.max_tokens as number),
+        temperature:
+          dbSettings.temperature || (spec.llm_config.temperature as number),
+        timeout_seconds:
+          dbSettings.timeout || (spec.llm_config.timeout_seconds as number),
         api_key: apiKey,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        phase_overrides: (spec.llm_config as any).phase_overrides || {}
+        phase_overrides: (spec.llm_config as any).phase_overrides || {},
       };
-      
+
       logger.info('[OrchestratorEngine] Using LLM config', {
         provider: llmConfig.provider,
         model: llmConfig.model,
         fromDB: !!dbSettings.model,
         temperature: llmConfig.temperature,
-        max_tokens: llmConfig.max_tokens
+        max_tokens: llmConfig.max_tokens,
       });
-      
+
       // Create LLM client using factory (supports multiple providers)
       const llmClient = createLLMClient(llmConfig);
-      
+
       // Get project name for template variables
       const projectName = project.name || 'Untitled Project';
 
@@ -388,11 +457,14 @@ export class OrchestratorEngine {
             artifacts,
             projectName
           );
-          logger.debug('[OrchestratorEngine] Generated artifacts from executor', {
-            phase: currentPhaseName,
-            artifactKeys: Object.keys(generatedArtifacts),
-            artifactCount: Object.keys(generatedArtifacts).length
-          });
+          logger.debug(
+            '[OrchestratorEngine] Generated artifacts from executor',
+            {
+              phase: currentPhaseName,
+              artifactKeys: Object.keys(generatedArtifacts),
+              artifactCount: Object.keys(generatedArtifacts).length,
+            }
+          );
           break;
 
         case 'SPEC':
@@ -400,7 +472,7 @@ export class OrchestratorEngine {
           // 1. PM generates PRD
           // 2. Architect generates data-model and api-spec
           // 3. Design generates design-system, component-inventory, user-flows
-          
+
           // First generate PRD with PM
           const prdArtifacts = await getPMExecutor(
             llmClient,
@@ -412,18 +484,18 @@ export class OrchestratorEngine {
 
           logger.debug('[SPEC] PRD generation complete', {
             prdLength: prdArtifacts['PRD.md']?.length || 0,
-            hasContent: !!prdArtifacts['PRD.md']?.trim()
+            hasContent: !!prdArtifacts['PRD.md']?.trim(),
           });
 
           // Add the newly generated PRD to artifacts for subsequent agents
           const artifactsWithPRD: Record<string, string> = {
             ...artifacts,
-            'SPEC/PRD.md': prdArtifacts['PRD.md'] || ''
+            'SPEC/PRD.md': prdArtifacts['PRD.md'] || '',
           };
 
           logger.debug('[SPEC] Calling Architect with PRD', {
             prdLength: artifactsWithPRD['SPEC/PRD.md']?.length || 0,
-            briefLength: artifacts['ANALYSIS/project-brief.md']?.length || 0
+            briefLength: artifacts['ANALYSIS/project-brief.md']?.length || 0,
           });
 
           // Generate data model, API spec, and design artifacts in parallel
@@ -441,27 +513,29 @@ export class OrchestratorEngine {
               projectId,
               artifactsWithPRD,
               projectName
-            )
+            ),
           ]);
 
           logger.debug('[SPEC] Architect generation complete', {
             dataModelLength: architectArtifacts['data-model.md']?.length || 0,
             apiSpecLength: architectArtifacts['api-spec.json']?.length || 0,
             hasDataModel: !!architectArtifacts['data-model.md']?.trim(),
-            hasApiSpec: !!architectArtifacts['api-spec.json']?.trim()
+            hasApiSpec: !!architectArtifacts['api-spec.json']?.trim(),
           });
 
           logger.debug('[SPEC] Design generation complete', {
-            designSystemLength: designArtifacts['design-system.md']?.length || 0,
-            componentInventoryLength: designArtifacts['component-inventory.md']?.length || 0,
-            userFlowsLength: designArtifacts['user-flows.md']?.length || 0
+            designSystemLength:
+              designArtifacts['design-system.md']?.length || 0,
+            componentInventoryLength:
+              designArtifacts['component-inventory.md']?.length || 0,
+            userFlowsLength: designArtifacts['user-flows.md']?.length || 0,
           });
 
           // Combine all artifacts
           generatedArtifacts = {
             ...prdArtifacts,
             ...architectArtifacts,
-            ...designArtifacts
+            ...designArtifacts,
           };
           break;
 
@@ -469,21 +543,31 @@ export class OrchestratorEngine {
           // Run agents sequentially to avoid rate limiting
           // Architect generates architecture.md first
           const archArtifacts = await getArchitectExecutor(
-            llmClient, projectId, artifacts, 'SOLUTIONING', stackChoice, projectName
+            llmClient,
+            projectId,
+            artifacts,
+            'SOLUTIONING',
+            stackChoice,
+            projectName
           );
-          logger.info('[SOLUTIONING] Architect Agent complete, starting Scrum Master Agent');
-          
+          logger.info(
+            '[SOLUTIONING] Architect Agent complete, starting Scrum Master Agent'
+          );
+
           // Small delay to help with rate limiting
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+
           // Scrum Master generates epics.md, tasks.md, plan.md
           const scrumArtifacts = await getScruMasterExecutor(
-            llmClient, projectId, artifacts, projectName
+            llmClient,
+            projectId,
+            artifacts,
+            projectName
           );
-          
+
           generatedArtifacts = {
             ...archArtifacts,
-            ...scrumArtifacts
+            ...scrumArtifacts,
           };
           break;
 
@@ -515,7 +599,7 @@ export class OrchestratorEngine {
           return {
             success: true,
             artifacts: {},
-            message: 'Final phase - use /generate-handoff endpoint'
+            message: 'Final phase - use /generate-handoff endpoint',
           };
 
         default:
@@ -526,7 +610,7 @@ export class OrchestratorEngine {
       logger.debug('[OrchestratorEngine] About to save artifacts', {
         phase: currentPhaseName,
         artifactCount: Object.keys(generatedArtifacts).length,
-        artifactKeys: Object.keys(generatedArtifacts)
+        artifactKeys: Object.keys(generatedArtifacts),
       });
 
       const normalizedArtifacts: Record<string, string> = {};
@@ -534,7 +618,7 @@ export class OrchestratorEngine {
         logger.debug('[OrchestratorEngine] Saving artifact to local storage', {
           phase: currentPhaseName,
           filename,
-          contentLength: content.length
+          contentLength: content.length,
         });
         try {
           await artifactManager.saveArtifact(
@@ -544,11 +628,17 @@ export class OrchestratorEngine {
             content
           );
         } catch (saveError) {
-          logger.debug('[OrchestratorEngine] Local artifact save failed (expected on Vercel)', {
-            phase: currentPhaseName,
-            filename,
-            error: saveError instanceof Error ? saveError.message : String(saveError)
-          });
+          logger.debug(
+            '[OrchestratorEngine] Local artifact save failed (expected on Vercel)',
+            {
+              phase: currentPhaseName,
+              filename,
+              error:
+                saveError instanceof Error
+                  ? saveError.message
+                  : String(saveError),
+            }
+          );
           // Don't throw - local save failure is expected on serverless
         }
         // Normalize artifact keys to include phase prefix for downstream executors
@@ -558,7 +648,7 @@ export class OrchestratorEngine {
 
       logger.debug('[OrchestratorEngine] Normalized artifacts for return', {
         phase: currentPhaseName,
-        artifactCount: Object.keys(normalizedArtifacts).length
+        artifactCount: Object.keys(normalizedArtifacts).length,
       });
 
       // Use the orchestrationState that was captured at the start of this method
@@ -566,7 +656,7 @@ export class OrchestratorEngine {
       const freshOrchestrationState = orchestrationState || {
         artifact_versions: {},
         phase_history: [],
-        approval_gates: {}
+        approval_gates: {},
       };
 
       // Ensure all required properties exist to prevent undefined access
@@ -590,10 +680,13 @@ export class OrchestratorEngine {
       return {
         success: true,
         artifacts: normalizedArtifacts,
-        message: `Agent for phase ${currentPhaseName} completed successfully`
+        message: `Agent for phase ${currentPhaseName} completed successfully`,
       };
     } catch (error) {
-      logger.error('Error running phase agent:', error instanceof Error ? error : new Error(String(error)));
+      logger.error(
+        'Error running phase agent:',
+        error instanceof Error ? error : new Error(String(error))
+      );
       throw new Error(
         `Failed to execute agent for phase ${currentPhaseName}: ${
           error instanceof Error ? error.message : String(error)
@@ -602,27 +695,56 @@ export class OrchestratorEngine {
     }
   }
 
-  private async generateValidationArtifacts(project: Project): Promise<Record<string, string>> {
+  private async generateValidationArtifacts(
+    project: Project
+  ): Promise<Record<string, string>> {
     const currentDate = new Date().toISOString().split('T')[0];
-    const validatorNames = (this.spec.phases['VALIDATE']?.validators as string[]) || [];
-    const results = await this.validators.runValidators(validatorNames, project);
+    const validatorNames =
+      (this.spec.phases['VALIDATE']?.validators as string[]) || [];
+    const results = await this.validators.runValidators(
+      validatorNames,
+      project
+    );
 
-    const phasesToReport = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE'] as const;
-    const coverageRows: Array<{ phase: string; artifact: string; exists: boolean }> = [];
-    const validateOutputs = new Set(['validation-report.md', 'coverage-matrix.md']);
+    const phasesToReport = [
+      'ANALYSIS',
+      'STACK_SELECTION',
+      'SPEC',
+      'DEPENDENCIES',
+      'SOLUTIONING',
+      'VALIDATE',
+    ] as const;
+    const coverageRows: Array<{
+      phase: string;
+      artifact: string;
+      exists: boolean;
+    }> = [];
+    const validateOutputs = new Set([
+      'validation-report.md',
+      'coverage-matrix.md',
+    ]);
 
     for (const phase of phasesToReport) {
       const outputs = this.spec.phases[phase]?.outputs;
       const outputList = Array.isArray(outputs) ? (outputs as string[]) : [];
       for (const artifact of outputList) {
-        const artifactPath = resolve(project.project_path, 'specs', phase, 'v1', artifact);
-        const exists = phase === 'VALIDATE' && validateOutputs.has(artifact) ? true : existsSync(artifactPath);
+        const artifactPath = resolve(
+          project.project_path,
+          'specs',
+          phase,
+          'v1',
+          artifact
+        );
+        const exists =
+          phase === 'VALIDATE' && validateOutputs.has(artifact)
+            ? true
+            : existsSync(artifactPath);
         coverageRows.push({ phase, artifact, exists });
       }
     }
 
     const total = coverageRows.length;
-    const present = coverageRows.filter(r => r.exists).length;
+    const present = coverageRows.filter((r) => r.exists).length;
     const missing = total - present;
 
     const coverageMatrix = `---
@@ -645,7 +767,9 @@ status: draft
 ## Matrix
 | Phase | Artifact | Present |
 |------|---------|---------|
-${coverageRows.map(r => `| ${r.phase} | ${r.artifact} | ${r.exists ? '✅' : '❌'} |`).join('\n')}
+${coverageRows
+  .map((r) => `| ${r.phase} | ${r.artifact} | ${r.exists ? '✅' : '❌'} |`)
+  .join('\n')}
 `;
 
     const validationReport = `---
@@ -661,7 +785,11 @@ status: draft
 ## Overall Status: ${results.status.toUpperCase()}
 
 ## Validators Run
-- ${validatorNames.length > 0 ? validatorNames.join('\n- ') : '(none configured)'}
+- ${
+      validatorNames.length > 0
+        ? validatorNames.join('\n- ')
+        : '(none configured)'
+    }
 
 ## Checks
 \`\`\`json
@@ -669,31 +797,41 @@ ${JSON.stringify(results.checks || {}, null, 2)}
 \`\`\`
 
 ## Errors
-${results.errors && results.errors.length > 0 ? results.errors.map(e => `- ${e}`).join('\n') : '- None'}
+${
+  results.errors && results.errors.length > 0
+    ? results.errors.map((e) => `- ${e}`).join('\n')
+    : '- None'
+}
 
 ## Warnings
-${results.warnings && results.warnings.length > 0 ? results.warnings.map(w => `- ${w}`).join('\n') : '- None'}
+${
+  results.warnings && results.warnings.length > 0
+    ? results.warnings.map((w) => `- ${w}`).join('\n')
+    : '- None'
+}
 `;
 
     return {
       'validation-report.md': validationReport,
-      'coverage-matrix.md': coverageMatrix
+      'coverage-matrix.md': coverageMatrix,
     };
   }
-
 
   /**
    * Validate artifacts for a phase
    */
-  async validateArtifacts(project: Project, phase?: string): Promise<ValidationResult> {
+  async validateArtifacts(
+    project: Project,
+    phase?: string
+  ): Promise<ValidationResult> {
     const targetPhase = phase || project.current_phase;
     const phaseSpec = this.spec.phases[targetPhase];
-    
+
     if (!phaseSpec) {
       return {
         status: 'fail',
         checks: {},
-        errors: [`Unknown phase: ${targetPhase}`]
+        errors: [`Unknown phase: ${targetPhase}`],
       };
     }
 
@@ -709,7 +847,7 @@ ${results.warnings && results.warnings.length > 0 ? results.warnings.map(w => `-
   async getPhaseArtifacts(project: Project, phase?: string): Promise<string[]> {
     const targetPhase = phase || project.current_phase;
     const phaseSpec = this.spec.phases[targetPhase];
-    
+
     if (!phaseSpec) {
       return [];
     }
@@ -720,14 +858,24 @@ ${results.warnings && results.warnings.length > 0 ? results.warnings.map(w => `-
   /**
    * Get artifact content
    */
-  async getArtifactContent(project: Project, artifactName: string): Promise<string> {
-    return await this.artifactManager.getArtifactContent(project.id, artifactName);
+  async getArtifactContent(
+    project: Project,
+    artifactName: string
+  ): Promise<string> {
+    return await this.artifactManager.getArtifactContent(
+      project.id,
+      artifactName
+    );
   }
 
   /**
    * Rollback to previous phase
    */
-  async rollbackPhase(project: Project, targetPhase: string, userId: string): Promise<boolean> {
+  async rollbackPhase(
+    project: Project,
+    targetPhase: string,
+    userId: string
+  ): Promise<boolean> {
     const targetPhaseSpec = this.spec.phases[targetPhase];
     if (!targetPhaseSpec) {
       return false;
@@ -745,10 +893,19 @@ ${results.warnings && results.warnings.length > 0 ? results.warnings.map(w => `-
 
     // Remove phases after target from completed list
     const targetIndex = project.phases_completed.indexOf(targetPhase);
-    project.phases_completed = project.phases_completed.slice(0, targetIndex + 1);
+    project.phases_completed = project.phases_completed.slice(
+      0,
+      targetIndex + 1
+    );
 
     // Record rollback
-    await this.recordPhaseTransition(project, previousPhase, targetPhase, userId, 'rollback');
+    await this.recordPhaseTransition(
+      project,
+      previousPhase,
+      targetPhase,
+      userId,
+      'rollback'
+    );
 
     return true;
   }
@@ -779,7 +936,9 @@ ${results.warnings && results.warnings.length > 0 ? results.warnings.map(w => `-
   ): Promise<void> {
     // This would save to database
     // For now, just log
-    logger.info(`Phase transition: ${fromPhase} -> ${toPhase} by ${userId} (${type})`);
+    logger.info(
+      `Phase transition: ${fromPhase} -> ${toPhase} by ${userId} (${type})`
+    );
   }
 
   /**
@@ -802,15 +961,15 @@ ${results.warnings && results.warnings.length > 0 ? results.warnings.map(w => `-
   getPhaseSequence(currentPhase: string): Phase[] {
     const phases: Phase[] = [];
     let current = currentPhase;
-    
+
     while (current) {
       const phase = this.spec.phases[current];
       if (!phase) break;
-      
+
       phases.push(phase);
       current = phase.next_phase;
     }
-    
+
     return phases;
   }
 }
