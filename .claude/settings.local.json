@@ -17,7 +17,10 @@
       "Bash(npm run lint)",
       "Bash(npm run test)",
       "Bash(mkdir:*)",
-      "Bash(npm run test:*)"
+      "Bash(npm run test:*)",
+      "Bash(npx tsx:*)",
+      "Bash(npm run db:migrate:*)",
+      "Bash(npm run verify-setup:*)"
     ],
     "deny": [],
     "ask": []
