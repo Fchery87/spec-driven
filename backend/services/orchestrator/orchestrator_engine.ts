@@ -706,6 +706,12 @@ export class OrchestratorEngine {
     alternative1?: string;
     alternative2?: string;
     defaultFallbackUsed?: boolean;
+    scores?: {
+      primary?: number;
+      alternative1?: number;
+      alternative2?: number;
+    };
+    decisionMatrix?: Array<Record<string, string>>;
   } {
     if (!content) {
       return {};
@@ -759,11 +765,88 @@ export class OrchestratorEngine {
         ? fallbackRaw.trim().toLowerCase() === 'true'
         : undefined;
 
+    const scores: {
+      primary?: number;
+      alternative1?: number;
+      alternative2?: number;
+    } = {};
+    const decisionMatrix: Array<Record<string, string>> = [];
+    let currentSection: 'primary' | 'alternative1' | 'alternative2' | null =
+      null;
+    let inDecisionMatrix = false;
+    let matrixHeaders: string[] = [];
+
+    const parseRow = (line: string): string[] => {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) {
+        return [];
+      }
+      return trimmed
+        .slice(1, -1)
+        .split('|')
+        .map((cell) => cell.trim());
+    };
+
+    for (const line of content.split('\n')) {
+      if (/^###\s*.*Primary Recommendation/i.test(line)) {
+        currentSection = 'primary';
+      } else if (/^###\s*.*Alternative 1/i.test(line)) {
+        currentSection = 'alternative1';
+      } else if (/^###\s*.*Alternative 2/i.test(line)) {
+        currentSection = 'alternative2';
+      }
+
+      const scoreMatch = line.match(/score[^0-9]*([0-9]{1,3})/i);
+      if (currentSection && scoreMatch) {
+        const scoreValue = Number(scoreMatch[1]);
+        if (!Number.isNaN(scoreValue)) {
+          scores[currentSection] = scoreValue;
+        }
+      }
+
+      if (/Decision Matrix/i.test(line)) {
+        inDecisionMatrix = true;
+        matrixHeaders = [];
+        continue;
+      }
+
+      if (inDecisionMatrix) {
+        if (!line.trim().startsWith('|')) {
+          inDecisionMatrix = false;
+          continue;
+        }
+
+        const row = parseRow(line);
+        if (row.length === 0) {
+          continue;
+        }
+
+        if (matrixHeaders.length === 0) {
+          matrixHeaders = row;
+          continue;
+        }
+
+        if (row.every((cell) => /^[-:]+$/.test(cell))) {
+          continue;
+        }
+
+        if (row.length === matrixHeaders.length) {
+          const entry: Record<string, string> = {};
+          matrixHeaders.forEach((header, index) => {
+            entry[header] = row[index] ?? '';
+          });
+          decisionMatrix.push(entry);
+        }
+      }
+    }
+
     return {
       primary,
       alternative1,
       alternative2,
       defaultFallbackUsed,
+      scores: Object.keys(scores).length ? scores : undefined,
+      decisionMatrix: decisionMatrix.length ? decisionMatrix : undefined,
     };
   }
 

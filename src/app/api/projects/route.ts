@@ -42,6 +42,10 @@ const getHandler = withAuth(
         current_phase: project.currentPhase,
         stack_choice: project.stackChoice,
         stack_approved: project.stackApproved,
+        project_type: project.projectType,
+        scale_tier: project.scaleTier,
+        recommended_stack: project.recommendedStack,
+        workflow_version: project.workflowVersion,
         created_at: project.createdAt,
         updated_at: project.updatedAt,
         artifact_count: 0, // TODO: Add proper count from relations
