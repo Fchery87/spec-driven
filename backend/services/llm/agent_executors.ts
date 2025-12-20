@@ -298,12 +298,13 @@ async function executeArchitectAgent(
   } else {
     expectedFiles = ['architecture.md'];
     // Use a dedicated, shorter prompt for SOLUTIONING architecture generation
-    // Increased limits to provide more context while staying within 64K context window
-    const truncatedBrief = projectBrief.slice(0, 10000);
-    const truncatedPrd = prd.slice(0, 25000);
+    // Increased limits to provide more context while staying within 1M token context window
+    // Supporting Gemini 3.0 Flash's 64K output capability
+    const truncatedBrief = projectBrief.slice(0, 50000);
+    const truncatedPrd = prd.slice(0, 100000);
     const currentDate = new Date().toISOString().split('T')[0];
     const name = projectName || 'Untitled Project';
-    
+
     logger.info(`[${phase}] Using dedicated architecture prompt`, {
       originalBriefLength: projectBrief.length,
       truncatedBriefLength: truncatedBrief.length,
@@ -570,10 +571,11 @@ async function executeScrumMasterAgent(
   const currentDate = new Date().toISOString().split('T')[0];
   const name = projectName || 'Untitled Project';
 
-  // Truncate context to fit within 64K context window while providing good context
-  const prdContext = prd.slice(0, 20000);
-  const dataModelContext = dataModel.slice(0, 6000);
-  const apiSpecContext = apiSpec.slice(0, 6000);
+  // Truncate context to fit within 1M token context window while providing comprehensive context
+  // Supporting Gemini 3.0 Flash's 64K output capability for detailed epics, tasks, and planning
+  const prdContext = prd.slice(0, 80000);
+  const dataModelContext = dataModel.slice(0, 30000);
+  const apiSpecContext = apiSpec.slice(0, 30000);
 
   // Extract requirement IDs from FULL PRD (not truncated) to ensure all are mapped
   const requirementIds = prd.match(/REQ-[A-Z]+-\d+/g) || [];

@@ -2476,30 +2476,35 @@ llm_config:
   timeout_seconds: 180  # Increased for longer generations
   
   # Phase-specific overrides for optimal output quality
+  # Optimized for Gemini 3.0 Flash with 64K output token support
   phase_overrides:
     ANALYSIS:
       temperature: 0.7    # Higher creativity for ideation
-      max_tokens: 12288
-      
+      max_tokens: 32000   # Increased from 12,288 for comprehensive analysis
+
     STACK_SELECTION:
       temperature: 0.3    # More deterministic for technical decisions
-      max_tokens: 8192
-      
+      max_tokens: 16000   # Increased from 8,192 for detailed decisions
+
     SPEC:
       temperature: 0.3    # Precise for requirements
-      max_tokens: 16384
-      
+      max_tokens: 48000   # Increased from 16,384 for comprehensive specs/designs
+
     DEPENDENCIES:
       temperature: 0.2    # Very deterministic for dependency selection
-      max_tokens: 12288
-      
+      max_tokens: 24000   # Increased from 12,288 for detailed dependency plans
+
     SOLUTIONING:
       temperature: 0.4    # Balanced for architecture + tasks
-      max_tokens: 65536   # High limit - each provider caps to their actual limit
-      
+      max_tokens: 64000   # Optimized for Gemini 3.0/2.5 Flash - each provider caps to actual limit
+
+    VALIDATE:
+      temperature: 0.3    # Deterministic for validation checks
+      max_tokens: 32000   # Increased from default for comprehensive validation reports
+
     DONE:
-      temperature: 0.3
-      max_tokens: 16384
+      temperature: 0.3    # Deterministic for handoff
+      max_tokens: 32000   # Increased from 16,384 for detailed handoff documentation
   
   # Rate limiting and cost management
   rate_limit:

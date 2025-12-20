@@ -91,11 +91,16 @@ async function scheduleGeminiRequest<T>(
 
 async function readResponseTextLimited(
   response: Response,
-  maxChars = 4000
+  maxChars = 1000000
 ): Promise<string> {
   try {
     const text = await response.text();
     if (text.length <= maxChars) return text;
+    // Log warning if we hit the limit (should rarely happen with 1M char limit)
+    logger.warn('LLM response exceeded maximum character limit', {
+      length: text.length,
+      maxChars,
+    });
     return text.slice(0, maxChars) + '…(truncated)';
   } catch {
     return '';
@@ -198,10 +203,14 @@ export class GeminiClient implements LLMProvider {
     }
 
     // Gemini models have different output token limits based on version.
+    // Gemini 3.0 Flash supports up to 64000 output tokens.
     // Gemini 2.5 Flash supports up to 65536 output tokens.
     // Gemini 2.0/1.5 models typically support 8192 output tokens.
     const getGeminiMaxOutputTokens = (model: string): number => {
       const modelLower = model.toLowerCase();
+      // Gemini 3.0 models (including gemini-3.0-flash, etc.)
+      if (modelLower.includes('3.0') || modelLower.includes('3-0'))
+        return 64000;
       // Gemini 2.5 models (including gemini-2.5-flash, gemini-2.5-pro, etc.)
       if (modelLower.includes('2.5') || modelLower.includes('2-5'))
         return 65536;
