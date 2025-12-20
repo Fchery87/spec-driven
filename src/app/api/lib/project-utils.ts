@@ -439,6 +439,24 @@ export async function persistProjectToDB(slug: string, metadata: ProjectMetadata
         owner_id: ownerId,
         phases_completed: phasesCompleted,
       });
+
+      const workflowUpdate: Record<string, unknown> = { owner_id: ownerId };
+      if (metadata.project_type !== undefined) {
+        workflowUpdate.project_type = metadata.project_type;
+      }
+      if (metadata.scale_tier !== undefined) {
+        workflowUpdate.scale_tier = metadata.scale_tier;
+      }
+      if (metadata.recommended_stack !== undefined) {
+        workflowUpdate.recommended_stack = metadata.recommended_stack;
+      }
+      if (metadata.workflow_version !== undefined) {
+        workflowUpdate.workflow_version = metadata.workflow_version;
+      }
+
+      if (Object.keys(workflowUpdate).length > 1) {
+        await db.updateProjectMetadata(slug, workflowUpdate);
+      }
     } else {
       await db.createProject({
         slug,
@@ -453,6 +471,24 @@ export async function persistProjectToDB(slug: string, metadata: ProjectMetadata
         handoff_generated_at: metadata.handoff_generated_at,
         owner_id: ownerId,
       });
+
+      const workflowUpdate: Record<string, unknown> = { owner_id: ownerId };
+      if (metadata.project_type !== undefined) {
+        workflowUpdate.project_type = metadata.project_type;
+      }
+      if (metadata.scale_tier !== undefined) {
+        workflowUpdate.scale_tier = metadata.scale_tier;
+      }
+      if (metadata.recommended_stack !== undefined) {
+        workflowUpdate.recommended_stack = metadata.recommended_stack;
+      }
+      if (metadata.workflow_version !== undefined) {
+        workflowUpdate.workflow_version = metadata.workflow_version;
+      }
+
+      if (Object.keys(workflowUpdate).length > 1) {
+        await db.updateProjectMetadata(slug, workflowUpdate);
+      }
     }
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));

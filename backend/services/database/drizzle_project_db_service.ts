@@ -370,6 +370,44 @@ export class ProjectDBService {
   }
 
   /**
+   * Update project workflow metadata
+   */
+  async updateProjectWorkflowMetadata(
+    slug: string,
+    data: {
+      projectType?: string | null;
+      scaleTier?: string | null;
+      recommendedStack?: string | null;
+      workflowVersion?: number | null;
+    },
+    ownerId?: string
+  ) {
+    const updateData: Record<string, unknown> = {
+      updatedAt: new Date(),
+    };
+
+    if (data.projectType !== undefined) {
+      updateData.projectType = data.projectType;
+    }
+    if (data.scaleTier !== undefined) {
+      updateData.scaleTier = data.scaleTier;
+    }
+    if (data.recommendedStack !== undefined) {
+      updateData.recommendedStack = data.recommendedStack;
+    }
+    if (data.workflowVersion !== undefined) {
+      updateData.workflowVersion = data.workflowVersion;
+    }
+
+    const result = await db.update(projects)
+      .set(updateData)
+      .where(ownerId ? and(eq(projects.slug, slug), eq(projects.ownerId, ownerId)) : eq(projects.slug, slug))
+      .returning();
+
+    return result[0];
+  }
+
+  /**
    * Update clarification state
    */
   async updateClarificationState(

@@ -39,16 +39,6 @@ const executePhaseHandler = withAuth(
     }
 
     // Skip execution for user-driven phases
-    if (metadata.current_phase === 'STACK_SELECTION') {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Stack selection phase requires user input. Use /approve-stack endpoint instead.'
-        },
-        { status: 400 }
-      );
-    }
-
     if (metadata.current_phase === 'VALIDATE') {
       return NextResponse.json(
         {
@@ -218,8 +208,32 @@ const executePhaseHandler = withAuth(
     }
 
     // Update project metadata with new artifact versions and orchestration state
+    const mergedArtifacts = {
+      ...previousArtifacts,
+      ...result.artifacts,
+    };
+
+    const stackSelectionMetadata =
+      metadata.current_phase === 'STACK_SELECTION'
+        ? orchestrator.resolveStackSelectionMetadata(mergedArtifacts)
+        : null;
+
     const updated = {
       ...metadata,
+      project_type:
+        stackSelectionMetadata?.projectType ??
+        metadata.project_type ??
+        null,
+      scale_tier:
+        stackSelectionMetadata?.scaleTier ??
+        metadata.scale_tier ??
+        null,
+      recommended_stack:
+        stackSelectionMetadata?.recommendedStack ??
+        metadata.recommended_stack ??
+        null,
+      workflow_version:
+        stackSelectionMetadata?.workflowVersion ?? metadata.workflow_version,
       orchestration_state: project.orchestration_state,
       updated_at: new Date().toISOString()
     };

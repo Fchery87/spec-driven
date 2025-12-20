@@ -125,6 +125,44 @@ export async function updateProjectMetadata(
     return dbService.updateProjectDescription(slug, description, ownerId);
   }
 
+  if (
+    'project_type' in metadata ||
+    'scale_tier' in metadata ||
+    'recommended_stack' in metadata ||
+    'workflow_version' in metadata
+  ) {
+    return dbService.updateProjectWorkflowMetadata(
+      slug,
+      {
+        projectType:
+          typeof metadata.project_type === 'string'
+            ? metadata.project_type
+            : metadata.project_type === null
+              ? null
+              : undefined,
+        scaleTier:
+          typeof metadata.scale_tier === 'string'
+            ? metadata.scale_tier
+            : metadata.scale_tier === null
+              ? null
+              : undefined,
+        recommendedStack:
+          typeof metadata.recommended_stack === 'string'
+            ? metadata.recommended_stack
+            : metadata.recommended_stack === null
+              ? null
+              : undefined,
+        workflowVersion:
+          typeof metadata.workflow_version === 'number'
+            ? metadata.workflow_version
+            : metadata.workflow_version === null
+              ? null
+              : undefined,
+      },
+      ownerId
+    );
+  }
+
   // Handle clarification_state updates
   if ('clarification_state' in metadata && metadata.clarification_state) {
     const clarificationState = typeof metadata.clarification_state === 'string' 

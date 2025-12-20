@@ -1,6 +1,10 @@
 import { LLMProvider } from './providers/base';
 import { ConfigLoader } from '../orchestrator/config_loader';
 import { logger } from '@/lib/logger';
+import {
+  deriveIntelligentDefaultStack,
+  parseProjectClassification,
+} from '@/backend/lib/stack_defaults';
 
 /**
  * PURE FUNCTION ARCHITECTURE
@@ -257,7 +261,10 @@ async function executeArchitectAgent(
   constitution: string,
   prd: string = '',
   stackChoice?: string,
-  projectName?: string
+  projectName?: string,
+  projectClassification?: string,
+  defaultStack?: string,
+  defaultStackReason?: string
 ): Promise<Record<string, string>> {
   logger.info(`[${phase}] Executing Architect Agent`, {
     briefLength: projectBrief?.length || 0,
@@ -283,7 +290,10 @@ async function executeArchitectAgent(
       prd: '',
       phase: 'STACK_SELECTION',
       stackChoice: stackChoice || 'web_application',
-      projectName: projectName || 'Untitled Project'
+      projectName: projectName || 'Untitled Project',
+      classification: projectClassification || '',
+      defaultStack: defaultStack || 'nextjs_web_app',
+      defaultStackReason: defaultStackReason || 'Fallback default for web applications'
     };
   } else if (phase === 'SPEC') {
     expectedFiles = ['data-model.md', 'api-spec.json'];
@@ -924,7 +934,24 @@ export async function getStackSelectionExecutor(
   const brief = artifacts['ANALYSIS/project-brief.md'] || '';
   const personas = artifacts['ANALYSIS/personas.md'] || '';
   const constitution = artifacts['ANALYSIS/constitution.md'] || '';
-  return executeArchitectAgent(llmClient, configLoader, 'STACK_SELECTION', brief, personas, constitution, '', undefined, projectName);
+  const classificationRaw =
+    artifacts['ANALYSIS/project-classification.json'] || '';
+  const classification = parseProjectClassification(classificationRaw);
+  const defaultStack = deriveIntelligentDefaultStack(classification, brief);
+  return executeArchitectAgent(
+    llmClient,
+    configLoader,
+    'STACK_SELECTION',
+    brief,
+    personas,
+    constitution,
+    '',
+    undefined,
+    projectName,
+    classificationRaw,
+    defaultStack.stack,
+    defaultStack.reason
+  );
 }
 
 export async function getScruMasterExecutor(

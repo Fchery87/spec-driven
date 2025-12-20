@@ -289,13 +289,38 @@ describe('Approval Gates and Phase Execution', () => {
       phases_completed: []
     };
 
-    it('should reject execution for STACK_SELECTION phase (requires user input)', async () => {
+    it('should allow execution for STACK_SELECTION phase', async () => {
       const metadataStackSelection = {
         ...mockMetadata,
         current_phase: 'STACK_SELECTION'
       };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (projectUtils.getProjectMetadata as any).mockReturnValue(metadataStackSelection);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (projectUtils.listArtifacts as any).mockReturnValue([]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (projectUtils.writeArtifact as any).mockImplementation(() => {});
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (ProjectDBService.prototype.recordPhaseHistory as any).mockResolvedValue(undefined);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (OrchestratorEngine.prototype.runPhaseAgent as any).mockResolvedValue({
+        success: true,
+        message: 'Stack selection executed',
+        artifacts: { 'STACK_SELECTION/stack-analysis.md': 'content' }
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (OrchestratorEngine.prototype.resolveStackSelectionMetadata as any).mockReturnValue({
+        projectType: 'web_app',
+        scaleTier: 'startup',
+        recommendedStack: 'nextjs_web_app',
+        workflowVersion: 2
+      });
 
       const request = new NextRequest(
         new URL('http://localhost:3000/api/projects/test-project/execute-phase'),
@@ -305,9 +330,8 @@ describe('Approval Gates and Phase Execution', () => {
       const response = await executePhase(request, { params: { slug: 'test-project' } });
       const json = await response.json();
 
-      expect(response.status).toBe(400);
-      expect(json.success).toBe(false);
-      expect(json.error).toContain('requires user input');
+      expect(response.status).toBe(200);
+      expect(json.success).toBe(true);
     });
 
     it('should reject execution for DONE phase', async () => {
