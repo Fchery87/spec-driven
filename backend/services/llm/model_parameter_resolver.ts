@@ -145,14 +145,20 @@ export class ModelParameterResolver {
     const preset = getModelPreset(modelId);
     if (!preset) {
       validationErrors.push(`Model ${modelId} not found in parameter presets`);
-      logger.error('[ModelParameterResolver] Model not found', { modelId });
+      logger.error(
+        '[ModelParameterResolver] Model not found',
+        new Error(`Model ${modelId} not found in parameter presets`),
+        { modelId }
+      );
       throw new Error(`Model ${modelId} not found in parameter presets`);
     }
 
     // Step 2: Get model constraints
     const constraints = getModelConstraints(modelId);
     if (!constraints) {
-      validationErrors.push(`Could not retrieve constraints for model ${modelId}`);
+      validationErrors.push(
+        `Could not retrieve constraints for model ${modelId}`
+      );
       throw new Error(`Could not retrieve constraints for model ${modelId}`);
     }
 
@@ -167,7 +173,9 @@ export class ModelParameterResolver {
       if (phaseTemp !== undefined && phaseTemp !== baseTemperature) {
         phaseTemperatureAdjustment = phaseTemp;
         finalTemperature = phaseTemp;
-        appliedConstraints.push(`Applied phase-specific temperature for ${phase}`);
+        appliedConstraints.push(
+          `Applied phase-specific temperature for ${phase}`
+        );
       }
     }
 
@@ -185,7 +193,9 @@ export class ModelParameterResolver {
       );
       // Clamp to valid range
       finalTemperature = Math.max(minTemp, Math.min(maxTemp, finalTemperature));
-      appliedConstraints.push(`Clamped temperature to valid range [${minTemp}, ${maxTemp}]`);
+      appliedConstraints.push(
+        `Clamped temperature to valid range [${minTemp}, ${maxTemp}]`
+      );
     }
 
     // Step 4: Resolve max tokens
@@ -205,7 +215,9 @@ export class ModelParameterResolver {
         `Max tokens ${maxTokens} exceeds model limit ${constraints.maxOutputTokens}`
       );
       maxTokens = constraints.maxOutputTokens;
-      appliedConstraints.push(`Clamped max_tokens to model limit: ${maxTokens}`);
+      appliedConstraints.push(
+        `Clamped max_tokens to model limit: ${maxTokens}`
+      );
     }
 
     // Step 5: Resolve timeout
@@ -223,15 +235,22 @@ export class ModelParameterResolver {
 
     // Step 6: Resolve TopP and penalties (avoid adjusting both temp and topP)
     let topP = overrides?.topP ?? preset.topP;
-    let frequencyPenalty = overrides?.frequencyPenalty ?? preset.frequencyPenalty;
+    let frequencyPenalty =
+      overrides?.frequencyPenalty ?? preset.frequencyPenalty;
     let presencePenalty = overrides?.presencePenalty ?? preset.presencePenalty;
 
     // Check for conflicting parameters
-    if (finalTemperature !== baseTemperature && topP !== undefined && topP !== 1.0) {
+    if (
+      finalTemperature !== baseTemperature &&
+      topP !== undefined &&
+      topP !== 1.0
+    ) {
       validationErrors.push(
         'Both temperature and topP adjusted; recommend adjusting only one for stability'
       );
-      appliedConstraints.push('Warning: Both temperature and topP are adjusted');
+      appliedConstraints.push(
+        'Warning: Both temperature and topP are adjusted'
+      );
     }
 
     // Build the resolved parameters object
@@ -284,18 +303,24 @@ export class ModelParameterResolver {
    * @param phase - The phase name
    * @returns Phase-specific temperature or undefined if using default
    */
-  private static getPhaseTemperatureAdjustment(modelId: string, phase: string): number | undefined {
+  private static getPhaseTemperatureAdjustment(
+    modelId: string,
+    phase: string
+  ): number | undefined {
     try {
       // Note: In production, this would read from the loaded orchestrator_spec.yml
       // For now, we just return undefined to use base preset temperature
       // The actual phase overrides are handled by the OrchestratorEngine
       return undefined;
     } catch (error) {
-      logger.warn('[ModelParameterResolver] Could not get phase temperature adjustment', {
-        modelId,
-        phase,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logger.warn(
+        '[ModelParameterResolver] Could not get phase temperature adjustment',
+        {
+          modelId,
+          phase,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
       return undefined;
     }
   }
@@ -307,7 +332,10 @@ export class ModelParameterResolver {
    * @param parameters - Parameters to validate
    * @returns Array of validation errors (empty if valid)
    */
-  static validateParameters(modelId: string, parameters: ParameterOverrides): string[] {
+  static validateParameters(
+    modelId: string,
+    parameters: ParameterOverrides
+  ): string[] {
     const errors: string[] = [];
     const constraints = getModelConstraints(modelId);
 
@@ -318,7 +346,10 @@ export class ModelParameterResolver {
     const [minTemp, maxTemp] = getTemperatureRange(constraints.provider);
 
     if (parameters.temperature !== undefined) {
-      if (parameters.temperature < minTemp || parameters.temperature > maxTemp) {
+      if (
+        parameters.temperature < minTemp ||
+        parameters.temperature > maxTemp
+      ) {
         errors.push(
           `Temperature must be between ${minTemp} and ${maxTemp} for ${constraints.provider}`
         );
@@ -371,12 +402,23 @@ export class ModelParameterResolver {
    */
   static getPhaseTokenAllocations(
     modelId: string,
-    phaseOverrides?: Record<string, { percentageAllocation?: number; minTokens?: number; maxTokensCap?: number }>
+    phaseOverrides?: Record<
+      string,
+      {
+        percentageAllocation?: number;
+        minTokens?: number;
+        maxTokensCap?: number;
+      }
+    >
   ): Record<string, { tokens: number; percentage: string }> {
-    const limits = DynamicPhaseTokenCalculator.calculatePhaseTokenLimits(modelId, phaseOverrides);
+    const limits = DynamicPhaseTokenCalculator.calculatePhaseTokenLimits(
+      modelId,
+      phaseOverrides
+    );
     const modelMax = getModelMaxOutputTokens(modelId);
 
-    const allocations: Record<string, { tokens: number; percentage: string }> = {};
+    const allocations: Record<string, { tokens: number; percentage: string }> =
+      {};
     for (const [phase, tokens] of Object.entries(limits)) {
       const percent = ((tokens / modelMax) * 100).toFixed(1);
       allocations[phase] = {
@@ -402,14 +444,21 @@ export class ModelParameterResolver {
    */
   static invalidateModelCache(modelId: string): void {
     parameterCache.invalidate(modelId);
-    logger.info('[ModelParameterResolver] Cache invalidated for model', { modelId });
+    logger.info('[ModelParameterResolver] Cache invalidated for model', {
+      modelId,
+    });
   }
 
   /**
    * Get cache statistics
    * @returns Cache performance metrics
    */
-  static getCacheStats(): { hits: number; misses: number; hitRate: number; size: number } {
+  static getCacheStats(): {
+    hits: number;
+    misses: number;
+    hitRate: number;
+    size: number;
+  } {
     return parameterCache.getStats();
   }
 
@@ -419,7 +468,10 @@ export class ModelParameterResolver {
    * @param resolved - The resolved parameters
    * @returns Formatted summary string
    */
-  static generateSummary(modelId: string, resolved: ResolvedParameters): string {
+  static generateSummary(
+    modelId: string,
+    resolved: ResolvedParameters
+  ): string {
     const preset = getModelPreset(modelId);
     if (!preset) return '';
 
@@ -477,6 +529,11 @@ export function invalidateModelParameterCache(modelId: string): void {
   ModelParameterResolver.invalidateModelCache(modelId);
 }
 
-export function getParameterCacheStats(): { hits: number; misses: number; hitRate: number; size: number } {
+export function getParameterCacheStats(): {
+  hits: number;
+  misses: number;
+  hitRate: number;
+  size: number;
+} {
   return ModelParameterResolver.getCacheStats();
 }
