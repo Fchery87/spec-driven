@@ -26,6 +26,7 @@ import {
 import { GeminiClient } from '../llm/llm_client';
 import { createLLMClient, ProviderType, getProviderApiKeyAsync } from '../llm/providers';
 import { DynamicPhaseTokenCalculator } from '../llm/dynamic_phase_token_calculator';
+import { ModelParameterResolver } from '../llm/model_parameter_resolver';
 
 export class OrchestratorEngine {
   private spec: OrchestratorSpec;
@@ -67,8 +68,9 @@ export class OrchestratorEngine {
       throw error;
     }
 
-    // Initialize LLM client with dynamic phase token allocation
+    // Initialize LLM client with dynamic phase token allocation and optimal generation parameters
     // The DynamicPhaseTokenCalculator automatically scales phase tokens based on the model's maxOutputTokens
+    // The ModelParameterResolver automatically resolves optimal temperature, timeout, and other parameters
     const modelId = this.spec.llm_config.model as string;
     const phaseOverrides = (this.spec.llm_config as any).phase_overrides || {};
 
@@ -101,13 +103,52 @@ export class OrchestratorEngine {
     );
     logger.info('[OrchestratorEngine] Phase Token Allocation' + allocationSummary);
 
-    // Initialize LLM client with calculated phase token limits
+    // Resolve optimal generation parameters for the model
+    let resolvedParams;
+    try {
+      resolvedParams = ModelParameterResolver.resolveOptimalParameters(modelId);
+      logger.info('[OrchestratorEngine] Model parameters resolved', {
+        modelId,
+        temperature: resolvedParams.temperature,
+        timeout: resolvedParams.timeout,
+        maxTokens: resolvedParams.maxTokens,
+        source: resolvedParams.source,
+      });
+
+      // Log the parameter resolution summary
+      const paramSummary = ModelParameterResolver.generateSummary(modelId, resolvedParams);
+      logger.info('[OrchestratorEngine] Model Parameter Resolution' + paramSummary);
+    } catch (error) {
+      logger.warn('[OrchestratorEngine] Failed to resolve parameters, using YAML defaults', {
+        modelId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Fall back to YAML config if resolution fails
+      resolvedParams = {
+        temperature: this.spec.llm_config.temperature as number,
+        timeout: this.spec.llm_config.timeout_seconds as number,
+        maxTokens: this.spec.llm_config.max_tokens as number,
+        source: 'preset' as const,
+        calculationDetails: {
+          modelId,
+          provider: (this.spec.llm_config.provider as string) as any,
+          modelMaxTokens: this.spec.llm_config.max_tokens as number,
+          baseTemperature: this.spec.llm_config.temperature as number,
+          finalTemperature: this.spec.llm_config.temperature as number,
+          timeoutSeconds: this.spec.llm_config.timeout_seconds as number,
+          appliedConstraints: ['Using YAML defaults due to resolution error'],
+          validationErrors: [],
+        },
+      };
+    }
+
+    // Initialize LLM client with both dynamic phase tokens AND optimal generation parameters
     const llmConfig = {
       provider: this.spec.llm_config.provider as string,
       model: modelId,
-      max_tokens: this.spec.llm_config.max_tokens as number,
-      temperature: this.spec.llm_config.temperature as number,
-      timeout_seconds: this.spec.llm_config.timeout_seconds as number,
+      max_tokens: resolvedParams.maxTokens, // Use resolved parameters
+      temperature: resolvedParams.temperature, // Use resolved parameters
+      timeout_seconds: resolvedParams.timeout, // Use resolved parameters
       api_key: process.env.GEMINI_API_KEY,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       phase_overrides: enhancedPhaseOverrides
