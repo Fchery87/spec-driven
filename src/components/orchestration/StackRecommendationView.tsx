@@ -4,7 +4,6 @@ import { useState, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { StackCard, StackTemplate } from "./StackCard"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { CheckCircle2, ChevronDown, ChevronUp, Sparkles, Shield, AlertTriangle } from "lucide-react"
 
 interface StackRecommendationViewProps {
@@ -96,8 +95,6 @@ export function StackRecommendationView({
   const alternativeTemplates = analysis.alternatives
     .map(alt => ({ template: templates.find(t => t.id === alt.id), score: alt.score }))
     .filter(item => item.template !== undefined) as { template: StackTemplate, score: number | null }[]
-
-  const hasPrimary = !!primaryTemplate
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
