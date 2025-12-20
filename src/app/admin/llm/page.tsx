@@ -27,6 +27,37 @@ interface LLMConfig {
   llm_timeout: string;
 }
 
+interface ResolvedParameters {
+  temperature: number;
+  maxTokens: number;
+  timeout: number;
+  topP?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
+  source: 'preset' | 'override';
+  appliedPhase?: string;
+  calculationDetails: {
+    modelId: string;
+    provider: string;
+    modelMaxTokens: number;
+    baseTemperature: number;
+    phaseTemperatureAdjustment?: number;
+    finalTemperature: number;
+    timeoutSeconds: number;
+    topP?: number;
+    appliedConstraints: string[];
+    validationErrors: string[];
+  };
+  phaseAllocations?: Record<string, { tokens: number; percentage: string }>;
+}
+
+interface ParametersResponse {
+  success: boolean;
+  data?: ResolvedParameters;
+  cacheStats?: { hits: number; misses: number; hitRate: number; size: number };
+  error?: string;
+}
+
 interface ProviderStatus {
   configured: boolean;
   connected?: boolean;
@@ -190,12 +221,21 @@ export default function LLMConfigPage() {
     deepseek: false,
   });
   const [savingKey, setSavingKey] = useState<ProviderType | null>(null);
+  const [resolvedParams, setResolvedParams] = useState<ResolvedParameters | null>(null);
+  const [resolvingParams, setResolvingParams] = useState(false);
 
   useEffect(() => {
     fetchConfig();
     fetchProviderStatus();
     fetchSecretsStatus();
   }, []);
+
+  // Fetch and resolve parameters whenever model changes
+  useEffect(() => {
+    if (config.llm_model) {
+      resolveParameters(config.llm_model);
+    }
+  }, [config.llm_model]);
 
   const fetchConfig = async () => {
     try {
@@ -237,6 +277,36 @@ export default function LLMConfigPage() {
       }
     } catch (error) {
       console.error('Failed to fetch secrets status:', error);
+    }
+  };
+
+  const resolveParameters = async (modelId: string) => {
+    if (!modelId) return;
+
+    setResolvingParams(true);
+    try {
+      const response = await fetch(`/api/admin/llm-parameters?model=${encodeURIComponent(modelId)}&cache=true`);
+      const data: ParametersResponse = await response.json();
+
+      if (data.success && data.data) {
+        setResolvedParams(data.data);
+        // Only update values if they match the preset (not user overrides)
+        if (data.data.source === 'preset') {
+          setConfig(prev => ({
+            ...prev,
+            llm_temperature: data.data!.temperature.toString(),
+            llm_timeout: data.data!.timeout.toString(),
+          }));
+        }
+      } else {
+        console.error('Failed to resolve parameters:', data.error);
+        setResolvedParams(null);
+      }
+    } catch (error) {
+      console.error('Failed to resolve parameters:', error);
+      setResolvedParams(null);
+    } finally {
+      setResolvingParams(false);
     }
   };
 
@@ -561,27 +631,102 @@ export default function LLMConfigPage() {
 
         <Card className="border-border/50 bg-card/50">
           <CardHeader>
-            <CardTitle>Generation Parameters</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              Generation Parameters
+              {resolvingParams && (
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              )}
+            </CardTitle>
             <CardDescription>Fine-tune model behavior</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Resolved Parameters Info */}
+            {resolvedParams && (
+              <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                      Model-Optimized Parameters (Auto-Resolved)
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {resolvedParams.calculationDetails.modelId} • {resolvedParams.calculationDetails.provider.toUpperCase()}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Parameter Summary */}
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground">Temperature</p>
+                    <p className="text-sm font-medium">{resolvedParams.temperature}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground">Timeout</p>
+                    <p className="text-sm font-medium">{resolvedParams.timeout}s</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground">Max Tokens</p>
+                    <p className="text-sm font-medium">{resolvedParams.maxTokens.toLocaleString()}</p>
+                  </div>
+                </div>
+
+                {/* Applied Constraints */}
+                {resolvedParams.calculationDetails.appliedConstraints.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-blue-500/20">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Applied Constraints:</p>
+                    <ul className="text-xs text-muted-foreground space-y-0.5">
+                      {resolvedParams.calculationDetails.appliedConstraints.slice(0, 3).map((constraint, i) => (
+                        <li key={i}>✓ {constraint}</li>
+                      ))}
+                      {resolvedParams.calculationDetails.appliedConstraints.length > 3 && (
+                        <li>+{resolvedParams.calculationDetails.appliedConstraints.length - 3} more</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Validation Errors */}
+                {resolvedParams.calculationDetails.validationErrors.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-yellow-500/20 bg-yellow-500/5 -mx-3 px-3 py-2 rounded">
+                    <p className="text-xs font-medium text-yellow-600 dark:text-yellow-400 mb-1">⚠ Validation Notices:</p>
+                    <ul className="text-xs text-yellow-600 dark:text-yellow-400 space-y-0.5">
+                      {resolvedParams.calculationDetails.validationErrors.slice(0, 2).map((error, i) => (
+                        <li key={i}>• {error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Temperature */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label>Temperature</Label>
-                <Badge variant="outline">{config.llm_temperature}</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">{config.llm_temperature}</Badge>
+                  {resolvedParams && (
+                    <Badge variant="secondary" className="text-xs">
+                      Recommended: {resolvedParams.calculationDetails.baseTemperature}
+                    </Badge>
+                  )}
+                </div>
               </div>
               <Slider
                 value={[parseFloat(config.llm_temperature)]}
                 min={0}
-                max={1}
+                max={resolvedParams?.calculationDetails.provider === 'anthropic' ? 1 : 2}
                 step={0.1}
                 onValueChange={([value]) => setConfig({ ...config, llm_temperature: value.toString() })}
               />
               <p className="text-xs text-muted-foreground">
-                Lower values produce more focused output, higher values increase creativity
+                {resolvedParams
+                  ? `${resolvedParams.calculationDetails.provider === 'anthropic' ? '0-1' : '0-2'} range • Lower = focused, Higher = creative`
+                  : 'Lower values produce more focused output, higher values increase creativity'}
               </p>
             </div>
 
+            {/* Max Tokens */}
             <div className="space-y-2">
               <Label>Max Tokens</Label>
               <Input
@@ -589,13 +734,16 @@ export default function LLMConfigPage() {
                 value={config.llm_max_tokens}
                 onChange={(e) => setConfig({ ...config, llm_max_tokens: e.target.value })}
                 min={1024}
-                max={65536}
+                max={resolvedParams?.calculationDetails.modelMaxTokens || 65536}
               />
               <p className="text-xs text-muted-foreground">
-                Maximum number of tokens in the response (1024-65536)
+                {resolvedParams
+                  ? `Maximum: ${resolvedParams.calculationDetails.modelMaxTokens.toLocaleString()} (model limit)`
+                  : 'Maximum number of tokens in the response (1024-65536)'}
               </p>
             </div>
 
+            {/* Timeout */}
             <div className="space-y-2">
               <Label>Timeout (seconds)</Label>
               <Input
@@ -606,9 +754,31 @@ export default function LLMConfigPage() {
                 max={600}
               />
               <p className="text-xs text-muted-foreground">
-                Request timeout in seconds (30-600)
+                {resolvedParams
+                  ? `Recommended: ${resolvedParams.timeout}s for ${resolvedParams.calculationDetails.modelId}`
+                  : 'Request timeout in seconds (30-600)'}
               </p>
             </div>
+
+            {/* Phase Token Allocations (Read-only) */}
+            {resolvedParams?.phaseAllocations && (
+              <div className="space-y-2 pt-4 border-t">
+                <Label className="text-sm font-medium">Phase Token Allocations (Read-only)</Label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Automatically calculated by DynamicPhaseTokenCalculator based on model capabilities
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(resolvedParams.phaseAllocations).map(([phase, allocation]) => (
+                    <div key={phase} className="p-2 rounded border border-border/50 bg-muted/30">
+                      <p className="text-xs font-medium">{phase}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {allocation.tokens.toLocaleString()} tokens • {allocation.percentage}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -2476,35 +2476,66 @@ llm_config:
   timeout_seconds: 180  # Increased for longer generations
   
   # Phase-specific overrides for optimal output quality
-  # Optimized for Gemini 3.0 Flash with 64K output token support
+  # DYNAMIC TOKEN ALLOCATION: Uses percentageAllocation to automatically adjust to any LLM model
+  # When a new model is added, phases automatically scale to that model's maxOutputTokens
+  # Example: If new model has 128K output, SOLUTIONING gets 100% = 128K, SPEC gets 75% = 96K, etc.
+  #
+  # Configuration supports:
+  # 1. percentageAllocation: Percentage of model's max output tokens to allocate
+  # 2. minTokens: Minimum tokens guaranteed (safety floor)
+  # 3. maxTokensCap: Maximum tokens allowed (safety ceiling)
+  #
+  # Set both percentageAllocation AND legacy max_tokens during migration period.
+  # The system will use percentageAllocation (new) and ignore max_tokens (legacy) when both present.
   phase_overrides:
     ANALYSIS:
-      temperature: 0.7    # Higher creativity for ideation
-      max_tokens: 32000   # Increased from 12,288 for comprehensive analysis
+      temperature: 0.7
+      percentageAllocation: 50      # 50% of model's max output
+      minTokens: 8000              # Minimum 8K tokens for quality analysis
+      # Legacy fallback (ignored if percentageAllocation present):
+      max_tokens: 32000
 
     STACK_SELECTION:
-      temperature: 0.3    # More deterministic for technical decisions
-      max_tokens: 16000   # Increased from 8,192 for detailed decisions
+      temperature: 0.3
+      percentageAllocation: 25      # 25% of model's max output
+      minTokens: 4000              # Minimum 4K tokens
+      # Legacy fallback:
+      max_tokens: 16000
 
     SPEC:
-      temperature: 0.3    # Precise for requirements
-      max_tokens: 48000   # Increased from 16,384 for comprehensive specs/designs
+      temperature: 0.3
+      percentageAllocation: 75      # 75% of model's max output (comprehensive specs)
+      minTokens: 12000             # Minimum 12K tokens for detailed specs
+      # Legacy fallback:
+      max_tokens: 48000
 
     DEPENDENCIES:
-      temperature: 0.2    # Very deterministic for dependency selection
-      max_tokens: 24000   # Increased from 12,288 for detailed dependency plans
+      temperature: 0.2
+      percentageAllocation: 37      # 37% of model's max output
+      minTokens: 6000              # Minimum 6K tokens
+      # Legacy fallback:
+      max_tokens: 24000
 
     SOLUTIONING:
-      temperature: 0.4    # Balanced for architecture + tasks
-      max_tokens: 64000   # Optimized for Gemini 3.0/2.5 Flash - each provider caps to actual limit
+      temperature: 0.4
+      percentageAllocation: 100     # 100% of model's max output (uses full capability)
+      minTokens: 16000             # Minimum 16K tokens for detailed architecture
+      # Legacy fallback:
+      max_tokens: 64000
 
     VALIDATE:
-      temperature: 0.3    # Deterministic for validation checks
-      max_tokens: 32000   # Increased from default for comprehensive validation reports
+      temperature: 0.3
+      percentageAllocation: 50      # 50% of model's max output
+      minTokens: 8000              # Minimum 8K tokens
+      # Legacy fallback:
+      max_tokens: 32000
 
     DONE:
-      temperature: 0.3    # Deterministic for handoff
-      max_tokens: 32000   # Increased from 16,384 for detailed handoff documentation
+      temperature: 0.3
+      percentageAllocation: 50      # 50% of model's max output
+      minTokens: 8000              # Minimum 8K tokens
+      # Legacy fallback:
+      max_tokens: 32000
   
   # Rate limiting and cost management
   rate_limit:

@@ -42,3 +42,44 @@ export interface AgentOutput {
   metadata?: Record<string, unknown>;
   next_actions?: string[];
 }
+
+/**
+ * Model capability definition with output token limits
+ * This allows the system to automatically adjust phase token limits based on model capabilities
+ */
+export interface ModelCapability {
+  /** Model identifier (e.g., 'gemini-3.0-flash', 'gpt-4o') */
+  id: string;
+  /** Provider type (gemini, openai, anthropic, etc.) */
+  provider: string;
+  /** Maximum output tokens this model supports */
+  maxOutputTokens: number;
+  /** Maximum input context window in tokens */
+  maxInputTokens?: number;
+  /** Model description */
+  description?: string;
+}
+
+/**
+ * Phase-specific token configuration that can be percentage-based or absolute
+ * Supports both legacy absolute values and new percentage-based allocation
+ */
+export interface PhaseTokenConfig {
+  /** Absolute max tokens (legacy, overrides percentageAllocation if present) */
+  max_tokens?: number;
+  /** Percentage of model's max output tokens to allocate to this phase (0-100) */
+  percentageAllocation?: number;
+  /** Minimum guaranteed tokens for this phase */
+  minTokens?: number;
+  /** Maximum cap for this phase (prevent allocation from exceeding this) */
+  maxTokensCap?: number;
+}
+
+/**
+ * Extended phase override with dynamic token allocation support
+ */
+export interface DynamicPhaseOverride extends PhaseOverride {
+  percentageAllocation?: number;
+  minTokens?: number;
+  maxTokensCap?: number;
+}
