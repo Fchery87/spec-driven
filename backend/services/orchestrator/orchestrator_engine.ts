@@ -1018,8 +1018,6 @@ ${
     switch (gate) {
       case 'stack_approved':
         return project.stack_approved;
-      case 'dependencies_approved':
-        return project.dependencies_approved;
       default:
         return project.orchestration_state.approval_gates[gate] || false;
     }

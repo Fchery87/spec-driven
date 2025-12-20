@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +16,6 @@ import {
 } from '@/components/ui/dialog';
 import { StackSelection } from '@/components/orchestration/StackSelection';
 import { ArtifactViewer } from '@/components/orchestration/ArtifactViewer';
-import { DependencySelector, type DependencySelection } from '@/components/orchestration/DependencySelector';
 import { ProjectHeader } from '@/components/orchestration/ProjectHeader';
 import { PhaseTimeline } from '@/components/orchestration/PhaseTimeline';
 import { ArtifactSidebar } from '@/components/orchestration/ArtifactSidebar';
@@ -39,7 +38,6 @@ interface Project {
   phases_completed: string[];
   stack_choice?: string;
   stack_approved: boolean;
-  dependencies_approved: boolean;
   created_at: string;
   stats?: Record<string, unknown>;
 }
@@ -68,8 +66,6 @@ export default function ProjectPage() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [selectedArtifact, setSelectedArtifact] = useState<{ filename: string; content: string; phase: string } | null>(null);
   const [generatingHandoff, setGeneratingHandoff] = useState(false);
-  const [showDependencySelector, setShowDependencySelector] = useState(false);
-  const [approvingDependencies, setApprovingDependencies] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionInput, setDescriptionInput] = useState('');
@@ -94,8 +90,6 @@ export default function ProjectPage() {
   });
   const [isValidating, setIsValidating] = useState(false);
 
-  const dependencySelectorRef = useRef<HTMLDivElement | null>(null);
-
   const recordAction = (message: string, type: 'success' | 'error' = 'success') => {
     if (type === 'error') {
       toast.error(message);
@@ -118,11 +112,6 @@ export default function ProjectPage() {
             setShowStackSelection(true);
           } else {
             setShowStackSelection(false);
-          }
-          if (result.data.current_phase === 'DEPENDENCIES' && !result.data.dependencies_approved) {
-            setShowDependencySelector(true);
-          } else {
-            setShowDependencySelector(false);
           }
         }
       } else {
@@ -376,12 +365,6 @@ export default function ProjectPage() {
     }
   }, [project?.description, editingDescription]);
 
-  useEffect(() => {
-    if (showDependencySelector) {
-      dependencySelectorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, [showDependencySelector]);
-
   const handleExecutePhase = useCallback(async () => {
     setExecuting(true);
     setError(null);
@@ -413,13 +396,13 @@ export default function ProjectPage() {
   }, [slug, project?.current_phase, fetchProject, fetchArtifacts]);
 
   useEffect(() => {
-    if (project?.current_phase === 'DEPENDENCIES' && !project.dependencies_approved && !executing) {
+    if (project?.current_phase === 'DEPENDENCIES' && !executing) {
       const dependenciesArtifacts = artifacts['DEPENDENCIES'];
       if (!dependenciesArtifacts || dependenciesArtifacts.length === 0) {
         handleExecutePhase();
       }
     }
-  }, [project?.current_phase, project?.dependencies_approved, executing, artifacts, handleExecutePhase]);
+  }, [project?.current_phase, executing, artifacts, handleExecutePhase]);
 
   const handlePhaseAdvance = async () => {
     setAdvancing(true);
@@ -498,53 +481,6 @@ export default function ProjectPage() {
       const error = err instanceof Error ? err : new Error(String(err));
       logger.error('Failed to approve stack:', error);
       recordAction('Failed to approve stack', 'error');
-    }
-  };
-
-  const handleDependenciesApprove = async (selection: DependencySelection) => {
-    setApprovingDependencies(true);
-    setError(null);
-    try {
-      // Build the API payload from the selection
-      const payload = selection.mode === 'preset' 
-        ? {
-            mode: 'preset',
-            architecture: selection.architecture,
-            option: selection.option,
-            notes: selection.notes,
-          }
-        : {
-            mode: 'custom',
-            architecture: 'custom',
-            customStack: selection.customStack,
-            notes: selection.notes,
-          };
-
-      const response = await fetch(`/api/projects/${slug}/approve-dependencies`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        cache: 'no-store'
-      })
-
-      const result = await response.json()
-
-      if (result.success) {
-        setShowDependencySelector(false)
-        await fetchProject(true)
-        await fetchArtifacts()
-        recordAction('Dependencies approved. Click "Next Phase" to continue.')
-      } else {
-        setError(result.error || 'Failed to approve dependencies')
-        recordAction(result.error || 'Failed to approve dependencies', 'error')
-      }
-    } catch (err) {
-      setError('Failed to approve dependencies')
-      const error = err instanceof Error ? err : new Error(String(err));
-      logger.error('Failed to approve dependencies:', error);
-      recordAction('Failed to approve dependencies', 'error')
-    } finally {
-      setApprovingDependencies(false)
     }
   };
 
@@ -729,7 +665,6 @@ export default function ProjectPage() {
         setArtifacts({});
         setProject(null);
         setShowStackSelection(false);
-        setShowDependencySelector(false);
         setShowClarification(false);
         recordAction('Project reset to ANALYSIS phase', 'success');
         // Force a hard refresh to clear any cached data
@@ -844,15 +779,13 @@ export default function ProjectPage() {
     current_phase: project.current_phase,
     phases_completed: project.phases_completed || [],
     stack_approved: project.stack_approved,
-    dependencies_approved: project.dependencies_approved,
     artifacts: artifacts
   });
 
   const canAdvance = canAdvanceFromPhase(
     project.current_phase,
     project.phases_completed || [],
-    project.stack_approved,
-    project.dependencies_approved
+    project.stack_approved
   );
 
   const canExecutePhase = shouldShowExecuteButton(project.current_phase);
@@ -924,27 +857,6 @@ export default function ProjectPage() {
               <StackSelection
                 selectedStack={project.stack_choice || undefined}
                 onStackSelect={handleStackApprove}
-              />
-            </CardContent>
-          </Card>
-        )}
-
-        {showDependencySelector && (
-          <Card
-            ref={dependencySelectorRef}
-            className="mb-6 border border-amber-500/30 bg-amber-500/5"
-          >
-            <CardHeader>
-              <CardTitle>Select Dependencies</CardTitle>
-              <CardDescription>
-                Choose and approve the technology stack and dependencies for your project.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <DependencySelector
-                selectedArchitecture={project.stack_choice || undefined}
-                onApprove={handleDependenciesApprove}
-                submitting={approvingDependencies}
               />
             </CardContent>
           </Card>
@@ -1136,9 +1048,7 @@ export default function ProjectPage() {
                     <div className="pt-4 border-t border-border">
                       <h4 className="text-sm font-medium mb-3">Approval Gates</h4>
                       {getPhaseGates(project.current_phase).map((gate) => {
-                        const approved =
-                          (gate === 'stack_approved' && project.stack_approved) ||
-                          (gate === 'dependencies_approved' && project.dependencies_approved);
+                        const approved = gate === 'stack_approved' && project.stack_approved;
                         return (
                           <div
                             key={gate}
@@ -1385,7 +1295,7 @@ function getPhaseDescription(phase: string): string {
     ANALYSIS: 'Analyze and clarify project requirements. AI agents will generate your project constitution, brief, classification, and user personas. Uncertainties are marked for resolution.',
     STACK_SELECTION: 'Select and approve the technology stack for your project.',
     SPEC: 'Generate detailed product and technical specifications including PRD, data model, and API specifications.',
-    DEPENDENCIES: 'Define and approve all project dependencies including npm packages and system requirements.',
+    DEPENDENCIES: 'Auto-generate all project dependencies based on the approved stack and PRD requirements.',
     SOLUTIONING: 'Create architecture diagrams, break down work into epics and tasks with test-first approach, and plan implementation.',
     VALIDATE: 'Cross-artifact consistency analysis. Verify all requirements map to tasks, personas are consistent, and Constitutional Articles are followed.',
     DONE: 'Generate final handoff document for LLM-based code generation.'
@@ -1409,7 +1319,7 @@ function getPhaseOutputs(phase: string): string[] {
 function getPhaseGates(phase: string): string[] {
   const gates: Record<string, string[]> = {
     STACK_SELECTION: ['stack_approved'],
-    DEPENDENCIES: ['dependencies_approved']
+    DEPENDENCIES: []
   };
   return gates[phase] || [];
 }

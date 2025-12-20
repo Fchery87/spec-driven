@@ -109,8 +109,6 @@ const executePhaseHandler = withAuth(
       stack_choice: metadata.stack_choice,
       stack_approved: metadata.stack_approved || false,
       stack_approval_date: metadata.stack_approval_date ? new Date(metadata.stack_approval_date) : undefined,
-      dependencies_approved: metadata.dependencies_approved || false,
-      dependencies_approval_date: metadata.dependencies_approval_date ? new Date(metadata.dependencies_approval_date) : undefined,
       created_at: metadata.created_at ? new Date(metadata.created_at) : new Date(),
       updated_at: metadata.updated_at ? new Date(metadata.updated_at) : new Date(),
       project_path: resolve(process.cwd(), 'projects', slug),

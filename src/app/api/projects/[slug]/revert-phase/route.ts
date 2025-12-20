@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { existsSync, rmSync } from 'fs';
 import { resolve } from 'path';
 import { db } from '@/backend/lib/drizzle';
-import { projects, artifacts, phaseHistory, stackChoices, dependencyApprovals } from '@/backend/lib/schema';
+import { projects, artifacts, phaseHistory, stackChoices } from '@/backend/lib/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { logger } from '@/lib/logger';
 import { withAuth, type AuthSession } from '@/app/api/middleware/auth-guard';
@@ -104,12 +104,6 @@ export const POST = withAuth(
       await db.delete(stackChoices).where(eq(stackChoices.projectId, project.id));
     }
 
-    // If reverting to before DEPENDENCIES, clear dependency approval
-    if (targetPhaseIndex <= PHASE_ORDER.indexOf('DEPENDENCIES')) {
-      updates.dependenciesApproved = false;
-      await db.delete(dependencyApprovals).where(eq(dependencyApprovals.projectId, project.id));
-    }
-
     // If reverting to ANALYSIS, clear clarification state
     if (targetPhase === 'ANALYSIS') {
       updates.clarificationState = null;
@@ -140,7 +134,6 @@ export const POST = withAuth(
       phases_completed: project.phasesCompleted,
       stack_choice: project.stackChoice,
       stack_approved: project.stackApproved,
-      dependencies_approved: project.dependenciesApproved,
       created_by_id: session.user.id,
       created_at: project.createdAt?.toISOString?.(),
       updated_at: project.updatedAt?.toISOString?.(),
@@ -158,10 +151,6 @@ export const POST = withAuth(
     if (targetPhaseIndex <= PHASE_ORDER.indexOf('STACK_SELECTION')) {
       updatedMetadata.stack_choice = null;
       updatedMetadata.stack_approved = false;
-    }
-
-    if (targetPhaseIndex <= PHASE_ORDER.indexOf('DEPENDENCIES')) {
-      updatedMetadata.dependencies_approved = false;
     }
 
     if (targetPhase === 'ANALYSIS') {

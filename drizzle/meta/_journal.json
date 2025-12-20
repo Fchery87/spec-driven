@@ -43,6 +43,13 @@
       "when": 1766212604067,
       "tag": "0005_add_project_metadata",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1766218024989,
+      "tag": "0006_remove_dependency_approval",
+      "breakpoints": true
     }
   ]
 }

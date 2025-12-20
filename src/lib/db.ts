@@ -18,7 +18,6 @@ export interface ProjectData {
   phases_completed?: string;
   stack_choice?: string | null;
   stack_approved?: boolean;
-  dependencies_approved?: boolean;
   project_type?: string | null;
   scale_tier?: string | null;
   recommended_stack?: string | null;
@@ -103,14 +102,6 @@ export async function updateProjectMetadata(
       slug,
       String(metadata.stack_choice),
       String(metadata.stack_reasoning || ''),
-      ownerId
-    );
-  }
-
-  if (metadata.dependencies_approved) {
-    return dbService.approveDependencies(
-      slug,
-      String(metadata.dependencies_approval_notes || ''),
       ownerId
     );
   }

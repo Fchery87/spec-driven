@@ -5,6 +5,11 @@ import {
   deriveIntelligentDefaultStack,
   parseProjectClassification,
 } from '@/backend/lib/stack_defaults';
+import {
+  buildDependencyContract,
+  detectFeaturesFromPRD,
+  formatDependencyPresetForPrompt,
+} from '@/backend/config/dependency-presets';
 
 /**
  * PURE FUNCTION ARCHITECTURE
@@ -860,10 +865,26 @@ async function executeDevOpsAgent(
   logger.info('[DEPENDENCIES] Executing DevOps Agent');
 
   const agentConfig = configLoader.getSection('agents').devops;
+  const dependencyContract = buildDependencyContract({
+    templateId: stackChoice,
+    prdContent: prd,
+    packageManager: 'pnpm',
+  });
+  const detectedFeatures = detectFeaturesFromPRD(prd, stackChoice);
+  const dependencyPreset = formatDependencyPresetForPrompt({
+    templateId: stackChoice,
+    contract: dependencyContract,
+    detectedFeatures,
+  });
+
   const prompt = buildPrompt(agentConfig.prompt_template, {
     prd: prd,
     stackChoice: stackChoice,
-    projectName: projectName || 'Untitled Project'
+    projectName: projectName || 'Untitled Project',
+    dependencyPreset,
+    detectedFeatures: detectedFeatures.length
+      ? detectedFeatures.join(', ')
+      : 'None'
   });
 
   const response = await llmClient.generateCompletion(prompt, undefined, 3, 'DEPENDENCIES');
@@ -871,6 +892,51 @@ async function executeDevOpsAgent(
     'DEPENDENCIES.md',
     'dependencies.json'
   ]);
+
+  if (!artifacts['DEPENDENCIES.md']) {
+    artifacts['DEPENDENCIES.md'] = `---
+title: Dependencies
+owner: devops
+version: 1.0
+date: ${new Date().toISOString().split('T')[0]}
+status: draft
+---
+
+# Dependencies
+
+## Stack Template
+- ${stackChoice}
+
+## Core Dependencies
+${dependencyContract.baseline.dependencies
+  .map((dep) => `- ${dep.name}@${dep.range}`)
+  .join('\n')}
+
+## Dev Dependencies
+${dependencyContract.baseline.devDependencies.length > 0
+  ? dependencyContract.baseline.devDependencies
+      .map((dep) => `- ${dep.name}@${dep.range}`)
+      .join('\n')
+  : '- None'}
+
+## Add-ons
+${dependencyContract.addons.length > 0
+  ? dependencyContract.addons
+      .map((addon) =>
+        `### ${addon.capability}\n${addon.packages
+          .map((dep) => `- ${dep.name}@${dep.range}`)
+          .join('\n')}`
+      )
+      .join('\n\n')
+  : 'None'}
+`;
+  }
+
+  artifacts['dependencies.json'] = JSON.stringify(
+    dependencyContract,
+    null,
+    2
+  );
 
   logger.info('[DEPENDENCIES] DevOps Agent completed', { artifacts: Object.keys(artifacts) });
   return artifacts;

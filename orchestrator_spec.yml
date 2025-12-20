@@ -184,15 +184,14 @@ phases:
     
   DEPENDENCIES:
     name: "DEPENDENCIES"
-    description: "Define and approve project dependencies"
+    description: "Auto-generate project dependencies from approved stack"
     owner: "devops"
     duration_minutes: 30
     inputs: ["PRD.md", "approved_stack"]
     outputs: ["DEPENDENCIES.md", "dependencies.json"]
     depends_on: ["SPEC"]
-    gates: ["dependencies_approved"]
     next_phase: "SOLUTIONING"
-    validators: ["presence", "dependencies_approved", "dependencies_json_check"]
+    validators: ["presence", "dependencies_json_check"]
     quality_checklist:
       - "All dependencies have version pinned (exact or caret)"
       - "Every production dependency links to a PRD requirement"
@@ -1853,6 +1852,13 @@ agents:
       {{prd}}
 
       Stack Choice: {{stackChoice}}
+      Detected Features: {{detectedFeatures}}
+      Note: Dependencies are auto-generated; no approval gate is required.
+
+      # PRESET DEPENDENCIES (AUTHORITATIVE)
+      Use this preset list as the baseline. Only add packages when a PRD requirement
+      explicitly demands them, and document the rationale.
+      {{dependencyPreset}}
 
       # PRINCIPLES
       1. **QUALITY OVER QUANTITY**: Fewer, battle-tested packages
@@ -2194,12 +2200,6 @@ validators:
     artifact: "stack.json"
     required_fields: ["template_id", "architecture_type", "package_manager", "database", "auth", "storage"]
     
-  dependencies_approved:
-    description: "Check if dependencies have been approved by user"
-    implementation: "database_field_check"
-    field: "dependencies_approved"
-    expected_value: true
-
   dependencies_json_check:
     description: "Validate dependencies.json exists and includes required keys"
     implementation: "json_schema_check"
@@ -2598,6 +2598,5 @@ project_defaults:
   phases_completed: []
   stack_choice: null
   stack_approved: false
-  dependencies_approved: false
   artifact_versions: {}
   zip_ready: false

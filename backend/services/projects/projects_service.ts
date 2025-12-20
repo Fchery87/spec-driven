@@ -20,7 +20,6 @@ export interface UpdateProjectRequest {
   current_phase?: string;
   stack_choice?: string;
   stack_approved?: boolean;
-  dependencies_approved?: boolean;
 }
 
 export interface ProjectListResponse {
@@ -61,7 +60,6 @@ export class ProjectsService {
       phases_completed: [],
       stack_choice: undefined,
       stack_approved: false,
-      dependencies_approved: false,
       orchestration_state: {
         artifact_versions: {},
         validation_results: {},
@@ -107,8 +105,6 @@ export class ProjectsService {
       stack_choice: metadata.stack_choice || undefined,
       stack_approved: metadata.stack_approved || false,
       stack_approval_date: metadata.stack_approval_date ? new Date(metadata.stack_approval_date) : undefined,
-      dependencies_approved: metadata.dependencies_approved || false,
-      dependencies_approval_date: metadata.dependencies_approval_date ? new Date(metadata.dependencies_approval_date) : undefined,
       orchestration_state: metadata.orchestration_state || {
         artifact_versions: {},
         validation_results: {},
@@ -168,11 +164,6 @@ export class ProjectsService {
       updatedProject.stack_approval_date = new Date();
     }
 
-    // Handle dependencies approval
-    if (request.dependencies_approved && !existingProject.dependencies_approved) {
-      updatedProject.dependencies_approval_date = new Date();
-    }
-
     // Handle phase change
     if (request.current_phase && request.current_phase !== existingProject.current_phase) {
       if (!existingProject.phases_completed.includes(existingProject.current_phase)) {
@@ -193,7 +184,6 @@ export class ProjectsService {
       created_at: updatedProject.created_at.toISOString(),
       updated_at: updatedProject.updated_at.toISOString(),
       stack_approval_date: updatedProject.stack_approval_date?.toISOString(),
-      dependencies_approval_date: updatedProject.dependencies_approval_date?.toISOString()
     });
 
     return updatedProject;
@@ -300,7 +290,6 @@ export class ProjectsService {
       current_phase: project.current_phase,
       phases_completed: project.phases_completed.length,
       stack_approved: project.stack_approved,
-      dependencies_approved: project.dependencies_approved,
       created_at: project.created_at,
       updated_at: project.updated_at
     };

@@ -5,8 +5,7 @@ import {
   projects,
   artifacts,
   phaseHistory,
-  stackChoices,
-  dependencyApprovals
+  stackChoices
 } from '@/backend/lib/schema';
 import {
   eq,
@@ -188,38 +187,6 @@ export class ProjectDBService {
       .set({
         stackChoice: stackChoice,
         stackApproved: true,
-        updatedAt: new Date()
-      })
-      .where(ownerId ? and(eq(projects.slug, slug), eq(projects.ownerId, ownerId)) : eq(projects.slug, slug))
-      .returning();
-    
-    return result[0];
-  }
-
-  /**
-   * Approve dependencies
-   */
-  async approveDependencies(slug: string, notes?: string, ownerId?: string) {
-    const project = await this.getProjectBySlug(slug, ownerId);
-    if (!project) throw new Error('Project not found');
-
-    // Create or update approval record
-    await db.insert(dependencyApprovals).values({
-      id: uuidv4(),
-      projectId: project.id,
-      notes: notes || null
-    }).onConflictDoUpdate({
-      target: [dependencyApprovals.projectId],
-      set: {
-        notes: notes || null,
-        approvedAt: new Date()
-      }
-    });
-
-    // Update project
-    const result = await db.update(projects)
-      .set({
-        dependenciesApproved: true,
         updatedAt: new Date()
       })
       .where(ownerId ? and(eq(projects.slug, slug), eq(projects.ownerId, ownerId)) : eq(projects.slug, slug))
@@ -460,7 +427,6 @@ export class ProjectDBService {
       phases_completed: project.phasesCompleted.split(',').filter((p: string) => p),
       artifact_count: artifactCount,
       stack_approved: project.stackApproved,
-      dependencies_approved: project.dependenciesApproved,
       handoff_generated: project.handoffGenerated,
       phase_history: phaseHistoryResult,
       created_at: project.createdAt,

@@ -42,7 +42,6 @@ const getHandler = withAuth(
         current_phase: project.currentPhase,
         stack_choice: project.stackChoice,
         stack_approved: project.stackApproved,
-        dependencies_approved: project.dependenciesApproved,
         created_at: project.createdAt,
         updated_at: project.updatedAt,
         artifact_count: 0, // TODO: Add proper count from relations
@@ -155,7 +154,6 @@ const postHandler = withAuth(
         phases_completed: dbProject.phasesCompleted,
         stack_choice: dbProject.stackChoice,
         stack_approved: dbProject.stackApproved,
-        dependencies_approved: dbProject.dependenciesApproved,
         created_at: dbProject.createdAt.toISOString(),
         updated_at: dbProject.updatedAt.toISOString(),
         orchestration_state: dbProject.orchestrationState || {
@@ -185,7 +183,6 @@ const postHandler = withAuth(
             phases_completed: dbProject.phasesCompleted,
             stack_choice: dbProject.stackChoice,
             stack_approved: dbProject.stackApproved,
-            dependencies_approved: dbProject.dependenciesApproved,
             created_at: dbProject.createdAt,
             updated_at: dbProject.updatedAt,
           },

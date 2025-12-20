@@ -110,8 +110,6 @@ export interface Project {
   stack_choice?: string;
   stack_approved: boolean;
   stack_approval_date?: Date;
-  dependencies_approved: boolean;
-  dependencies_approval_date?: Date;
   project_type?: string;
   scale_tier?: string;
   recommended_stack?: string;

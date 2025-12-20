@@ -13,7 +13,6 @@ export const projects = pgTable('Project', {
   phasesCompleted: text('phases_completed').notNull().default(''),
   stackChoice: text('stack_choice'),
   stackApproved: boolean('stack_approved').notNull().default(false),
-  dependenciesApproved: boolean('dependencies_approved').notNull().default(false),
   projectType: text('project_type'),
   scaleTier: text('scale_tier'),
   recommendedStack: text('recommended_stack'),
@@ -79,17 +78,6 @@ export const stackChoices = pgTable('StackChoice', {
   approvedAt: timestamp('approved_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   projectIdIdx: index('StackChoice_project_id_idx').on(table.projectId),
-}));
-
-// Dependency approval record
-export const dependencyApprovals = pgTable('DependencyApproval', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  projectId: uuid('project_id').notNull().unique().references(() => projects.id, { onDelete: 'cascade' }),
-  approvedAt: timestamp('approved_at', { withTimezone: true }).defaultNow().notNull(),
-  approvedBy: text('approved_by'), // For future multi-user support
-  notes: text('notes'),
-}, (table) => ({
-  projectIdIdx: index('DependencyApproval_project_id_idx').on(table.projectId),
 }));
 
 // User roles enum
@@ -187,7 +175,6 @@ export const projectsRelations = relations(projects, ({ many }) => ({
   artifacts: many(artifacts),
   phaseHistory: many(phaseHistory),
   stackChoice: many(stackChoices),
-  dependencyApproval: many(dependencyApprovals),
 }));
 
 export const artifactsRelations = relations(artifacts, ({ one }) => ({
@@ -207,13 +194,6 @@ export const phaseHistoryRelations = relations(phaseHistory, ({ one }) => ({
 export const stackChoicesRelations = relations(stackChoices, ({ one }) => ({
   project: one(projects, {
     fields: [stackChoices.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const dependencyApprovalsRelations = relations(dependencyApprovals, ({ one }) => ({
-  project: one(projects, {
-    fields: [dependencyApprovals.projectId],
     references: [projects.id],
   }),
 }));
@@ -244,7 +224,6 @@ export type Project = InferSelectModel<typeof projects>;
 export type Artifact = InferSelectModel<typeof artifacts>;
 export type PhaseHistory = InferSelectModel<typeof phaseHistory>;
 export type StackChoice = InferSelectModel<typeof stackChoices>;
-export type DependencyApproval = InferSelectModel<typeof dependencyApprovals>;
 export type User = InferSelectModel<typeof users>;
 export type Account = InferSelectModel<typeof accounts>;
 export type Session = InferSelectModel<typeof sessions>;

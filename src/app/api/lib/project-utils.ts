@@ -23,7 +23,6 @@ export interface ProjectMetadata {
   phases_completed: string | string[];
   stack_choice?: string | null;
   stack_approved: boolean;
-  dependencies_approved: boolean;
   project_type?: string | null;
   scale_tier?: string | null;
   recommended_stack?: string | null;
@@ -128,7 +127,6 @@ export const getProjectMetadata = async (slug: string, ownerId?: string) => {
         phases_completed: project.phasesCompleted,
         stack_choice: project.stackChoice,
         stack_approved: project.stackApproved,
-        dependencies_approved: project.dependenciesApproved,
         project_type: project.projectType,
         scale_tier: project.scaleTier,
         recommended_stack: project.recommendedStack,
@@ -466,7 +464,6 @@ export async function persistProjectToDB(slug: string, metadata: ProjectMetadata
         phases_completed: phasesCompleted,
         stack_choice: metadata.stack_choice,
         stack_approved: metadata.stack_approved,
-        dependencies_approved: metadata.dependencies_approved,
         handoff_generated: metadata.handoff_generated,
         handoff_generated_at: metadata.handoff_generated_at,
         owner_id: ownerId,

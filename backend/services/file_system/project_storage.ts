@@ -67,7 +67,6 @@ export class ProjectStorage {
         phases_completed: [],
         current_phase: 'ANALYSIS',
         stack_approved: false,
-        dependencies_approved: false,
         artifact_versions: {}
       };
       writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));

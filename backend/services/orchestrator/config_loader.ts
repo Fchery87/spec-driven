@@ -125,15 +125,14 @@ export class ConfigLoader {
         },
         DEPENDENCIES: {
           name: 'DEPENDENCIES',
-          description: 'Define and approve project dependencies',
+          description: 'Auto-generate project dependencies from approved stack',
           owner: 'devops',
           duration_minutes: 30,
           inputs: ['PRD.md', 'approved_stack'],
           outputs: ['DEPENDENCIES.md', 'dependencies.json'],
           depends_on: ['SPEC'],
-          gates: ['dependencies_approved'],
           next_phase: 'SOLUTIONING',
-          validators: ['presence', 'dependencies_approved']
+          validators: ['presence', 'dependencies_json_check']
         },
         SOLUTIONING: {
           name: 'SOLUTIONING',
@@ -340,12 +339,6 @@ export class ConfigLoader {
           field: 'stack_approved',
           expected_value: true
         },
-        dependencies_approved: {
-          description: 'Check if dependencies have been approved by user',
-          implementation: 'database_field_check',
-          field: 'dependencies_approved',
-          expected_value: true
-        },
         policy_check: {
           description: 'Run dependency policy scripts',
           scripts: ['npm_audit', 'pip_audit', 'no_deprecated', 'no_outdated'],
@@ -417,7 +410,6 @@ export class ConfigLoader {
         phases_completed: [],
         stack_choice: null,
         stack_approved: false,
-        dependencies_approved: false,
         artifact_versions: {},
         zip_ready: false
       }

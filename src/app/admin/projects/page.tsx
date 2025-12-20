@@ -22,7 +22,6 @@ interface ProjectData {
   currentPhase: string;
   stackChoice: string | null;
   stackApproved: boolean;
-  dependenciesApproved: boolean;
   handoffGenerated: boolean;
   createdAt: string;
   updatedAt: string;
@@ -181,12 +180,6 @@ export default function AllProjectsPage() {
                           project.stackApproved ? 'bg-emerald-500' : 'bg-amber-500'
                         }`}
                         title={`Stack ${project.stackApproved ? 'approved' : 'pending'}`}
-                      />
-                      <span
-                        className={`h-2 w-2 rounded-full ${
-                          project.dependenciesApproved ? 'bg-emerald-500' : 'bg-amber-500'
-                        }`}
-                        title={`Dependencies ${project.dependenciesApproved ? 'approved' : 'pending'}`}
                       />
                       <span
                         className={`h-2 w-2 rounded-full ${
