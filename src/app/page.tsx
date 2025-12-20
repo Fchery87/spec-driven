@@ -18,7 +18,7 @@ const phases = [
   { name: 'Analysis', description: 'Clarify vision with hybrid Q&A mode.', icon: Lightbulb, color: 'text-amber-500', badge: 'AI + Human' },
   { name: 'Stack Selection', description: 'Approve platform choices with rationale.', icon: Layers, color: 'text-blue-500', badge: 'Gate' },
   { name: 'Spec', description: 'Generate PRDs, API contracts, and data models.', icon: FileText, color: 'text-purple-500' },
-  { name: 'Dependencies', description: 'Validate packages with security notes.', icon: Package, color: 'text-orange-500', badge: 'Gate' },
+  { name: 'Dependencies', description: 'AI-generated from approved stack with security checks.', icon: Package, color: 'text-orange-500' },
   { name: 'Solutioning', description: 'Test-first tasks with parallelism markers.', icon: GitBranch, color: 'text-cyan-500' },
   { name: 'Validate', description: '10 automated consistency checks.', icon: ShieldCheck, color: 'text-rose-500', badge: 'New' },
   { name: 'Done', description: 'Export HANDOFF.md for downstream codegen.', icon: CheckCircle2, color: 'text-emerald-500' },
@@ -32,25 +32,25 @@ const metrics = [
 
 const features = [
   {
-    title: 'Hybrid Clarification Mode',
-    description: 'Choose to answer questions manually, let AI assume with rationale, or mix both for balanced control and speed.',
+    title: 'AI-Driven Stack Selection',
+    description: 'AI analyzes requirements and recommends optimal stack with alternatives. See scores, reasoning, and choose with confidence.',
     icon: Lightbulb,
     gradient: 'from-amber-500/20 to-orange-500/20',
-    badge: 'New in v3.0',
+    badge: 'New in v3.1',
   },
   {
-    title: 'Constitutional Articles',
-    description: '5 governing principles enforced across all specs: Library-First, Test-First, Simplicity, Anti-Abstraction, Integration-First.',
-    icon: ShieldCheck,
+    title: 'Streamlined Dependencies',
+    description: 'Dependencies auto-generated from approved stack—no approval gate needed. Stack approval implies dependency approval.',
+    icon: Package,
     gradient: 'from-blue-500/20 to-cyan-500/20',
-    badge: 'New in v3.0',
+    badge: 'New in v3.1',
   },
   {
-    title: 'Automated Validation',
-    description: '10 consistency checks verify requirement mapping, persona consistency, and constitutional compliance before handoff.',
+    title: 'Intelligent Defaults',
+    description: 'Smart defaults based on project type: web apps get Next.js+Bun, mobile gets Expo+Supabase, ML gets FastAPI+Python.',
     icon: CheckCircle2,
     gradient: 'from-emerald-500/20 to-teal-500/20',
-    badge: 'New in v3.0',
+    badge: 'New in v3.1',
   },
 ]
 
@@ -67,7 +67,7 @@ const capabilities = [
   },
   {
     title: 'Gate reviews',
-    description: 'Stakeholders sign off on stacks and dependencies before downstream automation continues.',
+    description: 'Stakeholders sign off on stack selection before downstream automation continues.',
     icon: ShieldCheck,
   },
 ]
@@ -86,9 +86,9 @@ const testimonials = [
     icon: Users,
   },
   {
-    quote: "92% of dependency proposals are approved on the first pass because risks are documented in-context.",
+    quote: "AI-driven stack selection reduced our decision time from hours to minutes. The recommendations are spot-on.",
     author: "VP Engineering",
-    company: "StartupXYZ",
+    company: "Nexus Labs",
     icon: ShieldCheck,
   },
 ]
@@ -116,7 +116,7 @@ export default function Home() {
             <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
               <div className="space-y-6">
                 <Badge className="bg-primary/15 text-primary border-primary/30 border px-3 py-1">
-                  Spec-first orchestration OS — v3.0
+                  Spec-first orchestration OS — v3.1
                 </Badge>
                 
                 <h1 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl lg:text-6xl">
@@ -199,11 +199,11 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Features Section - Version 3.0 Highlights */}
+        {/* Features Section - Version 3.1 Highlights */}
         <section className="mb-20">
           <div className="text-center mb-8">
             <Badge className="bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 border mb-3">
-              Version 3.0
+              Version 3.1
             </Badge>
             <h2 className="text-2xl font-bold text-foreground">What&apos;s new in this release</h2>
           </div>
