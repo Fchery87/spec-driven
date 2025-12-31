@@ -80,4 +80,45 @@ describe('Artifact Dependencies', () => {
       expect(affected).toEqual([]);
     });
   });
+
+  describe('Spec Compliance Validation', () => {
+    it('should match spec for stack.json dependencies', () => {
+      const affected = getAffectedArtifacts('stack.json');
+      expect(affected).toContain('component-inventory.md');
+      expect(affected).toContain('dependencies.json');
+      expect(affected).toContain('DEPENDENCIES.md');
+    });
+
+    it('should match spec for stack-decision.md dependencies', () => {
+      const affected = getAffectedArtifacts('stack-decision.md');
+      expect(affected).toContain('architecture.md');
+      expect(affected).toContain('DEPENDENCIES.md');
+      expect(affected).toContain('tasks.md');
+      expect(affected).toContain('data-model.md');
+      expect(affected).toHaveLength(4);
+    });
+
+    it('should match spec for design-tokens.md dependencies', () => {
+      const affected = getAffectedArtifacts('design-tokens.md');
+      expect(affected).toContain('component-inventory.md');
+      expect(affected).toContain('journey-maps.md');
+      expect(affected).not.toContain('user-flows.md');
+    });
+
+    it('should match spec for user-flows.md dependencies', () => {
+      const affected = getAffectedArtifacts('user-flows.md');
+      expect(affected).toContain('journey-maps.md');
+      expect(affected).toHaveLength(1);
+    });
+
+    it('should have journey-maps.md as leaf node', () => {
+      const affected = getAffectedArtifacts('journey-maps.md');
+      expect(affected).toEqual([]);
+    });
+
+    it('should have DEPENDENCIES.md as leaf node', () => {
+      const affected = getAffectedArtifacts('DEPENDENCIES.md');
+      expect(affected).toEqual([]);
+    });
+  });
 });

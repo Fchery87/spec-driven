@@ -45,7 +45,7 @@ export const ARTIFACT_DEPENDENCIES: Record<string, ArtifactDependency> = {
   },
 
   'stack.json': {
-    affects: ['component-inventory.md', 'dependencies.json'],
+    affects: ['component-inventory.md', 'dependencies.json', 'DEPENDENCIES.md'],
     reason: 'Technology choices determine available components and required dependencies',
   },
 
@@ -62,7 +62,7 @@ export const ARTIFACT_DEPENDENCIES: Record<string, ArtifactDependency> = {
 
   // Design System
   'design-tokens.md': {
-    affects: ['component-inventory.md', 'user-flows.md'],
+    affects: ['component-inventory.md', 'journey-maps.md'],
     reason: 'Design primitives constrain component design and interaction patterns',
   },
 
@@ -85,16 +85,24 @@ export const ARTIFACT_DEPENDENCIES: Record<string, ArtifactDependency> = {
 
   // Leaf nodes (no downstream dependencies)
   'stack-decision.md': {
-    affects: [],
-    reason: 'Decision record, not referenced by later artifacts',
+    affects: ['architecture.md', 'DEPENDENCIES.md', 'tasks.md', 'data-model.md'],
+    reason: 'Stack selection decisions constrain architecture, dependencies, and task breakdown',
   },
   'stack-analysis.md': {
     affects: [],
     reason: 'Analysis artifact, consumed during stack selection',
   },
   'user-flows.md': {
+    affects: ['journey-maps.md'],
+    reason: 'User flows inform journey mapping and interaction design',
+  },
+  'journey-maps.md': {
     affects: [],
-    reason: 'Design deliverable, used for development reference',
+    reason: 'Journey mapping artifact, final design deliverable',
+  },
+  'DEPENDENCIES.md': {
+    affects: [],
+    reason: 'Dependency documentation, used for development reference',
   },
   'tasks.md': {
     affects: [],
