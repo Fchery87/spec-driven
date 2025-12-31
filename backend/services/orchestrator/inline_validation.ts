@@ -97,6 +97,35 @@ const ANALYSIS_VALIDATORS: Validator[] = [
 
     return issues;
   },
+
+  // Content quality validator
+  (artifacts, phase) => {
+    const issues: ValidationIssue[] = [];
+
+    for (const [artifactId, content] of Object.entries(artifacts)) {
+      // Check minimum content length (avoid stub content)
+      if (content.trim().length < 100) {
+        issues.push({
+          severity: 'warning',
+          message: `${artifactId} content appears incomplete (< 100 characters)`,
+          artifactId,
+          phase,
+        });
+      }
+
+      // Check for placeholder text
+      if (content.includes('TODO') || content.includes('PLACEHOLDER')) {
+        issues.push({
+          severity: 'warning',
+          message: `${artifactId} contains placeholder text (TODO/PLACEHOLDER)`,
+          artifactId,
+          phase,
+        });
+      }
+    }
+
+    return issues;
+  },
 ];
 
 /**
@@ -155,6 +184,32 @@ const STACK_SELECTION_VALIDATORS: Validator[] = [
           issues.push({
             severity: 'warning',
             message: `Incomplete stack definition - missing: ${missingKeys.join(', ')}`,
+            artifactId: 'stack.json',
+            phase,
+          });
+        }
+      } catch {
+        // JSON parse error already caught by previous validator
+      }
+    }
+
+    return issues;
+  },
+
+  // Stack approval validator
+  (artifacts, phase) => {
+    const issues: ValidationIssue[] = [];
+    const stackJson = artifacts['stack.json'];
+
+    if (stackJson) {
+      try {
+        const stack = JSON.parse(stackJson);
+
+        // Check for approved field (defaults to false if not present)
+        if (!stack.approved) {
+          issues.push({
+            severity: 'error',
+            message: 'Stack selection not approved - set "approved": true in stack.json',
             artifactId: 'stack.json',
             phase,
           });

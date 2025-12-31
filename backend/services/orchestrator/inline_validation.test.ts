@@ -12,8 +12,8 @@ describe('Inline Validation System', () => {
       const config: InlineValidationConfig = {
         phase: 'ANALYSIS',
         artifacts: {
-          'project-brief.md': '---\ntitle: Test\n---\nValid project brief content',
-          'constitution.md': '---\ntitle: Constitution\n---\nValid constitution content',
+          'project-brief.md': '---\ntitle: Test\n---\nValid project brief content with enough length to pass the content quality validator check',
+          'constitution.md': '---\ntitle: Constitution\n---\nValid constitution content with enough length to pass the content quality validator check',
         },
       };
 
@@ -69,6 +69,38 @@ describe('Inline Validation System', () => {
       expect(result.warnings.length).toBeGreaterThan(0);
       expect(result.warnings[0].message).toContain('Unresolved clarification');
     });
+
+    it('should detect stub/incomplete content', async () => {
+      const config: InlineValidationConfig = {
+        phase: 'ANALYSIS',
+        artifacts: {
+          'project-brief.md': '---\ntitle: Test\n---\nShort',
+          'constitution.md': '---\ntitle: Constitution\n---\nValid content with enough length to pass minimum character threshold',
+        },
+      };
+
+      const result = await runInlineValidation(config);
+
+      expect(result.warnings.length).toBeGreaterThan(0);
+      const incompleteWarning = result.warnings.find(w => w.message.includes('incomplete'));
+      expect(incompleteWarning).toBeDefined();
+    });
+
+    it('should detect placeholder text', async () => {
+      const config: InlineValidationConfig = {
+        phase: 'ANALYSIS',
+        artifacts: {
+          'project-brief.md': '---\ntitle: Test\n---\nContent with TODO: fix this later and enough content to pass length check',
+          'constitution.md': '---\ntitle: Constitution\n---\nValid content with enough length to pass minimum character threshold',
+        },
+      };
+
+      const result = await runInlineValidation(config);
+
+      expect(result.warnings.length).toBeGreaterThan(0);
+      const placeholderWarning = result.warnings.find(w => w.message.includes('placeholder'));
+      expect(placeholderWarning).toBeDefined();
+    });
   });
 
   describe('STACK_SELECTION Phase Validators', () => {
@@ -80,6 +112,7 @@ describe('Inline Validation System', () => {
             frontend: 'React',
             backend: 'Node.js',
             database: 'PostgreSQL',
+            approved: true,
           }),
         },
       };
@@ -119,6 +152,44 @@ describe('Inline Validation System', () => {
       expect(result.warnings.length).toBeGreaterThan(0);
       expect(result.warnings[0].message).toContain('Incomplete');
     });
+
+    it('should require stack approval', async () => {
+      const config: InlineValidationConfig = {
+        phase: 'STACK_SELECTION',
+        artifacts: {
+          'stack.json': JSON.stringify({
+            frontend: 'React',
+            backend: 'Node.js',
+            database: 'PostgreSQL',
+            // Missing approved: true
+          }),
+        },
+      };
+
+      const result = await runInlineValidation(config);
+
+      expect(result.passed).toBe(false);
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors[0].message).toContain('not approved');
+    });
+
+    it('should pass when stack is approved', async () => {
+      const config: InlineValidationConfig = {
+        phase: 'STACK_SELECTION',
+        artifacts: {
+          'stack.json': JSON.stringify({
+            frontend: 'React',
+            backend: 'Node.js',
+            database: 'PostgreSQL',
+            approved: true,
+          }),
+        },
+      };
+
+      const result = await runInlineValidation(config);
+
+      expect(result.passed).toBe(true);
+    });
   });
 
   describe('Validation Behaviors', () => {
@@ -157,8 +228,8 @@ describe('Inline Validation System', () => {
       const result = await runInlineValidation({
         phase: 'ANALYSIS',
         artifacts: {
-          'project-brief.md': 'Missing frontmatter',
-          'constitution.md': 'Also missing frontmatter',
+          'project-brief.md': '---\ntitle: Test\n---\nShort',
+          'constitution.md': '---\ntitle: Constitution\n---\nShort too',
         },
         accumulatedWarnings: [], // Start fresh
       });
