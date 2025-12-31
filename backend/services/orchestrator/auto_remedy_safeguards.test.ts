@@ -72,6 +72,48 @@ describe('AUTO_REMEDY Safeguards', () => {
     });
   });
 
+  describe('Lines Changed Calculation Accuracy', () => {
+    it('should correctly count lines when content changes', () => {
+      const oldContent = 'Line 1\nLine 2\nLine 3';
+      const newContent = 'Line 1\nModified Line 2\nLine 3';
+
+      const result = validateChangeScope(oldContent, newContent, 'test.md');
+      expect(result.linesChanged).toBe(1); // Only 1 line actually changed
+    });
+
+    it('should correctly count when lines are deleted', () => {
+      const oldContent = 'Line 1\nLine 2\nLine 3';
+      const newContent = 'Line 1\nLine 3';
+
+      const result = validateChangeScope(oldContent, newContent, 'test.md');
+      expect(result.linesChanged).toBe(2); // Line at index 1 changed, line at index 2 deleted
+    });
+
+    it('should correctly count when lines are inserted', () => {
+      const oldContent = 'Line 1\nLine 2\nLine 3';
+      const newContent = 'INSERTED\nLine 1\nLine 2\nLine 3';
+
+      const result = validateChangeScope(oldContent, newContent, 'test.md');
+      expect(result.linesChanged).toBe(4); // All lines shifted by insert
+    });
+
+    it('should handle empty old content', () => {
+      const oldContent = '';
+      const newContent = 'Line 1\nLine 2\nLine 3';
+
+      const result = validateChangeScope(oldContent, newContent, 'test.md');
+      expect(result.linesChanged).toBe(3);
+    });
+
+    it('should handle empty new content', () => {
+      const oldContent = 'Line 1\nLine 2\nLine 3';
+      const newContent = '';
+
+      const result = validateChangeScope(oldContent, newContent, 'test.md');
+      expect(result.linesChanged).toBe(3);
+    });
+  });
+
   describe('Layer 4: Scope Limits', () => {
     it('should approve changes within limits', () => {
       const oldContent = 'Line 1\n'.repeat(10);
@@ -122,6 +164,16 @@ describe('AUTO_REMEDY Safeguards', () => {
     it('should allow modifications to non-protected artifacts', () => {
       expect(isProtectedArtifact('PRD.md')).toBe(false);
       expect(isProtectedArtifact('data-model.md')).toBe(false);
+    });
+  });
+
+  describe('Input Validation', () => {
+    it('should throw error for null content in hash function', () => {
+      expect(() => hashContent(null as any)).toThrow('cannot be null');
+    });
+
+    it('should throw error for undefined content in hash function', () => {
+      expect(() => hashContent(undefined as any)).toThrow('cannot be null');
     });
   });
 });

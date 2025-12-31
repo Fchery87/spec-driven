@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import { createHash } from 'crypto';
 
 /**
  * AUTO_REMEDY Safeguard System
@@ -180,8 +180,16 @@ export function validateChangeScope(
   // Calculate lines changed
   const oldLines = oldContent.split('\n');
   const newLines = newContent.split('\n');
-  const linesChanged = Math.abs(newLines.length - oldLines.length) +
-    oldLines.filter((line, i) => line !== newLines[i]).length;
+
+  // Count actual changed lines (added + deleted + modified)
+  const maxLines = Math.max(oldLines.length, newLines.length);
+  let linesChanged = 0;
+
+  for (let i = 0; i < maxLines; i++) {
+    if (oldLines[i] !== newLines[i]) {
+      linesChanged++;
+    }
+  }
 
   // Check line limit
   if (linesChanged > MAX_LINES_CHANGED) {
@@ -216,7 +224,13 @@ export function isProtectedArtifact(artifactId: string): boolean {
  * @returns Hex-encoded SHA-256 hash
  */
 function hashContent(content: string): string {
-  return crypto.createHash('sha256').update(content).digest('hex');
+  if (content === null || content === undefined) {
+    throw new Error('hashContent: content cannot be null or undefined');
+  }
+  if (typeof content !== 'string') {
+    throw new Error(`hashContent: expected string, got ${typeof content}`);
+  }
+  return createHash('sha256').update(content).digest('hex');
 }
 
 /**
