@@ -102,109 +102,168 @@ export async function executeAutoRemedy(
 ): Promise<AutoRemedyResult> {
   const startTime = new Date();
 
-  // Step 1: Classify the primary failure
-  const primaryFailure = context.validationFailures[0];
-  const classification = classifyFailure(primaryFailure.phase, primaryFailure.message);
-
-  // Step 2: Get remediation strategy
-  const remediation = getRemediationStrategy(classification.type, context.failedPhase);
-
-  // Step 3: Check retry limit
-  if (context.currentAttempt >= context.maxAttempts) {
-    return {
-      canProceed: false,
-      requiresManualReview: true,
-      reason: `AUTO_REMEDY max attempts reached (${context.maxAttempts})`,
-      classification: {
-        type: classification.type,
-        confidence: classification.confidence,
-      },
-      remediation: {
-        agentToRerun: remediation.agentToRerun,
-        phase: remediation.phase,
-        additionalInstructions: remediation.additionalInstructions,
-      },
-      safeguardResult: {
-        approved: false,
-        reason: 'Max retry limit reached',
-      },
-      nextAttempt: context.currentAttempt + 1,
-      dbRecord: {
-        projectId: context.projectId,
-        validationRunId: context.validationRunId,
-        startedAt: startTime,
-        completedAt: new Date(),
-        successful: false,
-        changesApplied: 'Max attempts exceeded',
-      },
-    };
-  }
-
-  // Step 4: Check if remediation requires manual review
-  if (remediation.requiresManualReview) {
-    return {
-      canProceed: false,
-      requiresManualReview: true,
-      reason: remediation.reason,
-      classification: {
-        type: classification.type,
-        confidence: classification.confidence,
-      },
-      remediation: {
-        agentToRerun: remediation.agentToRerun,
-        phase: remediation.phase,
-        additionalInstructions: remediation.additionalInstructions,
-      },
-      safeguardResult: {
-        approved: false,
-        reason: remediation.reason,
-      },
-      nextAttempt: context.currentAttempt + 1,
-      dbRecord: {
-        projectId: context.projectId,
-        validationRunId: context.validationRunId,
-        startedAt: startTime,
-        completedAt: new Date(),
-        successful: false,
-        changesApplied: 'Manual review required',
-      },
-    };
-  }
-
-  // Step 5: Check safeguards
-  let safeguardResult: SafeguardResult = {
-    approved: true,
-    reason: 'No safeguard checks needed',
-  };
-
-  // Check if artifact is protected
-  if (isProtectedArtifact(primaryFailure.artifactId)) {
-    safeguardResult = {
-      approved: false,
-      reason: `${primaryFailure.artifactId} is a protected artifact - manual review required`,
-    };
-  }
-
-  // Check for user edits if artifact content provided
-  if (context.artifactContent && context.artifactContent[primaryFailure.artifactId]) {
-    const artifact = context.artifactContent[primaryFailure.artifactId];
-    const editCheck = detectUserEdit(artifact.original, artifact.current, artifact.originalHash);
-
-    if (editCheck.userEditDetected) {
-      safeguardResult = {
-        approved: false,
-        userEditDetected: true,
-        reason: 'User edit detected - conflict markers required',
+  try {
+    // Validate input
+    if (!context.validationFailures || context.validationFailures.length === 0) {
+      return {
+        canProceed: false,
+        requiresManualReview: true,
+        reason: 'No validation failures provided',
+        classification: {
+          type: 'unknown' as FailureType,
+          confidence: 0,
+        },
+        remediation: {
+          agentToRerun: 'analyst',
+          phase: context.failedPhase,
+          additionalInstructions: '',
+        },
+        safeguardResult: {
+          approved: false,
+          reason: 'Empty validation failures array',
+        },
+        nextAttempt: context.currentAttempt + 1,
+        dbRecord: {
+          projectId: context.projectId,
+          validationRunId: context.validationRunId,
+          startedAt: startTime,
+          completedAt: new Date(),
+          successful: false,
+          changesApplied: 'No validation failures to process',
+        },
       };
     }
-  }
 
-  // If safeguards fail, escalate to manual review
-  if (!safeguardResult.approved) {
+    // Step 1: Classify the primary failure
+    const primaryFailure = context.validationFailures[0];
+    const classification = classifyFailure(primaryFailure.phase, primaryFailure.message);
+
+    // Step 2: Get remediation strategy
+    const remediation = getRemediationStrategy(classification.type, context.failedPhase);
+
+    // Step 3: Check retry limit
+    if (context.currentAttempt >= context.maxAttempts) {
+      return {
+        canProceed: false,
+        requiresManualReview: true,
+        reason: `AUTO_REMEDY max attempts reached (${context.maxAttempts})`,
+        classification: {
+          type: classification.type,
+          confidence: classification.confidence,
+        },
+        remediation: {
+          agentToRerun: remediation.agentToRerun,
+          phase: remediation.phase,
+          additionalInstructions: remediation.additionalInstructions,
+        },
+        safeguardResult: {
+          approved: false,
+          reason: 'Max retry limit reached',
+        },
+        nextAttempt: context.currentAttempt + 1,
+        dbRecord: {
+          projectId: context.projectId,
+          validationRunId: context.validationRunId,
+          startedAt: startTime,
+          completedAt: new Date(),
+          successful: false,
+          changesApplied: 'Max attempts exceeded',
+        },
+      };
+    }
+
+    // Step 4: Check if remediation requires manual review
+    if (remediation.requiresManualReview) {
+      return {
+        canProceed: false,
+        requiresManualReview: true,
+        reason: remediation.reason,
+        classification: {
+          type: classification.type,
+          confidence: classification.confidence,
+        },
+        remediation: {
+          agentToRerun: remediation.agentToRerun,
+          phase: remediation.phase,
+          additionalInstructions: remediation.additionalInstructions,
+        },
+        safeguardResult: {
+          approved: false,
+          reason: remediation.reason,
+        },
+        nextAttempt: context.currentAttempt + 1,
+        dbRecord: {
+          projectId: context.projectId,
+          validationRunId: context.validationRunId,
+          startedAt: startTime,
+          completedAt: new Date(),
+          successful: false,
+          changesApplied: 'Manual review required',
+        },
+      };
+    }
+
+    // Step 5: Check safeguards
+    let safeguardResult: SafeguardResult = {
+      approved: true,
+      reason: 'No safeguard checks needed',
+    };
+
+    // Check if artifact is protected
+    if (isProtectedArtifact(primaryFailure.artifactId)) {
+      safeguardResult = {
+        approved: false,
+        reason: `${primaryFailure.artifactId} is a protected artifact - manual review required`,
+      };
+    }
+
+    // Check for user edits if artifact content provided
+    if (context.artifactContent && context.artifactContent[primaryFailure.artifactId]) {
+      const artifact = context.artifactContent[primaryFailure.artifactId];
+      const editCheck = detectUserEdit(artifact.original, artifact.current, artifact.originalHash);
+
+      if (editCheck.userEditDetected) {
+        safeguardResult = {
+          approved: false,
+          userEditDetected: true,
+          reason: 'User edit detected - conflict markers required',
+        };
+      }
+    }
+
+    // If safeguards fail, escalate to manual review
+    if (!safeguardResult.approved) {
+      return {
+        canProceed: false,
+        requiresManualReview: true,
+        reason: safeguardResult.reason || 'Safeguard check failed',
+        classification: {
+          type: classification.type,
+          confidence: classification.confidence,
+        },
+        remediation: {
+          agentToRerun: remediation.agentToRerun,
+          phase: remediation.phase,
+          additionalInstructions: remediation.additionalInstructions,
+        },
+        safeguardResult,
+        nextAttempt: context.currentAttempt + 1,
+        dbRecord: {
+          projectId: context.projectId,
+          validationRunId: context.validationRunId,
+          startedAt: startTime,
+          completedAt: new Date(),
+          successful: false,
+          changesApplied: 'Safeguard check failed',
+        },
+      };
+    }
+
+    // Step 6: All checks passed - can proceed with AUTO_REMEDY
     return {
-      canProceed: false,
-      requiresManualReview: true,
-      reason: safeguardResult.reason || 'Safeguard check failed',
+      canProceed: true,
+      requiresManualReview: false,
+      reason: 'AUTO_REMEDY can proceed - all safeguards passed',
       classification: {
         type: classification.type,
         confidence: classification.confidence,
@@ -220,35 +279,40 @@ export async function executeAutoRemedy(
         projectId: context.projectId,
         validationRunId: context.validationRunId,
         startedAt: startTime,
+        successful: true,
+        changesApplied: 'Pending agent execution',
+      },
+    };
+  } catch (error) {
+    // Error handling for unexpected exceptions
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    return {
+      canProceed: false,
+      requiresManualReview: true,
+      reason: `AUTO_REMEDY execution error: ${errorMessage}`,
+      classification: {
+        type: 'unknown' as FailureType,
+        confidence: 0,
+      },
+      remediation: {
+        agentToRerun: 'analyst',
+        phase: context.failedPhase,
+        additionalInstructions: '',
+      },
+      safeguardResult: {
+        approved: false,
+        reason: `Execution failed: ${errorMessage}`,
+      },
+      nextAttempt: context.currentAttempt + 1,
+      dbRecord: {
+        projectId: context.projectId,
+        validationRunId: context.validationRunId,
+        startedAt: startTime,
         completedAt: new Date(),
         successful: false,
-        changesApplied: 'Safeguard check failed',
+        changesApplied: `Error: ${errorMessage}`,
       },
     };
   }
-
-  // Step 6: All checks passed - can proceed with AUTO_REMEDY
-  return {
-    canProceed: true,
-    requiresManualReview: false,
-    reason: 'AUTO_REMEDY can proceed - all safeguards passed',
-    classification: {
-      type: classification.type,
-      confidence: classification.confidence,
-    },
-    remediation: {
-      agentToRerun: remediation.agentToRerun,
-      phase: remediation.phase,
-      additionalInstructions: remediation.additionalInstructions,
-    },
-    safeguardResult,
-    nextAttempt: context.currentAttempt + 1,
-    dbRecord: {
-      projectId: context.projectId,
-      validationRunId: context.validationRunId,
-      startedAt: startTime,
-      successful: true,
-      changesApplied: 'Pending agent execution',
-    },
-  };
 }

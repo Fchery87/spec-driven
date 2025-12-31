@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
 import {
   executeAutoRemedy,
   AutoRemedyContext,
   AutoRemedyResult,
 } from './auto_remedy_executor';
+import * as failureClassifier from './failure_classifier';
 
 describe('AUTO_REMEDY Executor', () => {
   let mockContext: AutoRemedyContext;
@@ -135,6 +136,77 @@ describe('AUTO_REMEDY Executor', () => {
       const result = await executeAutoRemedy(contextWithRunId);
 
       expect(result.dbRecord.validationRunId).toBe('validation-run-456');
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should handle empty validation failures array', async () => {
+      const emptyContext = {
+        ...mockContext,
+        validationFailures: [],
+      };
+
+      const result = await executeAutoRemedy(emptyContext);
+
+      expect(result.canProceed).toBe(false);
+      expect(result.requiresManualReview).toBe(true);
+      expect(result.reason).toContain('No validation failures');
+    });
+
+    it('should handle null validation failures', async () => {
+      const nullContext = {
+        ...mockContext,
+        validationFailures: null as any,
+      };
+
+      const result = await executeAutoRemedy(nullContext);
+
+      expect(result.canProceed).toBe(false);
+      expect(result.requiresManualReview).toBe(true);
+    });
+
+    it('should handle exceptions gracefully', async () => {
+      // Mock classifyFailure to throw an error
+      const classifySpy = vi.spyOn(failureClassifier, 'classifyFailure');
+      classifySpy.mockImplementation(() => {
+        throw new Error('Simulated classification error');
+      });
+
+      const result = await executeAutoRemedy(mockContext);
+
+      expect(result.canProceed).toBe(false);
+      expect(result.requiresManualReview).toBe(true);
+      expect(result.reason).toContain('execution error');
+      expect(result.reason).toContain('Simulated classification error');
+
+      classifySpy.mockRestore();
+    });
+
+    it('should handle constitutional violations correctly', async () => {
+      mockContext.validationFailures = [{
+        phase: 'STACK_SELECTION',
+        message: 'violates constitutional article: no NoSQL databases allowed',
+        artifactId: 'stack.json',
+      }];
+
+      const result = await executeAutoRemedy(mockContext);
+
+      expect(result.classification.type).toBe('constitutional_violation');
+      expect(result.requiresManualReview).toBe(true);
+      expect(result.reason).toContain('Constitutional violation');
+    });
+
+    it('should handle unknown failure types', async () => {
+      mockContext.validationFailures = [{
+        phase: 'VALIDATE',
+        message: 'Something completely unexpected happened',
+        artifactId: 'test.md',
+      }];
+
+      const result = await executeAutoRemedy(mockContext);
+
+      expect(result.classification.type).toBe('unknown');
+      expect(result.requiresManualReview).toBe(true);
     });
   });
 });
