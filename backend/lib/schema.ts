@@ -25,6 +25,10 @@ export const projects = pgTable('Project', {
   clarificationMode: text('clarification_mode').default('hybrid'), // 'interactive' | 'hybrid' | 'auto_resolve'
   clarificationCompleted: boolean('clarification_completed').notNull().default(false),
 
+  // AUTO_REMEDY tracking
+  autoRemedyAttempts: integer('auto_remedy_attempts').notNull().default(0),
+  lastRemedyPhase: text('last_remedy_phase'),
+
   // Timestamps
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -170,11 +174,58 @@ export const secrets = pgTable('Secret', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+// Validation tracking tables for AUTO_REMEDY phase
+export const validationRuns = pgTable('ValidationRun', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  phase: text('phase').notNull(),
+  passed: boolean('passed').notNull().default(false),
+  failureReasons: text('failure_reasons'), // JSON string of FailureReason[]
+  warningCount: integer('warning_count').notNull().default(0),
+  durationMs: integer('duration_ms').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  projectIdIdx: index('ValidationRun_project_id_idx').on(table.projectId),
+  phaseIdx: index('ValidationRun_phase_idx').on(table.phase),
+  createdAtIdx: index('ValidationRun_created_at_idx').on(table.createdAt),
+}));
+
+export const artifactVersions = pgTable('ArtifactVersion', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  artifactId: text('artifact_id').notNull(), // e.g., 'PRD.md', 'stack.json'
+  version: integer('version').notNull(), // Incremental version number
+  contentHash: text('content_hash').notNull(), // SHA-256 hash for diff detection
+  regenerationReason: text('regeneration_reason'), // Why was this regenerated?
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  projectIdIdx: index('ArtifactVersion_project_id_idx').on(table.projectId),
+  artifactIdIdx: index('ArtifactVersion_artifact_id_idx').on(table.artifactId),
+  createdAtIdx: index('ArtifactVersion_created_at_idx').on(table.createdAt),
+}));
+
+export const autoRemedyRuns = pgTable('AutoRemedyRun', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  validationRunId: uuid('validation_run_id').notNull().references(() => validationRuns.id, { onDelete: 'cascade' }),
+  startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  successful: boolean('successful').notNull().default(false),
+  changesApplied: text('changes_applied'), // JSON string of changes made
+}, (table) => ({
+  projectIdIdx: index('AutoRemedyRun_project_id_idx').on(table.projectId),
+  validationRunIdIdx: index('AutoRemedyRun_validation_run_id_idx').on(table.validationRunId),
+  startedAtIdx: index('AutoRemedyRun_started_at_idx').on(table.startedAt),
+}));
+
 // Define relationships using Drizzle relations
 export const projectsRelations = relations(projects, ({ many }) => ({
   artifacts: many(artifacts),
   phaseHistory: many(phaseHistory),
   stackChoice: many(stackChoices),
+  validationRuns: many(validationRuns),
+  artifactVersions: many(artifactVersions),
+  autoRemedyRuns: many(autoRemedyRuns),
 }));
 
 export const artifactsRelations = relations(artifacts, ({ one }) => ({
@@ -219,6 +270,32 @@ export const verificationsRelations = relations(verifications, ({ one }) => ({
   }),
 }));
 
+export const validationRunsRelations = relations(validationRuns, ({ one, many }) => ({
+  project: one(projects, {
+    fields: [validationRuns.projectId],
+    references: [projects.id],
+  }),
+  autoRemedyRuns: many(autoRemedyRuns),
+}));
+
+export const artifactVersionsRelations = relations(artifactVersions, ({ one }) => ({
+  project: one(projects, {
+    fields: [artifactVersions.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const autoRemedyRunsRelations = relations(autoRemedyRuns, ({ one }) => ({
+  project: one(projects, {
+    fields: [autoRemedyRuns.projectId],
+    references: [projects.id],
+  }),
+  validationRun: one(validationRuns, {
+    fields: [autoRemedyRuns.validationRunId],
+    references: [validationRuns.id],
+  }),
+}));
+
 // Types
 export type Project = InferSelectModel<typeof projects>;
 export type Artifact = InferSelectModel<typeof artifacts>;
@@ -230,3 +307,6 @@ export type Session = InferSelectModel<typeof sessions>;
 export type Verification = InferSelectModel<typeof verifications>;
 export type Setting = InferSelectModel<typeof settings>;
 export type Secret = InferSelectModel<typeof secrets>;
+export type ValidationRun = InferSelectModel<typeof validationRuns>;
+export type ArtifactVersion = InferSelectModel<typeof artifactVersions>;
+export type AutoRemedyRun = InferSelectModel<typeof autoRemedyRuns>;
