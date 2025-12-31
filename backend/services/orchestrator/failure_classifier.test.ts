@@ -73,9 +73,9 @@ describe('Failure Classifier', () => {
   });
 
   describe('getRemediationStrategy', () => {
-    it('should return PM re-run for missing_requirement_mapping', () => {
+    it('should return scrummaster re-run for missing_requirement_mapping', () => {
       const strategy = getRemediationStrategy('missing_requirement_mapping', 'SPEC_PM');
-      expect(strategy.agentToRerun).toBe('pm');
+      expect(strategy.agentToRerun).toBe('scrummaster');
       expect(strategy.phase).toBe('SPEC_PM');
       expect(strategy.additionalInstructions).toContain('gap analysis');
     });

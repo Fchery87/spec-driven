@@ -179,13 +179,13 @@ export function getRemediationStrategy(
   switch (failureType) {
     case 'missing_requirement_mapping':
       return {
-        agentToRerun: 'pm',
+        agentToRerun: 'scrummaster',
         phase: 'SPEC_PM',
         additionalInstructions:
           'Perform gap analysis between project-brief.md and PRD.md. ' +
           'Identify missing requirements and add them to PRD with proper user stories.',
         requiresManualReview: false,
-        reason: 'Re-run PM with gap analysis to capture missing requirements',
+        reason: 'Re-run scrummaster with gap analysis to capture missing requirements',
       };
 
     case 'persona_mismatch':
