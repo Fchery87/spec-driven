@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RollbackService } from './rollback_service';
 import { GitService } from '../git/git_service';
 import { db } from '@/backend/lib/drizzle';

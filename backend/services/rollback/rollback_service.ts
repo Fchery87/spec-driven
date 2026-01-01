@@ -124,8 +124,8 @@ export class RollbackService {
       };
     } catch (error) {
       logger.error('[RollbackService] Failed to create snapshot', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+        errorMessage: error instanceof Error ? error.message : String(error),
+      } as any);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
@@ -242,8 +242,8 @@ export class RollbackService {
       };
     } catch (error) {
       logger.error('[RollbackService] Rollback failed', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+        errorMessage: error instanceof Error ? error.message : String(error),
+      } as any);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),

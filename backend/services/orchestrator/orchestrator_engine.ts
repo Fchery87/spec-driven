@@ -425,9 +425,11 @@ export class OrchestratorEngine {
           projectId,
           phase: currentPhaseName,
           pendingGates: gateNames,
-        });
+        } as any);
 
-        throw new Error(error);
+        const err: any = new Error(error);
+        err.projectId = projectId;
+        throw err;
       }
 
       logger.info('[OrchestratorEngine] Approval gates passed', {
@@ -617,9 +619,9 @@ export class OrchestratorEngine {
 
             if (!inlineResult.canProceed) {
               logger.error('[ANALYSIS] Inline validation failed', {
-                errors: inlineResult.errors,
+                errorMessages: inlineResult.errors,
                 warnings: inlineResult.warnings,
-              });
+              } as any);
               throw new Error(
                 `Inline validation failed: ${inlineResult.errors.map(e => e.message).join(', ')}`
               );
@@ -767,9 +769,9 @@ export class OrchestratorEngine {
 
             if (!inlineResult.canProceed) {
               logger.error('[STACK_SELECTION] Inline validation failed', {
-                errors: inlineResult.errors,
+                errorMessages: inlineResult.errors,
                 warnings: inlineResult.warnings,
-              });
+              } as any);
               throw new Error(
                 `Inline validation failed: ${inlineResult.errors.map(e => e.message).join(', ')}`
               );

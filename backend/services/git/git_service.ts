@@ -88,7 +88,7 @@ export class GitService {
     } catch (error) {
       logger.error('[GitService] Initialization error, mode: disabled', {
         error: error instanceof Error ? error.message : String(error),
-      });
+      } as any);
       this.mode = 'disabled';
     }
 
@@ -149,8 +149,8 @@ export class GitService {
       };
     } catch (error) {
       logger.error('[GitService] Failed to create spec branch', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+        errorMessage: error instanceof Error ? error.message : String(error),
+      } as any);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
@@ -208,7 +208,7 @@ export class GitService {
         } catch (pushError) {
           logger.warn('[GitService] Push failed, continuing locally', {
             error: pushError instanceof Error ? pushError.message : String(pushError),
-          });
+          } as any);
           // Don't fail the commit if push fails
         }
       }
@@ -221,8 +221,8 @@ export class GitService {
       };
     } catch (error) {
       logger.error('[GitService] Commit failed', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+        errorMessage: error instanceof Error ? error.message : String(error),
+      } as any);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
@@ -261,8 +261,8 @@ export class GitService {
       };
     } catch (error) {
       logger.error('[GitService] Failed to create tag', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+        errorMessage: error instanceof Error ? error.message : String(error),
+      } as any);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
