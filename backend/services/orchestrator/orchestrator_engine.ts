@@ -407,6 +407,76 @@ export class OrchestratorEngine {
         throw new Error(`Unknown phase: ${currentPhaseName}`);
       }
 
+      // Handle AUTO_REMEDY phase specially (Phase 1 Integration)
+      if (currentPhaseName === 'AUTO_REMEDY') {
+        logger.info('[AUTO_REMEDY] Executing auto-remediation workflow');
+
+        // Get latest validation result
+        const validationResult = await this.validatePhaseCompletion(project);
+
+        // Import Phase 1 modules
+        const { determinePhaseOutcome } = await import('./phase_outcomes');
+        const { executeAutoRemedy } = await import('./auto_remedy_executor');
+
+        const outcome = determinePhaseOutcome({
+          phase: currentPhaseName,
+          validationResult: {
+            passed: validationResult.status === 'pass',
+            canProceed: validationResult.status !== 'fail',
+            warnings: (validationResult.warnings || []).map(w => ({
+              severity: 'warning' as const,
+              message: w,
+              phase: currentPhaseName,
+            })),
+            errors: (validationResult.errors || []).map(e => ({
+              severity: 'error' as const,
+              message: e,
+              phase: currentPhaseName,
+            })),
+            totalWarnings: validationResult.warnings?.length || 0,
+            accumulatedWarnings: [],
+          },
+        });
+
+        if (outcome.state === 'failures_detected') {
+          const autoRemedyContext = {
+            projectId,
+            failedPhase: project.phases_completed[project.phases_completed.length - 1] || 'ANALYSIS',
+            validationFailures: (validationResult.errors || []).map(e => ({
+              phase: currentPhaseName,
+              message: e,
+              artifactId: 'unknown',
+            })),
+            currentAttempt: (project as any).autoRemedyAttempts || 0,
+            maxAttempts: 2,
+          };
+
+          const result = await executeAutoRemedy(autoRemedyContext);
+
+          if (result.canProceed) {
+            logger.info('[AUTO_REMEDY] Remediation succeeded - re-running validation');
+            // Return empty artifacts - actual fixes applied by remediation
+            return {
+              success: true,
+              artifacts: {},
+              message: 'AUTO_REMEDY completed - validation will be re-run',
+            };
+          } else {
+            logger.warn('[AUTO_REMEDY] Escalating to MANUAL_REVIEW');
+            throw new Error(
+              `AUTO_REMEDY failed: ${result.reason} - manual review required`
+            );
+          }
+        }
+
+        // No failures or already remediated
+        return {
+          success: true,
+          artifacts: {},
+          message: 'AUTO_REMEDY phase - no action needed',
+        };
+      }
+
       // Use cached validators (initialized in constructor)
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const validators = this.validators;
@@ -452,6 +522,9 @@ export class OrchestratorEngine {
 
       let generatedArtifacts: Record<string, string> = {};
 
+      // Get current phase spec
+      const currentPhase = spec.phases[currentPhaseName];
+
       // Get executor for current phase and run agent
       switch (currentPhaseName) {
         case 'ANALYSIS':
@@ -469,6 +542,33 @@ export class OrchestratorEngine {
               artifactCount: Object.keys(generatedArtifacts).length,
             }
           );
+
+          // Phase 1: Inline validation for ANALYSIS
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          if ((currentPhase as any).inline_validation?.enabled) {
+            logger.info('[ANALYSIS] Running inline validation');
+            const { runInlineValidation } = await import('./inline_validation');
+            const inlineResult = await runInlineValidation({
+              phase: currentPhaseName,
+              artifacts: generatedArtifacts,
+            });
+
+            if (!inlineResult.canProceed) {
+              logger.error('[ANALYSIS] Inline validation failed', {
+                errors: inlineResult.errors,
+                warnings: inlineResult.warnings,
+              });
+              throw new Error(
+                `Inline validation failed: ${inlineResult.errors.map(e => e.message).join(', ')}`
+              );
+            }
+
+            if (inlineResult.warnings.length > 0) {
+              logger.warn('[ANALYSIS] Inline validation warnings', {
+                warnings: inlineResult.warnings,
+              });
+            }
+          }
           break;
 
         case 'SPEC':
@@ -592,6 +692,33 @@ export class OrchestratorEngine {
             artifacts,
             projectName
           );
+
+          // Phase 1: Inline validation for STACK_SELECTION
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          if ((currentPhase as any).inline_validation?.enabled) {
+            logger.info('[STACK_SELECTION] Running inline validation');
+            const { runInlineValidation } = await import('./inline_validation');
+            const inlineResult = await runInlineValidation({
+              phase: currentPhaseName,
+              artifacts: generatedArtifacts,
+            });
+
+            if (!inlineResult.canProceed) {
+              logger.error('[STACK_SELECTION] Inline validation failed', {
+                errors: inlineResult.errors,
+                warnings: inlineResult.warnings,
+              });
+              throw new Error(
+                `Inline validation failed: ${inlineResult.errors.map(e => e.message).join(', ')}`
+              );
+            }
+
+            if (inlineResult.warnings.length > 0) {
+              logger.warn('[STACK_SELECTION] Inline validation warnings', {
+                warnings: inlineResult.warnings,
+              });
+            }
+          }
           break;
 
         case 'VALIDATE':
@@ -1153,5 +1280,56 @@ ${
     }
 
     return phases;
+  }
+
+  /**
+   * Determine next phase based on validation outcome
+   *
+   * Implements Phase 1 state machine:
+   * - all_pass → proceed to next phase
+   * - warnings_only → user decision required
+   * - failures_detected → trigger AUTO_REMEDY
+   *
+   * @param project - Current project
+   * @param validationResult - Validation result from validatePhaseCompletion
+   * @returns Next phase name
+   */
+  async determineNextPhase(
+    project: Project,
+    validationResult: ValidationResult
+  ): Promise<string> {
+    const { determinePhaseOutcome } = await import('./phase_outcomes');
+
+    const outcome = determinePhaseOutcome({
+      phase: project.current_phase,
+      validationResult: {
+        passed: validationResult.status === 'pass',
+        canProceed: validationResult.status !== 'fail',
+        warnings: (validationResult.warnings || []).map(w => ({
+          severity: 'warning' as const,
+          message: w,
+          phase: project.current_phase,
+        })),
+        errors: (validationResult.errors || []).map(e => ({
+          severity: 'error' as const,
+          message: e,
+          phase: project.current_phase,
+        })),
+        totalWarnings: validationResult.warnings?.length || 0,
+        accumulatedWarnings: [],
+      },
+    });
+
+    logger.info('[OrchestratorEngine] Phase transition decision', {
+      projectId: project.id,
+      currentPhase: project.current_phase,
+      outcome: outcome.state,
+      nextPhase: outcome.nextPhase,
+      requiresUserDecision: outcome.requiresUserDecision,
+      errorCount: outcome.errorCount,
+      warningCount: outcome.warningCount,
+    });
+
+    return outcome.nextPhase;
   }
 }

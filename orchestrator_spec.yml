@@ -114,6 +114,13 @@ phases:
             3. Auto-resolved items marked: [AI ASSUMED: {assumption}]
           best_for: "Balanced control and speed"
     
+    # Inline Validation (Phase 1 - Feedback Loops)
+    inline_validation:
+      enabled: true
+      blocking_on_errors: true
+      blocking_on_warnings: false
+      validators: ["presence", "markdown_frontmatter", "unresolved_clarifications", "content_quality"]
+
     # Quality Checklist for this phase
     quality_checklist:
       - "All FOUR files generated (constitution, brief, classification, personas)"
@@ -152,7 +159,14 @@ phases:
       - "Trade-offs explicitly documented with mitigations"
       - "Scaling considerations addressed"
       - "Technical preferences from brief applied or justified if overridden"
-    
+
+    # Inline Validation (Phase 1 - Feedback Loops)
+    inline_validation:
+      enabled: true
+      blocking_on_errors: true
+      blocking_on_warnings: false
+      validators: ["presence", "stack_json_check", "stack_completeness", "stack_approval"]
+
   SPEC:
     name: "SPEC"
     description: "Generate detailed specifications and design system"
@@ -271,7 +285,29 @@ phases:
         description: "Technologies in architecture.md match stack-decision.md"
         source: "architecture.md"
         target: "stack-decision.md"
-    
+
+  AUTO_REMEDY:
+    name: "AUTO_REMEDY"
+    description: "Automated remediation of validation failures through targeted agent re-runs"
+    owner: "validator"
+    duration_minutes: 10
+    inputs: ["validation-report.md", "all_artifacts_from_failed_phase"]
+    outputs: ["updated_artifacts"]
+    depends_on: []
+    gates: []
+    next_phase: "VALIDATE"
+    validators: []
+    clarification:
+      enabled: false
+    inline_validation:
+      enabled: false
+    quality_checklist:
+      - "Failure classified correctly (7 types)"
+      - "Remediation strategy selected"
+      - "Safeguards passed (user edit, protected artifact, retry limit, change scope)"
+      - "Agent re-run instructions generated"
+      - "ValidationRun and AutoRemedyRun records created"
+
   DONE:
     name: "DONE"
     description: "Generate handoff and ZIP package"
