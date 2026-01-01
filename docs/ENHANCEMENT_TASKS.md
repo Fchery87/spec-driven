@@ -23,28 +23,28 @@
 
 > **Effort:** 3 days | **Impact:** 🟢🟢🟢🟢🟢
 
-- [ ] Implement `AUTO_REMEDY` phase logic
+- [x] Implement `AUTO_REMEDY` phase logic
 
-  - [ ] Parse `validation-report.md` for specific failure types
-  - [ ] Create failure-to-remediation mapping:
-    - [ ] `missing_requirement_mapping` → re-run scrummaster with gap analysis
-    - [ ] `persona_mismatch` → re-run PM with persona consistency check
-    - [ ] `api_data_model_gap` → re-run architect SPEC phase
-  - [ ] Implement targeted agent re-runs (not full phase restart)
-  - [ ] Add max retry limit (max_attempts: 2)
-  - [ ] Create `MANUAL_REVIEW` fallback for failed auto-fixes
+  - [x] Parse `validation-report.md` for specific failure types
+  - [x] Create failure-to-remediation mapping:
+    - [x] `missing_requirement_mapping` → re-run scrummaster with gap analysis
+    - [x] `persona_mismatch` → re-run PM with persona consistency check
+    - [x] `api_data_model_gap` → re-run architect SPEC phase
+  - [x] Implement targeted agent re-runs (not full phase restart)
+  - [x] Add max retry limit (max_attempts: 2)
+  - [x] Create `MANUAL_REVIEW` fallback for failed auto-fixes
 
-- [ ] Implement phase outcomes system
+- [x] Implement phase outcomes system
 
-  - [ ] `all_pass` → proceed to DONE
-  - [ ] `warnings_only` → user choice to proceed
-  - [ ] `failures_detected` → trigger AUTO_REMEDY
+  - [x] `all_pass` → proceed to DONE
+  - [x] `warnings_only` → user choice to proceed
+  - [x] `failures_detected` → trigger AUTO_REMEDY
 
-- [ ] Add AUTO_REMEDY safeguards
-  - [ ] Layer 1: User edit detection (content hash comparison)
-  - [ ] Layer 2: Diff preview with confirmation
-  - [ ] Layer 3: Git-style conflict markers
-  - [ ] Layer 4: Scope limits (max 50 lines, protected sections)
+- [x] Add AUTO_REMEDY safeguards
+  - [x] Layer 1: User edit detection (content hash comparison)
+  - [x] Layer 2: Diff preview with confirmation
+  - [x] Layer 3: Git-style conflict markers
+  - [x] Layer 4: Scope limits (max 50 lines, protected sections)
 
 ---
 
@@ -52,23 +52,23 @@
 
 > **Effort:** 2 days | **Impact:** 🟢🟢🟢🟢
 
-- [ ] Add inline validators per phase
+- [x] Add inline validators per phase
 
-  - [ ] ANALYSIS: `presence`, `markdown_frontmatter`, `content_quality`, `no_unresolved_clarifications`
-  - [ ] STACK_SELECTION: `presence`, `stack_approved`, `stack_completeness`, `stack_json_check`
-  - [ ] SPEC phases: Add appropriate validators
+  - [x] ANALYSIS: `presence`, `markdown_frontmatter`, `content_quality`, `no_unresolved_clarifications`
+  - [x] STACK_SELECTION: `presence`, `stack_approved`, `stack_completeness`, `stack_json_check`
+  - [x] SPEC phases: Add appropriate validators
 
-- [ ] Implement validation behaviors
+- [x] Implement validation behaviors
 
-  - [ ] `on_failure: 'show_warning'` (non-blocking)
-  - [ ] `on_failure: 'block_progression'` (for critical phases)
-  - [ ] Track accumulated warnings
+  - [x] `on_failure: 'show_warning'` (non-blocking)
+  - [x] `on_failure: 'block_progression'` (for critical phases)
+  - [x] Track accumulated warnings
 
-- [ ] Build real-time validation dashboard
-  - [ ] Phase-by-phase status display
-  - [ ] Warning counter
-  - [ ] Critical blockers list
-  - [ ] Suggested fixes
+- [x] Build real-time validation dashboard
+  - [x] Phase-by-phase status display
+  - [x] Warning counter
+  - [x] Critical blockers list
+  - [x] Suggested fixes (database backend)
 
 ---
 
@@ -76,13 +76,13 @@
 
 > **Effort:** 1 day | **Impact:** 🟢🟢🟢
 
-- [ ] Document artifact dependencies in code
-  - [ ] `constitution.md` affects: stack-decision, PRD, architecture, design-tokens
-  - [ ] `project-brief.md` affects: stack-analysis, PRD, personas
-  - [ ] `personas.md` affects: PRD, user-flows, design-tokens
-  - [ ] `PRD.md` affects: data-model, api-spec, epics, tasks, architecture
-  - [ ] `stack.json` affects: component-inventory, dependencies.json
-  - [ ] Complete remaining dependency mappings
+- [x] Document artifact dependencies in code
+  - [x] `constitution.md` affects: stack-decision, PRD, architecture, design-tokens
+  - [x] `project-brief.md` affects: stack-analysis, PRD, personas
+  - [x] `personas.md` affects: PRD, user-flows, design-tokens
+  - [x] `PRD.md` affects: data-model, api-spec, epics, tasks, architecture
+  - [x] `stack.json` affects: component-inventory, dependencies.json
+  - [x] Complete remaining dependency mappings
 
 ---
 
@@ -301,17 +301,17 @@
 
 ### New Tables
 
-- [ ] Create `validation_runs` table
+- [x] Create `validation_runs` table
 
-  - [ ] id, projectId, phase, passed, failureReasons, duration_ms, createdAt
+  - [x] id, projectId, phase, passed, failureReasons, duration_ms, createdAt
 
-- [ ] Create `artifact_versions` table
+- [x] Create `artifact_versions` table
 
-  - [ ] id, projectId, artifactId, version, contentHash, regenerationReason, createdAt
+  - [x] id, projectId, artifactId, version, contentHash, regenerationReason, createdAt
 
-- [ ] Create `auto_remedy_runs` table
+- [x] Create `auto_remedy_runs` table
 
-  - [ ] id, projectId, validationRunId, startedAt, completedAt, successful, changesApplied
+  - [x] id, projectId, validationRunId, startedAt, completedAt, successful, changesApplied
 
 - [ ] Create `phase_snapshots` table
   - [ ] id, project_id, phase_name, snapshot_number, artifacts_json, metadata, created_at
@@ -336,9 +336,9 @@
 
 ### Phase 1 Exit Criteria
 
-- [ ] VALIDATE phase failures automatically trigger targeted fixes
-- [ ] Real-time validation dashboards operational
-- [ ] Phase dependency graph documented
+- [x] VALIDATE phase failures automatically trigger targeted fixes
+- [x] Real-time validation dashboards operational
+- [x] Phase dependency graph documented
 
 ### Phase 2 Exit Criteria
 
