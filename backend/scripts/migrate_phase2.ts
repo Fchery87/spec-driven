@@ -45,7 +45,7 @@ export async function runPhase2Migration(
     // Get all projects or specific projects
     const allProjects = projectIds
       ? await db.query.projects.findMany({
-          where: (p, { inArray }) => inArray(p.id, projectIds),
+          where: (p: any, { inArray }: any) => inArray(p.id, projectIds),
         })
       : await db.query.projects.findMany();
 
@@ -83,17 +83,17 @@ export async function runPhase2Migration(
         const errorMsg = `Failed to migrate project ${project.slug}: ${
           error instanceof Error ? error.message : String(error)
         }`;
-        logger.error('[Migration] Project migration failed', { error: errorMsg });
+        logger.error('[Migration] Project migration failed', { error: errorMsg } as any);
         result.errors.push(errorMsg);
       }
     }
 
-    logger.info('[Migration] Phase 2 migration complete', result);
+    logger.info('[Migration] Phase 2 migration complete', result as any);
     return result;
   } catch (error) {
     logger.error('[Migration] Migration failed', {
       error: error instanceof Error ? error.message : String(error),
-    });
+    } as any);
     throw error;
   }
 }

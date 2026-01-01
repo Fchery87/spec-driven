@@ -193,7 +193,7 @@ export class ApprovalGateService {
       ),
     });
 
-    const blockingGates = gates.filter(gate => gate.blocking);
+    const blockingGates = gates.filter((gate: any) => gate.blocking);
 
     if (blockingGates.length === 0) {
       return true; // No blocking gates

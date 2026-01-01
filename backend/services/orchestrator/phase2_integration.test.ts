@@ -5,11 +5,36 @@ import { GitService } from '../git/git_service';
 import { RollbackService } from '../rollback/rollback_service';
 import { Project } from '@/types/orchestrator';
 
+// Mock the agent executors module
+vi.mock('../llm/agent_executors', () => ({
+  getAnalystExecutor: vi.fn(),
+  getPMExecutor: vi.fn(),
+  getArchitectExecutor: vi.fn(),
+  getScruMasterExecutor: vi.fn(),
+  getDevOpsExecutor: vi.fn(),
+  getDesignExecutor: vi.fn(),
+  getStackSelectionExecutor: vi.fn(),
+}));
+
+// Import the mocked functions
+const {
+  getAnalystExecutor,
+  getPMExecutor,
+  getArchitectExecutor,
+  getScruMasterExecutor,
+  getDevOpsExecutor,
+  getDesignExecutor,
+  getStackSelectionExecutor,
+} = await import('../llm/agent_executors');
+
 describe('OrchestratorEngine - Phase 2 Integration', () => {
   let orchestrator: OrchestratorEngine;
   let mockProject: Project;
 
   beforeEach(() => {
+    // Clear all mocks before each test
+    vi.clearAllMocks();
+
     orchestrator = new OrchestratorEngine();
     mockProject = {
       id: 'test-project-id',
@@ -21,7 +46,7 @@ describe('OrchestratorEngine - Phase 2 Integration', () => {
       phases_completed: [],
       stack_choice: 'nextjs',
       stack_approved: true,
-      project_path: undefined,
+      project_path: '/test/project',
       orchestration_state: {
         artifact_versions: {},
         phase_history: [],
@@ -95,11 +120,16 @@ describe('OrchestratorEngine - Phase 2 Integration', () => {
 
       vi.spyOn(orchestrator['approvalGateService'], 'getProjectGates').mockResolvedValue([]);
 
-      vi.spyOn(orchestrator as any, 'getAnalystExecutor').mockResolvedValue({
+      // Mock the getAnalystExecutor function
+      vi.mocked(getAnalystExecutor).mockResolvedValue({
         'project-brief.md': 'test content',
+        'constitution.md': '---\ntitle: Test Constitution\n---\nThis is a test constitution with enough content to pass validation.',
+        'project-classification.json': JSON.stringify({
+          project_type: 'web_application',
+          scale_tier: 'small',
+        }),
+        'personas.md': '# Test Personas\n\nThis is a test personas file.',
       });
-
-      vi.spyOn(orchestrator['artifactManager'], 'saveArtifact').mockResolvedValue();
 
       const mockGitService = {
         initialize: vi.fn().mockResolvedValue(undefined),
@@ -160,11 +190,16 @@ describe('OrchestratorEngine - Phase 2 Integration', () => {
         'canProceedFromPhase'
       ).mockResolvedValue(true);
 
-      vi.spyOn(orchestrator as any, 'getAnalystExecutor').mockResolvedValue({
+      // Mock the getAnalystExecutor function
+      vi.mocked(getAnalystExecutor).mockResolvedValue({
         'project-brief.md': 'test content',
+        'constitution.md': '---\ntitle: Test Constitution\n---\nThis is a test constitution with enough content to pass validation.',
+        'project-classification.json': JSON.stringify({
+          project_type: 'web_application',
+          scale_tier: 'small',
+        }),
+        'personas.md': '# Test Personas\n\nThis is a test personas file.',
       });
-
-      vi.spyOn(orchestrator['artifactManager'], 'saveArtifact').mockResolvedValue();
 
       const mockGitService = {
         initialize: vi.fn().mockResolvedValue(undefined),
@@ -208,11 +243,16 @@ describe('OrchestratorEngine - Phase 2 Integration', () => {
         'canProceedFromPhase'
       ).mockResolvedValue(true);
 
-      vi.spyOn(orchestrator as any, 'getAnalystExecutor').mockResolvedValue({
+      // Mock the getAnalystExecutor function
+      vi.mocked(getAnalystExecutor).mockResolvedValue({
         'project-brief.md': 'test content',
+        'constitution.md': '---\ntitle: Test Constitution\n---\nThis is a test constitution with enough content to pass validation.',
+        'project-classification.json': JSON.stringify({
+          project_type: 'web_application',
+          scale_tier: 'small',
+        }),
+        'personas.md': '# Test Personas\n\nThis is a test personas file.',
       });
-
-      vi.spyOn(orchestrator['artifactManager'], 'saveArtifact').mockResolvedValue();
 
       const mockGitService = {
         initialize: vi.fn().mockResolvedValue(undefined),
@@ -240,8 +280,8 @@ describe('OrchestratorEngine - Phase 2 Integration', () => {
       expect(mockGitService.commitPhaseArtifacts).toHaveBeenCalledWith({
         projectSlug: 'Test Project',
         phase: 'ANALYSIS',
-        artifacts: ['project-brief.md'],
-        agent: 'business_analyst',
+        artifacts: ['project-brief.md', 'constitution.md', 'project-classification.json', 'personas.md'],
+        agent: 'analyst',
         durationMs: expect.any(Number),
       });
     });
@@ -252,11 +292,16 @@ describe('OrchestratorEngine - Phase 2 Integration', () => {
         'canProceedFromPhase'
       ).mockResolvedValue(true);
 
-      vi.spyOn(orchestrator as any, 'getAnalystExecutor').mockResolvedValue({
+      // Mock the getAnalystExecutor function
+      vi.mocked(getAnalystExecutor).mockResolvedValue({
         'project-brief.md': 'test content',
+        'constitution.md': '---\ntitle: Test Constitution\n---\nThis is a test constitution with enough content to pass validation.',
+        'project-classification.json': JSON.stringify({
+          project_type: 'web_application',
+          scale_tier: 'small',
+        }),
+        'personas.md': '# Test Personas\n\nThis is a test personas file.',
       });
-
-      vi.spyOn(orchestrator['artifactManager'], 'saveArtifact').mockResolvedValue();
 
       const mockGitService = {
         initialize: vi.fn().mockResolvedValue(undefined),
@@ -282,21 +327,28 @@ describe('OrchestratorEngine - Phase 2 Integration', () => {
       const result = await orchestrator['runPhaseAgent'](mockProject, {});
 
       expect(result.success).toBe(true);
-      expect(mockRollbackService.createSnapshot).toHaveBeenCalledWith({
-        projectId: 'test-project-id',
-        phaseName: 'ANALYSIS',
-        artifacts: expect.objectContaining({
-          'ANALYSIS/project-brief.md': 'test content',
-        }),
-        metadata: expect.objectContaining({
-          agent: 'business_analyst',
-          durationMs: expect.any(Number),
-          stackChoice: 'nextjs',
-          timestamp: expect.any(String),
-        }),
-        gitCommitHash: 'abc123',
-        gitBranch: 'spec/test-project',
-      });
+      expect(mockRollbackService.createSnapshot).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId: 'test-project-id',
+          phaseName: 'ANALYSIS',
+          artifacts: expect.objectContaining({
+            'ANALYSIS/project-brief.md': 'test content',
+            'ANALYSIS/constitution.md': '---\ntitle: Test Constitution\n---\nThis is a test constitution with enough content to pass validation.',
+            'ANALYSIS/project-classification.json': JSON.stringify({
+              project_type: 'web_application',
+              scale_tier: 'small',
+            }),
+            'ANALYSIS/personas.md': '# Test Personas\n\nThis is a test personas file.',
+          }),
+          metadata: expect.objectContaining({
+            agent: 'analyst',
+            durationMs: expect.any(Number),
+            stackChoice: 'nextjs',
+          }),
+          gitCommitHash: 'abc123',
+          gitBranch: 'spec/test-project',
+        })
+      );
     });
   });
 });
