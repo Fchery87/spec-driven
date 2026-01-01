@@ -218,6 +218,81 @@ export const autoRemedyRuns = pgTable('AutoRemedyRun', {
   startedAtIdx: index('AutoRemedyRun_started_at_idx').on(table.startedAt),
 }));
 
+// Phase 2: Phase snapshots for rollback capability
+export const phaseSnapshots = pgTable('PhaseSnapshot', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  phaseName: text('phase_name').notNull(),
+  snapshotNumber: integer('snapshot_number').notNull(),
+
+  // Snapshot contents (JSON stored as text)
+  artifactsJson: text('artifacts_json').notNull(),
+  metadata: text('metadata').notNull(),
+  userInputs: text('user_inputs'),
+  validationResults: text('validation_results'),
+
+  // Git integration
+  gitCommitHash: text('git_commit_hash'),
+  gitBranch: text('git_branch'),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  projectPhaseIdx: index('PhaseSnapshot_project_phase_idx').on(table.projectId, table.phaseName),
+  createdAtIdx: index('PhaseSnapshot_created_at_idx').on(table.createdAt),
+}));
+
+// Phase 2: Approval gate tracking
+export const approvalGates = pgTable('ApprovalGate', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+
+  gateName: text('gate_name').notNull(), // stack_approved, prd_approved, architecture_approved, handoff_acknowledged
+  phase: text('phase').notNull(),
+
+  status: text('status').notNull().default('pending'), // pending, approved, rejected, auto_approved
+  blocking: boolean('blocking').notNull().default(false),
+
+  // Approval details
+  approvedBy: uuid('approved_by').references(() => users.id),
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  rejectionReason: text('rejection_reason'),
+  autoApproved: boolean('auto_approved').default(false),
+  constitutionalScore: integer('constitutional_score'),
+
+  // Stakeholder info
+  stakeholderRole: text('stakeholder_role'),
+  notes: text('notes'),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  projectGateIdx: index('ApprovalGate_project_gate_idx').on(table.projectId, table.gateName),
+  statusIdx: index('ApprovalGate_status_idx').on(table.status),
+}));
+
+// Phase 2: Git operation tracking
+export const gitOperations = pgTable('GitOperation', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+
+  operationType: text('operation_type').notNull(), // commit, push, tag, rollback
+  phase: text('phase').notNull(),
+
+  commitHash: text('commit_hash'),
+  commitMessage: text('commit_message'),
+  branch: text('branch'),
+  tag: text('tag'),
+
+  success: boolean('success').notNull(),
+  errorMessage: text('error_message'),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  projectIdx: index('GitOperation_project_idx').on(table.projectId),
+  typeIdx: index('GitOperation_type_idx').on(table.operationType),
+  createdAtIdx: index('GitOperation_created_at_idx').on(table.createdAt),
+}));
+
 // Define relationships using Drizzle relations
 export const projectsRelations = relations(projects, ({ many }) => ({
   artifacts: many(artifacts),
@@ -226,6 +301,9 @@ export const projectsRelations = relations(projects, ({ many }) => ({
   validationRuns: many(validationRuns),
   artifactVersions: many(artifactVersions),
   autoRemedyRuns: many(autoRemedyRuns),
+  phaseSnapshots: many(phaseSnapshots),
+  approvalGates: many(approvalGates),
+  gitOperations: many(gitOperations),
 }));
 
 export const artifactsRelations = relations(artifacts, ({ one }) => ({
@@ -296,6 +374,31 @@ export const autoRemedyRunsRelations = relations(autoRemedyRuns, ({ one }) => ({
   }),
 }));
 
+export const phaseSnapshotsRelations = relations(phaseSnapshots, ({ one }) => ({
+  project: one(projects, {
+    fields: [phaseSnapshots.projectId],
+    references: [projects.id],
+  }),
+}));
+
+export const approvalGatesRelations = relations(approvalGates, ({ one }) => ({
+  project: one(projects, {
+    fields: [approvalGates.projectId],
+    references: [projects.id],
+  }),
+  approvedByUser: one(users, {
+    fields: [approvalGates.approvedBy],
+    references: [users.id],
+  }),
+}));
+
+export const gitOperationsRelations = relations(gitOperations, ({ one }) => ({
+  project: one(projects, {
+    fields: [gitOperations.projectId],
+    references: [projects.id],
+  }),
+}));
+
 // Types
 export type Project = InferSelectModel<typeof projects>;
 export type Artifact = InferSelectModel<typeof artifacts>;
@@ -310,3 +413,6 @@ export type Secret = InferSelectModel<typeof secrets>;
 export type ValidationRun = InferSelectModel<typeof validationRuns>;
 export type ArtifactVersion = InferSelectModel<typeof artifactVersions>;
 export type AutoRemedyRun = InferSelectModel<typeof autoRemedyRuns>;
+export type PhaseSnapshot = InferSelectModel<typeof phaseSnapshots>;
+export type ApprovalGate = InferSelectModel<typeof approvalGates>;
+export type GitOperation = InferSelectModel<typeof gitOperations>;
