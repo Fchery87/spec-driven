@@ -40,6 +40,36 @@ constitutional_articles:
     rationale: "Mocks hide real integration issues; real tests find real bugs"
 
 # =============================================================================
+# APPROVAL GATES (Human-in-the-Loop Control Points)
+# =============================================================================
+approval_gates:
+  stack_approved:
+    phase: STACK_SELECTION
+    stakeholder: "Technical Lead / CTO"
+    blocking: true
+    reason: "Technology decisions impact all downstream work"
+
+  prd_approved:
+    phase: SPEC_PM
+    stakeholder: "Product Owner / PM"
+    blocking: false
+    workflow_track_override: "blocking in enterprise mode only"
+    reason: "Requirements must align with business goals"
+
+  architecture_approved:
+    phase: SPEC_ARCHITECT
+    stakeholder: "Technical Lead / Architect"
+    blocking: false
+    auto_approve_threshold: 95  # constitutional score
+    reason: "Architectural decisions should be reviewed before implementation"
+
+  handoff_acknowledged:
+    phase: DONE
+    stakeholder: "Development Team"
+    blocking: false
+    reason: "Team confirms understanding of handoff package"
+
+# =============================================================================
 # WORKFLOW TRACKS (Scale-Adaptive - Inspired by BMAD Method)
 # =============================================================================
 workflow_tracks:
