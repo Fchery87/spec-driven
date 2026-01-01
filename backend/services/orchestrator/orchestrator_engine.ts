@@ -14,6 +14,9 @@ import { Validators } from './validators';
 import { ArtifactManager } from './artifact_manager';
 import { existsSync } from 'fs';
 import { resolve } from 'path';
+import { ApprovalGateService } from '../approval/approval_gate_service';
+import { GitService } from '../git/git_service';
+import { RollbackService } from '../rollback/rollback_service';
 import {
   getAnalystExecutor,
   getPMExecutor,
@@ -41,6 +44,9 @@ export class OrchestratorEngine {
   private validators: Validators;
   private artifactManager: ArtifactManager;
   private llmClient: GeminiClient;
+  private approvalGateService: ApprovalGateService;
+  private gitService: Map<string, GitService>;
+  private rollbackService: Map<string, RollbackService>;
 
   constructor() {
     logger.info('[OrchestratorEngine] Constructor called');
@@ -80,6 +86,10 @@ export class OrchestratorEngine {
     try {
       this.validators = new Validators(this.spec.validators);
       this.artifactManager = new ArtifactManager();
+      this.approvalGateService = new ApprovalGateService();
+      this.gitService = new Map();
+      this.rollbackService = new Map();
+      logger.info('[OrchestratorEngine] ApprovalGateService, GitService, and RollbackService initialized');
     } catch (error) {
       logger.error(
         '[OrchestratorEngine] Failed to initialize validators/artifact manager:',
@@ -385,12 +395,64 @@ export class OrchestratorEngine {
     const stackChoice = project.stack_choice;
     const orchestrationState = project.orchestration_state;
 
+    // Track phase start time for duration measurement
+    const phaseStartTime = Date.now();
+
     logger.info(
       '[OrchestratorEngine] runPhaseAgent called for phase: ' + currentPhaseName
     );
 
     try {
       logger.info(`Executing agent for phase: ${currentPhaseName}`);
+
+      // Check approval gates before phase execution
+      const canProceed = await this.approvalGateService.canProceedFromPhase(
+        projectId,
+        currentPhaseName
+      );
+
+      if (!canProceed) {
+        // Get pending blocking gates for better error message
+        const projectGates = await this.approvalGateService.getProjectGates(projectId);
+        const pendingBlockingGates = projectGates.filter(
+          gate => gate.phase === currentPhaseName && gate.blocking && gate.status === 'pending'
+        );
+
+        const gateNames = pendingBlockingGates.map(g => g.gateName).join(', ');
+        const error = `Cannot execute phase ${currentPhaseName}: pending approval gates: ${gateNames}`;
+
+        logger.error('[OrchestratorEngine] Approval gate check failed', {
+          projectId,
+          phase: currentPhaseName,
+          pendingGates: gateNames,
+        });
+
+        throw new Error(error);
+      }
+
+      logger.info('[OrchestratorEngine] Approval gates passed', {
+        projectId,
+        phase: currentPhaseName,
+      });
+
+      // Initialize GitService and RollbackService per project (lazy initialization)
+      const projectPath = project.project_path;
+      if (projectPath && !this.gitService.has(projectId)) {
+        try {
+          logger.info('[OrchestratorEngine] Initializing GitService and RollbackService for project', {
+            projectId,
+            projectPath,
+          });
+          this.gitService.set(projectId, new GitService(projectPath));
+          this.rollbackService.set(projectId, new RollbackService(projectPath));
+        } catch (error) {
+          logger.warn('[OrchestratorEngine] Failed to initialize GitService/RollbackService', {
+            projectId,
+            projectPath,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
 
       // Use cached spec from constructor (loaded once to avoid drift)
       const spec = this.spec;
@@ -781,6 +843,68 @@ export class OrchestratorEngine {
         phase: currentPhaseName,
         artifactCount: Object.keys(normalizedArtifacts).length,
       });
+
+      // Create Git commit after successful artifact generation
+      const gitService = this.gitService.get(projectId);
+      if (gitService) {
+        const durationMs = Date.now() - phaseStartTime;
+        const artifactNames = Object.keys(generatedArtifacts);
+        const phaseOwner = this.spec.phases[currentPhaseName]?.owner || 'unknown';
+        const agentType = Array.isArray(phaseOwner) ? phaseOwner[0] : phaseOwner;
+
+        const commitResult = await gitService.commitPhaseArtifacts({
+          projectSlug: project.name || projectId,
+          phase: currentPhaseName,
+          artifacts: artifactNames,
+          agent: agentType,
+          durationMs,
+        });
+
+        if (commitResult.success) {
+          logger.info('[OrchestratorEngine] Git commit created successfully', {
+            phase: currentPhaseName,
+            commitHash: commitResult.commitHash,
+            branch: commitResult.branch,
+            mode: commitResult.mode,
+          });
+        } else {
+          logger.warn('[OrchestratorEngine] Git commit failed', {
+            phase: currentPhaseName,
+            error: commitResult.error,
+            mode: commitResult.mode,
+          });
+        }
+
+        // Create snapshot after Git commit
+        const rollbackService = this.rollbackService.get(projectId);
+        if (rollbackService) {
+          const snapshotResult = await rollbackService.createSnapshot({
+            projectId,
+            phaseName: currentPhaseName,
+            artifacts: normalizedArtifacts,
+            metadata: {
+              agent: agentType,
+              durationMs,
+              stackChoice,
+              timestamp: new Date().toISOString(),
+            },
+            gitCommitHash: commitResult.commitHash,
+            gitBranch: commitResult.branch,
+          });
+
+          if (snapshotResult.success) {
+            logger.info('[OrchestratorEngine] Snapshot created successfully', {
+              phase: currentPhaseName,
+              snapshotId: snapshotResult.snapshotId,
+            });
+          } else {
+            logger.warn('[OrchestratorEngine] Snapshot creation failed', {
+              phase: currentPhaseName,
+              error: snapshotResult.error,
+            });
+          }
+        }
+      }
 
       // Use the orchestrationState that was captured at the start of this method
       // to prevent context loss after long async operations
