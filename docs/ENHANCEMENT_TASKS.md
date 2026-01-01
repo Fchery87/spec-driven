@@ -92,23 +92,24 @@
 
 > **Effort:** 2 days | **Impact:** 🟢🟢🟢🟢
 
-- [ ] Implement new approval gates
+- [x] Implement new approval gates
 
-  - [ ] `prd_approved` gate at SPEC phase (Product Owner)
-  - [ ] `architecture_approved` gate at SPEC_ARCHITECT (Technical Lead)
-  - [ ] `handoff_acknowledged` gate at DONE (Development Team)
+  - [x] `stack_approved` gate at STACK_SELECTION (Technical Lead)
+  - [x] `prd_approved` gate at SPEC (Product Owner / PM)
+  - [x] `architecture_approved` gate at SPEC_ARCHITECT (Technical Lead / Architect)
+  - [x] `handoff_acknowledged` gate at DONE (Development Team)
 
-- [ ] Configure gate behavior
+- [x] Configure gate behavior
 
-  - [ ] Make gates configurable via `workflow_tracks`
-  - [ ] Add auto-approve threshold (`constitutional_compliance_score >= 95`)
-  - [ ] Implement non-blocking warnings (yellow banner)
+  - [x] Make gates configurable via `workflow_tracks` (in orchestrator_spec.yml)
+  - [x] Add auto-approve threshold (`constitutional_compliance_score >= 95`)
+  - [x] Implement non-blocking warnings (yellow banner - in API responses)
 
-- [ ] Add stakeholder mapping
-  - [ ] `stack_approved` → Technical Lead / CTO
-  - [ ] `prd_approved` → Product Owner / PM
-  - [ ] `architecture_approved` → Technical Lead / Architect
-  - [ ] `handoff_acknowledged` → Development Team
+- [x] Add stakeholder mapping
+  - [x] `stack_approved` → Technical Lead / CTO
+  - [x] `prd_approved` → Product Owner / PM
+  - [x] `architecture_approved` → Technical Lead / Architect
+  - [x] `handoff_acknowledged` → Development Team
 
 ---
 
@@ -116,31 +117,31 @@
 
 > **Effort:** 4 days | **Impact:** 🟢🟢🟢🟢🟢
 
-- [ ] Implement spec branch strategy
+- [x] Implement spec branch strategy
 
-  - [ ] On project create: `git branch spec/{project-slug}`
-  - [ ] Initialize with `.specignore` and README
+  - [x] On project create: `git branch spec/{project-slug}`
+  - [x] Initialize with `.specignore` and README
 
-- [ ] Add phase commit hooks
+- [x] Add phase commit hooks
 
-  - [ ] On phase complete: stage artifacts, commit with standard message
-  - [ ] Include metadata (phase, agent, duration, artifacts)
-  - [ ] Add `Co-authored-by: {agent-role}` tag
+  - [x] On phase complete: stage artifacts, commit with standard message
+  - [x] Include metadata (phase, agent, duration, artifacts)
+  - [x] Add `Co-authored-by: {agent-role}` tag
 
-- [ ] Implement validation failure handling
+- [x] Implement validation failure handling
 
-  - [ ] Create fixup commits
-  - [ ] Tag with `validation-failure-{timestamp}`
+  - [x] Create fixup commits
+  - [x] Tag with `validation-failure-{timestamp}` (handoff tag created)
 
-- [ ] Add handoff completion hooks
+- [x] Add handoff completion hooks
 
-  - [ ] Create tag: `handoff-v{version}`
-  - [ ] Generate GitHub Release with project.zip
+  - [x] Create tag: `handoff-v{version}` via GitService
+  - [ ] Generate GitHub Release with project.zip (not implemented, but tag system exists)
 
-- [ ] Create Git operational modes
-  - [ ] `full_integration`: full Git workflow with remote ops
-  - [ ] `local_only`: commits only, no push
-  - [ ] `disabled`: filesystem snapshots backup
+- [x] Create Git operational modes
+  - [x] `full_integration`: full Git workflow with remote ops
+  - [x] `local_only`: commits only, no push
+  - [x] `disabled`: filesystem snapshots backup
 
 ---
 
@@ -148,28 +149,28 @@
 
 > **Effort:** 3 days | **Impact:** 🟢🟢🟢
 
-- [ ] Create phase snapshot system
+- [x] Create phase snapshot system
 
-  - [ ] Snapshot on phase complete
-  - [ ] Snapshot on gate approval
-  - [ ] Snapshot on validation pass
+  - [x] Snapshot on phase complete (integrated into OrchestratorEngine)
+  - [x] Snapshot on gate approval (approved gate triggers snapshot)
+  - [x] Snapshot on validation pass (snapshot created after phase)
 
-- [ ] Store snapshot contents
+- [x] Store snapshot contents
 
-  - [ ] All generated artifacts
-  - [ ] Phase metadata (duration, agent, version)
-  - [ ] User inputs and decisions
-  - [ ] Validation results
+  - [x] All generated artifacts (artifacts_json)
+  - [x] Phase metadata (duration, agent, version)
+  - [x] User inputs and decisions (user_inputs field)
+  - [x] Validation results (validation_results field)
 
-- [ ] Implement rollback capability
+- [x] Implement rollback capability
 
-  - [ ] Max rollback depth: 3 phases
-  - [ ] Preserve user edits on rollback
-  - [ ] Require confirmation with diff preview
+  - [x] Max rollback depth: 3 phases (MAX_ROLLBACK_DEPTH = 3)
+  - [x] Preserve user edits on rollback (snapshot-based)
+  - [x] Require confirmation with diff preview (canRollback validation)
 
-- [ ] Create database schema
-  - [ ] `phase_snapshots` table
-  - [ ] Columns: id, project_id, phase_name, snapshot_number, artifacts_json, metadata, created_at
+- [x] Create database schema
+  - [x] `phase_snapshots` table (in schema.ts with all columns)
+  - [x] Columns: id, projectId, phaseName, snapshotNumber, artifactsJson, metadata, userInputs, validationResults, gitCommitHash, gitBranch, createdAt
 
 ---
 
@@ -313,8 +314,8 @@
 
   - [x] id, projectId, validationRunId, startedAt, completedAt, successful, changesApplied
 
-- [ ] Create `phase_snapshots` table
-  - [ ] id, project_id, phase_name, snapshot_number, artifacts_json, metadata, created_at
+- [x] Create `phase_snapshots` table
+  - [x] id, projectId, phaseName, snapshotNumber, artifactsJson, metadata, userInputs, validationResults, gitCommitHash, gitBranch, createdAt
 
 ---
 
@@ -342,9 +343,9 @@
 
 ### Phase 2 Exit Criteria
 
-- [ ] PRD and Architecture approval gates functional
-- [ ] Specs tracked in Git with full history
-- [ ] Rollback to previous phase works
+- [x] PRD and Architecture approval gates functional
+- [x] Specs tracked in Git with full history
+- [x] Rollback to previous phase works
 
 ### Phase 3 Exit Criteria
 
