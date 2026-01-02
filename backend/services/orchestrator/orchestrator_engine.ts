@@ -39,6 +39,7 @@ import {
   getStackSelectionExecutor,
   getDesignerExecutor,
 } from '../llm/agent_executors';
+import { getFrontendExecutor } from '../llm/frontend_executor';
 import { GeminiClient } from '../llm/llm_client';
 import {
   createLLMClient,
@@ -870,6 +871,44 @@ export class OrchestratorEngine {
             const slopResult = validateAntiAISlop(filename, content);
             if (slopResult.status === 'fail') {
               logger.error('[SPEC_DESIGN_COMPONENTS] Anti-AI-slop validation failed', {
+                artifact: filename,
+                errors: slopResult.errors,
+              } as any);
+              throw new Error(
+                `Anti-AI-slop validation failed for ${filename}: ${slopResult.errors?.join(', ')}`
+              );
+            }
+          }
+          break;
+
+        case 'FRONTEND_BUILD':
+          // Frontend build phase - generate React components from design tokens and component inventory
+          logger.info('[FRONTEND_BUILD] Executing Frontend Executor for component generation');
+          const frontendExecutor = getFrontendExecutor({ perspective: 'creative_technologist' });
+          const frontendResult = await frontendExecutor.generateArtifacts({
+            phase: 'SPEC_FRONTEND',
+            projectName: projectName,
+            projectBrief: artifacts['ANALYSIS/project-brief.md'] || '',
+            designTokens: artifacts['SPEC_DESIGN_TOKENS/design-tokens.md'] || artifacts['design-tokens.md'] || '',
+            componentInventory: artifacts['SPEC_DESIGN_COMPONENTS/component-inventory.md'] || artifacts['component-inventory.md'] || '',
+            stack: stackChoice,
+            llmClient,
+          });
+
+          if (!frontendResult.success) {
+            throw new Error(`FRONTEND_BUILD failed: ${JSON.stringify(frontendResult.metadata)}`);
+          }
+
+          generatedArtifacts = frontendResult.artifacts;
+          logger.info('[FRONTEND_BUILD] Frontend components generated', {
+            artifactKeys: Object.keys(generatedArtifacts),
+          });
+
+          // Anti-AI-Slop validation for frontend components
+          for (const [filename, content] of Object.entries(generatedArtifacts)) {
+            const slopResult = validateAntiAISlop(filename, content);
+            if (slopResult.status === 'fail') {
+              logger.error('[FRONTEND_BUILD] Anti-AI-slop validation failed', {
                 artifact: filename,
                 errors: slopResult.errors,
               } as any);
