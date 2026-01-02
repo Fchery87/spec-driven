@@ -174,6 +174,35 @@ export const secrets = pgTable('Secret', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+// MCP (Model Context Protocol) configuration table
+export const mcpConfigs = pgTable('MCPConfig', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  
+  // MCP provider identifier (exa-code, context7, web-search)
+  provider: text('provider').notNull().unique(),
+  
+  // Provider display name
+  displayName: text('display_name').notNull(),
+  
+  // API key (encrypted)
+  encryptedApiKey: text('encrypted_api_key'),
+  
+  // Optional configuration (JSON stored as text)
+  configJson: text('config_json'), // e.g., { "exa-code": { "maxResults": 5 } }
+  
+  // Provider status
+  enabled: boolean('enabled').notNull().default(true),
+  connected: boolean('connected'), // Last connection status
+  
+  // Timestamps
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
+}, (table) => ({
+  providerIdx: index('MCPConfig_provider_idx').on(table.provider),
+  enabledIdx: index('MCPConfig_enabled_idx').on(table.enabled),
+}));
+
 // Validation tracking tables for AUTO_REMEDY phase
 export const validationRuns = pgTable('ValidationRun', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -447,3 +476,4 @@ export type PhaseSnapshot = InferSelectModel<typeof phaseSnapshots>;
 export type ApprovalGate = InferSelectModel<typeof approvalGates>;
 export type GitOperation = InferSelectModel<typeof gitOperations>;
 export type RegenerationRun = InferSelectModel<typeof regenerationRuns>;
+export type MCPConfig = InferSelectModel<typeof mcpConfigs>;

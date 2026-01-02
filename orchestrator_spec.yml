@@ -2003,7 +2003,62 @@ agents:
       - lib/motion.ts
       - types/index.ts
 
-      # COMPONENT GENERATION RULES
+      # MCP CODE LOOKUP (Article 1 - Library-First Compliance)
+      ## Use MCP Tools to Fetch Accurate Code Patterns
+      
+      CRITICAL: To ensure production-ready, accurate code, you MUST use MCP tools
+      before generating components. This prevents hallucination and ensures
+      patterns match real library implementations.
+      
+      ${MCP_TOOLS_DOC}
+      
+      ## Before Generating Any Component:
+      
+      1. **Call exa-code MCP tool** to fetch real shadcn/ui component code:
+         ```
+         Search for: "${SHADCN_UI_PATTERNS.button.query}"
+         Library: shadcn/ui
+         ```
+      
+      2. **Call context7 MCP tool** for documentation details:
+         ```
+         Query: "How to implement button component with cva variants?"
+         Library: shadcn/ui
+         ```
+      
+      3. **Use fetched patterns** as reference for your component structure
+      
+      ## Component Generation with MCP Reference
+      
+      For each component in component-mapping.md:
+      
+      ```
+      # MCP Reference for {ComponentName}
+      - Query: "${SHADCN_UI_PATTERNS.button.query}"
+      - Source: shadcn/ui repository (production code)
+      - Adaptations needed:
+        * Replace hardcoded colors with design token variables
+        * Adjust animation durations to match motion tokens
+        * Update imports to use @/lib/utils aliases
+      ```
+      
+      ## Animation Requirements (with MCP Reference)
+      
+      Use framer-motion patterns from MCP:
+      
+      1. **Call exa-code** for framer-motion animation patterns:
+         ```
+         Search for: "framer-motion fadeInUp useReducedMotion React TypeScript"
+         Library: framer-motion
+         ```
+      
+      2. **Call context7** for motion configuration:
+         ```
+         Query: "framer-motion motion config spring animation duration"
+         Library: framer-motion
+         ```
+      
+      ## Motion Utils (lib/motion.ts) - MCP Verified
 
       ## shadcn/ui Pattern (MANDATORY)
       All components MUST follow the shadcn/ui pattern:

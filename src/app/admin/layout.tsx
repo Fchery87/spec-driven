@@ -10,7 +10,8 @@ import {
   Cpu, 
   LayoutDashboard,
   FolderOpen,
-  ChevronLeft
+  ChevronLeft,
+  Plug
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -26,6 +27,7 @@ const adminNavItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/llm', label: 'LLM Config', icon: Cpu },
+  { href: '/admin/mcp', label: 'MCP Config', icon: Plug },
   { href: '/admin/features', label: 'Features', icon: Settings },
   { href: '/admin/projects', label: 'All Projects', icon: FolderOpen },
 ];

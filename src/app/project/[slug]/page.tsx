@@ -42,7 +42,20 @@ interface Project {
   stats?: Record<string, unknown>;
 }
 
-const PHASES = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE', 'DONE'];
+const PHASES = [
+  'ANALYSIS',
+  'STACK_SELECTION',
+  'SPEC_PM',
+  'SPEC_ARCHITECT',
+  'SPEC_DESIGN_TOKENS',
+  'SPEC_DESIGN_COMPONENTS',
+  'FRONTEND_BUILD',
+  'DEPENDENCIES',
+  'SOLUTIONING',
+  'VALIDATE',
+  'AUTO_REMEDY',
+  'DONE'
+];
 
 export default function ProjectPage() {
   const params = useParams();
@@ -1319,8 +1332,9 @@ export default function ProjectPage() {
 function shouldShowExecuteButton(phase: string): boolean {
   // STACK_SELECTION: Uses approval flow, not execute
   // VALIDATE: Uses /validate endpoint via ValidationResultsPanel
+  // AUTO_REMEDY: Automated, no manual execution
   // DONE: Uses /generate-handoff endpoint
-  if (phase === 'STACK_SELECTION' || phase === 'VALIDATE' || phase === 'DONE') {
+  if (phase === 'STACK_SELECTION' || phase === 'VALIDATE' || phase === 'AUTO_REMEDY' || phase === 'DONE') {
     return false;
   }
   return true;
@@ -1336,12 +1350,17 @@ function hasArtifactsForPhase(phase: string, artifacts: Record<string, Artifact[
 
 function getPhaseDescription(phase: string): string {
   const descriptions: Record<string, string> = {
-    ANALYSIS: 'Analyze and clarify project requirements. AI agents will generate your project constitution, brief, classification, and user personas. Uncertainties are marked for resolution.',
+    ANALYSIS: 'Analyze and clarify project requirements. AI agents will generate your project constitution, brief, classification, and user personas.',
     STACK_SELECTION: 'Select and approve the technology stack for your project.',
-    SPEC: 'Generate detailed product and technical specifications including PRD, data model, and API specifications.',
+    SPEC_PM: 'Generate Product Requirements Document (PRD) with functional requirements and acceptance criteria.',
+    SPEC_ARCHITECT: 'Generate data model and API specifications based on the PRD.',
+    SPEC_DESIGN_TOKENS: 'Generate stack-agnostic design tokens (colors, typography, spacing, animation).',
+    SPEC_DESIGN_COMPONENTS: 'Map design tokens to stack-specific components and generate interaction patterns.',
+    FRONTEND_BUILD: 'Generate production-ready frontend components from design tokens.',
     DEPENDENCIES: 'Auto-generate all project dependencies based on the approved stack and PRD requirements.',
-    SOLUTIONING: 'Create architecture diagrams, break down work into epics and tasks with test-first approach, and plan implementation.',
+    SOLUTIONING: 'Create architecture diagrams, break down work into epics and tasks with test-first approach.',
     VALIDATE: 'Cross-artifact consistency analysis. Verify all requirements map to tasks, personas are consistent, and Constitutional Articles are followed.',
+    AUTO_REMEDY: 'Automated remediation of validation failures through targeted agent re-runs.',
     DONE: 'Generate final handoff document for LLM-based code generation.'
   };
   return descriptions[phase] || 'Project phase';
@@ -1351,10 +1370,15 @@ function getPhaseOutputs(phase: string): string[] {
   const outputs: Record<string, string[]> = {
     ANALYSIS: ['constitution.md', 'project-brief.md', 'project-classification.json', 'personas.md'],
     STACK_SELECTION: ['stack-analysis.md', 'stack-decision.md', 'stack-rationale.md', 'stack.json'],
-    SPEC: ['PRD.md', 'data-model.md', 'api-spec.json', 'design-system.md', 'component-inventory.md', 'user-flows.md'],
+    SPEC_PM: ['PRD.md'],
+    SPEC_ARCHITECT: ['data-model.md', 'api-spec.json'],
+    SPEC_DESIGN_TOKENS: ['design-tokens.md'],
+    SPEC_DESIGN_COMPONENTS: ['component-mapping.md', 'journey-maps.md'],
+    FRONTEND_BUILD: ['components/ui/button.tsx', 'components/ui/card.tsx', 'components/ui/input.tsx'],
     DEPENDENCIES: ['DEPENDENCIES.md', 'dependencies.json'],
     SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],
     VALIDATE: ['validation-report.md', 'coverage-matrix.md'],
+    AUTO_REMEDY: ['updated_artifacts'],
     DONE: ['README.md', 'HANDOFF.md']
   };
   return outputs[phase] || [];

@@ -1,5 +1,6 @@
 import type { AgentExecutor, ArtifactGenerationResult, ValidationResult } from './agent_executors';
 import type { ValidationIssue } from '../orchestrator/inline_validation';
+import { MCP_TOOLS_DOC, SHADCN_UI_PATTERNS, formatMCPContext } from './mcp-code-lookup';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -9,6 +10,7 @@ export interface FrontendConfig {
   // Configuration options for frontend execution
   enableAnimations?: boolean;
   strictAntiGenericMode?: boolean;
+  useMCPLookup?: boolean;
   [key: string]: unknown;
 }
 
@@ -19,11 +21,75 @@ export interface FrontendContext extends Record<string, unknown> {
   designTokens: string;
   componentInventory: string;
   stack: string;
+  componentType?: string; // MCP lookup parameter
   llmClient?: {
     generateCompletion: (prompt: string, systemPrompt?: string, maxRetries?: number, phase?: string) => Promise<{
       content: string;
     }>;
+    callMCPTool?: (toolName: string, params: Record<string, unknown>) => Promise<{
+      result: string;
+    }>;
   };
+}
+
+// ============================================================================
+// MCP INTEGRATION HELPERS
+// ============================================================================
+
+/**
+ * Get MCP lookup context for a specific component type
+ */
+function getMCPLookupContext(componentType: string): string {
+  const mcpContext = formatMCPContext(componentType);
+  if (mcpContext) {
+    return mcpContext;
+  }
+  
+  // Default MCP context for frontend components
+  return `
+## MCP Code Lookup for ${componentType}
+
+Before generating the ${componentType} component, use MCP tools to fetch accurate code:
+
+1. **exa-code search** for shadcn/ui ${componentType} component:
+   - Query: "shadcn/ui ${componentType} component TypeScript React"
+   - Library: shadcn/ui
+
+2. **context7 query** for implementation details:
+   - Query: "How to implement ${componentType} with cva variants and proper accessibility?"
+   - Library: shadcn/ui
+
+3. **Adapt the fetched code**:
+   - Replace hardcoded colors with OKLCH design tokens
+   - Update imports to use @/lib/utils aliases
+   - Add Framer Motion animations
+   - Ensure TypeScript types are exported
+`;
+}
+
+/**
+ * Get component-specific MCP query pattern
+ */
+function getComponentMCPPatterns(components: string[]): string {
+  const patterns: string[] = [];
+  
+  for (const component of components) {
+    const normalized = component.toLowerCase().replace(/[^a-z]/g, '');
+    
+    for (const [key, pattern] of Object.entries(SHADCN_UI_PATTERNS)) {
+      if (normalized.includes(key)) {
+        patterns.push(`
+### ${component}
+- Query: "${pattern.query}"
+- Library: ${pattern.library}
+- Purpose: ${pattern.description}
+`);
+        break;
+      }
+    }
+  }
+  
+  return patterns.join('\n');
 }
 
 // ============================================================================
@@ -35,12 +101,18 @@ export interface FrontendContext extends Record<string, unknown> {
  * Perspective: Creative Technologist
  * Generates distinctive, production-grade frontend interfaces
  * 
+ * MCP Integration:
+ * - Uses exa-code to fetch real shadcn/ui component patterns
+ * - Uses context7 to query library documentation
+ * - Adapts fetched code to match design tokens
+ * 
  * Anti-AI-Slop Enforcement:
  * - NEVER use: Inter, Roboto, Arial, system fonts, purple gradients, predictable layouts
  * - ALWAYS use: Custom fonts, distinctive colors, unexpected layouts, creative motion
  */
 export function getFrontendExecutor(config: FrontendConfig = {}): AgentExecutor {
   const strictMode = config.strictAntiGenericMode ?? true;
+  const useMCPLookup = config.useMCPLookup ?? true;
   
   return {
     role: 'frontend_developer',
@@ -65,6 +137,19 @@ export function getFrontendExecutor(config: FrontendConfig = {}): AgentExecutor 
 
       const isProductionPhase = phase === 'SPEC_FRONTEND';
 
+      // Extract component types from inventory for MCP lookup
+      const componentTypes = componentInventory
+        .match(/###?\s*([A-Z][a-zA-Z]+)/g)
+        ?.map(m => m.replace(/###?\s*/, '')) || [];
+
+      // Build MCP context
+      const mcpLookupSection = useMCPLookup ? `
+${MCP_TOOLS_DOC}
+
+## Component-Specific MCP Lookups
+${getComponentMCPPatterns(['Button', 'Input', 'Card', 'Dialog', 'Select', 'Form', 'Toast', 'Tabs', 'Dropdown', 'Badge'])}
+` : '';
+
       // Build the LLM prompt for frontend generation
       const frontendPrompt = `You are a Creative Technologist specializing in distinctive, production-grade frontend interfaces.
 
@@ -84,6 +169,8 @@ ${componentInventory.slice(0, 8000)}
 \`\`\`
 
 ## Tech Stack: ${stack}
+
+${mcpLookupSection}
 
 ## ANTI-GENERIC AI SLOP RULES (STRICTLY ENFORCE):
 
@@ -124,6 +211,17 @@ ${componentInventory.slice(0, 8000)}
 4. **Spatial**: Asymmetry, overlap, diagonal flow, grid-breaking
    - Avoid predictable vertical stacks
    - Use CSS Grid creatively
+
+## MCP-FIRST CODE GENERATION
+
+IMPORTANT: Before generating each component, you should use MCP tools:
+
+1. **Call exa-code** to search for: "shadcn/ui {componentType} component TypeScript React"
+2. **Call context7** to query: "How to implement {componentType} with cva variants?"
+3. **Adapt the real code** to your design tokens and motion patterns
+4. **Verify accessibility** matches the fetched implementation
+
+This ensures production-ready, accurate code patterns.
 
 ## OUTPUT FORMAT:
 \`\`\`tsx filename: src/components/PageLayout.tsx
