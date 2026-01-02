@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validationRuns, artifactVersions, autoRemedyRuns, projects } from './schema';
+import { validationRuns, artifactVersions, autoRemedyRuns, projects, regenerationRuns } from './schema';
 
 describe('Phase 2 Schema', () => {
   describe('phaseSnapshots table', () => {
@@ -60,6 +60,7 @@ describe('Validation Tracking Schema', () => {
     expect(artifactVersions.version).toBeDefined();
     expect(artifactVersions.contentHash).toBeDefined();
     expect(artifactVersions.regenerationReason).toBeDefined();
+    expect(artifactVersions.regenerationRunId).toBeDefined();
     expect(artifactVersions.createdAt).toBeDefined();
   });
 
@@ -80,5 +81,27 @@ describe('Validation Tracking Schema', () => {
 
   it('should have lastRemedyPhase field in projects table', () => {
     expect(projects.lastRemedyPhase).toBeDefined();
+  });
+});
+
+describe('Task 1.7: RegenerationRuns Table', () => {
+  it('should have RegenerationRuns table defined', () => {
+    expect(regenerationRuns).toBeDefined();
+  });
+
+  it('should have all required columns', () => {
+    expect(regenerationRuns.id).toBeDefined();
+    expect(regenerationRuns.projectId).toBeDefined();
+    expect(regenerationRuns.triggerArtifactId).toBeDefined();
+    expect(regenerationRuns.triggerChangeId).toBeDefined();
+    expect(regenerationRuns.impactAnalysis).toBeDefined();
+    expect(regenerationRuns.selectedStrategy).toBeDefined();
+    expect(regenerationRuns.artifactsToRegenerate).toBeDefined();
+    expect(regenerationRuns.artifactsRegenerated).toBeDefined();
+    expect(regenerationRuns.startedAt).toBeDefined();
+    expect(regenerationRuns.completedAt).toBeDefined();
+    expect(regenerationRuns.durationMs).toBeDefined();
+    expect(regenerationRuns.success).toBeDefined();
+    expect(regenerationRuns.errorMessage).toBeDefined();
   });
 });

@@ -52,7 +52,8 @@ const mockGetRollbackPreview = vi.fn();
 
 vi.mock('@/backend/services/rollback/rollback_service', () => ({
   RollbackService: class MockRollbackService {
-    constructor(projectPath: string) {}
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    constructor(_projectPath: string) {}
     async rollbackToPhase(...args: unknown[]) {
       return mockRollbackToPhase(...args);
     }

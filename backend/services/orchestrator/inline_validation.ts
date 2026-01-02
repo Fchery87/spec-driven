@@ -11,7 +11,7 @@ export interface ValidationIssue {
   severity: 'error' | 'warning';
   message: string;
   artifactId?: string;
-  phase: string;
+  phase?: string;
 }
 
 export interface InlineValidationConfig {

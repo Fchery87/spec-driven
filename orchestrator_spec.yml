@@ -197,16 +197,16 @@ phases:
       blocking_on_warnings: false
       validators: ["presence", "stack_json_check", "stack_completeness", "stack_approval"]
 
-  SPEC:
-    name: "SPEC"
-    description: "Generate detailed specifications and design system"
-    owner: ["pm", "architect"]
-    duration_minutes: 60
+  SPEC_PM:
+    name: "SPEC_PM"
+    description: "Generate Product Requirements Document (PRD)"
+    owner: "pm"
+    duration_minutes: 30
     inputs: ["project-brief.md", "personas.md", "approved_stack"]
-    outputs: ["PRD.md", "data-model.md", "api-spec.json", "design-system.md", "component-inventory.md", "user-flows.md"]
+    outputs: ["PRD.md"]
     depends_on: ["ANALYSIS", "STACK_SELECTION"]
-    next_phase: "DEPENDENCIES"
-    validators: ["markdown_frontmatter", "api_openapi", "presence", "content_coverage", "requirement_format", "design_system_compliance"]
+    next_phase: "SPEC_ARCHITECT"
+    validators: ["markdown_frontmatter", "presence", "content_coverage", "requirement_format"]
     allow_regeneration: true
     max_regeneration_attempts: 3
     quality_checklist:
@@ -216,15 +216,61 @@ phases:
       - "Traceability matrix complete with no orphaned requirements"
       - "NFRs have measurable targets (not vague statements)"
       - "No circular dependencies between requirements"
+  
+  SPEC_ARCHITECT:
+    name: "SPEC_ARCHITECT"
+    description: "Generate data model and API specifications"
+    owner: "architect"
+    duration_minutes: 30
+    inputs: ["project-brief.md", "personas.md", "approved_stack", "PRD.md"]
+    outputs: ["data-model.md", "api-spec.json"]
+    depends_on: ["SPEC_PM", "STACK_SELECTION"]
+    next_phase: "DEPENDENCIES"
+    validators: ["markdown_frontmatter", "api_openapi", "presence"]
+    allow_regeneration: true
+    max_regeneration_attempts: 3
+    quality_checklist:
       - "api-spec.json is valid OpenAPI 3.0.3"
       - "All endpoints have error responses defined"
-      - "design-system.md has NO purple/indigo as primary color"
-      - "design-system.md uses OKLCH color format"
-      - "design-system.md has exactly 4 typography sizes"
-      - "design-system.md spacing values all divisible by 4 or 8"
-      - "design-system.md includes Framer Motion animation tokens"
-      - "component-inventory.md links to shadcn docs for each component"
-      - "user-flows.md has Mermaid diagrams for all major PRD flows"
+      - "Data model aligns with PRD requirements"
+    
+  SPEC_DESIGN_TOKENS:
+    name: "SPEC_DESIGN_TOKENS"
+    description: "Generate stack-agnostic design tokens (colors, typography, spacing, animation)"
+    owner: "designer"
+    duration_minutes: 30
+    inputs: ["project-brief.md", "personas.md"]
+    outputs: ["design-tokens.md"]
+    depends_on: ["ANALYSIS"]
+    next_phase: "SPEC_DESIGN_COMPONENTS"
+    validators: ["presence", "markdown_frontmatter", "anti_ai_slop"]
+    requires_stack: false
+    priority: 2
+    quality_checklist:
+      - "Design tokens include color palette (primary, secondary, accent, neutral)"
+      - "Typography scale defined (4 sizes minimum)"
+      - "Spacing system divisible by 4 or 8"
+      - "Animation tokens for transitions and micro-interactions"
+      - "No stack-specific implementation details"
+    
+  SPEC_DESIGN_COMPONENTS:
+    name: "SPEC_DESIGN_COMPONENTS"
+    description: "Map design tokens to stack-specific components and generate interaction patterns (requires stack selection)"
+    owner: "designer"
+    duration_minutes: 45
+    inputs: ["design-tokens.md", "approved_stack"]
+    outputs: ["component-mapping.md", "journey-maps.md"]
+    depends_on: ["SPEC_DESIGN_TOKENS", "STACK_SELECTION"]
+    next_phase: "DEPENDENCIES"
+    validators: ["presence", "markdown_frontmatter", "anti_ai_slop"]
+    requires_stack: true
+    priority: 3
+    quality_checklist:
+      - "Component mapping uses stack-appropriate UI library (shadcn/ui, Material UI, etc.)"
+      - "Journey maps show user interactions across all major flows"
+      - "Interaction patterns documented with animation specs"
+      - "Responsive behavior defined for each component"
+      - "Accessibility requirements specified for all components"
     
   DEPENDENCIES:
     name: "DEPENDENCIES"
@@ -233,7 +279,7 @@ phases:
     duration_minutes: 30
     inputs: ["PRD.md", "approved_stack"]
     outputs: ["DEPENDENCIES.md", "dependencies.json"]
-    depends_on: ["SPEC"]
+    depends_on: ["SPEC_DESIGN_COMPONENTS", "SPEC_ARCHITECT"]
     next_phase: "SOLUTIONING"
     validators: ["presence", "dependencies_json_check"]
     quality_checklist:
@@ -253,7 +299,7 @@ phases:
     duration_minutes: 60
     inputs: ["PRD.md", "data-model.md", "api-spec.json", "DEPENDENCIES.md"]
     outputs: ["architecture.md", "epics.md", "tasks.md", "plan.md"]
-    depends_on: ["SPEC", "DEPENDENCIES"]
+    depends_on: ["SPEC_ARCHITECT", "DEPENDENCIES"]
     next_phase: "VALIDATE"
     validators: ["markdown_frontmatter", "tasks_dag", "presence", "content_coverage", "requirement_traceability", "test_first_compliance"]
     allow_regeneration: true

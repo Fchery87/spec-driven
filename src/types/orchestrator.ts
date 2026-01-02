@@ -13,6 +13,8 @@ export interface Phase {
   validators: string[];
   clarification?: ClarificationConfig;
   quality_checklist?: string[];
+  requires_stack?: boolean;
+  priority?: number;
 }
 
 // Clarification System Types (GitHub Spec Kit inspired)
@@ -189,4 +191,118 @@ export interface HandoffPrompt {
     stack: string;
     description: string;
   };
+}
+
+// Artifact Change Detection Types
+export type ImpactLevel = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export type ChangeType = 'added' | 'modified' | 'deleted';
+
+export interface ChangedSection {
+  header: string;
+  changeType: ChangeType;
+  oldContent?: string;
+  newContent?: string;
+  lineNumber: number;
+}
+
+export interface ArtifactChange {
+  projectId: string;
+  artifactName: string;
+  oldHash: string;
+  newHash: string;
+  hasChanges: boolean;
+  impactLevel: ImpactLevel;
+  changedSections: ChangedSection[];
+  timestamp: Date;
+}
+
+// Impact Analysis Types
+export type RegenerationStrategy = 'regenerate_all' | 'high_impact_only' | 'manual_review' | 'ignore';
+
+export interface AffectedArtifact {
+  artifactId: string;
+  artifactName: string;
+  phase: string;
+  impactLevel: ImpactLevel;
+  reason: string;
+  changeType?: ChangeType;
+  changedSection?: string;
+}
+
+export interface ImpactAnalysis {
+  triggerChange: ArtifactChange;
+  affectedArtifacts: AffectedArtifact[];
+  impactSummary: {
+    high: number;
+    medium: number;
+    low: number;
+  };
+  recommendedStrategy: RegenerationStrategy;
+  reasoning: string;
+}
+
+// Regeneration result interface
+export interface RegenerationResult {
+  success: boolean;
+  regenerationRunId: string | null;
+  selectedStrategy: RegenerationStrategy;
+  artifactsToRegenerate: string[];
+  artifactsRegenerated: string[];
+  artifactsSkipped: string[];
+  durationMs: number;
+  errorMessage?: string;
+}
+
+// Options for executing regeneration workflow
+export interface RegenerationOptions {
+  triggerArtifactId: string;
+  triggerChangeId?: string;
+  selectedStrategy: RegenerationStrategy;
+  userId?: string;
+  // For manual_review strategy - user specifies which artifacts to regenerate
+  manualArtifactIds?: string[];
+}
+
+// Parallel Execution Types
+export interface ParallelGroup {
+  name: string;
+  type: 'parallel';
+  phases: string[];
+}
+
+export interface PhaseExecutionResult {
+  phase: string;
+  success: boolean;
+  artifacts: Record<string, string>;
+  error?: string;
+  durationMs: number;
+}
+
+// Options for parallel workflow execution
+export interface ParallelWorkflowOptions {
+  enableParallel: boolean;
+  fallbackToSequential: boolean;
+}
+
+// Result from parallel workflow execution
+export interface ParallelWorkflowResult {
+  success: boolean;
+  projectId: string;
+  phasesExecuted: string[];
+  groupsExecuted: Array<{
+    name: string;
+    type: 'parallel' | 'sequential';
+    phases: string[];
+    success: boolean;
+    durationMs: number;
+    results: PhaseExecutionResult[];
+  }>;
+  totalDurationMs: number;
+  parallelDurationMs: number;
+  sequentialDurationMs: number;
+  timeSavedMs: number;
+  timeSavedPercent: number;
+  errors: Array<{ phase: string; error: string }>;
+  fallbackUsed: boolean;
 }

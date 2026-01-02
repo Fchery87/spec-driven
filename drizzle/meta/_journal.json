@@ -64,6 +64,20 @@
       "when": 1767289360256,
       "tag": "0008_melodic_franklin_richards",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1767318913014,
+      "tag": "0009_black_triathlon",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1767319041008,
+      "tag": "0010_thick_the_watchers",
+      "breakpoints": true
     }
   ]
 }

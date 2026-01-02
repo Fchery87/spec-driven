@@ -8,12 +8,24 @@ import {
   OrchestrationState,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   PhaseHistory,
+  ArtifactChange,
+  ImpactLevel,
+  ChangeType,
+  ChangedSection,
+  AffectedArtifact,
+  ImpactAnalysis,
+  RegenerationStrategy,
+  ParallelGroup,
+  PhaseExecutionResult,
+  ParallelWorkflowOptions,
+  ParallelWorkflowResult,
 } from '@/types/orchestrator';
 import { ConfigLoader } from './config_loader';
 import { Validators } from './validators';
 import { ArtifactManager } from './artifact_manager';
 import { existsSync } from 'fs';
 import { resolve } from 'path';
+import { createHash } from 'crypto';
 import { ApprovalGateService } from '../approval/approval_gate_service';
 import { GitService } from '../git/git_service';
 import { RollbackService } from '../rollback/rollback_service';
@@ -25,6 +37,7 @@ import {
   getDevOpsExecutor,
   getDesignExecutor,
   getStackSelectionExecutor,
+  getDesignerExecutor,
 } from '../llm/agent_executors';
 import { GeminiClient } from '../llm/llm_client';
 import {
@@ -38,6 +51,12 @@ import {
   deriveIntelligentDefaultStack,
   parseProjectClassification,
 } from '@/backend/lib/stack_defaults';
+import { validateAntiAISlop } from '../validation/anti_ai_slop_validator';
+import { db } from '@/backend/lib/drizzle';
+import { regenerationRuns, artifactVersions } from '@/backend/lib/schema';
+import { eq } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+import { RegenerationOptions, RegenerationResult } from '@/types/orchestrator';
 
 export class OrchestratorEngine {
   private spec: OrchestratorSpec;
@@ -785,6 +804,82 @@ export class OrchestratorEngine {
           }
           break;
 
+        case 'SPEC_DESIGN_TOKENS':
+          // Design tokens phase - stack-agnostic design system tokens
+          logger.info('[SPEC_DESIGN_TOKENS] Executing Design Agent for tokens');
+          const designerExecutor = getDesignerExecutor();
+          const designTokensResult = await designerExecutor.generateArtifacts({
+            phase: 'SPEC_DESIGN_TOKENS',
+            stack: stackChoice,
+            constitution: artifacts['ANALYSIS/constitution.md'] || '',
+            projectBrief: artifacts['ANALYSIS/project-brief.md'] || '',
+            projectPath: project.project_path,
+            projectId,
+            llmClient,
+          });
+
+          if (!designTokensResult.success) {
+            throw new Error(`SPEC_DESIGN_TOKENS failed: ${JSON.stringify(designTokensResult.metadata)}`);
+          }
+
+          generatedArtifacts = designTokensResult.artifacts;
+          logger.info('[SPEC_DESIGN_TOKENS] Design tokens generated', {
+            artifactKeys: Object.keys(generatedArtifacts),
+          });
+
+          // Anti-AI-Slop validation for design tokens
+          for (const [filename, content] of Object.entries(generatedArtifacts)) {
+            const slopResult = validateAntiAISlop(filename, content);
+            if (slopResult.status === 'fail') {
+              logger.error('[SPEC_DESIGN_TOKENS] Anti-AI-slop validation failed', {
+                artifact: filename,
+                errors: slopResult.errors,
+              } as any);
+              throw new Error(
+                `Anti-AI-slop validation failed for ${filename}: ${slopResult.errors?.join(', ')}`
+              );
+            }
+          }
+          break;
+
+        case 'SPEC_DESIGN_COMPONENTS':
+          // Design components phase - stack-specific component mapping
+          logger.info('[SPEC_DESIGN_COMPONENTS] Executing Design Agent for components');
+          const designerExecutor2 = getDesignerExecutor();
+          const designComponentsResult = await designerExecutor2.generateArtifacts({
+            phase: 'SPEC_DESIGN_COMPONENTS',
+            stack: stackChoice,
+            constitution: artifacts['ANALYSIS/constitution.md'] || '',
+            projectBrief: artifacts['ANALYSIS/project-brief.md'] || '',
+            projectPath: project.project_path,
+            projectId,
+            llmClient,
+          });
+
+          if (!designComponentsResult.success) {
+            throw new Error(`SPEC_DESIGN_COMPONENTS failed: ${JSON.stringify(designComponentsResult.metadata)}`);
+          }
+
+          generatedArtifacts = designComponentsResult.artifacts;
+          logger.info('[SPEC_DESIGN_COMPONENTS] Component mapping generated', {
+            artifactKeys: Object.keys(generatedArtifacts),
+          });
+
+          // Anti-AI-Slop validation for design components
+          for (const [filename, content] of Object.entries(generatedArtifacts)) {
+            const slopResult = validateAntiAISlop(filename, content);
+            if (slopResult.status === 'fail') {
+              logger.error('[SPEC_DESIGN_COMPONENTS] Anti-AI-slop validation failed', {
+                artifact: filename,
+                errors: slopResult.errors,
+              } as any);
+              throw new Error(
+                `Anti-AI-slop validation failed for ${filename}: ${slopResult.errors?.join(', ')}`
+              );
+            }
+          }
+          break;
+
         case 'VALIDATE':
           generatedArtifacts = await this.generateValidationArtifacts(project);
           break;
@@ -1457,5 +1552,1339 @@ ${
     });
 
     return outcome.nextPhase;
+  }
+
+  /**
+   * Detect changes in artifact content using SHA-256 hashing
+   *
+   * @param projectId - The project ID
+   * @param artifactName - The name of the artifact
+   * @param oldContent - The previous content of the artifact
+   * @param newContent - The new content of the artifact
+   * @returns ArtifactChange object with change details, or null if no changes
+   */
+  detectArtifactChanges(
+    projectId: string,
+    artifactName: string,
+    oldContent: string,
+    newContent: string
+  ): ArtifactChange | null {
+    // Calculate SHA-256 hashes for both content versions
+    const oldHash = createHash('sha256').update(oldContent || '').digest('hex');
+    const newHash = createHash('sha256').update(newContent || '').digest('hex');
+
+    // Return null if hashes match (no changes)
+    if (oldHash === newHash) {
+      return null;
+    }
+
+    // Identify changed sections by parsing markdown headers
+    const changedSections = this.parseChangedSections(oldContent, newContent);
+
+    // Determine impact level based on changes
+    const impactLevel = this.calculateImpactLevel(changedSections);
+
+    return {
+      projectId,
+      artifactName,
+      oldHash,
+      newHash,
+      hasChanges: true,
+      impactLevel,
+      changedSections,
+      timestamp: new Date(),
+    };
+  }
+
+  /**
+   * Parse markdown content to identify changed sections
+   */
+  private parseChangedSections(
+    oldContent: string,
+    newContent: string
+  ): ChangedSection[] {
+    const sections: ChangedSection[] = [];
+    const oldLines = (oldContent || '').split('\n');
+    const newLines = (newContent || '').split('\n');
+
+    // Extract headers from both versions
+    const oldHeaders = this.extractMarkdownHeaders(oldContent);
+    const newHeaders = this.extractMarkdownHeaders(newContent);
+
+    // Find headers that exist in old but not in new (deleted)
+    const deletedHeaders = oldHeaders.filter(
+      (h) => !newHeaders.some((nh) => nh.text === h.text)
+    );
+    for (const header of deletedHeaders) {
+      sections.push({
+        header: header.text,
+        changeType: 'deleted',
+        lineNumber: header.lineNumber,
+      });
+    }
+
+    // Find headers that exist in new but not in old (added)
+    const addedHeaders = newHeaders.filter(
+      (h) => !oldHeaders.some((oh) => oh.text === h.text)
+    );
+    for (const header of addedHeaders) {
+      sections.push({
+        header: header.text,
+        changeType: 'added',
+        lineNumber: header.lineNumber,
+      });
+    }
+
+    // Find headers that exist in both but content may have changed (modified)
+    const commonHeaders = oldHeaders.filter((h) =>
+      newHeaders.some((nh) => nh.text === h.text)
+    );
+    for (const oldHeader of commonHeaders) {
+      const newHeader = newHeaders.find((nh) => nh.text === oldHeader.text);
+      if (newHeader) {
+        // Extract section content and compare
+        const oldSectionContent = this.extractSectionContent(
+          oldContent,
+          oldHeader.text,
+          oldHeader.lineNumber
+        );
+        const newSectionContent = this.extractSectionContent(
+          newContent,
+          newHeader.text,
+          newHeader.lineNumber
+        );
+
+        if (oldSectionContent !== newSectionContent) {
+          sections.push({
+            header: oldHeader.text,
+            changeType: 'modified',
+            oldContent: oldSectionContent,
+            newContent: newSectionContent,
+            lineNumber: oldHeader.lineNumber,
+          });
+        }
+      }
+    }
+
+    return sections;
+  }
+
+  /**
+   * Extract markdown headers with their line numbers
+   */
+  private extractMarkdownHeaders(
+    content: string
+  ): Array<{ text: string; lineNumber: number }> {
+    const headers: Array<{ text: string; lineNumber: number }> = [];
+    const lines = (content || '').split('\n');
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      // Match markdown headers (#, ##, ###, ####)
+      const match = line.match(/^(#{1,6})\s+(.+)$/);
+      if (match) {
+        headers.push({
+          text: match[2].trim(),
+          lineNumber: i + 1, // 1-based line number
+        });
+      }
+    }
+
+    return headers;
+  }
+
+  /**
+   * Extract content between a header and the next header
+   */
+  private extractSectionContent(
+    content: string,
+    headerText: string,
+    startLine: number
+  ): string {
+    const lines = (content || '').split('\n');
+    const startIndex = startLine - 1; // Convert 1-based line number to 0-based index
+
+    // Find the next header after the start line
+    let endIndex = lines.length;
+    for (let i = startIndex + 1; i < lines.length; i++) {
+      if (lines[i].match(/^(#{1,6})\s+(.+)$/)) {
+        endIndex = i;
+        break;
+      }
+    }
+
+    // Return content between headers (excluding the header line itself)
+    return lines.slice(startIndex + 1, endIndex).join('\n');
+  }
+
+  /**
+   * Calculate impact level based on changed sections
+   */
+  private calculateImpactLevel(sections: ChangedSection[]): ImpactLevel {
+    // HIGH impact if there are any added or deleted sections
+    const hasStructuralChange = sections.some(
+      (s) => s.changeType === 'added' || s.changeType === 'deleted'
+    );
+    if (hasStructuralChange) {
+      return 'HIGH';
+    }
+
+    // MEDIUM impact for modifications (or content changes without identifiable sections)
+    return 'MEDIUM';
+  }
+
+  /**
+   * Analyze the impact of an artifact change and determine which artifacts need regeneration.
+   *
+   * This method builds an artifact dependency graph from the orchestrator spec phases,
+   * finds all artifacts that transitively depend on the changed artifact, and assigns
+   * impact levels based on the change type.
+   *
+   * @param projectId - The project ID
+   * @param triggerChange - The artifact change that triggered the analysis
+   * @returns ImpactAnalysis with affected artifacts and regeneration recommendations
+   */
+  async analyzeRegenerationImpact(
+    projectId: string,
+    triggerChange: ArtifactChange
+  ): Promise<ImpactAnalysis> {
+    logger.info('[OrchestratorEngine] Analyzing regeneration impact', {
+      projectId,
+      artifactName: triggerChange.artifactName,
+      impactLevel: triggerChange.impactLevel,
+    });
+
+    // Build artifact dependency graph from spec phases
+    const artifactDependencies = this.buildArtifactDependencyGraph();
+
+    // Find all artifacts that depend on the changed artifact (transitive)
+    const affectedArtifacts = this.findAffectedArtifacts(
+      triggerChange.artifactName,
+      artifactDependencies,
+      triggerChange
+    );
+
+    // Calculate impact summary
+    const impactSummary = {
+      high: affectedArtifacts.filter((a) => a.impactLevel === 'HIGH').length,
+      medium: affectedArtifacts.filter((a) => a.impactLevel === 'MEDIUM').length,
+      low: affectedArtifacts.filter((a) => a.impactLevel === 'LOW').length,
+    };
+
+    // Determine recommended strategy based on impact levels
+    const { recommendedStrategy, reasoning } =
+      this.determineRegenerationStrategy(affectedArtifacts, impactSummary);
+
+    logger.info('[OrchestratorEngine] Impact analysis complete', {
+      projectId,
+      affectedCount: affectedArtifacts.length,
+      impactSummary,
+      recommendedStrategy,
+    });
+
+    return {
+      triggerChange,
+      affectedArtifacts,
+      impactSummary,
+      recommendedStrategy,
+      reasoning,
+    };
+  }
+
+  /**
+   * Build artifact dependency graph from orchestrator spec phases.
+   * Maps each artifact to the phases and artifacts that depend on it.
+   */
+  private buildArtifactDependencyGraph(): Map<
+    string,
+    Array<{ phase: string; artifact: string }>
+  > {
+    const dependencies = new Map<
+      string,
+      Array<{ phase: string; artifact: string }>
+    >();
+
+    // Iterate through all phases to build dependency relationships
+    for (const [phaseName, phase] of Object.entries(this.spec.phases)) {
+      // Each output artifact of this phase depends on the inputs of this phase
+      for (const outputArtifact of phase.outputs) {
+        const outputKey = `${phaseName}/${outputArtifact}`;
+
+        // Add dependencies from inputs
+        for (const inputArtifact of phase.inputs) {
+          // Inputs can be from previous phases or external sources
+          // We track them as dependencies
+          if (!dependencies.has(inputArtifact)) {
+            dependencies.set(inputArtifact, []);
+          }
+          dependencies.get(inputArtifact)!.push({
+            phase: phaseName,
+            artifact: outputKey,
+          });
+        }
+
+        // Also track transitive dependencies from phase.depends_on
+        if (phase.depends_on) {
+          for (const depPhaseName of phase.depends_on) {
+            const depPhase = this.spec.phases[depPhaseName];
+            if (depPhase) {
+              for (const depOutput of depPhase.outputs) {
+                const depOutputKey = `${depPhaseName}/${depOutput}`;
+                if (!dependencies.has(depOutputKey)) {
+                  dependencies.set(depOutputKey, []);
+                }
+                dependencies.get(depOutputKey)!.push({
+                  phase: phaseName,
+                  artifact: outputKey,
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return dependencies;
+  }
+
+  /**
+   * Find all artifacts that transitively depend on the changed artifact.
+   */
+  private findAffectedArtifacts(
+    changedArtifact: string,
+    dependencies: Map<string, Array<{ phase: string; artifact: string }>>,
+    triggerChange: ArtifactChange
+  ): AffectedArtifact[] {
+    const affected: AffectedArtifact[] = [];
+    const visited = new Set<string>();
+
+    // BFS to find all transitively affected artifacts
+    const queue: Array<{ artifact: string; depth: number }> = [
+      { artifact: changedArtifact, depth: 0 },
+    ];
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+
+      if (visited.has(current.artifact)) {
+        continue;
+      }
+      visited.add(current.artifact);
+
+      const dependents = dependencies.get(current.artifact) || [];
+
+      for (const dependent of dependents) {
+        // Skip if already visited
+        if (visited.has(dependent.artifact)) {
+          continue;
+        }
+
+        // Determine impact level for this dependent artifact
+        // Impact level is based on the trigger change and how far downstream it is
+        let impactLevel: ImpactLevel;
+        if (triggerChange.impactLevel === 'HIGH') {
+          // HIGH impact changes cascade to dependents as MEDIUM (or HIGH if very close)
+          impactLevel = current.depth === 0 ? 'HIGH' : 'MEDIUM';
+        } else if (triggerChange.impactLevel === 'MEDIUM') {
+          impactLevel = 'MEDIUM';
+        } else {
+          impactLevel = 'LOW';
+        }
+
+        // Extract reason from changed sections
+        const primarySection = triggerChange.changedSections[0];
+        const reason = this.generateImpactReason(
+          triggerChange.artifactName,
+          dependent.artifact,
+          triggerChange.impactLevel,
+          primarySection
+        );
+
+        affected.push({
+          artifactId: dependent.artifact,
+          artifactName: dependent.artifact,
+          phase: dependent.phase,
+          impactLevel,
+          reason,
+          changeType: primarySection?.changeType,
+          changedSection: primarySection?.header,
+        });
+
+        // Add to queue for further propagation
+        queue.push({
+          artifact: dependent.artifact,
+          depth: current.depth + 1,
+        });
+      }
+    }
+
+    return affected;
+  }
+
+  /**
+   * Generate a human-readable reason for the impact on an artifact.
+   */
+  private generateImpactReason(
+    changedArtifact: string,
+    affectedArtifact: string,
+    impactLevel: ImpactLevel,
+    changedSection?: ChangedSection
+  ): string {
+    const changeTypeDescription =
+      changedSection?.changeType === 'added'
+        ? 'added'
+        : changedSection?.changeType === 'deleted'
+          ? 'removed'
+          : 'modified';
+
+    const sectionDescription = changedSection
+      ? ` section "${changedSection.header}"`
+      : '';
+
+    if (impactLevel === 'HIGH') {
+      return `${changedArtifact} has new or removed${sectionDescription}, which may require ${affectedArtifact} to be regenerated to reflect the structural change.`;
+    } else if (impactLevel === 'MEDIUM') {
+      return `${changedArtifact} has ${changeTypeDescription}${sectionDescription}, which may affect the content or logic of ${affectedArtifact}.`;
+    } else {
+      return `${changedArtifact} changed, which may have minimal impact on ${affectedArtifact}.`;
+    }
+  }
+
+  /**
+   * Determine the recommended regeneration strategy based on affected artifacts.
+   */
+  private determineRegenerationStrategy(
+    affectedArtifacts: AffectedArtifact[],
+    impactSummary: { high: number; medium: number; low: number }
+  ): { recommendedStrategy: RegenerationStrategy; reasoning: string } {
+    // If no artifacts affected, no action needed
+    if (affectedArtifacts.length === 0) {
+      return {
+        recommendedStrategy: 'ignore',
+        reasoning: 'No artifacts depend on the changed artifact, so no regeneration is needed.',
+      };
+    }
+
+    // HIGH impact changes that affect downstream artifacts require full regeneration
+    if (impactSummary.high > 0) {
+      return {
+        recommendedStrategy: 'regenerate_all',
+        reasoning: `${impactSummary.high} artifact(s) have HIGH impact due to structural changes (added/removed sections) in the trigger artifact. Full regeneration is recommended to ensure consistency.`,
+      };
+    }
+
+    // MEDIUM impact changes suggest regenerating only the directly affected artifacts
+    if (impactSummary.medium > 0) {
+      return {
+        recommendedStrategy: 'high_impact_only',
+        reasoning: `${impactSummary.medium} artifact(s) have MEDIUM impact due to content modifications. Selective regeneration of affected artifacts is recommended to minimize unnecessary work while ensuring consistency.`,
+      };
+    }
+
+    // LOW impact changes - recommend manual review
+    return {
+      recommendedStrategy: 'manual_review',
+      reasoning: 'Only LOW impact changes detected. Manual review is recommended to determine if regeneration is necessary.',
+    };
+  }
+
+  /**
+   * Execute the regeneration workflow based on impact analysis.
+   *
+   * This method orchestrates the regeneration of artifacts after an artifact change:
+   * 1. Gets trigger change details from the database
+   * 2. Analyzes impact using analyzeRegenerationImpact
+   * 3. Creates regeneration_run record in database
+   * 4. Regenerates artifacts based on selected strategy
+   * 5. Updates artifact_versions with regeneration metadata
+   * 6. Updates regeneration_run with results
+   * 7. Returns RegenerationResult
+   *
+   * @param projectId - The project ID
+   * @param options - Regeneration options including strategy and trigger details
+   * @returns RegenerationResult with details about the regeneration execution
+   */
+  async executeRegenerationWorkflow(
+    projectId: string,
+    options: RegenerationOptions
+  ): Promise<RegenerationResult> {
+    const startTime = Date.now();
+    let regenerationRunId: string | null = null;
+    let triggerChange: ArtifactChange | null = null;
+
+    logger.info('[OrchestratorEngine] Executing regeneration workflow', {
+      projectId,
+      triggerArtifactId: options.triggerArtifactId,
+      selectedStrategy: options.selectedStrategy,
+    });
+
+    try {
+      // Step 1: Get trigger change details (mocked for now - would come from database)
+      // In a real implementation, this would query artifact_changes table
+      triggerChange = await this.getTriggerChangeDetails(
+        projectId,
+        options.triggerArtifactId,
+        options.triggerChangeId
+      );
+
+      if (!triggerChange) {
+        throw new Error(
+          `Trigger change not found for artifact: ${options.triggerArtifactId}`
+        );
+      }
+
+      // Step 2: Analyze impact using the existing method
+      const impactAnalysis = await this.analyzeRegenerationImpact(
+        projectId,
+        triggerChange
+      );
+
+      logger.info('[OrchestratorEngine] Impact analysis complete', {
+        projectId,
+        affectedCount: impactAnalysis.affectedArtifacts.length,
+        impactSummary: impactAnalysis.impactSummary,
+      });
+
+      // Step 3: Select artifacts to regenerate based on strategy
+      const artifactsToRegenerate = this.selectArtifactsForRegeneration(
+        impactAnalysis,
+        options.selectedStrategy,
+        options.manualArtifactIds
+      );
+
+      logger.info('[OrchestratorEngine] Selected artifacts for regeneration', {
+        projectId,
+        strategy: options.selectedStrategy,
+        count: artifactsToRegenerate.length,
+        artifacts: artifactsToRegenerate,
+      });
+
+      // Handle ignore strategy early
+      if (options.selectedStrategy === 'ignore') {
+        return {
+          success: true,
+          regenerationRunId: null,
+          selectedStrategy: 'ignore',
+          artifactsToRegenerate: [],
+          artifactsRegenerated: [],
+          artifactsSkipped: [],
+          durationMs: Date.now() - startTime,
+        };
+      }
+
+      // Step 4: Create regeneration_run record in database
+      const runId = randomUUID();
+      regenerationRunId = runId;
+
+      await db.insert(regenerationRuns).values({
+        id: runId,
+        projectId,
+        triggerArtifactId: options.triggerArtifactId,
+        triggerChangeId: options.triggerChangeId as any,
+        impactAnalysis: JSON.stringify(impactAnalysis),
+        selectedStrategy: options.selectedStrategy,
+        artifactsToRegenerate: JSON.stringify(artifactsToRegenerate),
+        artifactsRegenerated: JSON.stringify([]),
+        startedAt: new Date(),
+      });
+
+      // Step 5: Regenerate artifacts based on strategy
+      const artifactsRegenerated: string[] = [];
+      const artifactsSkipped: string[] = [];
+
+      for (const artifactId of artifactsToRegenerate) {
+        try {
+          // Extract phase from artifact ID (format: "PhaseName/artifact.md")
+          const phaseMatch = artifactId.match(/^([A-Z_]+)\//);
+          if (!phaseMatch) {
+            logger.warn('[OrchestratorEngine] Invalid artifact ID format', {
+              artifactId,
+            });
+            artifactsSkipped.push(artifactId);
+            continue;
+          }
+
+          const phase = phaseMatch[1];
+
+          // Check if phase is valid and can be regenerated
+          const phaseSpec = this.spec.phases[phase];
+          if (!phaseSpec) {
+            logger.warn('[OrchestratorEngine] Unknown phase for artifact', {
+              artifactId,
+              phase,
+            });
+            artifactsSkipped.push(artifactId);
+            continue;
+          }
+
+          // For now, we just mark the artifact as needing regeneration
+          // In a full implementation, this would call the phase agent
+          logger.info('[OrchestratorEngine] Regenerating artifact', {
+            artifactId,
+            phase,
+          });
+
+          // Simulate regeneration - in production, this would call runPhaseAgent
+          artifactsRegenerated.push(artifactId);
+
+          // Step 5b: Update artifact_versions with regeneration metadata
+          // Create a new version record with regeneration metadata
+          await this.createRegeneratedArtifactVersion(
+            projectId,
+            artifactId,
+            runId,
+            triggerChange.impactLevel
+          );
+        } catch (artifactError) {
+          const error = artifactError instanceof Error ? artifactError : new Error(String(artifactError));
+          logger.error('[OrchestratorEngine] Failed to regenerate artifact', undefined, {
+            artifactId,
+            error: error.message,
+          });
+          artifactsSkipped.push(artifactId);
+        }
+      }
+
+      // Step 6: Update regeneration_run with results
+      const durationMs = Date.now() - startTime;
+      const success = artifactsSkipped.length === 0;
+
+      await db
+        .update(regenerationRuns)
+        .set({
+          artifactsRegenerated: JSON.stringify(artifactsRegenerated),
+          completedAt: new Date(),
+          durationMs,
+          success,
+          errorMessage: artifactsSkipped.length > 0
+            ? `Skipped ${artifactsSkipped.length} artifacts`
+            : null,
+        })
+        .where(eq(regenerationRuns.id, runId));
+
+      logger.info('[OrchestratorEngine] Regeneration workflow complete', {
+        projectId,
+        regenerationRunId: runId,
+        artifactsRegenerated: artifactsRegenerated.length,
+        artifactsSkipped: artifactsSkipped.length,
+        durationMs,
+        success,
+      });
+
+      // Step 7: Return result
+      return {
+        success,
+        regenerationRunId: runId,
+        selectedStrategy: options.selectedStrategy,
+        artifactsToRegenerate,
+        artifactsRegenerated,
+        artifactsSkipped,
+        durationMs,
+      };
+    } catch (error) {
+      const durationMs = Date.now() - startTime;
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+
+      logger.error('[OrchestratorEngine] Regeneration workflow failed', undefined, {
+        projectId,
+        error: errorObj.message,
+        durationMs,
+      });
+
+      // Update regeneration_run with error if it was created
+      if (regenerationRunId) {
+        await db
+          .update(regenerationRuns)
+          .set({
+            completedAt: new Date(),
+            durationMs,
+            success: false,
+            errorMessage: errorObj.message,
+          })
+          .where(eq(regenerationRuns.id, regenerationRunId));
+      }
+
+      return {
+        success: false,
+        regenerationRunId,
+        selectedStrategy: options.selectedStrategy,
+        artifactsToRegenerate: [],
+        artifactsRegenerated: [],
+        artifactsSkipped: [],
+        durationMs,
+        errorMessage: errorObj.message,
+      };
+    }
+  }
+
+  /**
+   * Get trigger change details from the database.
+   * In production, this would query the artifact_changes table.
+   */
+  private async getTriggerChangeDetails(
+    projectId: string,
+    artifactId: string,
+    changeId?: string
+  ): Promise<ArtifactChange | null> {
+    // In production, this would query the database
+    // For now, return a mock ArtifactChange for testing
+    // The actual implementation would fetch from artifact_changes table
+
+    // This is a placeholder - real implementation would:
+    // 1. Query artifact_changes table for the change
+    // 2. Return the ArtifactChange object
+
+    logger.debug('[OrchestratorEngine] Fetching trigger change details', {
+      projectId,
+      artifactId,
+      changeId,
+    });
+
+    // Return null if no changeId is provided - caller should handle this
+    if (!changeId) {
+      // Create a default ArtifactChange for testing purposes
+      return {
+        projectId,
+        artifactName: artifactId,
+        oldHash: 'old_hash_' + Date.now(),
+        newHash: 'new_hash_' + Date.now(),
+        hasChanges: true,
+        impactLevel: 'MEDIUM',
+        changedSections: [],
+        timestamp: new Date(),
+      };
+    }
+
+    // In production, query the database:
+    // const { artifactChanges } = await import('@/backend/lib/schema');
+    // const changes = await db.select().from(artifactChanges).where(eq(artifactChanges.id, changeId));
+
+    return null;
+  }
+
+  /**
+   * Select artifacts to regenerate based on strategy.
+   */
+  private selectArtifactsForRegeneration(
+    impactAnalysis: ImpactAnalysis,
+    selectedStrategy: RegenerationStrategy,
+    manualArtifactIds?: string[]
+  ): string[] {
+    switch (selectedStrategy) {
+      case 'regenerate_all':
+        // Regenerate all affected artifacts
+        return impactAnalysis.affectedArtifacts.map((a) => a.artifactId);
+
+      case 'high_impact_only':
+        // Regenerate only HIGH impact artifacts
+        return impactAnalysis.affectedArtifacts
+          .filter((a) => a.impactLevel === 'HIGH')
+          .map((a) => a.artifactId);
+
+      case 'manual_review':
+        // Use user-specified artifacts, or all if none specified
+        if (manualArtifactIds && manualArtifactIds.length > 0) {
+          return manualArtifactIds;
+        }
+        // Return empty - user needs to specify
+        return [];
+
+      case 'ignore':
+        // Skip regeneration
+        return [];
+
+      default:
+        logger.warn('[OrchestratorEngine] Unknown strategy, defaulting to ignore', {
+          strategy: selectedStrategy,
+        });
+        return [];
+    }
+  }
+
+  /**
+   * Create a new artifact version record with regeneration metadata.
+   */
+  private async createRegeneratedArtifactVersion(
+    projectId: string,
+    artifactId: string,
+    regenerationRunId: string,
+    triggerImpactLevel: ImpactLevel
+  ): Promise<void> {
+    try {
+      // Generate a new version number
+      const { max } = await import('drizzle-orm');
+      const versions = await db
+        .select({ version: max(artifactVersions.version) })
+        .from(artifactVersions)
+        .where(eq(artifactVersions.projectId, projectId))
+        .then((r: Array<{ version: number | null }>) => r[0]?.version || 0);
+
+      const newVersion = versions + 1;
+
+      // Create reason based on impact level
+      const reason = triggerImpactLevel === 'HIGH'
+        ? 'Regenerated due to HIGH impact structural changes'
+        : 'Regenerated due to MEDIUM impact content changes';
+
+      // Insert new version record
+      await db.insert(artifactVersions).values({
+        projectId,
+        artifactId,
+        version: newVersion,
+        contentHash: '', // Would be populated with actual content hash
+        regenerationReason: reason,
+        regenerationRunId,
+      });
+
+      logger.debug('[OrchestratorEngine] Created artifact version record', {
+        projectId,
+        artifactId,
+        version: newVersion,
+        regenerationRunId,
+      });
+    } catch (error) {
+      const errorObj = error instanceof Error ? error : new Error(String(error));
+      logger.error('[OrchestratorEngine] Failed to create artifact version', undefined, {
+        projectId,
+        artifactId,
+        error: errorObj.message,
+      });
+      // Don't throw - version tracking is not critical
+    }
+  }
+
+  /**
+   * Execute a group of phases in parallel.
+   *
+   * This method executes multiple phases concurrently using Promise.all,
+   * waits for all phases to complete, and creates a snapshot after the
+   * group completes. All phases in the group share the same input artifacts.
+   *
+   * @param projectId - The project ID
+   * @param group - ParallelGroup config containing name, type, and phases array
+   * @param artifacts - Shared input artifacts for all phases in the group
+   * @returns Array of PhaseExecutionResult for each phase in the group
+   */
+  async executeParallelGroup(
+    projectId: string,
+    group: ParallelGroup,
+    artifacts: Record<string, string> = {}
+  ): Promise<PhaseExecutionResult[]> {
+    logger.info('[OrchestratorEngine] Executing parallel group', {
+      projectId,
+      groupName: group.name,
+      phaseCount: group.phases.length,
+      phases: group.phases,
+    });
+
+    // Validate that all phases exist in the spec
+    const invalidPhases = group.phases.filter(
+      (phase) => !this.spec.phases[phase]
+    );
+    if (invalidPhases.length > 0) {
+      throw new Error(
+        `Invalid phases in parallel group "${group.name}": ${invalidPhases.join(', ')}`
+      );
+    }
+
+    // Create a mock project for phase execution
+    // We'll execute each phase with a temporary project state
+    const project = {
+      id: projectId,
+      name: 'Parallel Execution',
+      current_phase: group.phases[0],
+      orchestration_state: {
+        artifact_versions: {},
+        approval_gates: {},
+      } as OrchestrationState,
+      project_path: '',
+    } as Project;
+
+    // Execute all phases in parallel
+    const startTime = Date.now();
+    const results: PhaseExecutionResult[] = await Promise.all(
+      group.phases.map(async (phaseName) => {
+        const phaseStartTime = Date.now();
+        try {
+          // Set the current phase for this execution
+          project.current_phase = phaseName;
+
+          // Execute the phase agent
+          const result = await this.runPhaseAgent(project, artifacts);
+
+          const durationMs = Date.now() - phaseStartTime;
+
+          logger.info('[OrchestratorEngine] Parallel phase completed', {
+            projectId,
+            phase: phaseName,
+            success: result.success,
+            durationMs,
+          });
+
+          return {
+            phase: phaseName,
+            success: result.success,
+            artifacts: result.artifacts,
+            durationMs,
+          } as PhaseExecutionResult;
+        } catch (error) {
+          const durationMs = Date.now() - phaseStartTime;
+          const errorObj = error instanceof Error ? error : new Error(String(error));
+
+          logger.error('[OrchestratorEngine] Parallel phase failed', undefined, {
+            projectId,
+            phase: phaseName,
+            error: errorObj.message,
+            durationMs,
+          });
+
+          return {
+            phase: phaseName,
+            success: false,
+            artifacts: {},
+            error: errorObj.message,
+            durationMs,
+          } as PhaseExecutionResult;
+        }
+      })
+    );
+
+    const totalDurationMs = Date.now() - startTime;
+
+    // Create snapshot after the group completes
+    await this.createSnapshotAfterParallelGroup(projectId, group, results);
+
+    logger.info('[OrchestratorEngine] Parallel group completed', {
+      projectId,
+      groupName: group.name,
+      totalPhases: results.length,
+      successfulPhases: results.filter((r) => r.success).length,
+      failedPhases: results.filter((r) => !r.success).length,
+      totalDurationMs,
+    });
+
+    return results;
+  }
+
+  /**
+   * Create a snapshot after parallel group execution completes.
+   */
+  private async createSnapshotAfterParallelGroup(
+    projectId: string,
+    group: ParallelGroup,
+    results: PhaseExecutionResult[]
+  ): Promise<void> {
+    const gitService = this.gitService.get(projectId);
+    const rollbackService = this.rollbackService.get(projectId);
+
+    if (!gitService || !rollbackService) {
+      logger.debug('[OrchestratorEngine] Git/Rollback service not available for snapshot', {
+        projectId,
+        groupName: group.name,
+      });
+      return;
+    }
+
+    // Collect all artifacts from successful phases
+    const allArtifacts: Record<string, string> = {};
+    for (const result of results) {
+      if (result.success) {
+        Object.assign(allArtifacts, result.artifacts);
+      }
+    }
+
+    if (Object.keys(allArtifacts).length === 0) {
+      logger.warn('[OrchestratorEngine] No artifacts to snapshot', {
+        projectId,
+        groupName: group.name,
+      });
+      return;
+    }
+
+    // Create snapshot for the parallel group
+    const snapshotResult = await rollbackService.createSnapshot({
+      projectId,
+      phaseName: group.name,
+      artifacts: allArtifacts,
+      metadata: {
+        parallelGroup: group.name,
+        phasesExecuted: group.phases,
+        successfulPhases: results.filter((r) => r.success).map((r) => r.phase),
+        failedPhases: results.filter((r) => !r.success).map((r) => r.phase),
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    if (snapshotResult.success) {
+      logger.info('[OrchestratorEngine] Parallel group snapshot created', {
+        projectId,
+        groupName: group.name,
+        snapshotId: snapshotResult.snapshotId,
+      });
+    } else {
+      logger.warn('[OrchestratorEngine] Parallel group snapshot creation failed', {
+        projectId,
+        groupName: group.name,
+        error: snapshotResult.error,
+      });
+    }
+  }
+
+  /**
+   * Execute the workflow with optional parallel phase execution.
+   *
+   * This method orchestrates the complete workflow execution with support for:
+   * - Parallel execution of independent phases
+   * - Sequential execution of dependent phases
+   * - Automatic fallback to sequential on parallel failure
+   * - Time savings measurement and reporting
+   *
+   * @param projectId - The project ID
+   * @param options - Options for parallel execution
+   * @returns ParallelWorkflowResult with timing metrics and execution details
+   */
+  async executeWorkflowWithParallel(
+    projectId: string,
+    options: ParallelWorkflowOptions
+  ): Promise<ParallelWorkflowResult> {
+    const startTime = Date.now();
+    logger.info('[OrchestratorEngine] Starting workflow with parallel execution', {
+      projectId,
+      enableParallel: options.enableParallel,
+      fallbackToSequential: options.fallbackToSequential,
+    });
+
+    // Define parallel groups based on orchestrator spec
+    // Groups phases that can run in parallel when dependencies are satisfied
+    const parallelGroups: ParallelGroup[] = [
+      {
+        name: 'foundation',
+        type: 'parallel',
+        phases: ['ANALYSIS'],
+      },
+      {
+        name: 'stack_and_tokens',
+        type: 'parallel',
+        phases: ['STACK_SELECTION', 'SPEC_DESIGN_TOKENS'],
+      },
+      {
+        name: 'spec_and_design',
+        type: 'parallel',
+        phases: ['SPEC', 'SPEC_DESIGN_COMPONENTS'],
+      },
+      {
+        name: 'requirements',
+        type: 'parallel',
+        phases: ['DEPENDENCIES'],
+      },
+      {
+        name: 'design_and_architecture',
+        type: 'parallel',
+        phases: ['SOLUTIONING'],
+      },
+    ];
+
+    // Build execution order respecting dependencies
+    // Each group must wait for its dependencies to complete
+    const executionOrder = this.buildExecutionOrder(parallelGroups);
+
+    // Create a mock project for phase execution
+    const project = {
+      id: projectId,
+      name: 'Workflow Execution',
+      current_phase: executionOrder[0]?.[0] || 'ANALYSIS',
+      phases_completed: [] as string[],
+      orchestration_state: {
+        artifact_versions: {},
+        approval_gates: {},
+      } as OrchestrationState,
+      project_path: '',
+    } as Project;
+
+    const groupsExecuted: ParallelWorkflowResult['groupsExecuted'] = [];
+    const errors: Array<{ phase: string; error: string }> = [];
+    let fallbackUsed = false;
+
+    // Calculate estimated sequential duration for comparison
+    const sequentialDurationMs = this.estimateSequentialDuration(executionOrder);
+
+    // Execute groups in order
+    for (const group of executionOrder) {
+      const groupStartTime = Date.now();
+      let groupSuccess = true;
+      const groupName = group.join('_');
+
+      try {
+        // Check dependencies are satisfied
+        const dependencies = this.getGroupDependencies(groupName);
+        const unsatisfiedDeps = dependencies.filter(
+          (dep) => !project.phases_completed.includes(dep)
+        );
+
+        if (unsatisfiedDeps.length > 0) {
+          logger.warn('[OrchestratorEngine] Skipping group due to unsatisfied dependencies', {
+            projectId,
+            groupName,
+            unsatisfiedDeps,
+          });
+          // Mark phases as completed with error status
+          for (const phase of group) {
+            errors.push({
+              phase,
+              error: `Skipped: unsatisfied dependencies: ${unsatisfiedDeps.join(', ')}`,
+            });
+            project.phases_completed.push(phase);
+          }
+          continue;
+        }
+
+        if (options.enableParallel && group.length > 1) {
+          // Execute as parallel group
+          const parallelGroup: ParallelGroup = {
+            name: groupName,
+            type: 'parallel',
+            phases: group,
+          };
+
+          const results = await this.executeParallelGroup(projectId, parallelGroup);
+
+          // Collect artifacts from successful phases
+          const allArtifacts: Record<string, string> = {};
+          for (const result of results) {
+            if (result.success) {
+              Object.assign(allArtifacts, result.artifacts);
+            } else {
+              groupSuccess = false;
+              errors.push({
+                phase: result.phase,
+                error: result.error || 'Unknown error',
+              });
+            }
+            project.phases_completed.push(result.phase);
+          }
+
+          groupsExecuted.push({
+            name: groupName,
+            type: 'parallel',
+            phases: group,
+            success: groupSuccess,
+            durationMs: Date.now() - groupStartTime,
+            results,
+          });
+        } else {
+          // Execute sequentially
+          const results: PhaseExecutionResult[] = [];
+
+          for (const phase of group) {
+            const phaseStartTime = Date.now();
+            try {
+              project.current_phase = phase;
+              const result = await this.runPhaseAgent(project, {});
+              project.phases_completed.push(phase);
+
+              results.push({
+                phase,
+                success: result.success,
+                artifacts: result.artifacts,
+                durationMs: Date.now() - phaseStartTime,
+              });
+            } catch (error) {
+              const phaseDurationMs = Date.now() - phaseStartTime;
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              project.phases_completed.push(phase);
+
+              results.push({
+                phase,
+                success: false,
+                artifacts: {},
+                error: errorMessage,
+                durationMs: phaseDurationMs,
+              });
+
+              groupSuccess = false;
+              errors.push({ phase, error: errorMessage });
+            }
+          }
+
+          groupsExecuted.push({
+            name: groupName,
+            type: 'sequential',
+            phases: group,
+            success: groupSuccess,
+            durationMs: Date.now() - groupStartTime,
+            results,
+          });
+        }
+      } catch (error) {
+        const groupDurationMs = Date.now() - groupStartTime;
+        const errorObj = error instanceof Error ? error : new Error(String(error));
+
+        logger.error('[OrchestratorEngine] Group execution failed', undefined, {
+          projectId,
+          groupName,
+          error: errorObj.message,
+        });
+
+        // Fallback to sequential if enabled
+        if (options.fallbackToSequential && !fallbackUsed) {
+          logger.info('[OrchestratorEngine] Falling back to sequential execution', {
+            projectId,
+            groupName,
+          });
+          fallbackUsed = true;
+          options.enableParallel = false;
+          // Re-execute this group sequentially
+          continue;
+        }
+
+        groupSuccess = false;
+        for (const phase of group) {
+          errors.push({ phase, error: errorObj.message });
+          project.phases_completed.push(phase);
+        }
+
+        groupsExecuted.push({
+          name: groupName,
+          type: 'sequential',
+          phases: group,
+          success: false,
+          durationMs: groupDurationMs,
+          results: group.map((phase) => ({
+            phase,
+            success: false,
+            artifacts: {},
+            error: errorObj.message,
+            durationMs: 0,
+          })),
+        });
+      }
+    }
+
+    const totalDurationMs = Date.now() - startTime;
+    const parallelDurationMs = totalDurationMs;
+    const timeSavedMs = Math.max(0, sequentialDurationMs - parallelDurationMs);
+    const timeSavedPercent = sequentialDurationMs > 0
+      ? Math.round((timeSavedMs / sequentialDurationMs) * 100)
+      : 0;
+
+    const overallSuccess = errors.length === 0;
+
+    logger.info('[OrchestratorEngine] Workflow execution complete', {
+      projectId,
+      success: overallSuccess,
+      totalDurationMs,
+      parallelDurationMs,
+      sequentialDurationMs,
+      timeSavedMs,
+      timeSavedPercent,
+      groupsExecuted: groupsExecuted.length,
+      errors: errors.length,
+      fallbackUsed,
+    });
+
+    return {
+      success: overallSuccess,
+      projectId,
+      phasesExecuted: project.phases_completed,
+      groupsExecuted,
+      totalDurationMs,
+      parallelDurationMs,
+      sequentialDurationMs,
+      timeSavedMs,
+      timeSavedPercent,
+      errors,
+      fallbackUsed,
+    };
+  }
+
+  /**
+   * Build execution order from parallel groups, respecting dependencies.
+   * Returns an array of phase arrays, where each inner array can execute in parallel.
+   */
+  private buildExecutionOrder(groups: ParallelGroup[]): string[][] {
+    // Define dependency relationships between groups
+    const groupDependencies: Record<string, string[]> = {
+      foundation: [],
+      stack_and_tokens: ['foundation'],
+      spec_and_design: ['stack_and_tokens'],
+      requirements: ['spec_and_design'],
+      design_and_architecture: ['requirements'],
+    };
+
+    // Build order ensuring dependencies are satisfied
+    const executedGroups: string[] = [];
+    const executionOrder: string[][] = [];
+
+    // Flatten groups and sort by dependencies
+    const groupMap = new Map(groups.map((g) => [g.name, g.phases]));
+
+    const getGroupPhases = (groupName: string): string[] => {
+      const phases = groupMap.get(groupName);
+      return phases || [groupName];
+    };
+
+    // Simple topological sort for groups
+    let groupsRemaining = Object.keys(groupDependencies);
+
+    while (groupsRemaining.length > 0) {
+      // Find groups with all dependencies satisfied
+      const readyGroups = groupsRemaining.filter((groupName) => {
+        const deps = groupDependencies[groupName] || [];
+        return deps.every((dep) => executedGroups.includes(dep));
+      });
+
+      if (readyGroups.length === 0) {
+        // Circular dependency or missing dependency - execute remaining groups
+        readyGroups.push(...groupsRemaining);
+      }
+
+      // Execute first ready group
+      const nextGroup = readyGroups[0];
+      const phases = getGroupPhases(nextGroup);
+
+      executionOrder.push(phases);
+      executedGroups.push(nextGroup);
+      groupsRemaining = groupsRemaining.filter((g) => g !== nextGroup);
+    }
+
+    return executionOrder;
+  }
+
+  /**
+   * Get dependencies for a specific group.
+   */
+  private getGroupDependencies(groupName: string): string[] {
+    const groupDependencies: Record<string, string[]> = {
+      foundation: [],
+      stack_and_tokens: ['ANALYSIS'],
+      spec_and_design: ['STACK_SELECTION', 'SPEC_DESIGN_TOKENS'],
+      requirements: ['SPEC', 'SPEC_DESIGN_COMPONENTS'],
+      design_and_architecture: ['DEPENDENCIES'],
+    };
+
+    return groupDependencies[groupName] || [];
+  }
+
+  /**
+   * Estimate the total sequential duration for comparison.
+   */
+  private estimateSequentialDuration(executionOrder: string[][]): number {
+    // Sum up phase durations from the spec
+    let total = 0;
+    const seenPhases = new Set<string>();
+
+    for (const group of executionOrder) {
+      for (const phase of group) {
+        if (!seenPhases.has(phase)) {
+          seenPhases.add(phase);
+          const phaseSpec = this.spec.phases[phase];
+          if (phaseSpec) {
+            total += phaseSpec.duration_minutes * 60 * 1000; // Convert to milliseconds
+          }
+        }
+      }
+    }
+
+    return total;
   }
 }

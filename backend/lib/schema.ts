@@ -197,6 +197,7 @@ export const artifactVersions = pgTable('ArtifactVersion', {
   version: integer('version').notNull(), // Incremental version number
   contentHash: text('content_hash').notNull(), // SHA-256 hash for diff detection
   regenerationReason: text('regeneration_reason'), // Why was this regenerated?
+  regenerationRunId: uuid('regeneration_run_id'), // FK reference to RegenerationRun (Task 1.7)
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => ({
   projectIdIdx: index('ArtifactVersion_project_id_idx').on(table.projectId),
@@ -293,6 +294,27 @@ export const gitOperations = pgTable('GitOperation', {
   createdAtIdx: index('GitOperation_created_at_idx').on(table.createdAt),
 }));
 
+// Task 1.7: Regeneration runs - tracks smart regeneration workflows
+export const regenerationRuns = pgTable('RegenerationRun', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  triggerArtifactId: text('trigger_artifact_id').notNull(),
+  triggerChangeId: uuid('trigger_change_id'),
+  impactAnalysis: text('impact_analysis'), // JSON stored as text
+  selectedStrategy: text('selected_strategy'),
+  artifactsToRegenerate: text('artifacts_to_regenerate'), // JSON array of artifact IDs
+  artifactsRegenerated: text('artifacts_regenerated'), // JSON array of regenerated IDs
+  startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  durationMs: integer('duration_ms'),
+  success: boolean('success'),
+  errorMessage: text('error_message'),
+}, (table) => ({
+  projectIdIdx: index('RegenerationRun_project_id_idx').on(table.projectId),
+  triggerArtifactIdIdx: index('RegenerationRun_trigger_artifact_id_idx').on(table.triggerArtifactId),
+  startedAtIdx: index('RegenerationRun_started_at_idx').on(table.startedAt),
+}));
+
 // Define relationships using Drizzle relations
 export const projectsRelations = relations(projects, ({ many }) => ({
   artifacts: many(artifacts),
@@ -304,6 +326,7 @@ export const projectsRelations = relations(projects, ({ many }) => ({
   phaseSnapshots: many(phaseSnapshots),
   approvalGates: many(approvalGates),
   gitOperations: many(gitOperations),
+  regenerationRuns: many(regenerationRuns),
 }));
 
 export const artifactsRelations = relations(artifacts, ({ one }) => ({
@@ -399,6 +422,13 @@ export const gitOperationsRelations = relations(gitOperations, ({ one }) => ({
   }),
 }));
 
+export const regenerationRunsRelations = relations(regenerationRuns, ({ one }) => ({
+  project: one(projects, {
+    fields: [regenerationRuns.projectId],
+    references: [projects.id],
+  }),
+}));
+
 // Types
 export type Project = InferSelectModel<typeof projects>;
 export type Artifact = InferSelectModel<typeof artifacts>;
@@ -416,3 +446,4 @@ export type AutoRemedyRun = InferSelectModel<typeof autoRemedyRuns>;
 export type PhaseSnapshot = InferSelectModel<typeof phaseSnapshots>;
 export type ApprovalGate = InferSelectModel<typeof approvalGates>;
 export type GitOperation = InferSelectModel<typeof gitOperations>;
+export type RegenerationRun = InferSelectModel<typeof regenerationRuns>;

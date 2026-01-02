@@ -1,0 +1,1 @@
+ALTER TABLE "ArtifactVersion" ADD COLUMN "regeneration_run_id" uuid;

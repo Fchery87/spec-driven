@@ -327,7 +327,7 @@ with organizational standards and best practices.`,
         projectId: 'test-project-id',
         failedPhase: 'ANALYSIS',
         validationFailures: validationResult.errors.map(e => ({
-          phase: e.phase,
+          phase: e.phase || 'unknown',
           message: e.message,
           artifactId: e.artifactId || 'unknown',
         })),
