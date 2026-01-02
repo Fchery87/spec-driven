@@ -166,20 +166,26 @@ export const settings = pgTable('Setting', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-// Secrets model for encrypted API keys (fallback when env vars not set)
+// Secrets model for encrypted API keys (global or user-specific)
 export const secrets = pgTable('Secret', {
   key: text('key').primaryKey(), // e.g., 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY'
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }), // Optional: user-specific credential
   encryptedValue: text('encrypted_value').notNull(), // AES-256-GCM encrypted
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+  userIdKeyIdx: index('Secret_user_id_key_idx').on(table.userId, table.key),
+}));
 
-// MCP (Model Context Protocol) configuration table
+// MCP (Model Context Protocol) configuration table - user-specific credentials
 export const mcpConfigs = pgTable('MCPConfig', {
   id: uuid('id').primaryKey().defaultRandom(),
   
-  // MCP provider identifier (exa-code, context7, web-search)
-  provider: text('provider').notNull().unique(),
+  // User who owns this credential (required - exclusive per user)
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  
+  // MCP provider identifier (exa-code, context7)
+  provider: text('provider').notNull(),
   
   // Provider display name
   displayName: text('display_name').notNull(),
@@ -188,18 +194,18 @@ export const mcpConfigs = pgTable('MCPConfig', {
   encryptedApiKey: text('encrypted_api_key'),
   
   // Optional configuration (JSON stored as text)
-  configJson: text('config_json'), // e.g., { "exa-code": { "maxResults": 5 } }
+  configJson: text('config_json'),
   
   // Provider status
   enabled: boolean('enabled').notNull().default(true),
-  connected: boolean('connected'), // Last connection status
+  connected: boolean('connected'),
   
   // Timestamps
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
 }, (table) => ({
-  providerIdx: index('MCPConfig_provider_idx').on(table.provider),
+  userProviderIdx: index('MCPConfig_user_provider_idx').on(table.userId, table.provider),
   enabledIdx: index('MCPConfig_enabled_idx').on(table.enabled),
 }));
 

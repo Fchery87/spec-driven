@@ -18,7 +18,8 @@ import {
 import { 
   Trash2, Search, Plus, MoreHorizontal, ArrowUpRight, 
   ChevronDown, ChevronUp, Layers, Clock, CheckCircle2,
-  AlertCircle, FolderOpen, TrendingUp
+  AlertCircle, FolderOpen, TrendingUp,
+  Settings, Shield, Cog
 } from 'lucide-react';
 
 interface Project {
@@ -475,6 +476,43 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         )}
+
+        {/* Settings Section */}
+        <Card className="border-border/50 bg-muted/30">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Settings & Credentials
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Button 
+                variant="outline" 
+                className="h-auto py-4 justify-start gap-3"
+                onClick={() => router.push('/user/credentials')}
+              >
+                <Shield className="h-5 w-5 text-primary" />
+                <div className="text-left">
+                  <p className="font-medium">My Credentials</p>
+                  <p className="text-xs text-muted-foreground">Manage LLM and MCP API keys</p>
+                </div>
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                className="h-auto py-4 justify-start gap-3"
+                onClick={() => router.push('/admin')}
+              >
+                <Cog className="h-5 w-5 text-muted-foreground" />
+                <div className="text-left">
+                  <p className="font-medium">Admin Settings</p>
+                  <p className="text-xs text-muted-foreground">Global configuration (admin only)</p>
+                </div>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Delete confirmation dialog */}
         <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
