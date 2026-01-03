@@ -2,12 +2,12 @@ import { describe, it, expect, vi } from 'vitest';
 import { GitService, GitMode } from './git_service';
 import simpleGit from 'simple-git';
 
-// Mock simple-git module - vi.mock is hoisted so we define the mock inside the factory
+// Mock simple-git module - used by tests that don't need the gitInstance parameter
 vi.mock('simple-git', () => {
   const mockSimpleGit = vi.fn(() => ({
     checkIsRepo: vi.fn().mockResolvedValue(true),
     getRemotes: vi.fn().mockResolvedValue([{ name: 'origin' }]),
-    listRemote: vi.fn().mockResolvedValue([]), // Add listRemote for remote connectivity check
+    listRemote: vi.fn().mockResolvedValue([]),
     add: vi.fn().mockResolvedValue(undefined),
     commit: vi.fn().mockResolvedValue({ commit: 'abc123' }),
     checkoutLocalBranch: vi.fn().mockResolvedValue(undefined),
@@ -19,46 +19,54 @@ vi.mock('simple-git', () => {
   };
 });
 
+// Create a mock git instance that can be passed to GitService constructor
+function createMockGit(overrides: Record<string, unknown> = {}) {
+  const defaultMock = {
+    checkIsRepo: vi.fn().mockResolvedValue(true),
+    getRemotes: vi.fn().mockResolvedValue([{ name: 'origin', url: 'https://github.com/test/repo.git' }]),
+    listRemote: vi.fn().mockResolvedValue(''),
+    add: vi.fn().mockResolvedValue(''),
+    commit: vi.fn().mockResolvedValue({ commit: 'abc123', summary: { changes: 1, insertions: 1, deletions: 0 } }),
+    checkoutLocalBranch: vi.fn().mockResolvedValue(undefined),
+    branchLocal: vi.fn().mockResolvedValue({ all: ['main', 'spec/test'], current: 'main' }),
+    init: vi.fn().mockResolvedValue(''),
+  };
+  return { ...defaultMock, ...overrides } as Record<string, unknown>;
+}
+
 describe('GitService', () => {
   describe('initialization', () => {
-    // Note: This test is skipped because ES module mocking limitations make it difficult
-    // to properly mock simple-git before the GitService constructor is called.
-    // The actual behavior can be verified through integration tests.
-    it.skip('should detect Git availability and set mode to full_integration', async () => {
-      const mockGit = {
+    it('should detect Git availability and set mode to full_integration', async () => {
+      // Pass mock git instance directly to constructor - this bypasses ES module mocking issues
+      const mockGit = createMockGit({
         checkIsRepo: vi.fn().mockResolvedValue(true),
-        getRemotes: vi.fn().mockResolvedValue([{ name: 'origin' }]),
-        listRemote: vi.fn().mockResolvedValue([]),
-      };
-      // Override the default mock for this specific test
-      (simpleGit as unknown as vi.Mock).mockReturnValue(mockGit);
+        getRemotes: vi.fn().mockResolvedValue([{ name: 'origin', url: 'https://github.com/test/repo.git' }]),
+        listRemote: vi.fn().mockResolvedValue('abc123\n'), // Success - remote is accessible
+      });
 
-      const service = new GitService('/test/project/path');
+      const service = new GitService('/test/project/path', {}, mockGit);
       await service.initialize();
 
       expect(service.getMode()).toBe('full_integration');
     });
 
     it('should fallback to local_only if no remote', async () => {
-      const mockGit = {
-        checkIsRepo: vi.fn().mockResolvedValue(true),
-        getRemotes: vi.fn().mockResolvedValue([]),
-      };
-      (simpleGit as unknown as vi.Mock).mockReturnValue(mockGit);
+      const mockGit = createMockGit({
+        getRemotes: vi.fn().mockResolvedValue([]), // No remotes
+      });
 
-      const service = new GitService('/test/project/path');
+      const service = new GitService('/test/project/path', {}, mockGit);
       await service.initialize();
 
       expect(service.getMode()).toBe('local_only');
     });
 
     it('should fallback to disabled if not a git repo', async () => {
-      const mockGit = {
-        checkIsRepo: vi.fn().mockResolvedValue(false),
-      };
-      (simpleGit as unknown as vi.Mock).mockReturnValue(mockGit);
+      const mockGit = createMockGit({
+        checkIsRepo: vi.fn().mockResolvedValue(false), // Not a git repo
+      });
 
-      const service = new GitService('/test/project/path');
+      const service = new GitService('/test/project/path', {}, mockGit);
       await service.initialize();
 
       expect(service.getMode()).toBe('disabled');
@@ -67,15 +75,11 @@ describe('GitService', () => {
 
   describe('createSpecBranch', () => {
     it('should create spec branch for project', async () => {
-      const mockGit = {
-        checkIsRepo: vi.fn().mockResolvedValue(true),
-        getRemotes: vi.fn().mockResolvedValue([{ name: 'origin' }]),
+      const mockGit = createMockGit({
         checkoutLocalBranch: vi.fn().mockResolvedValue(undefined),
-        branchLocal: vi.fn().mockResolvedValue({ all: [] }),
-      };
-      (simpleGit as unknown as vi.Mock).mockReturnValue(mockGit);
+      });
 
-      const service = new GitService('/test/project');
+      const service = new GitService('/test/project', {}, mockGit);
       await service.initialize();
       await service.createSpecBranch('test-project');
 
@@ -85,15 +89,11 @@ describe('GitService', () => {
 
   describe('commitPhaseArtifacts', () => {
     it('should commit artifacts with standard message format', async () => {
-      const mockGit = {
-        checkIsRepo: vi.fn().mockResolvedValue(true),
-        getRemotes: vi.fn().mockResolvedValue([{ name: 'origin' }]),
-        add: vi.fn().mockResolvedValue(undefined),
-        commit: vi.fn().mockResolvedValue({ commit: 'abc123' }),
-      };
-      (simpleGit as unknown as vi.Mock).mockReturnValue(mockGit);
+      const mockGit = createMockGit({
+        commit: vi.fn().mockResolvedValue({ commit: 'abc123', summary: { changes: 1, insertions: 1, deletions: 0 } }),
+      });
 
-      const service = new GitService('/test/project');
+      const service = new GitService('/test/project', {}, mockGit);
       await service.initialize();
 
       const result = await service.commitPhaseArtifacts({

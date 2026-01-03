@@ -35,17 +35,27 @@ export class GitService {
   private config: GitConfig;
   private initialized = false;
 
-  constructor(projectPath: string, config: Partial<GitConfig> = {}) {
+  /**
+   * Create a GitService instance
+   * @param projectPath - Path to the git repository
+   * @param config - Optional configuration overrides
+   * @param gitInstance - Optional SimpleGit instance for testing (internal use)
+   */
+  constructor(projectPath: string, config: Partial<GitConfig> = {}, gitInstance?: SimpleGit) {
     this.projectPath = projectPath;
     this.config = { ...DEFAULT_GIT_CONFIG, ...config };
 
-    const options: Partial<SimpleGitOptions> = {
-      baseDir: projectPath,
-      binary: 'git',
-      maxConcurrentProcesses: 6,
-    };
-
-    this.git = simpleGit(options);
+    if (gitInstance) {
+      // Use provided instance (for testing)
+      this.git = gitInstance;
+    } else {
+      const options: Partial<SimpleGitOptions> = {
+        baseDir: projectPath,
+        binary: 'git',
+        maxConcurrentProcesses: 6,
+      };
+      this.git = simpleGit(options);
+    }
   }
 
   /**
