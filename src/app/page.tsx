@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { 
   Lightbulb, Layers, Package, Workflow, ClipboardList, ShieldCheck, 
   ArrowRight, Timer, FileText, CheckCircle2, Zap, Users, GitBranch,
-  ArrowUpRight
+  ArrowUpRight, Palette, Layout, Code, RefreshCcw
 } from 'lucide-react';
 
 import { sampleSpecText, sampleSpecTitle } from '@/content/sample-spec';
@@ -17,11 +17,16 @@ import { sampleSpecText, sampleSpecTitle } from '@/content/sample-spec';
 const phases = [
   { name: 'Analysis', description: 'Clarify vision with hybrid Q&A mode.', icon: Lightbulb, color: 'text-amber-500', badge: 'AI + Human' },
   { name: 'Stack Selection', description: 'Approve platform choices with rationale.', icon: Layers, color: 'text-blue-500', badge: 'Gate' },
-  { name: 'Spec', description: 'Generate PRDs, API contracts, and data models.', icon: FileText, color: 'text-purple-500' },
-  { name: 'Dependencies', description: 'AI-generated from approved stack with security checks.', icon: Package, color: 'text-orange-500' },
-  { name: 'Solutioning', description: 'Test-first tasks with parallelism markers.', icon: GitBranch, color: 'text-cyan-500' },
-  { name: 'Validate', description: '10 automated consistency checks.', icon: ShieldCheck, color: 'text-rose-500', badge: 'New' },
-  { name: 'Done', description: 'Export HANDOFF.md for downstream codegen.', icon: CheckCircle2, color: 'text-emerald-500' },
+  { name: 'Product Spec', description: 'Generate PRD with Gherkin acceptance criteria.', icon: FileText, color: 'text-purple-500' },
+  { name: 'Architecture', description: 'Data models and API specifications.', icon: GitBranch, color: 'text-cyan-500' },
+  { name: 'Design Tokens', description: 'Stack-agnostic color, typography, spacing.', icon: Palette, color: 'text-pink-500' },
+  { name: 'Design Components', description: 'Map tokens to stack-specific components.', icon: Layout, color: 'text-indigo-500' },
+  { name: 'Frontend Build', description: 'Generate production-ready components.', icon: Code, color: 'text-teal-500', badge: 'New' },
+  { name: 'Dependencies', description: 'Auto-generate from approved stack.', icon: Package, color: 'text-orange-500' },
+  { name: 'Solutioning', description: 'Test-first tasks with parallelism markers.', icon: Workflow, color: 'text-lime-500' },
+  { name: 'Validate', description: 'Cross-artifact consistency checks.', icon: ShieldCheck, color: 'text-rose-500' },
+  { name: 'Auto-Remedy', description: 'Automated remediation of failures.', icon: RefreshCcw, color: 'text-yellow-500', badge: 'New' },
+  { name: 'Done', description: 'Export HANDOFF.md for codegen.', icon: CheckCircle2, color: 'text-emerald-500' },
 ]
 
 const metrics = [
@@ -36,21 +41,21 @@ const features = [
     description: 'AI analyzes requirements and recommends optimal stack with alternatives. See scores, reasoning, and choose with confidence.',
     icon: Lightbulb,
     gradient: 'from-amber-500/20 to-orange-500/20',
-    badge: 'New in v3.1',
+    badge: 'New in v3.5',
   },
   {
     title: 'Streamlined Dependencies',
     description: 'Dependencies auto-generated from approved stack—no approval gate needed. Stack approval implies dependency approval.',
     icon: Package,
     gradient: 'from-blue-500/20 to-cyan-500/20',
-    badge: 'New in v3.1',
+    badge: 'New in v3.5',
   },
   {
     title: 'Intelligent Defaults',
     description: 'Smart defaults based on project type: web apps get Next.js+Bun, mobile gets Expo+Supabase, ML gets FastAPI+Python.',
     icon: CheckCircle2,
     gradient: 'from-emerald-500/20 to-teal-500/20',
-    badge: 'New in v3.1',
+    badge: 'New in v3.5',
   },
 ]
 
@@ -116,13 +121,13 @@ export default function Home() {
             <div className="grid gap-10 lg:grid-cols-2 lg:items-center">
               <div className="space-y-6">
                 <Badge className="bg-primary/15 text-primary border-primary/30 border px-3 py-1">
-                  Spec-first orchestration OS — v3.1
+                  Spec-first orchestration OS — v3.5
                 </Badge>
                 
                 <h1 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl lg:text-6xl">
                   From idea to handoff in{' '}
                   <span className="bg-gradient-to-r from-primary to-amber-500 bg-clip-text text-transparent">
-                    seven guided phases
+                    twelve guided phases
                   </span>
                 </h1>
                 
@@ -203,7 +208,7 @@ export default function Home() {
         <section className="mb-20">
           <div className="text-center mb-8">
             <Badge className="bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 border mb-3">
-              Version 3.1
+              Version 3.5
             </Badge>
             <h2 className="text-2xl font-bold text-foreground">What&apos;s new in this release</h2>
           </div>
