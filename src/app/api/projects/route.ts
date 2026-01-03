@@ -22,7 +22,7 @@ const getHandler = withAuth(
     const isAllowed = await generalLimiter.isAllowed(rateLimitKey);
 
     if (!isAllowed) {
-      const remaining = generalLimiter.getRemainingPoints(rateLimitKey);
+      const remaining = await generalLimiter.getRemainingPoints(rateLimitKey);
       return createRateLimitResponse(remaining, Date.now() + 60000, 60);
     }
 
@@ -90,7 +90,7 @@ const postHandler = withAuth(
     const isAllowed = await generalLimiter.isAllowed(rateLimitKey);
 
     if (!isAllowed) {
-      const remaining = generalLimiter.getRemainingPoints(rateLimitKey);
+      const remaining = await generalLimiter.getRemainingPoints(rateLimitKey);
       return createRateLimitResponse(remaining, Date.now() + 60000, 60);
     }
 

@@ -20,8 +20,8 @@ vi.mock('simple-git', () => {
 });
 
 // Create a mock git instance that can be passed to GitService constructor
-function createMockGit(overrides: Record<string, unknown> = {}) {
-  const defaultMock = {
+function createMockGit(overrides: Partial<ReturnType<typeof simpleGit>> = {}) {
+  const mockGit = {
     checkIsRepo: vi.fn().mockResolvedValue(true),
     getRemotes: vi.fn().mockResolvedValue([{ name: 'origin', url: 'https://github.com/test/repo.git' }]),
     listRemote: vi.fn().mockResolvedValue(''),
@@ -30,8 +30,9 @@ function createMockGit(overrides: Record<string, unknown> = {}) {
     checkoutLocalBranch: vi.fn().mockResolvedValue(undefined),
     branchLocal: vi.fn().mockResolvedValue({ all: ['main', 'spec/test'], current: 'main' }),
     init: vi.fn().mockResolvedValue(''),
+    ...overrides,
   };
-  return { ...defaultMock, ...overrides } as Record<string, unknown>;
+  return mockGit as unknown as ReturnType<typeof simpleGit>;
 }
 
 describe('GitService', () => {

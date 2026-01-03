@@ -1,5 +1,7 @@
 import { DB_CONFIG } from '@/lib/config';
 import * as schema from '@/backend/lib/schema';
+import { ExtractTablesWithRelations } from 'drizzle-orm/relations';
+import { PgDatabase } from 'drizzle-orm/pg-core';
 
 // Get database URL from config
 const databaseUrl = DB_CONFIG.url || process.env.DATABASE_URL;
@@ -19,9 +21,9 @@ let _initialized = false;
 /**
  * Initialize the database connection
  */
-function initializeDatabase(): any {
+function initializeDatabase(): typeof _db {
   if (_initialized && _db) return _db;
-  
+
   if (isLocalDev) {
     // Use SQLite for local development
     try {
@@ -80,44 +82,64 @@ function initializeDatabase(): any {
 
     console.info('[Database] Using Neon/Postgres for production');
   }
-  
+
   return _db;
 }
 
+// Create a typed database interface that matches PgDatabase
+// This is used for the proxy to provide proper TypeScript intellisense
+type TypedDb = {
+  insert: typeof _db.insert;
+  select: typeof _db.select;
+  update: typeof _db.update;
+  delete: typeof _db.delete;
+  query: typeof _db.query;
+  with: typeof _db.with;
+  $with: typeof _db.$with;
+  $count: typeof _db.$count;
+  $cache: typeof _db.$cache;
+  execute: typeof _db.execute;
+  transaction: typeof _db.transaction;
+  refreshMaterializedView: typeof _db.refreshMaterializedView;
+  selectDistinct: typeof _db.selectDistinct;
+  selectDistinctOn: typeof _db.selectDistinctOn;
+};
+
 // Create a proxy that initializes on first access (for Better Auth compatibility)
-const dbProxy = new Proxy(
-  {},
+const dbProxy = new Proxy<TypedDb>(
+  {} as TypedDb,
   {
     get(target, prop) {
       if (prop === 'then') return undefined; // Not a thenable
-      
+
       // In test mode, don't try to initialize - just return undefined
       // Tests must call setDbForTesting first
       if (isTest && !_initialized) {
         return undefined;
       }
-      
+
       const instance = initializeDatabase();
       if (!instance) return undefined;
-      return (instance as any)?.[prop];
+
+      // Type-safe access to drizzle-orm methods
+      const value = (instance as Record<string, unknown>)?.[prop as string];
+      return value as TypedDb[Extract<keyof TypedDb, string>];
     },
     has(target, prop) {
       if (prop === 'then') return false;
-      
+
       // In test mode, don't try to initialize
       if (isTest && !_initialized) {
         return false;
       }
-      
+
       const instance = initializeDatabase();
       return instance ? prop in instance : false;
     },
   }
 );
 
-// Export both the proxy and a getter function
-// The proxy is for Better Auth which imports db directly
-// The getter is for tests to get the mock after setDbForTesting
+// Export the proxy and helper functions
 export const db = dbProxy;
 
 /**
