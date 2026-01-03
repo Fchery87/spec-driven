@@ -9,79 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-
-// ============================================================================
-// METRICS STORAGE
-// Uses in-memory storage for metrics (Redis recommended for production)
-// ============================================================================
-
-interface Metrics {
-  requestCount: Record<string, number>;
-  errorCount: Record<string, number>;
-  responseTimes: Record<string, number[]>;
-  authSuccess: number;
-  authFailure: number;
-  lastUpdated: number;
-}
-
-const metrics: Metrics = {
-  requestCount: {},
-  errorCount: {},
-  responseTimes: {},
-  authSuccess: 0,
-  authFailure: 0,
-  lastUpdated: Date.now(),
-};
-
-// Response time buckets in milliseconds (for histogram)
-const TIME_BUCKETS = [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
-
-/**
- * Record a request metric (internal function, not exported)
- */
-function recordRequest(
-  method: string,
-  path: string,
-  statusCode: number,
-  durationMs: number,
-  isAuth: boolean = false,
-  authSuccess: boolean = false
-): void {
-  const key = `${method} ${path}`;
-  
-  // Request count
-  metrics.requestCount[key] = (metrics.requestCount[key] || 0) + 1;
-  
-  // Error count (4xx and 5xx)
-  if (statusCode >= 400) {
-    metrics.errorCount[key] = (metrics.errorCount[key] || 0) + 1;
-  }
-  
-  // Response times
-  if (!metrics.responseTimes[key]) {
-    metrics.responseTimes[key] = [];
-  }
-  metrics.responseTimes[key].push(durationMs);
-  
-  // Keep only last 1000 samples per endpoint to prevent memory issues
-  if (metrics.responseTimes[key].length > 1000) {
-    metrics.responseTimes[key] = metrics.responseTimes[key].slice(-1000);
-  }
-  
-  // Auth metrics
-  if (isAuth) {
-    if (authSuccess) {
-      metrics.authSuccess++;
-    } else {
-      metrics.authFailure++;
-    }
-  }
-  
-  metrics.lastUpdated = Date.now();
-}
-
-// Export for use in other modules
-export { recordRequest };
+import { metrics, TIME_BUCKETS } from '@/lib/metrics';
 
 /**
  * Generate Prometheus-compatible metrics output
@@ -89,22 +17,30 @@ export { recordRequest };
 function generatePrometheusMetrics(): string {
   const lines: string[] = [];
   const now = Math.floor(Date.now() / 1000);
-  
+
   lines.push('# HELP http_requests_total Total number of HTTP requests');
   lines.push('# TYPE http_requests_total counter');
   for (const [path, count] of Object.entries(metrics.requestCount)) {
     const sanitizedPath = path.replace(/[^a-zA-Z0-9]/g, '_');
-    lines.push(`http_requests_total{method="${sanitizedPath.split(' ')[0]}",endpoint="${sanitizedPath}"} ${count}`);
+    lines.push(
+      `http_requests_total{method="${
+        sanitizedPath.split(' ')[0]
+      }",endpoint="${sanitizedPath}"} ${count}`
+    );
   }
-  
+
   lines.push('');
   lines.push('# HELP http_errors_total Total number of HTTP errors');
   lines.push('# TYPE http_errors_total counter');
   for (const [path, count] of Object.entries(metrics.errorCount)) {
     const sanitizedPath = path.replace(/[^a-zA-Z0-9]/g, '_');
-    lines.push(`http_errors_total{method="${sanitizedPath.split(' ')[0]}",endpoint="${sanitizedPath}"} ${count}`);
+    lines.push(
+      `http_errors_total{method="${
+        sanitizedPath.split(' ')[0]
+      }",endpoint="${sanitizedPath}"} ${count}`
+    );
   }
-  
+
   lines.push('');
   lines.push('# HELP http_request_duration_seconds HTTP request duration');
   lines.push('# TYPE http_request_duration_seconds histogram');
@@ -112,14 +48,14 @@ function generatePrometheusMetrics(): string {
     const sanitizedPath = path.replace(/[^a-zA-Z0-9]/g, '_');
     const method = sanitizedPath.split('_')[0];
     const endpoint = sanitizedPath.split(' ').slice(1).join('_');
-    
+
     // Calculate histogram buckets
     const histogram: Record<number, number> = {};
-    TIME_BUCKETS.forEach(bucket => {
+    TIME_BUCKETS.forEach((bucket) => {
       histogram[bucket] = 0;
     });
-    
-    times.forEach(time => {
+
+    times.forEach((time) => {
       const seconds = time / 1000;
       for (const bucket of TIME_BUCKETS) {
         if (seconds <= bucket / 1000) {
@@ -127,34 +63,48 @@ function generatePrometheusMetrics(): string {
         }
       }
     });
-    
+
     const totalCount = times.length;
     const totalSum = times.reduce((sum, t) => sum + t, 0) / 1000;
-    
-    lines.push(`http_request_duration_seconds_sum{method="${method}",endpoint="${endpoint}"} ${totalSum.toFixed(6)}`);
-    lines.push(`http_request_duration_seconds_count{method="${method}",endpoint="${endpoint}"} ${totalCount}`);
-    
+
+    lines.push(
+      `http_request_duration_seconds_sum{method="${method}",endpoint="${endpoint}"} ${totalSum.toFixed(
+        6
+      )}`
+    );
+    lines.push(
+      `http_request_duration_seconds_count{method="${method}",endpoint="${endpoint}"} ${totalCount}`
+    );
+
     for (const [bucket, count] of Object.entries(histogram)) {
       const bucketSeconds = parseInt(bucket) / 1000;
-      lines.push(`http_request_duration_seconds_bucket{method="${method}",endpoint="${endpoint}",le="${bucketSeconds}"} ${count}`);
+      lines.push(
+        `http_request_duration_seconds_bucket{method="${method}",endpoint="${endpoint}",le="${bucketSeconds}"} ${count}`
+      );
     }
-    lines.push(`http_request_duration_seconds_bucket{method="${method}",endpoint="${endpoint}",le="+Inf"} ${totalCount}`);
+    lines.push(
+      `http_request_duration_seconds_bucket{method="${method}",endpoint="${endpoint}",le="+Inf"} ${totalCount}`
+    );
   }
-  
+
   lines.push('');
-  lines.push('# HELP auth_success_total Total number of successful authentications');
+  lines.push(
+    '# HELP auth_success_total Total number of successful authentications'
+  );
   lines.push('# TYPE auth_success_total counter');
   lines.push(`auth_success_total ${metrics.authSuccess}`);
-  
+
   lines.push('');
-  lines.push('# HELP auth_failure_total Total number of failed authentications');
+  lines.push(
+    '# HELP auth_failure_total Total number of failed authentications'
+  );
   lines.push('# TYPE auth_failure_total counter');
   lines.push(`auth_failure_total ${metrics.authFailure}`);
-  
+
   lines.push('');
   lines.push(`# Last updated: ${new Date(metrics.lastUpdated).toISOString()}`);
   lines.push(`# Timestamp: ${now}`);
-  
+
   return lines.join('\n');
 }
 
@@ -166,13 +116,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // Basic auth for metrics endpoint (optional - configure in production)
   const authHeader = request.headers.get('authorization');
   const expectedAuth = process.env.METRICS_AUTH;
-  
+
   if (expectedAuth && authHeader !== `Bearer ${expectedAuth}`) {
     return new NextResponse('Unauthorized', { status: 401 });
   }
-  
+
   const format = request.nextUrl.searchParams.get('format');
-  
+
   if (format === 'json') {
     // Return JSON format for debugging
     return NextResponse.json({
@@ -186,10 +136,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       lastUpdated: new Date(metrics.lastUpdated).toISOString(),
     });
   }
-  
+
   // Default: Prometheus format
   const metricsOutput = generatePrometheusMetrics();
-  
+
   return new NextResponse(metricsOutput, {
     headers: {
       'Content-Type': 'text/plain; charset=utf-8',
