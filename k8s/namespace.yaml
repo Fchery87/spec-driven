@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: spec-driven
+  labels:
+    app: spec-driven
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spec-driven-config
+  namespace: spec-driven
+data:
+  NODE_ENV: "production"
+  # Database configuration (to be overridden per environment)
+  DATABASE_URL: "postgresql://user:pass@postgres:5432/spec-driven"
+  # JWT configuration (should be set via secret)
+  JWT_SECRET: ""
+  ENCRYPTION_KEY: ""
+  BETTER_AUTH_SECRET: ""
+  # Rate limiting
+  UPSTASH_REDIS_REST_URL: ""
+  UPSTASH_REDIS_REST_TOKEN: ""
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: spec-driven-secrets
+  namespace: spec-driven
+type: Opaque
+stringData:
+  JWT_SECRET: "your-64-char-hex-jwt-secret-here"
+  ENCRYPTION_KEY: "your-64-char-hex-encryption-key-here"
+  BETTER_AUTH_SECRET: "your-64-char-hex-better-auth-secret-here"
+  # For production, use external secrets or vault
+  # UPSTASH_REDIS_REST_URL: "https://your-redis.upstash.io"
+  # UPSTASH_REDIS_REST_TOKEN: "your-redis-token"

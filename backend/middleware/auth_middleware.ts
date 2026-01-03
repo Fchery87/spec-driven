@@ -30,9 +30,9 @@ export function extractToken(request: NextRequest): string | null {
  * Middleware to authenticate requests
  * Returns null if authenticated, NextResponse with error if not
  */
-export function authenticateRequest(
+export async function authenticateRequest(
   request: NextRequest
-): { user: JWTPayload } | { error: NextResponse } {
+): Promise<{ user: JWTPayload } | { error: NextResponse }> {
   const token = extractToken(request);
 
   if (!token) {
@@ -44,7 +44,7 @@ export function authenticateRequest(
     };
   }
 
-  const payload = jwtService.verifyToken(token);
+  const payload = await jwtService.verifyToken(token);
 
   if (!payload) {
     return {
@@ -71,7 +71,7 @@ export function withAuth(
 ) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return async (request: NextRequest, params: any) => {
-    const auth = authenticateRequest(request);
+    const auth = await authenticateRequest(request);
 
     if ('error' in auth) {
       return auth.error;
@@ -115,7 +115,7 @@ export function optionalAuth(
     const token = extractToken(request);
 
     if (token) {
-      const payload = jwtService.verifyToken(token);
+      const payload = await jwtService.verifyToken(token);
       if (payload) {
         (request as AuthenticatedRequest).user = payload;
       }
