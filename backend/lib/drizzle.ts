@@ -13,46 +13,17 @@ const isTest =
 const isLocalDev = !databaseUrl && !isProduction;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let db: any;
-let dbPromise: Promise<any> | null = null;
-
-/**
- * Get or create the database connection lazily
- */
-function getDb(): any {
-  if (db) return db;
-  
-  // If already initializing, wait for the promise
-  if (dbPromise) return dbPromise;
-  
-  // Start initialization
-  dbPromise = initializeDb();
-  return dbPromise;
-}
-
-/**
- * Set the database instance directly (for testing purposes)
- * @param mockDb - The mock database instance to use
- */
-export function setDbForTesting(mockDb: any): void {
-  db = mockDb;
-  dbPromise = null;
-}
-
-/**
- * Clear the database instance (for testing purposes)
- */
-export function clearDbForTesting(): void {
-  db = undefined;
-  dbPromise = null;
-}
+let _db: any;
+let _initialized = false;
 
 /**
  * Initialize the database connection
  */
-async function initializeDb(): Promise<any> {
+function initializeDatabase(): any {
+  if (_initialized && _db) return _db;
+  
   if (isLocalDev) {
-    // Use SQLite for local development - lazy initialization
+    // Use SQLite for local development
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
       const Database = require('better-sqlite3');
@@ -60,33 +31,19 @@ async function initializeDb(): Promise<any> {
       const { drizzle: drizzleSqlite } = require('drizzle-orm/better-sqlite3');
 
       const sqlite = new Database(':memory:');
-
-      // Enable foreign keys
       sqlite.pragma('foreign_keys = ON');
 
-      db = drizzleSqlite(sqlite, { schema });
+      _db = drizzleSqlite(sqlite, { schema });
+      _initialized = true;
 
       console.warn(
         '[Database] Using in-memory SQLite for local development. DATABASE_URL not set.'
       );
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (error) {
       if (isTest) {
-        db = new Proxy(
-          {},
-          {
-            get() {
-              throw new Error(
-                'Database is not initialized in test mode. Install better-sqlite3 or set DATABASE_URL.'
-              );
-            },
-          }
-        );
-        if (!isTest) {
-          console.warn(
-            '[Database] Using stubbed DB. Install better-sqlite3 for SQLite support.'
-          );
-        }
+        // In test mode, don't initialize - let tests provide mock
+        _db = undefined;
+        _initialized = false;
       } else {
         throw new Error(
           'Failed to initialize SQLite. Install better-sqlite3: npm install better-sqlite3'
@@ -94,7 +51,7 @@ async function initializeDb(): Promise<any> {
       }
     }
   } else {
-    // Use Neon/Postgres for production or when DATABASE_URL is set
+    // Use Neon/Postgres for production
     if (!databaseUrl) {
       throw new Error(
         'DATABASE_URL is required for production. Set DATABASE_URL environment variable.'
@@ -106,7 +63,6 @@ async function initializeDb(): Promise<any> {
     // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
     const { neon } = require('@neondatabase/serverless');
 
-    // Create the Neon SQL client with connection pooling options
     const sql = neon(databaseUrl, {
       pool: {
         min: 2,
@@ -114,23 +70,76 @@ async function initializeDb(): Promise<any> {
       },
     });
 
-    // Create the Drizzle instance with explicit connection pool configuration
-    db = drizzle(sql, {
+    _db = drizzle(sql, {
       schema,
       connection: {
         ssl: 'require',
       },
     });
+    _initialized = true;
 
     console.info('[Database] Using Neon/Postgres for production');
   }
   
-  dbPromise = null; // Reset for future lazy re-initialization if needed
-  return db;
+  return _db;
 }
 
-// For synchronous access (legacy support), initialize lazily on first access
-// The actual initialization happens when getDb() is called
+// Create a proxy that initializes on first access (for Better Auth compatibility)
+const dbProxy = new Proxy(
+  {},
+  {
+    get(target, prop) {
+      if (prop === 'then') return undefined; // Not a thenable
+      
+      // In test mode, don't try to initialize - just return undefined
+      // Tests must call setDbForTesting first
+      if (isTest && !_initialized) {
+        return undefined;
+      }
+      
+      const instance = initializeDatabase();
+      if (!instance) return undefined;
+      return (instance as any)?.[prop];
+    },
+    has(target, prop) {
+      if (prop === 'then') return false;
+      
+      // In test mode, don't try to initialize
+      if (isTest && !_initialized) {
+        return false;
+      }
+      
+      const instance = initializeDatabase();
+      return instance ? prop in instance : false;
+    },
+  }
+);
 
-export { db, getDb };
-export default db;
+// Export both the proxy and a getter function
+// The proxy is for Better Auth which imports db directly
+// The getter is for tests to get the mock after setDbForTesting
+export const db = dbProxy;
+
+/**
+ * Get the database instance (for internal use and testing)
+ */
+export function getDb(): any {
+  return initializeDatabase();
+}
+
+/**
+ * Set the database instance directly (for testing purposes)
+ * @param mockDb - The mock database instance to use
+ */
+export function setDbForTesting(mockDb: any): void {
+  _db = mockDb;
+  _initialized = true;
+}
+
+/**
+ * Clear the database instance (for testing purposes)
+ */
+export function clearDbForTesting(): void {
+  _db = undefined;
+  _initialized = false;
+}
