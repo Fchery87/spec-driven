@@ -108,7 +108,7 @@ describe('executeRegenerationWorkflow', () => {
   describe('Basic Workflow Execution', () => {
     it('should execute regeneration workflow with regenerate_all strategy', async () => {
       const options = {
-        triggerArtifactId: 'SPEC/PRD.md',
+        triggerArtifactId: 'SPEC_PM/PRD.md',
         selectedStrategy: 'regenerate_all' as RegenerationStrategy,
       };
 
@@ -132,7 +132,7 @@ describe('executeRegenerationWorkflow', () => {
 
     it('should create regeneration_run record in database', async () => {
       const options = {
-        triggerArtifactId: 'SPEC/PRD.md',
+        triggerArtifactId: 'SPEC_PM/PRD.md',
         selectedStrategy: 'regenerate_all' as RegenerationStrategy,
       };
 
@@ -145,7 +145,7 @@ describe('executeRegenerationWorkflow', () => {
 
     it('should update regeneration_run with results after completion', async () => {
       const options = {
-        triggerArtifactId: 'SPEC/PRD.md',
+        triggerArtifactId: 'SPEC_PM/PRD.md',
         selectedStrategy: 'regenerate_all' as RegenerationStrategy,
       };
 
@@ -160,7 +160,7 @@ describe('executeRegenerationWorkflow', () => {
   describe('Strategy Selection', () => {
     it('should regenerate all affected artifacts with regenerate_all strategy', async () => {
       const options = {
-        triggerArtifactId: 'SPEC/PRD.md',
+        triggerArtifactId: 'SPEC_PM/PRD.md',
         selectedStrategy: 'regenerate_all' as RegenerationStrategy,
       };
 
@@ -175,7 +175,7 @@ describe('executeRegenerationWorkflow', () => {
 
     it('should regenerate only HIGH impact artifacts with high_impact_only strategy', async () => {
       const options = {
-        triggerArtifactId: 'SPEC/PRD.md',
+        triggerArtifactId: 'SPEC_PM/PRD.md',
         selectedStrategy: 'high_impact_only' as RegenerationStrategy,
       };
 
@@ -190,7 +190,7 @@ describe('executeRegenerationWorkflow', () => {
 
     it('should return empty arrays with ignore strategy', async () => {
       const options = {
-        triggerArtifactId: 'SPEC/PRD.md',
+        triggerArtifactId: 'SPEC_PM/PRD.md',
         selectedStrategy: 'ignore' as RegenerationStrategy,
       };
 
@@ -208,7 +208,7 @@ describe('executeRegenerationWorkflow', () => {
 
     it('should support manual_review strategy with user-specified artifacts', async () => {
       const options = {
-        triggerArtifactId: 'SPEC/PRD.md',
+        triggerArtifactId: 'SPEC_PM/PRD.md',
         selectedStrategy: 'manual_review' as RegenerationStrategy,
         manualArtifactIds: ['SOLUTIONING/tasks.md', 'SPEC/data-model.md'],
       };
@@ -227,7 +227,7 @@ describe('executeRegenerationWorkflow', () => {
 
     it('should return empty list for manual_review without user-specified artifacts', async () => {
       const options = {
-        triggerArtifactId: 'SPEC/PRD.md',
+        triggerArtifactId: 'SPEC_PM/PRD.md',
         selectedStrategy: 'manual_review' as RegenerationStrategy,
       };
 
@@ -244,7 +244,7 @@ describe('executeRegenerationWorkflow', () => {
   describe('Artifact Version Updates', () => {
     it('should update artifact_versions with regeneration_run_id', async () => {
       const options = {
-        triggerArtifactId: 'SPEC/PRD.md',
+        triggerArtifactId: 'SPEC_PM/PRD.md',
         selectedStrategy: 'regenerate_all' as RegenerationStrategy,
       };
 
@@ -278,7 +278,7 @@ describe('executeRegenerationWorkflow', () => {
 
     it('should track duration of regeneration workflow', async () => {
       const options = {
-        triggerArtifactId: 'SPEC/PRD.md',
+        triggerArtifactId: 'SPEC_PM/PRD.md',
         selectedStrategy: 'ignore' as RegenerationStrategy,
       };
 
@@ -300,7 +300,7 @@ describe('executeRegenerationWorkflow', () => {
       // Create a HIGH impact change that should affect downstream artifacts
       const triggerChange: ArtifactChange = {
         projectId: 'test-project',
-        artifactName: 'SPEC/PRD.md',
+        artifactName: 'SPEC_PM/PRD.md',
         oldHash: 'abc123old',
         newHash: 'def456new',
         hasChanges: true,
@@ -316,7 +316,7 @@ describe('executeRegenerationWorkflow', () => {
       };
 
       const options = {
-        triggerArtifactId: 'SPEC/PRD.md',
+        triggerArtifactId: 'SPEC_PM/PRD.md',
         selectedStrategy: 'regenerate_all' as RegenerationStrategy,
       };
 
@@ -331,7 +331,7 @@ describe('executeRegenerationWorkflow', () => {
 
     it('should handle MEDIUM impact changes correctly', async () => {
       const options = {
-        triggerArtifactId: 'SPEC/PRD.md',
+        triggerArtifactId: 'SPEC_PM/PRD.md',
         selectedStrategy: 'high_impact_only' as RegenerationStrategy,
       };
 
@@ -348,7 +348,7 @@ describe('executeRegenerationWorkflow', () => {
   describe('Result Structure', () => {
     it('should return complete RegenerationResult structure', async () => {
       const options = {
-        triggerArtifactId: 'SPEC/PRD.md',
+        triggerArtifactId: 'SPEC_PM/PRD.md',
         selectedStrategy: 'ignore' as RegenerationStrategy,
       };
 
@@ -377,7 +377,7 @@ describe('executeRegenerationWorkflow', () => {
 
     it('should return regenerationRunId for non-ignore strategies', async () => {
       const options = {
-        triggerArtifactId: 'SPEC/PRD.md',
+        triggerArtifactId: 'SPEC_PM/PRD.md',
         selectedStrategy: 'regenerate_all' as RegenerationStrategy,
       };
 
@@ -399,7 +399,7 @@ describe('executeRegenerationWorkflow', () => {
   describe('Edge Cases', () => {
     it('should handle empty project ID', async () => {
       const options = {
-        triggerArtifactId: 'SPEC/PRD.md',
+        triggerArtifactId: 'SPEC_PM/PRD.md',
         selectedStrategy: 'ignore' as RegenerationStrategy,
       };
 
@@ -425,7 +425,7 @@ describe('executeRegenerationWorkflow', () => {
 
     it('should handle multiple artifacts to regenerate', async () => {
       const options = {
-        triggerArtifactId: 'SPEC/PRD.md',
+        triggerArtifactId: 'SPEC_PM/PRD.md',
         selectedStrategy: 'regenerate_all' as RegenerationStrategy,
       };
 

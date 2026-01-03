@@ -57,9 +57,10 @@ describe('analyzeRegenerationImpact', () => {
   describe('PRD-dependent Artifact Identification', () => {
     it('should identify artifacts that depend on PRD when PRD changes', async () => {
       // Create a HIGH impact change (added section) to PRD
+      // Note: Phase name is SPEC_PM in the actual spec
       const triggerChange: ArtifactChange = {
         projectId: 'test-project',
-        artifactName: 'SPEC/PRD.md',
+        artifactName: 'SPEC_PM/PRD.md',
         oldHash: 'abc123old',
         newHash: 'def456new',
         hasChanges: true,
@@ -92,9 +93,10 @@ describe('analyzeRegenerationImpact', () => {
 
     it('should identify data-model.md and api-spec.json as affected when PRD changes', async () => {
       // Create a change to PRD
+      // Note: Phase name is SPEC_PM in the actual spec
       const triggerChange: ArtifactChange = {
         projectId: 'test-project',
-        artifactName: 'SPEC/PRD.md',
+        artifactName: 'SPEC_PM/PRD.md',
         oldHash: 'abc123old',
         newHash: 'def456new',
         hasChanges: true,
@@ -122,9 +124,10 @@ describe('analyzeRegenerationImpact', () => {
 
   describe('HIGH Impact for Added/Removed Requirements', () => {
     it('should return HIGH impact when requirements are added', async () => {
+      // Note: Phase name is SPEC_PM in the actual spec
       const triggerChange: ArtifactChange = {
         projectId: 'test-project',
-        artifactName: 'SPEC/PRD.md',
+        artifactName: 'SPEC_PM/PRD.md',
         oldHash: 'abc123old',
         newHash: 'def456new',
         hasChanges: true,
@@ -150,9 +153,10 @@ describe('analyzeRegenerationImpact', () => {
     });
 
     it('should return HIGH impact when requirements are removed', async () => {
+      // Note: Phase name is SPEC_PM in the actual spec
       const triggerChange: ArtifactChange = {
         projectId: 'test-project',
-        artifactName: 'SPEC/PRD.md',
+        artifactName: 'SPEC_PM/PRD.md',
         oldHash: 'abc123old',
         newHash: 'def456new',
         hasChanges: true,
@@ -178,9 +182,10 @@ describe('analyzeRegenerationImpact', () => {
     });
 
     it('should include reasoning about structural changes for HIGH impact', async () => {
+      // Note: Phase name is SPEC_PM in the actual spec
       const triggerChange: ArtifactChange = {
         projectId: 'test-project',
-        artifactName: 'SPEC/PRD.md',
+        artifactName: 'SPEC_PM/PRD.md',
         oldHash: 'abc123old',
         newHash: 'def456new',
         hasChanges: true,
@@ -208,9 +213,10 @@ describe('analyzeRegenerationImpact', () => {
 
   describe('MEDIUM Impact for Modified Requirements', () => {
     it('should return MEDIUM impact when requirements are modified', async () => {
+      // Note: Phase name is SPEC_PM in the actual spec
       const triggerChange: ArtifactChange = {
         projectId: 'test-project',
-        artifactName: 'SPEC/PRD.md',
+        artifactName: 'SPEC_PM/PRD.md',
         oldHash: 'abc123old',
         newHash: 'def456new',
         hasChanges: true,
@@ -239,9 +245,10 @@ describe('analyzeRegenerationImpact', () => {
     });
 
     it('should recommend selective regeneration for MEDIUM impact', async () => {
+      // Note: Phase name is SPEC_PM in the actual spec
       const triggerChange: ArtifactChange = {
         projectId: 'test-project',
-        artifactName: 'SPEC/PRD.md',
+        artifactName: 'SPEC_PM/PRD.md',
         oldHash: 'abc123old',
         newHash: 'def456new',
         hasChanges: true,
@@ -268,9 +275,10 @@ describe('analyzeRegenerationImpact', () => {
 
   describe('Recommended Strategy Based on Impact Level', () => {
     it('should recommend regenerate_all for HIGH impact changes', async () => {
+      // Note: Phase name is SPEC_PM in the actual spec
       const triggerChange: ArtifactChange = {
         projectId: 'test-project',
-        artifactName: 'SPEC/PRD.md',
+        artifactName: 'SPEC_PM/PRD.md',
         oldHash: 'abc123old',
         newHash: 'def456new',
         hasChanges: true,
@@ -295,9 +303,10 @@ describe('analyzeRegenerationImpact', () => {
     });
 
     it('should recommend high_impact_only for MEDIUM impact changes', async () => {
+      // Note: Phase name is SPEC_PM in the actual spec
       const triggerChange: ArtifactChange = {
         projectId: 'test-project',
-        artifactName: 'SPEC/PRD.md',
+        artifactName: 'SPEC_PM/PRD.md',
         oldHash: 'abc123old',
         newHash: 'def456new',
         hasChanges: true,
@@ -316,6 +325,7 @@ describe('analyzeRegenerationImpact', () => {
 
     it('should recommend manual_review when only LOW impact changes', async () => {
       // Create a LOW impact change
+      // Note: Phase name is ANALYSIS in the actual spec
       const triggerChange: ArtifactChange = {
         projectId: 'test-project',
         artifactName: 'ANALYSIS/project-brief.md',
@@ -337,6 +347,7 @@ describe('analyzeRegenerationImpact', () => {
 
     it('should recommend ignore when no artifacts are affected', async () => {
       // Create a change to an artifact that no other artifacts depend on
+      // Note: Using DONE phase which has no dependents
       const triggerChange: ArtifactChange = {
         projectId: 'test-project',
         artifactName: 'DONE/README.md',
@@ -369,9 +380,10 @@ describe('analyzeRegenerationImpact', () => {
   describe('Impact Summary Calculation', () => {
     it('should correctly count HIGH, MEDIUM, and LOW impact artifacts', async () => {
       // Create a change that will have both HIGH and MEDIUM impacts
+      // Note: Phase name is SPEC_PM in the actual spec
       const triggerChange: ArtifactChange = {
         projectId: 'test-project',
-        artifactName: 'SPEC/PRD.md',
+        artifactName: 'SPEC_PM/PRD.md',
         oldHash: 'abc123old',
         newHash: 'def456new',
         hasChanges: true,
@@ -410,9 +422,10 @@ describe('analyzeRegenerationImpact', () => {
 
   describe('Affected Artifact Details', () => {
     it('should include phase information for each affected artifact', async () => {
+      // Note: Phase name is SPEC_PM in the actual spec
       const triggerChange: ArtifactChange = {
         projectId: 'test-project',
-        artifactName: 'SPEC/PRD.md',
+        artifactName: 'SPEC_PM/PRD.md',
         oldHash: 'abc123old',
         newHash: 'def456new',
         hasChanges: true,
@@ -443,9 +456,10 @@ describe('analyzeRegenerationImpact', () => {
     });
 
     it('should include reason explaining why artifact is affected', async () => {
+      // Note: Phase name is SPEC_PM in the actual spec
       const triggerChange: ArtifactChange = {
         projectId: 'test-project',
-        artifactName: 'SPEC/PRD.md',
+        artifactName: 'SPEC_PM/PRD.md',
         oldHash: 'abc123old',
         newHash: 'def456new',
         hasChanges: true,
@@ -477,6 +491,7 @@ describe('analyzeRegenerationImpact', () => {
     it('should find artifacts that transitively depend on the changed artifact', async () => {
       // Changes to early phase artifacts (like project-brief.md) should propagate
       // through multiple phases to affect downstream artifacts
+      // Note: Phase name is ANALYSIS in the actual spec
       const triggerChange: ArtifactChange = {
         projectId: 'test-project',
         artifactName: 'ANALYSIS/project-brief.md',
@@ -507,6 +522,7 @@ describe('analyzeRegenerationImpact', () => {
 
   describe('Edge Cases', () => {
     it('should handle artifacts with no dependencies', async () => {
+      // Note: Phase name is ANALYSIS in the actual spec
       const triggerChange: ArtifactChange = {
         projectId: 'test-project',
         artifactName: 'ANALYSIS/unrelated-artifact.md',
@@ -537,9 +553,10 @@ describe('analyzeRegenerationImpact', () => {
     });
 
     it('should handle changes with empty changedSections', async () => {
+      // Note: Phase name is SPEC_PM in the actual spec
       const triggerChange: ArtifactChange = {
         projectId: 'test-project',
-        artifactName: 'SPEC/PRD.md',
+        artifactName: 'SPEC_PM/PRD.md',
         oldHash: 'abc123old',
         newHash: 'def456new',
         hasChanges: true,
@@ -560,9 +577,10 @@ describe('analyzeRegenerationImpact', () => {
 
     it('should handle artifact names with and without phase prefix', async () => {
       // Test with phase prefix
+      // Note: Phase name is SPEC_PM in the actual spec
       const triggerChange1: ArtifactChange = {
         projectId: 'test-project',
-        artifactName: 'SPEC/PRD.md',
+        artifactName: 'SPEC_PM/PRD.md',
         oldHash: 'abc123old',
         newHash: 'def456new',
         hasChanges: true,

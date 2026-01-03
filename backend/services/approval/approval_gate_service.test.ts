@@ -51,14 +51,12 @@ describe('ApprovalGateService', () => {
 
   describe('approveGate', () => {
     it('should approve a gate and record approver', async () => {
-      const mockUpdate = vi.fn().mockResolvedValue([]);
-      (db.update as any).mockReturnValue({
+      const mockWhere = vi.fn().mockResolvedValue([]);
+      (db.update as any).mockImplementation(() => ({
         set: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            returning: mockUpdate,
-          }),
+          where: mockWhere,
         }),
-      });
+      }));
 
       await service.approveGate({
         projectId: mockProjectId,
@@ -67,7 +65,7 @@ describe('ApprovalGateService', () => {
         notes: 'Looks good',
       });
 
-      expect(mockUpdate).toHaveBeenCalled();
+      expect(mockWhere).toHaveBeenCalled();
     });
   });
 

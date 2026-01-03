@@ -140,7 +140,7 @@ describe('ParallelExecution', () => {
       const group: ParallelGroup = {
         name: 'duration-test',
         type: 'parallel',
-        phases: ['ANALYSIS', 'STACK_SELECTION', 'SPEC'],
+        phases: ['ANALYSIS', 'STACK_SELECTION', 'SPEC_PM'],
       };
 
       const results = await engine.executeParallelGroup('test-project', group);
@@ -155,7 +155,7 @@ describe('ParallelExecution', () => {
       const engine = new OrchestratorEngine();
 
       const mockArtifacts1 = { 'ANALYSIS/output1.md': 'content1' };
-      const mockArtifacts2 = { 'SPEC/output2.md': 'content2' };
+      const mockArtifacts2 = { 'SPEC_PM/output2.md': 'content2' };
 
       vi.spyOn(engine, 'runPhaseAgent').mockImplementation(async (project) => {
         if (project.current_phase === 'ANALYSIS') {
@@ -164,11 +164,11 @@ describe('ParallelExecution', () => {
             artifacts: mockArtifacts1,
             message: 'ANALYSIS completed',
           };
-        } else if (project.current_phase === 'SPEC') {
+        } else if (project.current_phase === 'SPEC_PM') {
           return {
             success: true,
             artifacts: mockArtifacts2,
-            message: 'SPEC completed',
+            message: 'SPEC_PM completed',
           };
         }
         return { success: true, artifacts: {}, message: 'Done' };
@@ -177,14 +177,14 @@ describe('ParallelExecution', () => {
       const group: ParallelGroup = {
         name: 'artifact-collection-test',
         type: 'parallel',
-        phases: ['ANALYSIS', 'SPEC'],
+        phases: ['ANALYSIS', 'SPEC_PM'],
       };
 
       const results = await engine.executeParallelGroup('test-project', group);
 
       // Verify all artifacts are collected
       const analysisResult = results.find((r) => r.phase === 'ANALYSIS');
-      const specResult = results.find((r) => r.phase === 'SPEC');
+      const specResult = results.find((r) => r.phase === 'SPEC_PM');
 
       expect(analysisResult?.artifacts).toEqual(mockArtifacts1);
       expect(specResult?.artifacts).toEqual(mockArtifacts2);

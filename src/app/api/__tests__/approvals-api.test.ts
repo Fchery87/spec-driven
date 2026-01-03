@@ -1,12 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 
-vi.mock('@/backend/services/database/drizzle_project_db_service', () => ({
-  ProjectDBService: vi.fn()
-}));
-vi.mock('@/backend/services/approval/approval_gate_service', () => ({
-  ApprovalGateService: vi.fn()
-}));
+vi.mock('@/backend/services/database/drizzle_project_db_service');
+vi.mock('@/backend/services/approval/approval_gate_service');
 vi.mock('@/lib/logger');
 vi.mock('@/app/api/middleware/auth-guard', () => ({
   requireAuth: async () => ({

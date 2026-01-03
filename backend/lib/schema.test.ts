@@ -1,10 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { validationRuns, artifactVersions, autoRemedyRuns, projects, regenerationRuns } from './schema';
+import { validationRuns, artifactVersions, autoRemedyRuns, projects, regenerationRuns, phaseSnapshots, approvalGates, gitOperations } from './schema';
 
 describe('Phase 2 Schema', () => {
   describe('phaseSnapshots table', () => {
     it('should have all required columns', () => {
-      const { phaseSnapshots } = require('./schema');
       const columns = Object.keys(phaseSnapshots);
       expect(columns).toContain('id');
       expect(columns).toContain('projectId');
@@ -18,7 +17,6 @@ describe('Phase 2 Schema', () => {
 
   describe('approvalGates table', () => {
     it('should have all required columns', () => {
-      const { approvalGates } = require('./schema');
       const columns = Object.keys(approvalGates);
       expect(columns).toContain('id');
       expect(columns).toContain('gateName');
@@ -30,7 +28,6 @@ describe('Phase 2 Schema', () => {
 
   describe('gitOperations table', () => {
     it('should have all required columns', () => {
-      const { gitOperations } = require('./schema');
       const columns = Object.keys(gitOperations);
       expect(columns).toContain('operationType');
       expect(columns).toContain('commitHash');

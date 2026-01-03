@@ -1843,14 +1843,35 @@ ${
       Array<{ phase: string; artifact: string }>
     >();
 
+    // Helper to get outputs as array (handles both string "all" and array cases)
+    const getOutputsArray = (outputs: string | string[] | undefined): string[] => {
+      if (!outputs) return [];
+      if (Array.isArray(outputs)) return outputs;
+      // If it's a string like "all", we can't determine specific outputs
+      // Skip this phase for dependency building
+      return [];
+    };
+
+    // Helper to get inputs as array (handles undefined case)
+    const getInputsArray = (inputs: string[] | undefined): string[] => {
+      if (!inputs) return [];
+      return inputs;
+    };
+
     // Iterate through all phases to build dependency relationships
     for (const [phaseName, phase] of Object.entries(this.spec.phases)) {
+      // Skip phases with string outputs (like "all") - we can't determine specific artifacts
+      const outputs = getOutputsArray(phase.outputs);
+      if (outputs.length === 0) continue;
+
+      const inputs = getInputsArray(phase.inputs);
+
       // Each output artifact of this phase depends on the inputs of this phase
-      for (const outputArtifact of phase.outputs) {
+      for (const outputArtifact of outputs) {
         const outputKey = `${phaseName}/${outputArtifact}`;
 
         // Add dependencies from inputs
-        for (const inputArtifact of phase.inputs) {
+        for (const inputArtifact of inputs) {
           // Inputs can be from previous phases or external sources
           // We track them as dependencies
           if (!dependencies.has(inputArtifact)) {
@@ -1867,7 +1888,8 @@ ${
           for (const depPhaseName of phase.depends_on) {
             const depPhase = this.spec.phases[depPhaseName];
             if (depPhase) {
-              for (const depOutput of depPhase.outputs) {
+              const depOutputs = getOutputsArray(depPhase.outputs);
+              for (const depOutput of depOutputs) {
                 const depOutputKey = `${depPhaseName}/${depOutput}`;
                 if (!dependencies.has(depOutputKey)) {
                   dependencies.set(depOutputKey, []);
