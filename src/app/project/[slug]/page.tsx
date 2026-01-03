@@ -204,7 +204,24 @@ export default function ProjectPage() {
       const result = await response.json();
 
       if (result.success) {
-        setClarificationQuestions(result.data.state?.questions || []);
+        // Merge resolved questions with current state, preserving existing questions
+        if (result.data.state?.questions && result.data.state.questions.length > 0) {
+          setClarificationQuestions(result.data.state.questions);
+        } else if (result.data.resolved?.length > 0) {
+          // Fallback: update only the resolved question in local state
+          setClarificationQuestions(prev => prev.map(q => {
+            const resolved = result.data.resolved.find((r: { id: string; assumption?: string; rationale?: string }) => r.id === q.id);
+            if (resolved) {
+              return {
+                ...q,
+                resolved: true,
+                resolvedBy: 'ai' as const,
+                aiAssumed: { assumption: resolved.assumption || '', rationale: resolved.rationale || '' }
+              };
+            }
+            return q;
+          }));
+        }
         const resolvedCount = result.data.resolved?.length || 0;
         recordAction(resolvedCount > 0 
           ? 'Question auto-resolved by AI.'
@@ -233,7 +250,24 @@ export default function ProjectPage() {
       const result = await response.json();
 
       if (result.success) {
-        setClarificationQuestions(result.data.state?.questions || []);
+        // Merge resolved questions with current state, preserving existing questions
+        if (result.data.state?.questions && result.data.state.questions.length > 0) {
+          setClarificationQuestions(result.data.state.questions);
+        } else if (result.data.resolved?.length > 0) {
+          // Fallback: update only the resolved questions in local state
+          setClarificationQuestions(prev => prev.map(q => {
+            const resolved = result.data.resolved.find((r: { id: string; assumption?: string; rationale?: string }) => r.id === q.id);
+            if (resolved) {
+              return {
+                ...q,
+                resolved: true,
+                resolvedBy: 'ai' as const,
+                aiAssumed: { assumption: resolved.assumption || '', rationale: resolved.rationale || '' }
+              };
+            }
+            return q;
+          }));
+        }
         const resolvedCount = result.data.resolved?.length || 0;
         recordAction(resolvedCount > 0 
           ? `Auto-resolved ${resolvedCount} question(s).`
