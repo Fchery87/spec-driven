@@ -81,7 +81,7 @@ function recordRequest(
 }
 
 // Export for use in other modules
-export { recordRequest, metrics, TIME_BUCKETS };
+export { recordRequest };
 
 /**
  * Generate Prometheus-compatible metrics output
