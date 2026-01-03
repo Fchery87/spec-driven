@@ -37,9 +37,9 @@ const metrics: Metrics = {
 const TIME_BUCKETS = [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
 
 /**
- * Record a request metric
+ * Record a request metric (internal function, not exported)
  */
-export function recordRequest(
+function recordRequest(
   method: string,
   path: string,
   statusCode: number,
@@ -79,6 +79,9 @@ export function recordRequest(
   
   metrics.lastUpdated = Date.now();
 }
+
+// Export for use in other modules
+export { recordRequest, metrics, TIME_BUCKETS };
 
 /**
  * Generate Prometheus-compatible metrics output
