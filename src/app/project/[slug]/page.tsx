@@ -24,6 +24,7 @@ import { ClarificationPanel, type ClarificationQuestion, type ClarificationMode 
 import { ValidationResultsPanel, type ValidationCheck, type ValidationSummary } from '@/components/orchestration/ValidationResultsPanel';
 import { calculatePhaseStatuses, canAdvanceFromPhase } from '@/utils/phase-status';
 import { CheckCircle, Trash2, Download, FileText, AlertCircle, RotateCcw, History } from 'lucide-react';
+import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 
 interface Artifact {
   name: string;
@@ -847,7 +848,8 @@ export default function ProjectPage() {
   const hasCurrentArtifacts = hasArtifactsForPhase(project.current_phase, artifacts);
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted pb-24">
+    <ErrorBoundary>
+      <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted pb-24">
       <div className="max-w-6xl mx-auto px-6 pt-6">
         <ProjectHeader
           name={project.name}
@@ -1326,6 +1328,7 @@ export default function ProjectPage() {
         />
       )}
     </main>
+    </ErrorBoundary>
   );
 }
 

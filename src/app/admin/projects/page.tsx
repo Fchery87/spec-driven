@@ -13,6 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { FolderOpen, Search, User } from 'lucide-react';
+import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 
 interface ProjectData {
   id: string;
@@ -87,7 +88,8 @@ export default function AllProjectsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <ErrorBoundary>
+      <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <FolderOpen className="h-6 w-6 text-primary" />
@@ -204,6 +206,7 @@ export default function AllProjectsPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }

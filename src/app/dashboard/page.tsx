@@ -21,6 +21,7 @@ import {
   AlertCircle, FolderOpen, TrendingUp,
   Settings, Shield, Cog
 } from 'lucide-react';
+import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 
 interface Project {
   slug: string;
@@ -146,7 +147,8 @@ export default function Dashboard() {
   }, [projects]);
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted">
+    <ErrorBoundary>
+      <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted">
       <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
         {/* Hero Header with Gradient */}
         <div className="gradient-header dark:gradient-header-dark rounded-2xl p-6 border border-border/50">
@@ -550,6 +552,7 @@ export default function Dashboard() {
         </Dialog>
       </div>
     </main>
+    </ErrorBoundary>
   );
 }
 

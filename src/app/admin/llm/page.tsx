@@ -16,6 +16,7 @@ import {
 import { Slider } from '@/components/ui/slider';
 import { Cpu, Save, RefreshCw, CheckCircle, XCircle, AlertTriangle, Key, Eye, EyeOff, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 
 type ProviderType = 'gemini' | 'openai' | 'anthropic' | 'zai' | 'groq' | 'deepseek';
 
@@ -416,7 +417,8 @@ export default function LLMConfigPage() {
   const currentProviderStatus = providerStatus[currentProvider];
 
   return (
-    <div className="space-y-6">
+    <ErrorBoundary>
+      <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Cpu className="h-6 w-6 text-primary" />
@@ -814,6 +816,7 @@ export default function LLMConfigPage() {
           </div>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }

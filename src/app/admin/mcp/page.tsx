@@ -22,6 +22,7 @@ import {
   Shield
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 
 interface MCPProvider {
   provider: string;
@@ -198,7 +199,8 @@ export default function MCPConfigPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <ErrorBoundary>
+      <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Plug className="h-6 w-6 text-primary" />
@@ -458,5 +460,6 @@ export default function MCPConfigPage() {
         </CardContent>
       </Card>
     </div>
+    </ErrorBoundary>
   );
 }

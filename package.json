@@ -87,7 +87,7 @@
     "@vitest/coverage-v8": "^4.0.9",
     "@vitest/ui": "^4.0.9",
     "autoprefixer": "^10.0.1",
-    "drizzle-kit": "^0.31.8",
+    "drizzle-kit": "^0.18.1",
     "eslint": "^9.39.2",
     "eslint-config-next": "^16.1.1",
     "jsdom": "^23.0.1",
