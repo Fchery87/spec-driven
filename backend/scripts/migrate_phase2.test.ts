@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { runPhase2Migration } from './migrate_phase2';
-import { db } from '@/backend/lib/drizzle';
-
-vi.mock('@/backend/lib/drizzle');
+import { setDbForTesting } from '@/backend/lib/drizzle';
 
 // Mock ApprovalGateService class
 const mockInitializeGates = vi.fn();
@@ -22,6 +20,21 @@ vi.mock('@/backend/services/approval/approval_gate_service', () => ({
   ApprovalGateService: MockApprovalGateService,
 }));
 
+// Shared mock db
+const mockDb = {
+  select: vi.fn().mockReturnValue({
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockResolvedValue([]),
+    }),
+  }),
+  query: {
+    projects: {
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+    },
+  },
+};
+
 describe('Phase 2 Migration Script', () => {
   const mockProjects = [
     { id: 'project-1', slug: 'test-1' },
@@ -32,6 +45,13 @@ describe('Phase 2 Migration Script', () => {
     vi.clearAllMocks();
     mockInitializeGates.mockReset();
     mockGetProjectGates.mockReset();
+    
+    // Reset mock functions
+    mockDb.query.projects.findMany = vi.fn();
+    mockDb.query.projects.findFirst = vi.fn();
+    
+    // Set up the mock db
+    setDbForTesting(mockDb);
   });
 
   afterEach(() => {
@@ -40,8 +60,7 @@ describe('Phase 2 Migration Script', () => {
 
   describe('dry run mode', () => {
     it('should count projects and gates in dry run mode', async () => {
-      const mockFindMany = vi.fn().mockResolvedValue(mockProjects);
-      (db.query.projects.findMany as any) = mockFindMany;
+      mockDb.query.projects.findMany = vi.fn().mockResolvedValue(mockProjects);
 
       const result = await runPhase2Migration({ dryRun: true });
 
@@ -52,7 +71,7 @@ describe('Phase 2 Migration Script', () => {
 
     it('should filter by projectIds in dry run mode', async () => {
       const mockFindMany = vi.fn().mockResolvedValue([mockProjects[0]]);
-      (db.query.projects.findMany as any) = mockFindMany;
+      mockDb.query.projects.findMany = mockFindMany;
 
       const result = await runPhase2Migration({
         dryRun: true,
@@ -72,7 +91,7 @@ describe('Phase 2 Migration Script', () => {
   describe('live migration mode', () => {
     it('should initialize gates for existing projects', async () => {
       const mockFindMany = vi.fn().mockResolvedValue(mockProjects);
-      (db.query.projects.findMany as any) = mockFindMany;
+      mockDb.query.projects.findMany = mockFindMany;
 
       mockInitializeGates.mockResolvedValue(undefined);
       mockGetProjectGates.mockResolvedValue([]);
@@ -88,7 +107,7 @@ describe('Phase 2 Migration Script', () => {
 
     it('should skip projects with existing gates', async () => {
       const mockFindMany = vi.fn().mockResolvedValue(mockProjects);
-      (db.query.projects.findMany as any) = mockFindMany;
+      mockDb.query.projects.findMany = mockFindMany;
 
       mockInitializeGates.mockResolvedValue(undefined);
       mockGetProjectGates
@@ -107,14 +126,14 @@ describe('Phase 2 Migration Script', () => {
   describe('error handling', () => {
     it('should handle database errors gracefully', async () => {
       const mockFindMany = vi.fn().mockRejectedValue(new Error('DB error'));
-      (db.query.projects.findMany as any) = mockFindMany;
+      mockDb.query.projects.findMany = mockFindMany;
 
       await expect(runPhase2Migration()).rejects.toThrow('DB error');
     });
 
     it('should collect errors for individual project failures', async () => {
       const mockFindMany = vi.fn().mockResolvedValue(mockProjects);
-      (db.query.projects.findMany as any) = mockFindMany;
+      mockDb.query.projects.findMany = mockFindMany;
 
       mockInitializeGates
         .mockResolvedValueOnce(undefined) // project-1 succeeds
@@ -134,7 +153,7 @@ describe('Phase 2 Migration Script', () => {
   describe('edge cases', () => {
     it('should handle empty project list', async () => {
       const mockFindMany = vi.fn().mockResolvedValue([]);
-      (db.query.projects.findMany as any) = mockFindMany;
+      mockDb.query.projects.findMany = mockFindMany;
 
       const result = await runPhase2Migration({ dryRun: true });
 
@@ -145,7 +164,7 @@ describe('Phase 2 Migration Script', () => {
 
     it('should handle non-existent projectIds', async () => {
       const mockFindMany = vi.fn().mockResolvedValue([]);
-      (db.query.projects.findMany as any) = mockFindMany;
+      mockDb.query.projects.findMany = mockFindMany;
 
       const result = await runPhase2Migration({
         dryRun: true,

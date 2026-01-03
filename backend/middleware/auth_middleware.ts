@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtService, JWTPayload } from '@/backend/services/auth/jwt_service';
 import { logger } from '@/lib/logger';
+import { formatErrorResponse, AppError } from '@/backend/lib/error_handler';
 
 export interface AuthenticatedRequest extends NextRequest {
   user?: JWTPayload;
@@ -84,6 +85,15 @@ export function withAuth(
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       logger.error('Route error:', err);
+      
+      // Preserve AppError details in response
+      if (error instanceof AppError) {
+        return NextResponse.json(
+          formatErrorResponse(error),
+          { status: error.statusCode }
+        );
+      }
+      
       return NextResponse.json(
         { success: false, message: 'Internal server error' },
         { status: 500 }
@@ -116,6 +126,15 @@ export function optionalAuth(
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       logger.error('Route error:', err);
+      
+      // Preserve AppError details in response
+      if (error instanceof AppError) {
+        return NextResponse.json(
+          formatErrorResponse(error),
+          { status: error.statusCode }
+        );
+      }
+      
       return NextResponse.json(
         { success: false, message: 'Internal server error' },
         { status: 500 }
@@ -163,7 +182,53 @@ export function withCORS(
  * Middleware for rate limiting (basic in-memory implementation)
  * For production, use Redis or external rate limiting service
  */
+const MAX_ENTRIES = 1000; // Maximum number of entries to keep in the store
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
+let cleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Clean up old entries to prevent memory leaks
+ */
+function startCleanup() {
+  if (cleanupInterval) return;
+  
+  cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    // Only clean if store is getting large
+    if (rateLimitStore.size < MAX_ENTRIES) return;
+    
+    for (const [key, entry] of rateLimitStore.entries()) {
+      if (now > entry.resetTime) {
+        rateLimitStore.delete(key);
+      }
+    }
+    
+    // If still too many, use LRU eviction
+    if (rateLimitStore.size >= MAX_ENTRIES) {
+      const entriesToDelete = rateLimitStore.size - MAX_ENTRIES + 100;
+      const entries = Array.from(rateLimitStore.entries());
+      // Delete oldest entries
+      for (let i = 0; i < entriesToDelete && entries[i]; i++) {
+        rateLimitStore.delete(entries[i][0]);
+      }
+    }
+  }, 60 * 1000); // Run cleanup every minute
+  
+  // Start cleanup on module load
+  if (typeof window === 'undefined') {
+    startCleanup();
+  }
+}
+
+/**
+ * Stop cleanup interval
+ */
+export function stopRateLimitCleanup(): void {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
+  }
+}
 
 export function withRateLimit(
   maxRequests: number = 100,

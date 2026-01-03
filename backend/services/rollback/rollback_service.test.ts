@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RollbackService } from './rollback_service';
-import { db } from '@/backend/lib/drizzle';
-
-vi.mock('@/backend/lib/drizzle');
+import { setDbForTesting } from '@/backend/lib/drizzle';
 
 // Create a real class that can be used as a mock constructor
 class MockGitServiceClass {
@@ -14,6 +12,34 @@ class MockGitServiceClass {
 // Instead, we use vi.doMock in beforeEach or use a different approach
 vi.mock('@/backend/services/git/git_service');
 
+// Shared mock db instance for all tests
+const mockDb = {
+  insert: vi.fn().mockReturnValue({
+    values: vi.fn().mockReturnValue({
+      returning: vi.fn().mockResolvedValue([{ id: 'new-snapshot-id' }]),
+    }),
+  }),
+  update: vi.fn().mockReturnValue({
+    set: vi.fn().mockReturnValue({
+      where: vi.fn().mockResolvedValue([]),
+    }),
+  }),
+  delete: vi.fn().mockReturnValue({
+    where: vi.fn().mockResolvedValue([]),
+  }),
+  select: vi.fn().mockReturnValue({
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockResolvedValue([]),
+    }),
+  }),
+  query: {
+    phaseSnapshots: {
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+    },
+  },
+};
+
 describe('RollbackService', () => {
   let service: RollbackService;
   const mockProjectId = 'test-project-123';
@@ -23,6 +49,18 @@ describe('RollbackService', () => {
   beforeEach(async () => {
     // Clear all mocks before each test
     vi.clearAllMocks();
+    
+    // Reset mock functions
+    mockDb.insert = vi.fn().mockReturnValue({
+      values: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([{ id: 'new-snapshot-id' }]),
+      }),
+    });
+    mockDb.query.phaseSnapshots.findFirst = vi.fn();
+    mockDb.query.phaseSnapshots.findMany = vi.fn();
+    
+    // Set up the mock db
+    setDbForTesting(mockDb);
     
     // Import the mocked module and set up the mock
     const gitServiceModule = await import('@/backend/services/git/git_service');
@@ -40,11 +78,11 @@ describe('RollbackService', () => {
       const mockInsert = vi.fn().mockResolvedValue([{ id: 'snapshot-123' }]);
       
       // Mock db.query.phaseSnapshots.findMany (for getting existing snapshots)
-      (db.query.phaseSnapshots as any).findMany = vi.fn().mockResolvedValue([]);
+      mockDb.query.phaseSnapshots.findMany = vi.fn().mockResolvedValue([]);
       
       // Mock db.insert chain: insert().values().returning()
       // drizzle-orm pattern: insert(table).values(...).returning()
-      (db.insert as any).mockImplementation(() => ({
+      mockDb.insert = vi.fn().mockImplementation(() => ({
         values: vi.fn().mockReturnValue({
           returning: mockInsert,
         }),
@@ -76,7 +114,7 @@ describe('RollbackService', () => {
         { id: '2', snapshotNumber: 2, phaseName: 'ANALYSIS' },
         { id: '1', snapshotNumber: 1, phaseName: 'ANALYSIS' },
       ];
-      (db.query.phaseSnapshots.findMany as any).mockResolvedValue(mockSnapshots);
+      mockDb.query.phaseSnapshots.findMany = vi.fn().mockResolvedValue(mockSnapshots);
 
       const snapshots = await service.getSnapshotsForPhase(mockProjectId, 'ANALYSIS');
 
@@ -113,7 +151,7 @@ describe('RollbackService', () => {
         gitCommitHash: 'abc123',
       };
 
-      (db.query.phaseSnapshots.findFirst as any).mockResolvedValue(mockSnapshot);
+      mockDb.query.phaseSnapshots.findFirst = vi.fn().mockResolvedValue(mockSnapshot);
 
       const result = await service.rollbackToPhase({
         projectId: mockProjectId,

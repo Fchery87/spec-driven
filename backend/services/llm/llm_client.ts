@@ -20,13 +20,36 @@ type GeminiLimiterState = {
   nextStartAtMs: number;
   maxConcurrent: number;
   minTimeMs: number;
+  lastUsed: number;
 };
 
+const MAX_LIMITS = 1000; // Maximum number of API keys to track
 const geminiLimiterByApiKey = new Map<string, GeminiLimiterState>();
+let lastCleanup = Date.now();
 
 function getGeminiLimiter(apiKey: string): GeminiLimiterState {
   const existing = geminiLimiterByApiKey.get(apiKey);
-  if (existing) return existing;
+  if (existing) {
+    existing.lastUsed = Date.now();
+    return existing;
+  }
+
+  // Clean up old entries if we're over the limit
+  if (geminiLimiterByApiKey.size >= MAX_LIMITS) {
+    const now = Date.now();
+    const cleanupInterval = 5 * 60 * 1000; // 5 minutes
+    
+    if (now - lastCleanup > cleanupInterval) {
+      lastCleanup = now;
+      const entriesToDelete = Math.floor(MAX_LIMITS * 0.2); // Delete 20% oldest
+      const entries = Array.from(geminiLimiterByApiKey.entries())
+        .sort((a, b) => a[1].lastUsed - b[1].lastUsed);
+      
+      for (let i = 0; i < entriesToDelete && entries[i]; i++) {
+        geminiLimiterByApiKey.delete(entries[i][0]);
+      }
+    }
+  }
 
   const maxConcurrent = Math.max(
     1,
@@ -46,6 +69,7 @@ function getGeminiLimiter(apiKey: string): GeminiLimiterState {
     nextStartAtMs: 0,
     maxConcurrent,
     minTimeMs,
+    lastUsed: Date.now(),
   };
 
   geminiLimiterByApiKey.set(apiKey, state);

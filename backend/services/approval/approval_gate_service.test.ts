@@ -1,8 +1,32 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ApprovalGateService, GateStatus } from './approval_gate_service';
-import { db } from '@/backend/lib/drizzle';
+import { setDbForTesting } from '@/backend/lib/drizzle';
 
-vi.mock('@/backend/lib/drizzle');
+// Shared mock db instance for all tests
+const mockDb = {
+  insert: vi.fn().mockReturnValue({
+    values: vi.fn().mockResolvedValue([]),
+  }),
+  update: vi.fn().mockReturnValue({
+    set: vi.fn().mockReturnValue({
+      where: vi.fn().mockResolvedValue([]),
+    }),
+  }),
+  delete: vi.fn().mockReturnValue({
+    where: vi.fn().mockResolvedValue([]),
+  }),
+  select: vi.fn().mockReturnValue({
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockResolvedValue([]),
+    }),
+  }),
+  query: {
+    approvalGates: {
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+    },
+  },
+};
 
 describe('ApprovalGateService', () => {
   let service: ApprovalGateService;
@@ -11,12 +35,27 @@ describe('ApprovalGateService', () => {
   beforeEach(() => {
     service = new ApprovalGateService();
     vi.clearAllMocks();
+    
+    // Reset mock functions
+    mockDb.insert = vi.fn().mockReturnValue({
+      values: vi.fn().mockResolvedValue([]),
+    });
+    mockDb.update = vi.fn().mockReturnValue({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue([]),
+      }),
+    });
+    mockDb.query.approvalGates.findFirst = vi.fn();
+    mockDb.query.approvalGates.findMany = vi.fn();
+    
+    // Set db to mocked instance
+    setDbForTesting(mockDb);
   });
 
   describe('initializeGatesForProject', () => {
     it('should create all 4 approval gates for a project', async () => {
       const mockInsert = vi.fn().mockResolvedValue([]);
-      (db.insert as any).mockReturnValue({
+      mockDb.insert = vi.fn().mockReturnValue({
         values: mockInsert,
       });
 
@@ -41,7 +80,7 @@ describe('ApprovalGateService', () => {
         status: 'approved',
         blocking: false,
       };
-      (db.query.approvalGates.findFirst as any).mockResolvedValue(mockGate);
+      mockDb.query.approvalGates.findFirst = vi.fn().mockResolvedValue(mockGate);
 
       const status = await service.checkGateStatus(mockProjectId, 'prd_approved');
 
@@ -52,7 +91,7 @@ describe('ApprovalGateService', () => {
   describe('approveGate', () => {
     it('should approve a gate and record approver', async () => {
       const mockWhere = vi.fn().mockResolvedValue([]);
-      (db.update as any).mockImplementation(() => ({
+      mockDb.update = vi.fn().mockImplementation(() => ({
         set: vi.fn().mockReturnValue({
           where: mockWhere,
         }),

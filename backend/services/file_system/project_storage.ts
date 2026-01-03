@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, unlinkSync, rmSync } from 'fs';
+import { 
+  existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, 
+  statSync, unlinkSync, rmSync 
+} from 'fs';
+import { 
+  promises as fsPromises 
+} from 'fs';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { resolve, dirname, basename } from 'path';
 import { createHash } from 'crypto';
@@ -96,7 +102,40 @@ export class ProjectStorage {
   }
 
   /**
-   * Write artifact to project
+   * Write artifact to project (async)
+   */
+  async writeArtifactAsync(
+    projectSlug: string,
+    phase: string,
+    artifactName: string,
+    content: string,
+    version: number = 1
+  ): Promise<string> {
+    const artifactPath = this.getArtifactPath(projectSlug, phase, artifactName, version);
+    
+    // Ensure directory exists
+    const dir = dirname(artifactPath);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+
+    await fsPromises.writeFile(artifactPath, content, 'utf8');
+    
+    // Update metadata
+    await this.updateArtifactMetadataAsync(projectSlug, artifactName, {
+      phase,
+      version,
+      file_path: artifactPath,
+      file_size: Buffer.byteLength(content),
+      content_hash: createHash('sha256').update(content).digest('hex'),
+      updated_at: new Date()
+    });
+
+    return artifactPath;
+  }
+
+  /**
+   * Write artifact to project (sync - legacy)
    */
   writeArtifact(
     projectSlug: string,
@@ -129,7 +168,20 @@ export class ProjectStorage {
   }
 
   /**
-   * Read artifact from project
+   * Read artifact from project (async)
+   */
+  async readArtifactAsync(projectSlug: string, phase: string, artifactName: string, version: number = 1): Promise<string> {
+    const artifactPath = this.getArtifactPath(projectSlug, phase, artifactName, version);
+    
+    if (!existsSync(artifactPath)) {
+      throw new Error(`Artifact not found: ${artifactPath}`);
+    }
+
+    return fsPromises.readFile(artifactPath, 'utf8');
+  }
+
+  /**
+   * Read artifact from project (sync - legacy)
    */
   readArtifact(projectSlug: string, phase: string, artifactName: string, version: number = 1): string {
     const artifactPath = this.getArtifactPath(projectSlug, phase, artifactName, version);
@@ -209,6 +261,25 @@ export class ProjectStorage {
    * Get project metadata
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async getProjectMetadataAsync(projectSlug: string): Promise<any> {
+    const metadataPath = resolve(this.basePath, projectSlug, 'metadata.json');
+    
+    if (!existsSync(metadataPath)) {
+      return null;
+    }
+
+    try {
+      const content = await fsPromises.readFile(metadataPath, 'utf8');
+      return JSON.parse(content);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Get project metadata (sync - legacy)
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getProjectMetadata(projectSlug: string): any {
     const metadataPath = resolve(this.basePath, projectSlug, 'metadata.json');
     
@@ -225,7 +296,24 @@ export class ProjectStorage {
   }
 
   /**
-   * Update project metadata
+   * Update project metadata (async)
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async updateProjectMetadataAsync(projectSlug: string, updates: any): Promise<void> {
+    const metadataPath = resolve(this.basePath, projectSlug, 'metadata.json');
+    const metadata = await this.getProjectMetadataAsync(projectSlug) || {};
+    
+    const updatedMetadata = {
+      ...metadata,
+      ...updates,
+      updated_at: new Date().toISOString()
+    };
+
+    await fsPromises.writeFile(metadataPath, JSON.stringify(updatedMetadata, null, 2));
+  }
+
+  /**
+   * Update project metadata (sync - legacy)
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   updateProjectMetadata(projectSlug: string, updates: any): void {
@@ -242,7 +330,22 @@ export class ProjectStorage {
   }
 
   /**
-   * Update artifact metadata
+   * Update artifact metadata (async)
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async updateArtifactMetadataAsync(projectSlug: string, artifactName: string, info: any): Promise<void> {
+    const metadata = await this.getProjectMetadataAsync(projectSlug) || {};
+    
+    if (!metadata.artifacts) {
+      metadata.artifacts = {};
+    }
+
+    metadata.artifacts[artifactName] = info;
+    await this.updateProjectMetadataAsync(projectSlug, metadata);
+  }
+
+  /**
+   * Update artifact metadata (sync - legacy)
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private updateArtifactMetadata(projectSlug: string, artifactName: string, info: any): void {

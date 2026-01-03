@@ -7,6 +7,7 @@ import {
   phaseHistory,
   stackChoices
 } from '@/backend/lib/schema';
+import { Errors } from '@/backend/lib/error_handler';
 import {
   eq,
   desc,
@@ -138,7 +139,7 @@ export class ProjectDBService {
    */
   async updateProjectPhase(slug: string, newPhase: string, ownerId?: string) {
     const project = await this.getProjectBySlug(slug, ownerId);
-    if (!project) throw new Error('Project not found');
+    if (!project) throw Errors.projectNotFound(slug);
 
     const phasesCompleted = project.phasesCompleted
       ? project.phasesCompleted.split(',').filter((p: string) => p)
@@ -165,7 +166,7 @@ export class ProjectDBService {
    */
   async approveStackSelection(slug: string, stackChoice: string, reasoning: string, ownerId?: string) {
     const project = await this.getProjectBySlug(slug, ownerId);
-    if (!project) throw new Error('Project not found');
+    if (!project) throw Errors.projectNotFound(slug);
 
     // Create or update stack choice record
     await db.insert(stackChoices).values({
@@ -296,7 +297,7 @@ export class ProjectDBService {
    */
   async deleteProject(slug: string, ownerId?: string) {
     const project = await this.getProjectBySlug(slug, ownerId);
-    if (!project) throw new Error('Project not found');
+    if (!project) throw Errors.projectNotFound(slug);
 
     const result = await db.delete(projects)
       .where(ownerId ? and(eq(projects.id, project.id), eq(projects.ownerId, ownerId)) : eq(projects.id, project.id))
@@ -409,7 +410,7 @@ export class ProjectDBService {
    */
   async getProjectStats(slug: string, ownerId?: string) {
     const project = await this.getProjectBySlug(slug, ownerId);
-    if (!project) throw new Error('Project not found');
+    if (!project) throw Errors.projectNotFound(slug);
 
     const artifactsResult = await db.select({ count: count() })
       .from(artifacts)

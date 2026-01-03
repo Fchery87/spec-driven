@@ -21,13 +21,24 @@ export class JWTService {
   private expiresIn: string;
 
   constructor(secret?: string, expiresIn: string = '24h') {
-    this.secret = secret || process.env.JWT_SECRET || 'your-secret-key';
     this.expiresIn = expiresIn;
 
-    if (!this.secret || this.secret === 'your-secret-key') {
+    // Get secret from parameter or environment variable
+    const envSecret = process.env.JWT_SECRET;
+    
+    if (!secret && !envSecret) {
+      // In production, require a valid secret
+      if (process.env.NODE_ENV === 'production') {
+        console.error('FATAL: JWT_SECRET environment variable is required in production');
+        process.exit(1);
+      }
+      // In development, use a default with warning
+      this.secret = 'your-secret-key';
       logger.warn(
         'WARNING: Using default JWT secret. Set JWT_SECRET environment variable in production.'
       );
+    } else {
+      this.secret = secret || envSecret || 'your-secret-key';
     }
   }
 

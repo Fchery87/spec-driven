@@ -18,6 +18,7 @@ interface RateLimitEntry {
 class RateLimiter {
   private store: Map<string, RateLimitEntry> = new Map();
   private config: RateLimitConfig;
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(config: RateLimitConfig) {
     this.config = {
@@ -27,7 +28,17 @@ class RateLimiter {
 
     // Cleanup expired entries every 5 minutes
     if (typeof window === 'undefined') {
-      setInterval(() => this.cleanup(), 5 * 60 * 1000);
+      this.cleanupInterval = setInterval(() => this.cleanup(), 5 * 60 * 1000);
+    }
+  }
+
+  /**
+   * Clean up the interval on destruction
+   */
+  destroy(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
     }
   }
 
