@@ -87,11 +87,6 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
   response.headers.set('X-Content-Type-Options', 'nosniff')
 
   // ============================================================================
-  // X-XSS-Protection - XSS protection for older browsers
-  // ============================================================================
-  response.headers.set('X-XSS-Protection', '1; mode=block')
-
-  // ============================================================================
   // Referrer-Policy - Control referrer information
   // ============================================================================
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
