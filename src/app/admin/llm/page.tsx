@@ -107,8 +107,8 @@ const PROVIDER_INFO: Record<ProviderType, { name: string; envKey: string; docsUr
 
 const PROVIDER_MODELS: Record<ProviderType, { id: string; name: string; description: string }[]> = {
   gemini: [
-    { id: 'gemini-3.0-flash', name: 'Gemini 3.0 Flash', description: 'Latest, fastest, most efficient' },
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast, efficient for most tasks' },
+    { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash (Preview)', description: 'Latest frontier-class performance' },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast and efficient' },
     { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Most capable, higher quality' },
     { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Previous generation, stable' },
   ],
