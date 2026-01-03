@@ -109,19 +109,63 @@ export class ConfigLoader {
           outputs: ['stack-analysis.md', 'stack-decision.md', 'stack-rationale.md', 'stack.json'],
           depends_on: ['ANALYSIS'],
           gates: ['stack_approved'],
-          next_phase: 'SPEC',
+          next_phase: 'SPEC_PM',
           validators: ['presence', 'stack_approved']
         },
-        SPEC: {
-          name: 'SPEC',
-          description: 'Generate detailed specifications',
-          owner: ['pm', 'architect'],
-          duration_minutes: 45,
+        SPEC_PM: {
+          name: 'SPEC_PM',
+          description: 'Generate Product Requirements Document (PRD)',
+          owner: 'pm',
+          duration_minutes: 30,
           inputs: ['project-brief.md', 'personas.md', 'approved_stack'],
-          outputs: ['PRD.md', 'data-model.md', 'api-spec.json', 'design-system.md', 'component-inventory.md', 'user-flows.md'],
+          outputs: ['PRD.md'],
           depends_on: ['ANALYSIS', 'STACK_SELECTION'],
+          next_phase: 'SPEC_ARCHITECT',
+          validators: ['presence', 'markdown_frontmatter']
+        },
+        SPEC_ARCHITECT: {
+          name: 'SPEC_ARCHITECT',
+          description: 'Generate data model and API specifications',
+          owner: 'architect',
+          duration_minutes: 30,
+          inputs: ['project-brief.md', 'personas.md', 'approved_stack', 'PRD.md'],
+          outputs: ['data-model.md', 'api-spec.json'],
+          depends_on: ['SPEC_PM'],
+          next_phase: 'SPEC_DESIGN_TOKENS',
+          validators: ['presence', 'api_openapi', 'markdown_frontmatter']
+        },
+        SPEC_DESIGN_TOKENS: {
+          name: 'SPEC_DESIGN_TOKENS',
+          description: 'Generate stack-agnostic design tokens',
+          owner: 'designer',
+          duration_minutes: 30,
+          inputs: ['project-brief.md', 'personas.md'],
+          outputs: ['design-tokens.md'],
+          depends_on: ['ANALYSIS'],
+          next_phase: 'SPEC_DESIGN_COMPONENTS',
+          validators: ['presence', 'markdown_frontmatter']
+        },
+        SPEC_DESIGN_COMPONENTS: {
+          name: 'SPEC_DESIGN_COMPONENTS',
+          description: 'Map design tokens to stack-specific components',
+          owner: 'designer',
+          duration_minutes: 45,
+          inputs: ['design-tokens.md', 'approved_stack'],
+          outputs: ['component-inventory.md', 'user-journey-maps.md'],
+          depends_on: ['SPEC_DESIGN_TOKENS', 'STACK_SELECTION'],
+          next_phase: 'FRONTEND_BUILD',
+          validators: ['presence', 'markdown_frontmatter']
+        },
+        FRONTEND_BUILD: {
+          name: 'FRONTEND_BUILD',
+          description: 'Generate production-ready frontend components',
+          owner: 'frontend_developer',
+          duration_minutes: 60,
+          inputs: ['component-inventory.md', 'design-tokens.md', 'approved_stack'],
+          outputs: ['frontend-components.md', 'component-code.zip'],
+          depends_on: ['SPEC_DESIGN_COMPONENTS'],
           next_phase: 'DEPENDENCIES',
-          validators: ['markdown_frontmatter', 'api_openapi', 'presence', 'content_coverage']
+          validators: ['presence']
         },
         DEPENDENCIES: {
           name: 'DEPENDENCIES',
@@ -130,7 +174,7 @@ export class ConfigLoader {
           duration_minutes: 30,
           inputs: ['PRD.md', 'approved_stack'],
           outputs: ['DEPENDENCIES.md', 'dependencies.json'],
-          depends_on: ['SPEC'],
+          depends_on: ['SPEC_PM', 'SPEC_ARCHITECT'],
           next_phase: 'SOLUTIONING',
           validators: ['presence', 'dependencies_json_check']
         },
@@ -141,7 +185,7 @@ export class ConfigLoader {
           duration_minutes: 60,
           inputs: ['PRD.md', 'data-model.md', 'api-spec.json', 'DEPENDENCIES.md'],
           outputs: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],
-          depends_on: ['SPEC', 'DEPENDENCIES'],
+          depends_on: ['SPEC_PM', 'SPEC_ARCHITECT', 'DEPENDENCIES'],
           next_phase: 'VALIDATE',
           validators: ['markdown_frontmatter', 'tasks_dag', 'presence', 'content_coverage']
         },
@@ -153,8 +197,19 @@ export class ConfigLoader {
           inputs: ['all_previous_artifacts'],
           outputs: ['validation-report.md', 'coverage-matrix.md'],
           depends_on: ['SOLUTIONING'],
-          next_phase: 'DONE',
+          next_phase: 'AUTO_REMEDY',
           validators: ['cross_artifact_consistency', 'requirement_traceability']
+        },
+        AUTO_REMEDY: {
+          name: 'AUTO_REMEDY',
+          description: 'Automated remediation of validation failures',
+          owner: 'orchestrator',
+          duration_minutes: 30,
+          inputs: ['validation-report.md', 'failed_artifacts'],
+          outputs: ['remediation-report.md'],
+          depends_on: ['VALIDATE'],
+          next_phase: 'DONE',
+          validators: ['presence']
         },
         DONE: {
           name: 'DONE',
@@ -163,7 +218,7 @@ export class ConfigLoader {
           duration_minutes: 10,
           inputs: ['all_previous_artifacts'],
           outputs: ['README.md', 'HANDOFF.md', 'project.zip'],
-          depends_on: ['VALIDATE'],
+          depends_on: ['AUTO_REMEDY'],
           next_phase: 'DONE',
           validators: ['handoff_complete', 'zip_created']
         }

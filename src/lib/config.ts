@@ -31,16 +31,34 @@ export const ARTIFACT_CONFIG = {
  * Phase configuration
  */
 export const PHASE_CONFIG = {
-  phases: ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE', 'DONE'] as const,
+  phases: [
+    'ANALYSIS',
+    'STACK_SELECTION',
+    'SPEC_PM',
+    'SPEC_ARCHITECT',
+    'SPEC_DESIGN_TOKENS',
+    'SPEC_DESIGN_COMPONENTS',
+    'FRONTEND_BUILD',
+    'DEPENDENCIES',
+    'SOLUTIONING',
+    'VALIDATE',
+    'AUTO_REMEDY',
+    'DONE'
+  ] as const,
 
   // Files required for each phase
   requiredFiles: {
     ANALYSIS: ['constitution.md', 'project-brief.md', 'project-classification.json', 'personas.md'],
     STACK_SELECTION: ['stack-analysis.md', 'stack-decision.md', 'stack-rationale.md', 'stack.json'],
-    SPEC: ['PRD.md', 'data-model.md', 'api-spec.json', 'design-system.md', 'component-inventory.md', 'user-flows.md'],
+    SPEC_PM: ['PRD.md'],
+    SPEC_ARCHITECT: ['data-model.md', 'api-spec.json'],
+    SPEC_DESIGN_TOKENS: ['design-tokens.md'],
+    SPEC_DESIGN_COMPONENTS: ['component-inventory.md', 'user-journey-maps.md'],
+    FRONTEND_BUILD: ['frontend-components.md'],
     DEPENDENCIES: ['DEPENDENCIES.md', 'dependencies.json'],
     SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],
     VALIDATE: ['validation-report.md', 'coverage-matrix.md'],
+    AUTO_REMEDY: ['remediation-report.md'],
     DONE: ['README.md', 'HANDOFF.md'],
   },
 } as const;

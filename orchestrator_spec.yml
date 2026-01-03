@@ -227,7 +227,7 @@ phases:
       ]
     depends_on: ['ANALYSIS']
     gates: ['stack_approved']
-    next_phase: 'SPEC'
+    next_phase: 'SPEC_PM'
     validators:
       ['presence', 'stack_approved', 'stack_completeness', 'stack_json_check']
     mode: 'ai_recommend_with_alternatives'
@@ -3178,12 +3178,40 @@ llm_config:
       # Legacy fallback:
       max_tokens: 32000
 
-    SPEC:
+    SPEC_PM:
       temperature: 0.3
-      percentageAllocation: 75 # 75% of model's max output (comprehensive specs)
+      percentageAllocation: 75 # 75% - PRD with comprehensive Gherkin requirements
+      minTokens: 12000 # Minimum 12K tokens for detailed PRD
+      # Legacy fallback:
+      max_tokens: 48000
+
+    SPEC_ARCHITECT:
+      temperature: 0.3
+      percentageAllocation: 75 # 75% - Data model and OpenAPI specification
       minTokens: 12000 # Minimum 12K tokens for detailed specs
       # Legacy fallback:
       max_tokens: 48000
+
+    SPEC_DESIGN_TOKENS:
+      temperature: 0.3
+      percentageAllocation: 40 # 40% - Design tokens with color, typography, spacing, animation
+      minTokens: 8000 # Minimum 8K tokens for design tokens
+      # Legacy fallback:
+      max_tokens: 25600
+
+    SPEC_DESIGN_COMPONENTS:
+      temperature: 0.3
+      percentageAllocation: 60 # 60% - Component mapping and journey maps
+      minTokens: 10000 # Minimum 10K tokens for component specs
+      # Legacy fallback:
+      max_tokens: 38400
+
+    FRONTEND_BUILD:
+      temperature: 0.3
+      percentageAllocation: 80 # 80% - Production-ready React components
+      minTokens: 14000 # Minimum 14K tokens for frontend build
+      # Legacy fallback:
+      max_tokens: 51200
 
     DEPENDENCIES:
       temperature: 0.2
@@ -3205,6 +3233,13 @@ llm_config:
       minTokens: 10000 # Minimum 10K tokens
       # Legacy fallback:
       max_tokens: 38400
+
+    AUTO_REMEDY:
+      temperature: 0.4
+      percentageAllocation: 50 # 50% - Remediation with sufficient context
+      minTokens: 10000 # Minimum 10K tokens
+      # Legacy fallback:
+      max_tokens: 32000
 
     DONE:
       temperature: 0.3
