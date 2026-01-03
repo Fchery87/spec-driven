@@ -37,18 +37,20 @@ export class DynamicPhaseTokenCalculator {
    * - DONE: Final HANDOFF.md generation
    */
   private static readonly DEFAULT_PHASE_PERCENTAGES: Record<string, number> = {
-    ANALYSIS: 50, // 50% - Constitution, project-brief, personas
-    STACK_SELECTION: 25, // 25% - Stack analysis and decision artifacts
-    SPEC_PM: 75, // 75% - PRD with comprehensive requirements
-    SPEC_ARCHITECT: 60, // 60% - Data model and API specifications
-    SPEC_DESIGN_TOKENS: 30, // 30% - Design tokens (compact output)
-    SPEC_DESIGN_COMPONENTS: 50, // 50% - Component mapping and journey maps
-    FRONTEND_BUILD: 80, // 80% - Production component generation
-    DEPENDENCIES: 37, // 37% - Dependency analysis
-    SOLUTIONING: 100, // 100% - Uses full capability for comprehensive planning
-    VALIDATE: 50, // 50% - Validation reports
-    AUTO_REMEDY: 40, // 40% - Targeted remediation
-    DONE: 50, // 50% - HANDOFF.md generation
+    // Token allocations optimized for FULL artifact generation (no truncation)
+    // Each phase gets an independent percentage of the model's max output tokens
+    ANALYSIS: 80, // 80% - 4 comprehensive documents (constitution, brief, personas, classification)
+    STACK_SELECTION: 50, // 50% - 4 technical documents (analysis, decision, rationale, stack.json)
+    SPEC_PM: 75, // 75% - PRD with comprehensive Gherkin requirements
+    SPEC_ARCHITECT: 75, // 75% - Data model and OpenAPI specification
+    SPEC_DESIGN_TOKENS: 40, // 40% - Design tokens with color, typography, spacing, animation
+    SPEC_DESIGN_COMPONENTS: 60, // 60% - Component mapping and journey maps
+    FRONTEND_BUILD: 80, // 80% - Production-ready React components
+    DEPENDENCIES: 50, // 50% - DEPENDENCIES.md and dependencies.json
+    SOLUTIONING: 100, // 100% - Uses full capability (architecture, epics, tasks, plan)
+    VALIDATE: 60, // 60% - Validation and coverage reports
+    AUTO_REMEDY: 50, // 50% - Remediation with sufficient context
+    DONE: 60, // 60% - HANDOFF.md and README generation
   };
 
   /**

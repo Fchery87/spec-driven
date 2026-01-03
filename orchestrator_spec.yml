@@ -3162,19 +3162,21 @@ llm_config:
   # Set both percentageAllocation AND legacy max_tokens during migration period.
   # The system will use percentageAllocation (new) and ignore max_tokens (legacy) when both present.
   phase_overrides:
+    # Token allocations optimized for FULL artifact generation (no truncation)
+    # Each phase gets an independent percentage of the model's max output tokens
     ANALYSIS:
       temperature: 0.7
-      percentageAllocation: 50 # 50% of model's max output
-      minTokens: 8000 # Minimum 8K tokens for quality analysis
+      percentageAllocation: 80 # 80% - 4 comprehensive documents (constitution, brief, personas, classification)
+      minTokens: 16000 # Minimum 16K tokens for quality analysis
       # Legacy fallback (ignored if percentageAllocation present):
-      max_tokens: 32000
+      max_tokens: 51200
 
     STACK_SELECTION:
       temperature: 0.3
-      percentageAllocation: 25 # 25% of model's max output
-      minTokens: 4000 # Minimum 4K tokens
+      percentageAllocation: 50 # 50% - 4 technical documents (analysis, decision, rationale, stack.json)
+      minTokens: 12000 # Minimum 12K tokens
       # Legacy fallback:
-      max_tokens: 16000
+      max_tokens: 32000
 
     SPEC:
       temperature: 0.3
@@ -3185,10 +3187,10 @@ llm_config:
 
     DEPENDENCIES:
       temperature: 0.2
-      percentageAllocation: 37 # 37% of model's max output
-      minTokens: 6000 # Minimum 6K tokens
+      percentageAllocation: 50 # 50% - DEPENDENCIES.md and dependencies.json
+      minTokens: 10000 # Minimum 10K tokens
       # Legacy fallback:
-      max_tokens: 24000
+      max_tokens: 32000
 
     SOLUTIONING:
       temperature: 0.4
@@ -3199,17 +3201,17 @@ llm_config:
 
     VALIDATE:
       temperature: 0.3
-      percentageAllocation: 50 # 50% of model's max output
-      minTokens: 8000 # Minimum 8K tokens
+      percentageAllocation: 60 # 60% - Validation and coverage reports
+      minTokens: 10000 # Minimum 10K tokens
       # Legacy fallback:
-      max_tokens: 32000
+      max_tokens: 38400
 
     DONE:
       temperature: 0.3
-      percentageAllocation: 50 # 50% of model's max output
-      minTokens: 8000 # Minimum 8K tokens
+      percentageAllocation: 60 # 60% - HANDOFF.md and README generation
+      minTokens: 10000 # Minimum 10K tokens
       # Legacy fallback:
-      max_tokens: 32000
+      max_tokens: 38400
 
   # Rate limiting and cost management
   rate_limit:
