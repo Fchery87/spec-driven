@@ -28,7 +28,8 @@
     "verify-setup": "tsx scripts/verify-setup.ts",
     "spec:validate": "node scripts/spec-validate.js",
     "spec:constitutional-check": "node scripts/spec-constitutional-check.js",
-    "spec:badge-gen": "node scripts/spec-badge-gen.js"
+    "spec:badge-gen": "node scripts/spec-badge-gen.js",
+    "migrate:legacy-stacks": "npx tsx scripts/migrate-legacy-stacks.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.937.0",
