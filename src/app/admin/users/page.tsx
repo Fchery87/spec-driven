@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/table';
 import { Users, Shield, User, Crown } from 'lucide-react';
 import { toast } from 'sonner';
+import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 
 interface UserData {
   id: string;
@@ -110,7 +111,8 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <ErrorBoundary>
+      <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Users className="h-6 w-6 text-primary" />
@@ -186,6 +188,7 @@ export default function UsersPage() {
           </Table>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }

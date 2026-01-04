@@ -21,15 +21,36 @@ export class DynamicPhaseTokenCalculator {
   /**
    * Default phase allocation percentages
    * These percentages are applied to the model's maxOutputTokens to get actual phase limits
+   *
+   * 12-Phase System (v3.5):
+   * - ANALYSIS: Constitution, project-brief, personas, classification
+   * - STACK_SELECTION: Stack analysis, decision, rationale
+   * - SPEC_PM: PRD with Gherkin acceptance criteria
+   * - SPEC_ARCHITECT: Data model and API specifications
+   * - SPEC_DESIGN_TOKENS: Color, typography, spacing tokens
+   * - SPEC_DESIGN_COMPONENTS: Component mapping and journey maps
+   * - FRONTEND_BUILD: Production-ready React components
+   * - DEPENDENCIES: Package dependency management
+   * - SOLUTIONING: Architecture, epics, tasks breakdown
+   * - VALIDATE: Cross-artifact consistency checks
+   * - AUTO_REMEDY: Automated remediation of failures
+   * - DONE: Final HANDOFF.md generation
    */
   private static readonly DEFAULT_PHASE_PERCENTAGES: Record<string, number> = {
-    ANALYSIS: 50, // 50% of model's max output
-    STACK_SELECTION: 25, // 25% of model's max output
-    SPEC: 75, // 75% of model's max output (comprehensive specs)
-    DEPENDENCIES: 37, // 37% of model's max output
-    SOLUTIONING: 100, // 100% of model's max output (uses full capability)
-    VALIDATE: 50, // 50% of model's max output
-    DONE: 50, // 50% of model's max output
+    // Token allocations optimized for FULL artifact generation (no truncation)
+    // Each phase gets an independent percentage of the model's max output tokens
+    ANALYSIS: 80, // 80% - 4 comprehensive documents (constitution, brief, personas, classification)
+    STACK_SELECTION: 50, // 50% - 4 technical documents (analysis, decision, rationale, stack.json)
+    SPEC_PM: 75, // 75% - PRD with comprehensive Gherkin requirements
+    SPEC_ARCHITECT: 75, // 75% - Data model and OpenAPI specification
+    SPEC_DESIGN_TOKENS: 40, // 40% - Design tokens with color, typography, spacing, animation
+    SPEC_DESIGN_COMPONENTS: 60, // 60% - Component mapping and journey maps
+    FRONTEND_BUILD: 80, // 80% - Production-ready React components
+    DEPENDENCIES: 50, // 50% - DEPENDENCIES.md and dependencies.json
+    SOLUTIONING: 100, // 100% - Uses full capability (architecture, epics, tasks, plan)
+    VALIDATE: 60, // 60% - Validation and coverage reports
+    AUTO_REMEDY: 50, // 50% - Remediation with sufficient context
+    DONE: 60, // 60% - HANDOFF.md and README generation
   };
 
   /**
@@ -53,19 +74,28 @@ export class DynamicPhaseTokenCalculator {
     const modelMaxTokens = getModelMaxOutputTokens(modelId);
     const phaseLimits: Record<string, number> = {};
 
-    logger.info('[DynamicPhaseTokenCalculator] Calculating phase token limits', {
-      modelId,
-      modelMaxOutputTokens: modelMaxTokens,
-      hasPhaseOverrides: !!phaseOverrides,
-    });
+    logger.info(
+      '[DynamicPhaseTokenCalculator] Calculating phase token limits',
+      {
+        modelId,
+        modelMaxOutputTokens: modelMaxTokens,
+        hasPhaseOverrides: !!phaseOverrides,
+      }
+    );
 
+    // 12-Phase System (v3.5)
     const phases = [
       'ANALYSIS',
       'STACK_SELECTION',
-      'SPEC',
+      'SPEC_PM',
+      'SPEC_ARCHITECT',
+      'SPEC_DESIGN_TOKENS',
+      'SPEC_DESIGN_COMPONENTS',
+      'FRONTEND_BUILD',
       'DEPENDENCIES',
       'SOLUTIONING',
       'VALIDATE',
+      'AUTO_REMEDY',
       'DONE',
     ];
 
@@ -189,13 +219,20 @@ export class DynamicPhaseTokenCalculator {
     for (const [phase, config] of Object.entries(phaseOverrides)) {
       // Validate that either max_tokens or percentageAllocation is present
       if (!config.max_tokens && !config.percentageAllocation) {
-        errors.push(`Phase ${phase} has neither max_tokens nor percentageAllocation`);
+        errors.push(
+          `Phase ${phase} has neither max_tokens nor percentageAllocation`
+        );
       }
 
       // Validate percentage range
       if (config.percentageAllocation !== undefined) {
-        if (config.percentageAllocation < 0 || config.percentageAllocation > 100) {
-          errors.push(`Phase ${phase} percentageAllocation must be between 0 and 100`);
+        if (
+          config.percentageAllocation < 0 ||
+          config.percentageAllocation > 100
+        ) {
+          errors.push(
+            `Phase ${phase} percentageAllocation must be between 0 and 100`
+          );
         }
       }
 
@@ -244,7 +281,9 @@ export class DynamicPhaseTokenCalculator {
 
     for (const [phase, tokens] of Object.entries(limits)) {
       const percentage = ((tokens / modelMaxTokens) * 100).toFixed(1);
-      summary += `${phase.padEnd(15)} ${String(tokens).padStart(6)} tokens (${percentage}%)\n`;
+      summary += `${phase.padEnd(15)} ${String(tokens).padStart(
+        6
+      )} tokens (${percentage}%)\n`;
     }
 
     return summary;

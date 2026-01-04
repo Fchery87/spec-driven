@@ -29,7 +29,7 @@ export function withRateLimit(
     const allowed = await limiter.isAllowed(key);
 
     if (!allowed) {
-      const remaining = limiter.getRemainingPoints(key);
+      const remaining = await limiter.getRemainingPoints(key);
       logger.warn('Rate limit exceeded', {
         limitType,
         key: key.substring(0, 20) + '...', // Log shortened key

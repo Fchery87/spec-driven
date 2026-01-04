@@ -63,6 +63,9 @@ User Input (project idea)
 | **Test-First**              | Tests specified before implementation in task breakdown         |
 | **Task Parallelism**        | `[P]` markers identify tasks that can run concurrently          |
 | **Quality Checklists**      | Self-verification gates for each phase                          |
+| **AUTO_REMEDY**             | Automated validation failure fixes with targeted agent re-runs  |
+| **Inline Validation**       | Real-time feedback during artifact generation                   |
+| **Phase Dependency Graph**  | Smart regeneration and impact analysis                          |
 
 ### Hybrid Stack Selection
 

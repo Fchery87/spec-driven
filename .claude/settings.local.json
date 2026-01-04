@@ -20,7 +20,10 @@
       "Bash(npm run test:*)",
       "Bash(npx tsx:*)",
       "Bash(npm run db:migrate:*)",
-      "Bash(npm run verify-setup:*)"
+      "Bash(npm run verify-setup:*)",
+      "mcp__exa__web_search_exa",
+      "Skill(superpowers:brainstorming)",
+      "Skill(superpowers:writing-plans)"
     ],
     "deny": [],
     "ask": []

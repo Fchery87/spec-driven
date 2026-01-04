@@ -1,6 +1,7 @@
 import { LLMProvider } from './providers/base';
 import { ConfigLoader } from '../orchestrator/config_loader';
 import { logger } from '@/lib/logger';
+import { ValidationIssue } from '../orchestrator/inline_validation';
 import {
   deriveIntelligentDefaultStack,
   parseProjectClassification,
@@ -10,6 +11,34 @@ import {
   detectFeaturesFromPRD,
   formatDependencyPresetForPrompt,
 } from '@/backend/config/dependency-presets';
+
+// ============================================================================
+// TYPE DEFINITIONS FOR AGENT EXECUTORS
+// ============================================================================
+
+export interface AgentConfig {
+  // Configuration options for agent execution
+  [key: string]: unknown;
+}
+
+export interface AgentExecutor {
+  role: string;
+  perspective: string;
+  expertise: string[];
+  generateArtifacts: (context: Record<string, unknown>) => Promise<ArtifactGenerationResult>;
+  validateArtifacts?: (artifacts: Record<string, string>) => ValidationResult;
+}
+
+export interface ArtifactGenerationResult {
+  success: boolean;
+  artifacts: Record<string, string>;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ValidationResult {
+  canProceed: boolean;
+  issues: ValidationIssue[];
+}
 
 /**
  * PURE FUNCTION ARCHITECTURE
@@ -1309,4 +1338,190 @@ export async function getDesignExecutor(
   const prd = artifacts['SPEC/PRD.md'] || '';
   const personas = artifacts['ANALYSIS/personas.md'] || '';
   return executeDesignAgent(llmClient, brief, prd, personas, projectName);
+}
+
+
+/**
+ * Design Agent - UI/UX Designer and Design Systems Architect
+ * Perspective: Head of Design
+ * Expertise: UI/UX design, design systems, accessibility, color theory
+ */
+export function getDesignerExecutor(config: AgentConfig = {}): AgentExecutor {
+  return {
+    role: 'designer',
+    perspective: 'head_of_design',
+    expertise: ['ui_ux_design', 'design_systems', 'accessibility', 'color_theory'],
+    
+    async generateArtifacts(context: any): Promise<ArtifactGenerationResult> {
+      const { phase, stack, constitution, projectBrief, projectPath, projectId, llmClient } = context;
+      
+      // Build design context from project inputs
+      const designContext = {
+        phase,
+        stack,
+        constitution,
+        projectBrief,
+        projectPath,
+        projectId,
+        antiAISlopRules: {
+          forbidden: ['purple gradients', 'Inter font default', 'blob backgrounds'],
+          required: ['OKLCH colors', '60/30/10 rule', '8pt grid', '4 typography sizes']
+        }
+      };
+
+      // llmClient must be provided in context (passed from orchestrator)
+      if (!llmClient) {
+        throw new Error('llmClient is required in context for getDesignerExecutor.generateArtifacts');
+      }
+      
+      // Generate artifacts using LLM
+      const llmPrompt = `You are a Head of Design (UI/UX Designer and Design Systems Architect).
+
+## Phase: ${phase}
+## Stack: ${stack || 'Not selected yet (stack-agnostic)'}
+
+## Anti-AI-Slop Rules (STRICTLY ENFORCE):
+FORBIDDEN:
+- Purple gradients
+- Inter font as default
+- Blob backgrounds
+
+REQUIRED:
+- OKLCH color system (not RGB/HEX)
+- 60/30/10 color rule (60% light, 30% medium, 10% dark)
+- 8pt grid system
+- 4 typography sizes minimum
+- Design tokens first, components second
+
+## Project Context:
+${projectBrief ? `Project Brief:\n${projectBrief}\n\n` : ''}
+${constitution ? `Constitution:\n${constitution}\n\n` : ''}
+${stack ? `Tech Stack:\n${stack}\n\n` : ''}
+
+${phase === 'SPEC_DESIGN_TOKENS' ? 
+`Generate design-tokens.md with:
+
+1. Colors (OKLCH format)
+   - Primary: 60% lightness
+   - Secondary: 30% lightness  
+   - Accent: 10% lightness
+
+2. Typography (4 sizes, 8pt grid)
+   - Display: 32px (8pt base)
+   - Heading: 24px
+   - Body: 16px
+   - Caption: 14px
+
+3. Spacing (8pt grid)
+   - Base spacing unit: 8px
+   - Scale: 8, 16, 24, 32, 40, 48
+
+4. Animation tokens
+   - Duration
+   - Easing
+   - Delay
+
+5. Shadow tokens (if needed)
+
+6. Border radius tokens
+
+7. Z-index scale
+
+Format as markdown with frontmatter.` :
+
+`Generate component-mapping.md and journey-maps.md with:
+
+1. Component mapping (design tokens to stack components)
+   - Color tokens to component props
+   - Typography tokens to text components
+   - Spacing tokens to layout components
+   - Shadcn components to use (if Next.js)
+
+2. Journey maps (user interaction patterns)
+   - Key user flows
+   - Screen states
+   - Transition animations
+   - Micro-interactions
+   - Accessibility considerations
+
+Format as markdown with frontmatter.`}`;
+
+      const llmResponse = await llmClient.generateCompletion(llmPrompt, undefined, 2, phase);
+      
+      // Parse artifacts from response
+      const artifacts: Record<string, string> = {};
+      
+      if (phase === 'SPEC_DESIGN_TOKENS') {
+        artifacts['design-tokens.md'] = llmResponse.content;
+      } else if (phase === 'SPEC_DESIGN_COMPONENTS') {
+        // Parse both component-mapping and journey-maps from response
+        const sections = llmResponse.content.split('## ');
+        sections.forEach((section: string) => {
+          if (section.startsWith('Component Mapping')) {
+            artifacts['component-mapping.md'] = '## ' + section;
+          } else if (section.startsWith('Journey Maps')) {
+            artifacts['journey-maps.md'] = '## ' + section;
+          }
+        });
+        
+        // If parsing failed, put all in component-mapping.md
+        if (!artifacts['component-mapping.md']) {
+          artifacts['component-mapping.md'] = llmResponse.content;
+        }
+      }
+
+      logger.info('[DESIGNER] Artifacts generated', {
+        phase,
+        artifacts: Object.keys(artifacts),
+        stackAgnostic: phase === 'SPEC_DESIGN_TOKENS'
+      });
+
+      return {
+        success: true,
+        artifacts,
+        metadata: {
+          phase,
+          agent: 'designer',
+          generatedAt: new Date().toISOString(),
+          stackAgnostic: phase === 'SPEC_DESIGN_TOKENS',
+          stack: stack
+        }
+      };
+    },
+
+    validateArtifacts(artifacts: Record<string, string>): ValidationResult {
+      const results: ValidationIssue[] = [];
+
+      for (const [artifactName, content] of Object.entries(artifacts)) {
+        // Anti-AI-Slop validation
+        const forbiddenPatterns = ['purple-gradient', 'blob background', 'Inter, sans-serif', '"Inter",', "'Inter'"];
+        const requiredPatterns = ['oklch', '60/30/10', '8pt', 'typography-sizes'];
+
+        forbiddenPatterns.forEach(pattern => {
+          if (content.toLowerCase().includes(pattern)) {
+            results.push({
+              severity: 'error',
+              artifactId: artifactName,
+              message: `Anti-AI-slop violation: forbidden pattern "${pattern}" detected`
+            });
+          }
+        });
+
+        requiredPatterns.forEach(pattern => {
+          if (!content.toLowerCase().includes(pattern)) {
+            results.push({
+              severity: 'warning',
+              artifactId: artifactName,
+              message: `Anti-AI-slop warning: required pattern "${pattern}" not found`
+            });
+          }
+        });
+      }
+
+      return {
+        canProceed: !results.some(r => r.severity === 'error'),
+        issues: results
+      };
+    }
+  };
 }

@@ -20,13 +20,37 @@ type GeminiLimiterState = {
   nextStartAtMs: number;
   maxConcurrent: number;
   minTimeMs: number;
+  lastUsed: number;
 };
 
+const MAX_LIMITS = 1000; // Maximum number of API keys to track
 const geminiLimiterByApiKey = new Map<string, GeminiLimiterState>();
+let lastCleanup = Date.now();
 
 function getGeminiLimiter(apiKey: string): GeminiLimiterState {
   const existing = geminiLimiterByApiKey.get(apiKey);
-  if (existing) return existing;
+  if (existing) {
+    existing.lastUsed = Date.now();
+    return existing;
+  }
+
+  // Clean up old entries if we're over the limit
+  if (geminiLimiterByApiKey.size >= MAX_LIMITS) {
+    const now = Date.now();
+    const cleanupInterval = 5 * 60 * 1000; // 5 minutes
+
+    if (now - lastCleanup > cleanupInterval) {
+      lastCleanup = now;
+      const entriesToDelete = Math.floor(MAX_LIMITS * 0.2); // Delete 20% oldest
+      const entries = Array.from(geminiLimiterByApiKey.entries()).sort(
+        (a, b) => a[1].lastUsed - b[1].lastUsed
+      );
+
+      for (let i = 0; i < entriesToDelete && entries[i]; i++) {
+        geminiLimiterByApiKey.delete(entries[i][0]);
+      }
+    }
+  }
 
   const maxConcurrent = Math.max(
     1,
@@ -46,6 +70,7 @@ function getGeminiLimiter(apiKey: string): GeminiLimiterState {
     nextStartAtMs: 0,
     maxConcurrent,
     minTimeMs,
+    lastUsed: Date.now(),
   };
 
   geminiLimiterByApiKey.set(apiKey, state);
@@ -203,13 +228,18 @@ export class GeminiClient implements LLMProvider {
     }
 
     // Gemini models have different output token limits based on version.
-    // Gemini 3.0 Flash supports up to 64000 output tokens.
+    // Gemini 3 Flash Preview supports up to 64000 output tokens.
     // Gemini 2.5 Flash supports up to 65536 output tokens.
     // Gemini 2.0/1.5 models typically support 8192 output tokens.
     const getGeminiMaxOutputTokens = (model: string): number => {
       const modelLower = model.toLowerCase();
-      // Gemini 3.0 models (including gemini-3.0-flash, etc.)
-      if (modelLower.includes('3.0') || modelLower.includes('3-0'))
+      // Gemini 3 models (including gemini-3-flash-preview, gemini-3.0-flash, etc.)
+      if (
+        modelLower.includes('gemini-3') ||
+        modelLower.includes('3.0') ||
+        modelLower.includes('3-0') ||
+        modelLower.includes('3-flash')
+      )
         return 64000;
       // Gemini 2.5 models (including gemini-2.5-flash, gemini-2.5-pro, etc.)
       if (modelLower.includes('2.5') || modelLower.includes('2-5'))

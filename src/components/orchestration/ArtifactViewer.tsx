@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism"
 import mermaid from "mermaid"
+import DOMPurify from "dompurify"
 
 interface ArtifactViewerProps {
   open: boolean
@@ -104,11 +105,15 @@ export function ArtifactViewer({
       
       try {
         const { svg } = await mermaid.render(diagramId, diagramCode)
+        // Sanitize SVG to prevent XSS attacks
+        const sanitizedSvg = DOMPurify.sanitize(svg, {
+          USE_PROFILES: { svg: true, mathMl: false, html: false }
+        })
         parts.push(
           <div 
             key={diagramId}
             className="my-4 p-4 bg-muted/50 rounded-lg border border-border overflow-x-auto"
-            dangerouslySetInnerHTML={{ __html: svg }}
+            dangerouslySetInnerHTML={{ __html: sanitizedSvg }}
           />
         )
       } catch {

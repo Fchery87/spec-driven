@@ -127,4 +127,39 @@ describe('StackSelection Component', () => {
     expect(screen.getAllByText('Best For').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Strengths').length).toBeGreaterThan(0);
   });
+
+  it('shows Compose Custom tab when composition_system is available', async () => {
+    const mockWithComposition = {
+      ...mockStacksResponse,
+      data: {
+        ...mockStacksResponse.data,
+        composition_system: {
+          version: '2.0',
+          base_layers: { nextjs_app_router: { name: 'Next.js' } },
+          mobile_addons: { none: { name: 'No Mobile' } },
+          backend_addons: { integrated: { name: 'Integrated' } },
+          data_addons: { neon_postgres: { name: 'Neon Postgres' } },
+          architecture_addons: { monolith: { name: 'Monolith' } }
+        }
+      }
+    };
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        if (url === '/api/stacks') {
+          return {
+            ok: true,
+            json: async () => mockWithComposition,
+          } as Response;
+        }
+        throw new Error(`Unhandled fetch in test: ${url}`);
+      })
+    );
+
+    render(<StackSelection onStackSelect={mockOnStackSelect} />);
+    
+    expect(await screen.findByRole('button', { name: /Compose Custom/i })).toBeInTheDocument();
+  });
 });

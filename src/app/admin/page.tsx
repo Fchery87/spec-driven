@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Users, FolderOpen, Cpu, Settings, Activity, Clock } from 'lucide-react';
+import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 
 interface AdminStats {
   totalUsers: number;
@@ -55,7 +56,8 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <ErrorBoundary>
+      <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Admin Dashboard</h1>
         <p className="text-muted-foreground">System overview and quick actions</p>
@@ -207,5 +209,6 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
     </div>
+    </ErrorBoundary>
   );
 }

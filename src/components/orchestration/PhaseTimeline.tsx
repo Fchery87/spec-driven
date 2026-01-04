@@ -33,9 +33,15 @@ export function PhaseTimeline({ phases, currentPhase, onPhaseClick }: PhaseTimel
     const shortNames: Record<string, string> = {
       'ANALYSIS': 'Analysis',
       'STACK_SELECTION': 'Stack',
-      'SPEC': 'Spec',
+      'SPEC_PM': 'PM Spec',
+      'SPEC_ARCHITECT': 'Arch Spec',
+      'SPEC_DESIGN_TOKENS': 'Design Tokens',
+      'SPEC_DESIGN_COMPONENTS': 'Components',
+      'FRONTEND_BUILD': 'Frontend',
       'DEPENDENCIES': 'Deps',
       'SOLUTIONING': 'Solution',
+      'VALIDATE': 'Validate',
+      'AUTO_REMEDY': 'Auto-Fix',
       'DONE': 'Done'
     }
     return shortNames[name] || name

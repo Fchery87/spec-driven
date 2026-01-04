@@ -50,6 +50,62 @@
       "when": 1766218024989,
       "tag": "0006_remove_dependency_approval",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1767219562605,
+      "tag": "0007_breezy_chronomancer",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1767289360256,
+      "tag": "0008_melodic_franklin_richards",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1767318913014,
+      "tag": "0009_black_triathlon",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1767319041008,
+      "tag": "0010_thick_the_watchers",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1735688640000,
+      "tag": "0011_add_phase2_core_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1735688704000,
+      "tag": "0012_add_mcp_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1735688765000,
+      "tag": "0013_user_credentials",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1767406652010,
+      "tag": "0014_marvelous_the_fury",
+      "breakpoints": true
     }
   ]
 }

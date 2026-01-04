@@ -182,10 +182,19 @@ export const ErrorList: React.FC<ErrorListProps> = ({ errors, onDismissAll }) =>
  * Hook to manage error state
  */
 export function useError() {
-  const [errors, setErrors] = React.useState<(ErrorDisplayProps & { id?: number })[]>([]);
+  const [errors, setErrors] = React.useState<(ErrorDisplayProps & { id?: string })[]>([]);
+
+  // Generate stable error ID - use crypto.randomUUID if available
+  const generateErrorId = React.useCallback(() => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+    // Fallback for environments without crypto - use counter to avoid impure functions
+    return `err-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  }, []);
 
   const addError = (error: Omit<ErrorDisplayProps, 'onDismiss'>) => {
-    const id = Math.random();
+    const id = generateErrorId();
     setErrors(prev => [...prev, { ...error, id, onDismiss: () => removeError(id) }]);
 
     // Auto-dismiss after 5 seconds if no actions
@@ -194,10 +203,10 @@ export function useError() {
     }
   };
 
-  const removeError = (id: number | ErrorDisplayProps) => {
+  const removeError = (id: string | ErrorDisplayProps) => {
     setErrors(prev =>
       prev.filter(e =>
-        typeof id === 'number'
+        typeof id === 'string'
           ? e.id !== id
           : e !== id
       )

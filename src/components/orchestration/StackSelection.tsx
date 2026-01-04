@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CheckCircle2, AlertCircle, Sparkles, Shield, Loader2 } from "lucide-react"
 import { StackRecommendationView } from "./StackRecommendationView"
 import { StackCard, StackTemplate } from "./StackCard"
+import { CompositionBuilder } from "./CompositionBuilder"
 
 interface TechnicalPreferences {
   state_management?: string
@@ -49,8 +50,11 @@ export function StackSelection({
   const [reasoning, setReasoning] = useState('')
   const [preferences, setPreferences] = useState<TechnicalPreferences>({})
   
-  // View state: 'recommendation' | 'browse'
-  const [viewMode, setViewMode] = useState<'recommendation' | 'browse'>('recommendation')
+  // View state: 'recommendation' | 'browse' | 'compose'
+  const [viewMode, setViewMode] = useState<'recommendation' | 'browse' | 'compose'>('recommendation')
+
+  // Composition system state
+  const [compositionSystem, setCompositionSystem] = useState<any>(null)
   
   // Fetch stack templates from API
   useEffect(() => {
@@ -61,6 +65,9 @@ export function StackSelection({
         if (data.success) {
           setTemplates(data.data.templates)
           setPreferenceOptions(data.data.technical_preferences || {})
+          if (data.data.composition_system) {
+            setCompositionSystem(data.data.composition_system)
+          }
         } else {
           setError('Failed to load stack templates')
         }
@@ -143,7 +150,7 @@ export function StackSelection({
         </h2>
         <div className="flex items-center justify-center gap-2 text-sm">
           {analysisContent && (
-             <Button 
+             <Button
                variant={viewMode === 'recommendation' ? "secondary" : "ghost"}
                onClick={() => setViewMode('recommendation')}
                size="sm"
@@ -151,18 +158,37 @@ export function StackSelection({
                AI Recommendations
              </Button>
           )}
-          <Button 
+          <Button
             variant={viewMode === 'browse' ? "secondary" : "ghost"}
             onClick={() => setViewMode('browse')}
             size="sm"
           >
             Browse All Templates
           </Button>
+          <Button
+            variant={viewMode === 'compose' ? "secondary" : "ghost"}
+            onClick={() => setViewMode('compose')}
+            size="sm"
+            disabled={!compositionSystem}
+          >
+            Compose Custom
+          </Button>
         </div>
       </div>
 
       {/* Main Content Area */}
-      {showRecommendationView ? (
+      {viewMode === 'compose' ? (
+        compositionSystem && (
+          <CompositionBuilder
+            compositionSystem={compositionSystem}
+            onComplete={(composition, resolvedStack) => {
+              const stackId = `${composition.base}+${composition.mobile}+${composition.backend}+${composition.data}+${composition.architecture}`
+              onStackSelect(stackId, `Composed stack: ${composition.base} + ${composition.mobile}`, preferences)
+            }}
+            isLoading={isLoading}
+          />
+        )
+      ) : showRecommendationView ? (
         <StackRecommendationView
           stackAnalysisContent={analysisContent!}
           classificationContent={classificationContent}

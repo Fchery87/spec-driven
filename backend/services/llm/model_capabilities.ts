@@ -17,26 +17,29 @@ import { ModelCapability } from '@/types/llm';
  */
 export const MODEL_CAPABILITIES: Record<string, ModelCapability> = {
   // ===== GEMINI MODELS =====
-  'gemini-3.0-flash': {
-    id: 'gemini-3.0-flash',
+  'gemini-3-flash-preview': {
+    id: 'gemini-3-flash-preview',
     provider: 'gemini',
     maxOutputTokens: 64000,
     maxInputTokens: 1000000,
-    description: 'Latest Gemini 3.0 Flash - fastest, most efficient, supports 64K output tokens',
+    description:
+      'Gemini 3 Flash Preview - latest frontier-class performance, supports 64K output tokens',
   },
   'gemini-2.5-flash': {
     id: 'gemini-2.5-flash',
     provider: 'gemini',
     maxOutputTokens: 65536,
     maxInputTokens: 1000000,
-    description: 'Gemini 2.5 Flash - previous generation, supports 65K output tokens',
+    description:
+      'Gemini 2.5 Flash - previous generation, supports 65K output tokens',
   },
   'gemini-2.5-pro': {
     id: 'gemini-2.5-pro',
     provider: 'gemini',
     maxOutputTokens: 65536,
     maxInputTokens: 1000000,
-    description: 'Gemini 2.5 Pro - most capable version, supports 65K output tokens',
+    description:
+      'Gemini 2.5 Pro - most capable version, supports 65K output tokens',
   },
   'gemini-2.0-flash': {
     id: 'gemini-2.0-flash',
@@ -223,7 +226,9 @@ export function getModelMaxInputTokens(modelId: string): number {
  * @param modelId - The model identifier
  * @returns ModelCapability object or undefined if model not found
  */
-export function getModelCapability(modelId: string): ModelCapability | undefined {
+export function getModelCapability(
+  modelId: string
+): ModelCapability | undefined {
   return MODEL_CAPABILITIES[modelId];
 }
 

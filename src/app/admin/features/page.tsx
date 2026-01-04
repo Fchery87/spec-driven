@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 
 const SYSTEM_FEATURES = [
   { key: 'feature_email_verification', label: 'Email Verification', description: 'Require email verification for new accounts' },
@@ -132,7 +133,8 @@ export default function FeaturesPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <ErrorBoundary>
+      <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -258,6 +260,7 @@ export default function FeaturesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }

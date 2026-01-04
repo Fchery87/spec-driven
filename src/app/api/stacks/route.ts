@@ -53,6 +53,10 @@ export async function GET() {
       data: {
         mode: stackSelectionMode,
         templates: templates.length > 0 ? templates : legacyTemplates,
+        // Composition system for the new modular stack builder
+        composition_system: configLoader.getCompositionSystem(),
+        // Legacy template migration mappings for backward compatibility
+        legacy_template_migration: configLoader.getLegacyMappings(),
         // Technical preferences options for custom mode
         technical_preferences: {
           state_management: ['zustand', 'redux', 'jotai', 'recoil', 'mobx', 'valtio', 'none'],

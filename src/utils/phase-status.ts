@@ -23,15 +23,33 @@ export interface ProjectProgress {
   artifacts?: Record<string, Array<{ name: string }>>
 }
 
-const PHASES = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE', 'DONE']
+const PHASES = [
+  'ANALYSIS',
+  'STACK_SELECTION',
+  'SPEC_PM',
+  'SPEC_ARCHITECT',
+  'SPEC_DESIGN_TOKENS',
+  'SPEC_DESIGN_COMPONENTS',
+  'FRONTEND_BUILD',
+  'DEPENDENCIES',
+  'SOLUTIONING',
+  'VALIDATE',
+  'AUTO_REMEDY',
+  'DONE'
+]
 
 const REQUIRED_ARTIFACTS: Record<string, string[]> = {
   ANALYSIS: ['constitution.md', 'project-brief.md', 'project-classification.json', 'personas.md'],
   STACK_SELECTION: ['stack-analysis.md', 'stack-decision.md', 'stack-rationale.md', 'stack.json'],
-  SPEC: ['PRD.md', 'data-model.md', 'api-spec.json', 'design-system.md', 'component-inventory.md', 'user-flows.md'],
+  SPEC_PM: ['PRD.md'],
+  SPEC_ARCHITECT: ['data-model.md', 'api-spec.json'],
+  SPEC_DESIGN_TOKENS: ['design-tokens.md'],
+  SPEC_DESIGN_COMPONENTS: ['component-mapping.md', 'journey-maps.md'],
+  FRONTEND_BUILD: ['components/ui/button.tsx', 'components/ui/card.tsx', 'components/ui/input.tsx'],
   DEPENDENCIES: ['DEPENDENCIES.md', 'dependencies.json'],
   SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],
   VALIDATE: ['validation-report.md', 'coverage-matrix.md'],
+  AUTO_REMEDY: ['updated_artifacts'],
   DONE: ['README.md', 'HANDOFF.md']
 }
 
@@ -40,13 +58,18 @@ const APPROVAL_GATES: Record<string, { field: string; displayName: string }> = {
 }
 
 const PHASE_DESCRIPTIONS: Record<string, string> = {
-  ANALYSIS: 'Analyze and clarify project requirements. AI agents will generate your project constitution, brief, classification, and user personas. Uncertainties are marked for resolution.',
-  STACK_SELECTION: 'Choose your architecture pattern (Monolithic or Decoupled Services). This strategic decision guides specific technology choices.',
-  SPEC: 'Generate detailed product and technical specifications including PRD, data model, API specifications, and design system artifacts.',
-  DEPENDENCIES: 'Auto-generate dependency plan based on your approved stack and PRD requirements.',
-  SOLUTIONING: 'Create architecture diagrams, break down work into epics and tasks with test-first approach, and generate an implementation roadmap with parallel task markers.',
-  VALIDATE: 'Cross-artifact consistency analysis. Verify all requirements map to tasks, personas are consistent, and Constitutional Articles are followed.',
-  DONE: 'Generate final handoff document with comprehensive project README and HANDOFF.md prompt for LLM-based code generation.'
+  ANALYSIS: 'Analyze and clarify project requirements. AI agents will generate your project constitution, brief, classification, and user personas.',
+  STACK_SELECTION: 'Select and approve the technology stack for your project.',
+  SPEC_PM: 'Generate Product Requirements Document (PRD) with functional requirements and acceptance criteria.',
+  SPEC_ARCHITECT: 'Generate data model and API specifications based on the PRD.',
+  SPEC_DESIGN_TOKENS: 'Generate stack-agnostic design tokens (colors, typography, spacing, animation).',
+  SPEC_DESIGN_COMPONENTS: 'Map design tokens to stack-specific components and generate interaction patterns.',
+  FRONTEND_BUILD: 'Generate production-ready frontend components from design tokens.',
+  DEPENDENCIES: 'Auto-generate project dependencies from approved stack and PRD.',
+  SOLUTIONING: 'Create architecture, break down work into epics and tasks with test-first approach.',
+  VALIDATE: 'Cross-artifact consistency analysis and Constitutional compliance check.',
+  AUTO_REMEDY: 'Automated remediation of validation failures through targeted agent re-runs.',
+  DONE: 'Generate final handoff document for LLM-based code generation.'
 }
 
 /**
