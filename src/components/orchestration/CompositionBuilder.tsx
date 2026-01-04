@@ -140,7 +140,7 @@ export function CompositionBuilder({
   ], [])
 
   const previewComposition = useMemo(() => {
-    const getLayer = (key: keyof typeof selection, collection: Record<string, LayerDefinition>) => {
+    const getLayer = (key: keyof typeof selection, collection: Record<string, any>) => {
       const id = selection[key]
       if (!id) return { name: '', composition: {} }
       const layer = collection[id]
