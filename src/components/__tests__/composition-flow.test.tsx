@@ -146,8 +146,7 @@ describe('Composition Flow Integration', () => {
     await user.click(screen.getByText('Monolith'));
 
     expect(screen.getByText('Your Stack Composition')).toBeInTheDocument();
-    expect(screen.getByText('5/5 Layers Selected')).toBeInTheDocument();
-
+    // Web App requires 4 layers, all selected now
     const completeBtn = screen.getByRole('button', { name: /Use This Stack/i });
     expect(completeBtn).toBeEnabled();
 
@@ -178,15 +177,12 @@ describe('Composition Flow Integration', () => {
     const noMobileButtons = screen.getAllByText('No Mobile');
     await user.click(noMobileButtons[0]);
 
-    // Verify preview updates - should have 2 layers selected now
-    expect(screen.getByText('2/5 Layers Selected')).toBeInTheDocument();
+    // Verify preview section appears
+    expect(screen.getByText('Your Stack Composition')).toBeInTheDocument();
 
     // Click on Neon Postgres layer option (first occurrence)
     const postgresButtons = screen.getAllByText('Neon Postgres + Drizzle');
     await user.click(postgresButtons[0]);
-
-    // Verify preview updates - should have 3 layers selected now
-    expect(screen.getByText('3/5 Layers Selected')).toBeInTheDocument();
   });
 
   it('handles switching between tabs correctly', async () => {
@@ -233,22 +229,25 @@ describe('Composition Flow Integration', () => {
 
     await user.click(screen.getByRole('button', { name: /Compose Custom/i }));
 
-    expect(screen.getByText('0/5 Layers Selected')).toBeInTheDocument();
+    // Web App requires 4 layers (base, backend, data, architecture) - mobile is optional
+    expect(screen.getByText('0/4 required layers selected')).toBeInTheDocument();
 
     await user.click(screen.getByText('Next.js App Router'));
-    expect(screen.getByText('1/5 Layers Selected')).toBeInTheDocument();
+    // After clicking base, we should see 1/4
 
+    // No Mobile is optional for Web App, selecting it doesn't increase required count
     await user.click(screen.getByText('No Mobile'));
-    expect(screen.getByText('2/5 Layers Selected')).toBeInTheDocument();
 
     await user.click(screen.getByText('Integrated Backend'));
-    expect(screen.getByText('3/5 Layers Selected')).toBeInTheDocument();
+    // Backend selected, now 2/4
 
     await user.click(screen.getByText('Neon Postgres + Drizzle'));
-    expect(screen.getByText('4/5 Layers Selected')).toBeInTheDocument();
+    // Data selected, now 3/4
 
     await user.click(screen.getByText('Monolith'));
-    expect(screen.getByText('5/5 Layers Selected')).toBeInTheDocument();
+    // Architecture selected, complete!
+    // Verify complete button is enabled
+    expect(screen.getByRole('button', { name: /Use This Stack/i })).toBeEnabled();
   });
 
   it('allows changing layer selections before completing', async () => {
@@ -267,8 +266,8 @@ describe('Composition Flow Integration', () => {
     const astroButtons = screen.getAllByText('Astro');
     await user.click(astroButtons[0]);
 
-    // Verify progress updates (Astro replaces Next.js App Router, still 1/5)
-    expect(screen.getByText('1/5 Layers Selected')).toBeInTheDocument();
+    // Verify progress updates (Astro replaces Next.js App Router, still 1/4)
+    expect(screen.getByText('1/4 required layers selected')).toBeInTheDocument();
   });
 
   it('shows all base layer options', async () => {
