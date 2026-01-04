@@ -41,9 +41,15 @@ function parseAnalysis(content: string, classificationContent?: string): ParsedA
   }
 
   // Parse Primary Recommendation
-  const primaryMatch = content.match(/###\s*🏆\s*Primary Recommendation:\s*(\w+)/i)
-  if (primaryMatch) {
-    result.primaryId = primaryMatch[1]
+  // More robust: capture the whole line, then extract the stack ID
+  const primaryLineMatch = content.match(/###\s*🏆\s*Primary Recommendation:\s*([^\n]+)/i)
+  if (primaryLineMatch) {
+    // Extract the first valid stack template ID (word chars, underscores, hyphens)
+    // Matches patterns like: nextjs_web_app, react-native, etc.
+    const stackIdMatch = primaryLineMatch[1].match(/([a-z0-9_-]+(?:_[a-z0-9_-]+)*)/i)
+    if (stackIdMatch) {
+      result.primaryId = stackIdMatch[1]
+    }
   }
 
   // Parse Primary Score
@@ -53,24 +59,32 @@ function parseAnalysis(content: string, classificationContent?: string): ParsedA
   }
 
   // Parse Alternatives
-  const alt1Match = content.match(/###\s*🥈\s*Alternative 1:\s*(\w+)/i)
+  // Alternative 1: Use robust parsing like primary
+  const alt1LineMatch = content.match(/###\s*🥈\s*Alternative 1:\s*([^\n]+)/i)
   const alt1ScoreMatch = content.match(/###\s*🥈.*?Score:\s*(\d+)\/100/is)
-  
-  if (alt1Match) {
-    result.alternatives.push({
-      id: alt1Match[1],
-      score: alt1ScoreMatch ? parseInt(alt1ScoreMatch[1], 10) : null
-    })
+
+  if (alt1LineMatch) {
+    const alt1IdMatch = alt1LineMatch[1].match(/([a-z0-9_-]+(?:_[a-z0-9_-]+)*)/i)
+    if (alt1IdMatch) {
+      result.alternatives.push({
+        id: alt1IdMatch[1],
+        score: alt1ScoreMatch ? parseInt(alt1ScoreMatch[1], 10) : null
+      })
+    }
   }
 
-  const alt2Match = content.match(/###\s*🥉\s*Alternative 2:\s*(\w+|CUSTOM)/i)
+  // Alternative 2: Use robust parsing like primary
+  const alt2LineMatch = content.match(/###\s*🥉\s*Alternative 2:\s*([^\n]+)/i)
   const alt2ScoreMatch = content.match(/###\s*🥉.*?Score:\s*(\d+)\/100/is)
-  
-  if (alt2Match && alt2Match[1] !== 'CUSTOM') {
-    result.alternatives.push({
-      id: alt2Match[1],
-      score: alt2ScoreMatch ? parseInt(alt2ScoreMatch[1], 10) : null
-    })
+
+  if (alt2LineMatch) {
+    const alt2IdMatch = alt2LineMatch[1].match(/([a-z0-9_-]+(?:_[a-z0-9_-]+)*)/i)
+    if (alt2IdMatch && alt2IdMatch[1].toLowerCase() !== 'custom') {
+      result.alternatives.push({
+        id: alt2IdMatch[1],
+        score: alt2ScoreMatch ? parseInt(alt2ScoreMatch[1], 10) : null
+      })
+    }
   }
 
   return result

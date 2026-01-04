@@ -1422,6 +1422,13 @@ agents:
 
       ## Evaluation Results
 
+      CRITICAL FORMAT REQUIREMENT:
+      - After each heading (### 🏆, ### 🥈, ### 🥉), write ONLY the template_id
+      - DO NOT add explanatory text like "stack" or "is the best fit"
+      - Example CORRECT: "### 🏆 Primary Recommendation: nextjs_web_app"
+      - Example WRONG: "### 🏆 Primary Recommendation: nextjs_web_app stack"
+      - Example WRONG: "### 🏆 Primary Recommendation: The nextjs_web_app is the best"
+
       ### 🏆 Primary Recommendation: [template_id]
       **Score: [0-100]**
       - ✅ Platform Coverage: ...
