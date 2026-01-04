@@ -531,6 +531,523 @@ phases:
 # Mode: hybrid - Architect proposes based on requirements, user can accept, modify, or go custom
 stack_selection_mode: 'hybrid'
 
+# === COMPOSITIONAL STACK ARCHITECTURE ===
+# New architecture: base layers + composable addons
+# Replaces monolithic templates with mix-and-match components
+
+composition_system:
+  version: "2.0"
+  mode: "compositional" # compositional | legacy | hybrid
+
+  # Base Layers - Primary frontend/framework choice
+  base_layers:
+    nextjs_app_router:
+      name: "Next.js App Router"
+      type: "frontend_framework"
+      description: "Next.js 14+ with App Router, Server Components, Server Actions"
+      composition:
+        frontend: "Next.js 14 (App Router)"
+        backend: "Next.js API routes / Server Actions"
+      compatible_with:
+        mobile: ["expo_integration", "react_native_bare", "capacitor", "none"]
+        backend: ["fastapi_api", "express_api", "go_api", "serverless_only", "integrated"]
+        data: ["neon_postgres", "supabase_full", "firebase_full", "planetscale", "turso"]
+        architecture: ["monolith", "edge", "microservices"]
+      strengths: ["Server Components", "Fast refresh", "Type-safe", "SEO optimized"]
+      tradeoffs: ["Learning curve for App Router", "More opinionated"]
+      best_for: ["Full-stack web apps", "SEO-critical sites", "Real-time dashboards"]
+
+    remix:
+      name: "Remix"
+      type: "frontend_framework"
+      description: "Remix with nested routes, progressive enhancement, edge-ready"
+      composition:
+        frontend: "Remix (React Router v6)"
+        backend: "Remix loaders/actions"
+      compatible_with:
+        mobile: ["react_native_bare", "capacitor", "none"]
+        backend: ["fastapi_api", "express_api", "go_api", "serverless_only", "integrated"]
+        data: ["neon_postgres", "supabase_full", "planetscale", "turso"]
+        architecture: ["monolith", "edge", "microservices"]
+      strengths: ["Progressive enhancement", "Nested routes", "Edge-first", "Web fundamentals"]
+      tradeoffs: ["Smaller ecosystem than Next.js", "Newer framework"]
+      best_for: ["Edge-first apps", "Progressive enhancement", "Form-heavy apps"]
+
+    sveltekit:
+      name: "SvelteKit"
+      type: "frontend_framework"
+      description: "SvelteKit with Svelte 5, smallest bundle, no virtual DOM"
+      composition:
+        frontend: "SvelteKit (Svelte 5)"
+        backend: "SvelteKit endpoints"
+      compatible_with:
+        mobile: ["capacitor", "none"]
+        backend: ["fastapi_api", "express_api", "go_api", "serverless_only", "integrated"]
+        data: ["neon_postgres", "supabase_full", "planetscale", "turso"]
+        architecture: ["monolith", "edge", "microservices"]
+      strengths: ["Smallest bundle", "No virtual DOM", "Excellent performance", "Simple mental model"]
+      tradeoffs: ["Smaller ecosystem", "Fewer libraries", "Less mature tooling"]
+      best_for: ["Performance-critical apps", "Minimal bundle size", "Simple state management"]
+
+    vue_nuxt:
+      name: "Vue + Nuxt"
+      type: "frontend_framework"
+      description: "Nuxt 3 with Vue 3, auto-imports, hybrid rendering"
+      composition:
+        frontend: "Nuxt 3 (Vue 3)"
+        backend: "Nuxt server routes / Nitro"
+      compatible_with:
+        mobile: ["capacitor", "none"]
+        backend: ["fastapi_api", "express_api", "go_api", "serverless_only", "integrated"]
+        data: ["neon_postgres", "supabase_full", "planetscale", "turso"]
+        architecture: ["monolith", "edge", "microservices"]
+      strengths: ["Excellent DX", "Auto-imports", "Hybrid rendering", "Vue ecosystem"]
+      tradeoffs: ["Smaller ecosystem than React", "Less job market demand"]
+      best_for: ["Vue teams", "Content-heavy sites", "Progressive enhancement"]
+
+    astro:
+      name: "Astro"
+      type: "frontend_framework"
+      description: "Astro with islands architecture, zero JS by default"
+      composition:
+        frontend: "Astro with React/Vue/Svelte islands"
+        backend: "Serverless functions (optional)"
+      compatible_with:
+        mobile: ["none"]
+        backend: ["serverless_only", "integrated"]
+        data: ["neon_postgres", "supabase_full", "headless_cms", "none"]
+        architecture: ["monolith", "edge"]
+      strengths: ["Zero JS by default", "Fastest load times", "SEO optimized", "Multi-framework"]
+      tradeoffs: ["Limited interactivity", "Rebuild for content", "Less suitable for SPAs"]
+      best_for: ["Marketing sites", "Blogs", "Documentation", "Content sites"]
+
+    react_spa:
+      name: "React SPA"
+      type: "frontend_framework"
+      description: "React 18 SPA with Vite, client-side routing"
+      composition:
+        frontend: "React 18 + Vite"
+        backend: "Separate API server"
+      compatible_with:
+        mobile: ["react_native_bare", "none"]
+        backend: ["fastapi_api", "express_api", "go_api", "django_api"]
+        data: ["neon_postgres", "supabase_full", "firebase_full", "mongodb"]
+        architecture: ["monolith", "microservices"]
+      strengths: ["Full control", "Flexible architecture", "Mature ecosystem", "Simple deployment"]
+      tradeoffs: ["SEO challenges", "Manual optimizations", "Separate deployments"]
+      best_for: ["Traditional SPAs", "Dashboard apps", "Internal tools"]
+
+    django:
+      name: "Django"
+      type: "backend_framework"
+      description: "Django with templates/HTMX or Django REST for API"
+      composition:
+        frontend: "Django templates + HTMX (or separate SPA)"
+        backend: "Django"
+      compatible_with:
+        mobile: ["react_native_bare", "flutter", "none"]
+        backend: ["integrated"]
+        data: ["postgresql", "mongodb"]
+        architecture: ["monolith", "microservices"]
+      strengths: ["Batteries included", "Excellent admin", "Mature ecosystem", "Python power"]
+      tradeoffs: ["Less interactive UIs by default", "Monolithic by default"]
+      best_for: ["Python teams", "Admin-heavy apps", "Rapid prototyping"]
+
+  # Mobile Addons - Optional mobile platform integration
+  mobile_addons:
+    expo_integration:
+      name: "Expo (React Native)"
+      type: "mobile_platform"
+      description: "Expo with React Native for iOS + Android from single codebase"
+      composition:
+        mobile: "Expo with React Native"
+      requires_base: ["nextjs_app_router", "remix", "react_spa"]
+      strengths: ["Single codebase", "Fast iteration", "OTA updates", "Managed workflow"]
+      tradeoffs: ["Bundle size", "Some native modules require ejecting"]
+      best_for: ["MVPs", "Fast prototyping", "Teams without native mobile expertise"]
+
+    react_native_bare:
+      name: "React Native (Bare)"
+      type: "mobile_platform"
+      description: "Bare React Native for full native control"
+      composition:
+        mobile: "React Native (bare workflow)"
+      requires_base: ["nextjs_app_router", "remix", "react_spa", "django"]
+      strengths: ["Full native control", "All native modules", "Better performance"]
+      tradeoffs: ["More setup", "Native dev knowledge required", "Slower iteration"]
+      best_for: ["Production apps", "Complex native integrations", "Performance-critical"]
+
+    flutter:
+      name: "Flutter"
+      type: "mobile_platform"
+      description: "Flutter for iOS + Android with Dart"
+      composition:
+        mobile: "Flutter (iOS + Android)"
+      requires_base: ["django", "react_spa"]
+      strengths: ["Single codebase", "Native performance", "Beautiful UI", "Hot reload"]
+      tradeoffs: ["Dart language", "Larger bundle", "Different ecosystem"]
+      best_for: ["Mobile-first apps", "Pixel-perfect UIs", "Cross-platform consistency"]
+
+    capacitor:
+      name: "Capacitor"
+      type: "mobile_platform"
+      description: "Capacitor to wrap web app as native mobile app"
+      composition:
+        mobile: "Capacitor (iOS + Android from web)"
+      requires_base: ["nextjs_app_router", "remix", "sveltekit", "vue_nuxt", "react_spa"]
+      strengths: ["Reuse web code", "Quick mobile version", "Web-first approach"]
+      tradeoffs: ["WebView performance", "Not fully native feel"]
+      best_for: ["Web apps needing mobile presence", "Content-heavy apps", "PWA extensions"]
+
+    none:
+      name: "No Mobile"
+      type: "mobile_platform"
+      description: "Web-only, no native mobile app"
+      composition:
+        mobile: "None (responsive web design)"
+      requires_base: ["nextjs_app_router", "remix", "sveltekit", "vue_nuxt", "astro", "react_spa", "django"]
+      strengths: ["Simplest setup", "Single deployment", "Lower maintenance"]
+      tradeoffs: ["No native mobile experience", "Limited offline capabilities"]
+      best_for: ["Web-first products", "Admin dashboards", "Internal tools"]
+
+  # Backend Addons - Separate backend services (when not using integrated)
+  backend_addons:
+    fastapi_api:
+      name: "FastAPI (Python)"
+      type: "backend_service"
+      description: "FastAPI for high-performance Python API with async support"
+      composition:
+        backend: "FastAPI (Python)"
+      requires_base: ["nextjs_app_router", "remix", "sveltekit", "vue_nuxt", "react_spa"]
+      incompatible_with: ["integrated"]
+      strengths: ["Python ecosystem", "Async/await", "ML/AI libraries", "Auto-generated docs"]
+      tradeoffs: ["Separate deployment", "Two languages", "More operational complexity"]
+      best_for: ["ML/AI workloads", "Data pipelines", "Python teams", "Complex backend logic"]
+      deployment: "Railway, Render, or AWS"
+
+    express_api:
+      name: "Express.js API"
+      type: "backend_service"
+      description: "Express.js for flexible Node.js API server"
+      composition:
+        backend: "Express.js or Fastify"
+      requires_base: ["react_spa", "vue_nuxt", "sveltekit"]
+      incompatible_with: ["integrated"]
+      strengths: ["Full control", "Flexible architecture", "Mature ecosystem", "Same language"]
+      tradeoffs: ["Manual setup", "Less opinionated", "More boilerplate"]
+      best_for: ["Custom server needs", "WebSocket apps", "Traditional SPAs"]
+      deployment: "Any (Vercel, Railway, AWS, etc.)"
+
+    go_api:
+      name: "Go Backend"
+      type: "backend_service"
+      description: "Go backend with Gin/Echo/Chi for high performance"
+      composition:
+        backend: "Go (Gin, Echo, or Chi)"
+      requires_base: ["react_spa", "vue_nuxt", "sveltekit", "nextjs_app_router"]
+      incompatible_with: ["integrated"]
+      strengths: ["Fastest performance", "Low memory", "Great concurrency", "Type safety"]
+      tradeoffs: ["Two languages", "More verbose", "Smaller web ecosystem"]
+      best_for: ["High-throughput APIs", "Microservices", "Performance-critical systems"]
+      deployment: "Docker on any cloud"
+
+    django_api:
+      name: "Django REST Framework"
+      type: "backend_service"
+      description: "Django REST Framework for Python API"
+      composition:
+        backend: "Django REST Framework"
+      requires_base: ["react_spa", "vue_nuxt", "flutter"]
+      incompatible_with: ["integrated", "django"]
+      strengths: ["Batteries included", "Excellent admin", "ORM", "Authentication built-in"]
+      tradeoffs: ["Monolithic by default", "Python overhead"]
+      best_for: ["Admin-heavy APIs", "CRUD operations", "Python teams"]
+      deployment: "Railway, Render, AWS"
+
+    serverless_only:
+      name: "Serverless Functions"
+      type: "backend_service"
+      description: "Serverless functions only (Vercel/Cloudflare Workers/AWS Lambda)"
+      composition:
+        backend: "Serverless functions"
+      requires_base: ["nextjs_app_router", "remix", "astro", "react_spa"]
+      incompatible_with: ["integrated"]
+      strengths: ["Auto-scaling", "Pay-per-use", "Zero ops", "Global edge"]
+      tradeoffs: ["Cold starts", "Stateless", "Vendor lock-in"]
+      best_for: ["APIs", "Webhooks", "Event handlers", "Cost optimization"]
+      deployment: "Vercel, Cloudflare, AWS Lambda"
+
+    integrated:
+      name: "Integrated Backend"
+      type: "backend_service"
+      description: "Use framework's built-in backend (Next.js API routes, Remix loaders, etc.)"
+      composition:
+        backend: "Integrated with frontend framework"
+      requires_base: ["nextjs_app_router", "remix", "sveltekit", "vue_nuxt", "django"]
+      incompatible_with: ["fastapi_api", "express_api", "go_api", "django_api", "serverless_only"]
+      strengths: ["Single deployment", "Same language", "Type-safe", "Simple ops"]
+      tradeoffs: ["Less separation of concerns", "Framework lock-in"]
+      best_for: ["Full-stack frameworks", "Monolith architecture", "Fast iteration"]
+      deployment: "Vercel, Netlify, Cloudflare"
+
+  # Data Addons - Database and storage solutions
+  data_addons:
+    neon_postgres:
+      name: "Neon Postgres + Drizzle"
+      type: "database"
+      description: "Neon serverless Postgres with Drizzle ORM and Cloudflare R2 storage"
+      composition:
+        database: "Neon Postgres + Drizzle ORM"
+        storage: "Cloudflare R2 (S3-compatible)"
+        auth: "Better Auth"
+      compatible_with_all: true
+      strengths: ["Serverless Postgres", "Type-safe ORM", "Cheap R2 storage", "Modern auth"]
+      tradeoffs: ["Vendor dependency", "Edge regions limited"]
+      best_for: ["Web apps", "Serverless architectures", "Cost-conscious projects"]
+
+    supabase_full:
+      name: "Supabase"
+      type: "database"
+      description: "Supabase with Postgres, Auth, Storage, Real-time"
+      composition:
+        database: "PostgreSQL (via Supabase)"
+        auth: "Supabase Auth"
+        storage: "Supabase Storage"
+      compatible_with_all: true
+      strengths: ["All-in-one backend", "Real-time subscriptions", "Self-hostable", "Row-level security"]
+      tradeoffs: ["Vendor dependency", "Less mature than Firebase"]
+      best_for: ["Rapid prototyping", "Real-time features", "Open-source preference"]
+
+    firebase_full:
+      name: "Firebase"
+      type: "database"
+      description: "Firebase with Firestore, Auth, Storage, Functions"
+      composition:
+        database: "Firestore (NoSQL)"
+        auth: "Firebase Auth"
+        storage: "Firebase Storage"
+      compatible_with_all: true
+      strengths: ["Real-time sync", "Offline-first", "Mobile SDKs", "Mature ecosystem"]
+      tradeoffs: ["NoSQL limitations", "Vendor lock-in", "Cost at scale"]
+      best_for: ["Mobile apps", "Real-time collaboration", "Rapid prototyping"]
+
+    planetscale:
+      name: "PlanetScale + Prisma"
+      type: "database"
+      description: "PlanetScale MySQL with Prisma ORM"
+      composition:
+        database: "PlanetScale MySQL + Prisma ORM"
+      compatible_with_all: true
+      strengths: ["Branching workflow", "Horizontal scaling", "Connection pooling"]
+      tradeoffs: ["MySQL not Postgres", "Prisma overhead"]
+      best_for: ["High-scale apps", "Teams wanting branching", "MySQL preference"]
+
+    turso:
+      name: "Turso + Drizzle"
+      type: "database"
+      description: "Turso SQLite at the edge with Drizzle ORM"
+      composition:
+        database: "Turso (SQLite) + Drizzle ORM"
+      compatible_with: ["nextjs_app_router", "remix", "astro"]
+      strengths: ["Sub-50ms latency", "SQLite power", "Edge-first", "Low cost"]
+      tradeoffs: ["SQLite limitations", "Not for huge datasets"]
+      best_for: ["Edge apps", "Global low latency", "Read-heavy workloads"]
+
+    mongodb:
+      name: "MongoDB"
+      type: "database"
+      description: "MongoDB with Mongoose ODM"
+      composition:
+        database: "MongoDB with Mongoose"
+      compatible_with: ["react_spa", "django"]
+      strengths: ["Flexible schema", "Document model", "Mature ecosystem"]
+      tradeoffs: ["NoSQL limitations", "No ACID by default"]
+      best_for: ["Flexible schemas", "Document-heavy data", "Rapid prototyping"]
+
+    postgresql:
+      name: "PostgreSQL"
+      type: "database"
+      description: "Self-hosted or managed PostgreSQL"
+      composition:
+        database: "PostgreSQL"
+      compatible_with: ["django", "react_spa"]
+      strengths: ["Most powerful SQL", "Self-hostable", "ACID compliant", "Extensions"]
+      tradeoffs: ["Self-hosting complexity", "Manual scaling"]
+      best_for: ["Enterprise apps", "Self-hosting", "Complex queries"]
+
+    headless_cms:
+      name: "Headless CMS"
+      type: "database"
+      description: "Headless CMS (Sanity, Contentful, Strapi)"
+      composition:
+        database: "Headless CMS (Sanity, Contentful, Strapi)"
+      compatible_with: ["astro", "nextjs_app_router", "remix"]
+      strengths: ["Content management", "Content preview", "Multi-channel"]
+      tradeoffs: ["Not for transactional data", "CMS vendor lock-in"]
+      best_for: ["Content sites", "Marketing sites", "Blogs"]
+
+    none:
+      name: "No Database"
+      type: "database"
+      description: "No database (static site or external API only)"
+      composition:
+        database: "None"
+      compatible_with: ["astro"]
+      strengths: ["Simplest setup", "Zero database costs", "Fast deployment"]
+      tradeoffs: ["No dynamic data", "Limited functionality"]
+      best_for: ["Static sites", "Landing pages", "Documentation"]
+
+  # Architecture Addons - Deployment architecture patterns
+  architecture_addons:
+    monolith:
+      name: "Monolith"
+      type: "architecture"
+      description: "Single deployment, all code together"
+      compatible_with_all: true
+      strengths: ["Simplest deployment", "Easy local dev", "Single codebase"]
+      tradeoffs: ["Harder to scale teams", "All or nothing deployment"]
+      best_for: ["Small teams", "MVPs", "Most projects"]
+
+    edge:
+      name: "Edge Computing"
+      type: "architecture"
+      description: "Edge-first deployment for global low latency"
+      compatible_with: ["nextjs_app_router", "remix", "astro", "sveltekit"]
+      requires_data: ["turso", "planetscale", "supabase_full"]
+      strengths: ["Sub-50ms latency globally", "Auto-scaling", "Pay-per-use"]
+      tradeoffs: ["Edge runtime limitations", "Cold starts", "Vendor lock-in"]
+      best_for: ["Global apps", "Low latency requirements", "Static + dynamic hybrid"]
+
+    microservices:
+      name: "Microservices"
+      type: "architecture"
+      description: "Multiple independent services, separate deployments"
+      compatible_with: ["react_spa", "django"]
+      requires_backend: ["fastapi_api", "express_api", "go_api", "django_api"]
+      strengths: ["Independent scaling", "Team autonomy", "Technology flexibility"]
+      tradeoffs: ["Operational complexity", "Network overhead", "Distributed debugging"]
+      best_for: ["Large teams", "High scale", "Different service requirements"]
+
+# Legacy template mapping for backward compatibility
+# Maps old template IDs to new compositional definitions
+legacy_template_migration:
+  nextjs_fullstack_expo:
+    composition:
+      base: "nextjs_app_router"
+      mobile: "expo_integration"
+      backend: "integrated"
+      data: "neon_postgres"
+      architecture: "monolith"
+    reason: "Full-stack Next.js + Expo mobile + Neon Postgres"
+
+  hybrid_nextjs_fastapi:
+    composition:
+      base: "nextjs_app_router"
+      mobile: "expo_integration"
+      backend: "fastapi_api"
+      data: "postgresql"
+      architecture: "microservices"
+    reason: "Next.js + Python backend for ML/AI workloads"
+
+  nextjs_web_app:
+    composition:
+      base: "nextjs_app_router"
+      mobile: "none"
+      backend: "integrated"
+      data: "neon_postgres"
+      architecture: "monolith"
+    reason: "Web-only Next.js with Neon Postgres"
+
+  nextjs_web_only:
+    composition:
+      base: "nextjs_app_router"
+      mobile: "none"
+      backend: "integrated"
+      data: "neon_postgres"
+      architecture: "monolith"
+    reason: "Legacy alias for nextjs_web_app"
+
+  react_express:
+    composition:
+      base: "react_spa"
+      mobile: "none"
+      backend: "express_api"
+      data: "postgresql"
+      architecture: "monolith"
+    reason: "Traditional SPA with Express backend"
+
+  vue_nuxt:
+    composition:
+      base: "vue_nuxt"
+      mobile: "none"
+      backend: "integrated"
+      data: "neon_postgres"
+      architecture: "monolith"
+    reason: "Nuxt 3 full-stack"
+
+  svelte_kit:
+    composition:
+      base: "sveltekit"
+      mobile: "none"
+      backend: "integrated"
+      data: "neon_postgres"
+      architecture: "monolith"
+    reason: "SvelteKit full-stack"
+
+  astro_static:
+    composition:
+      base: "astro"
+      mobile: "none"
+      backend: "serverless_only"
+      data: "headless_cms"
+      architecture: "monolith"
+    reason: "Static site with optional CMS"
+
+  serverless_edge:
+    composition:
+      base: "nextjs_app_router"
+      mobile: "none"
+      backend: "serverless_only"
+      data: "turso"
+      architecture: "edge"
+    reason: "Edge-first serverless stack"
+
+  django_htmx:
+    composition:
+      base: "django"
+      mobile: "none"
+      backend: "integrated"
+      data: "postgresql"
+      architecture: "monolith"
+    reason: "Django with HTMX for hypermedia approach"
+
+  go_react:
+    composition:
+      base: "react_spa"
+      mobile: "none"
+      backend: "go_api"
+      data: "postgresql"
+      architecture: "microservices"
+    reason: "High-performance Go backend with React"
+
+  flutter_firebase:
+    composition:
+      base: "react_spa"
+      mobile: "flutter"
+      backend: "integrated"
+      data: "firebase_full"
+      architecture: "monolith"
+    reason: "Flutter mobile with Firebase backend"
+
+  react_native_supabase:
+    composition:
+      base: "nextjs_app_router"
+      mobile: "react_native_bare"
+      backend: "integrated"
+      data: "supabase_full"
+      architecture: "monolith"
+    reason: "React Native mobile with Supabase"
+
 # Stack Templates (Quick-start options)
 # These are SUGGESTIONS, not requirements. The Architect agent will propose the best fit
 # based on project requirements, or the user can fully customize.

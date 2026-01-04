@@ -90,9 +90,13 @@ export interface Validator {
   [key: string]: unknown;
 }
 
+import { CompositionSystem, LegacyTemplateMapping } from './composition';
+
 export interface OrchestratorSpec {
   phases: Record<string, Phase>;
   stacks: Record<string, Stack>;
+  composition_system?: CompositionSystem;
+  legacy_template_migration?: Record<string, LegacyTemplateMapping>;
   agents: Record<string, Agent>;
   validators: Record<string, Validator>;
   security_baseline: Record<string, unknown>;

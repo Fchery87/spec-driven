@@ -1,4 +1,5 @@
 import { OrchestratorSpec } from '@/types/orchestrator';
+import { CompositionSystem, LegacyTemplateMapping } from '@/types/composition';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import * as yaml from 'js-yaml';
@@ -494,5 +495,51 @@ export class ConfigLoader {
   private getDefaultSpec(): OrchestratorSpec {
     // Return the same structure as normalizeSpec since it's the default hardcoded values
     return this.normalizeSpec({});
+  }
+
+  /**
+   * Get composition system configuration
+   */
+  getCompositionSystem(): CompositionSystem {
+    const spec = this.loadSpec();
+
+    if (!spec.composition_system) {
+      logger.warn('[ConfigLoader] No composition_system in spec, using empty default');
+      return {
+        version: '2.0',
+        mode: 'legacy',
+        base_layers: {},
+        mobile_addons: {},
+        backend_addons: {},
+        data_addons: {},
+        architecture_addons: {},
+      };
+    }
+
+    return spec.composition_system;
+  }
+
+  /**
+   * Get legacy template migration mappings
+   */
+  getLegacyMappings(): Record<string, LegacyTemplateMapping> {
+    const spec = this.loadSpec();
+    return spec.legacy_template_migration || {};
+  }
+
+  /**
+   * Check if composition mode is enabled
+   */
+  isCompositionMode(): boolean {
+    const system = this.getCompositionSystem();
+    return system.mode === 'compositional' || system.mode === 'hybrid';
+  }
+
+  /**
+   * Check if legacy mode is enabled
+   */
+  isLegacyMode(): boolean {
+    const system = this.getCompositionSystem();
+    return system.mode === 'legacy' || system.mode === 'hybrid';
   }
 }
