@@ -195,6 +195,72 @@ export function getRequiredLayerCount(projectType: ProjectType): number {
   return PROJECT_TYPE_CONFIG[projectType].requiredLayers.length;
 }
 
+// Full-stack frameworks (frontend + built-in backend)
+export enum FullStackFramework {
+  NEXTJS_FULLSTACK = 'nextjs_fullstack',
+  REMIX_FULLSTACK = 'remix_fullstack',
+  SVELTEKIT_FULLSTACK = 'sveltekit_fullstack',
+  NUXT_FULLSTACK = 'nuxt_fullstack',
+  DJANGO_FULLSTACK = 'django_fullstack',
+  LARAVEL_FULLSTACK = 'laravel_fullstack',
+  TANSTACK_START = 'tanstack_start'
+}
+
+export const FULL_STACK_FRAMEWORKS: Record<string, { name: string; baseId: string; backendId: string }> = {
+  [FullStackFramework.NEXTJS_FULLSTACK]: {
+    name: 'Next.js (Full-Stack)',
+    baseId: 'nextjs_app_router',
+    backendId: 'integrated'
+  },
+  [FullStackFramework.REMIX_FULLSTACK]: {
+    name: 'Remix (Full-Stack)',
+    baseId: 'remix',
+    backendId: 'integrated'
+  },
+  [FullStackFramework.SVELTEKIT_FULLSTACK]: {
+    name: 'SvelteKit (Full-Stack)',
+    baseId: 'sveltekit',
+    backendId: 'integrated'
+  },
+  [FullStackFramework.NUXT_FULLSTACK]: {
+    name: 'Nuxt (Full-Stack)',
+    baseId: 'vue_nuxt',
+    backendId: 'integrated'
+  },
+  [FullStackFramework.DJANGO_FULLSTACK]: {
+    name: 'Django (Full-Stack)',
+    baseId: 'django',
+    backendId: 'integrated'
+  },
+  [FullStackFramework.LARAVEL_FULLSTACK]: {
+    name: 'Laravel (Full-Stack)',
+    baseId: 'laravel',
+    backendId: 'integrated'
+  },
+  [FullStackFramework.TANSTACK_START]: {
+    name: 'TanStack Start (Full-Stack)',
+    baseId: 'tanstack_start',
+    backendId: 'integrated'
+  }
+};
+
+export function getFullStackFrameworks(): Array<{ id: string; name: string }> {
+  return Object.entries(FULL_STACK_FRAMEWORKS).map(([id, config]) => ({
+    id,
+    name: config.name
+  }));
+}
+
+export function isFullStackFramework(frameworkId: string): boolean {
+  return frameworkId in FULL_STACK_FRAMEWORKS;
+}
+
+export function getFullStackComposition(frameworkId: string): { base: string; backend: string } | null {
+  const config = FULL_STACK_FRAMEWORKS[frameworkId];
+  if (!config) return null;
+  return { base: config.baseId, backend: config.backendId };
+}
+
 /**
  * Validate a stack composition for compatibility
  */
