@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { CheckCircle2, ChevronDown, ChevronUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -29,9 +29,10 @@ export function CompositionLayerCard({
   onSelect,
   icon
 }: CompositionLayerCardProps) {
-  const [expanded, setExpanded] = useState(true)
-  const displayLayers = layers.slice(0, 4)
-  const hasMore = layers.length > 4
+  const [expanded, setExpanded] = useState(false)
+  const displayLimit = 4
+  const displayLayers = expanded ? layers : layers.slice(0, displayLimit)
+  const hasMore = layers.length > displayLimit
 
   return (
     <div className="border rounded-lg overflow-hidden bg-card">
@@ -44,19 +45,17 @@ export function CompositionLayerCard({
           {icon && <div className="p-2 bg-primary/10 rounded-lg">{icon}</div>}
           <div className="text-left">
             <h3 className="font-semibold">{title}</h3>
-            {description && (
-              <p className="text-sm text-muted-foreground">{description}</p>
-            )}
+            {description && <p className="text-sm text-muted-foreground">{description}</p>}
           </div>
         </div>
         {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
       </button>
 
       {/* Layer Options */}
-      {expanded && (
+      <AnimatePresence initial={false}>
         <motion.div
-          initial={{ height: 0 }}
-          animate={{ height: "auto" }}
+          initial={false}
+          animate={{ height: expanded ? 'auto' : 'auto' }}
           exit={{ height: 0 }}
           className="divide-y"
         >
@@ -87,13 +86,19 @@ export function CompositionLayerCard({
             )
           })}
           
+          {/* Expand/Collapse Button */}
           {hasMore && (
-            <button className="w-full px-4 py-2 text-sm text-muted-foreground hover:text-primary transition-colors">
-              +{layers.length - 4} more options
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="w-full py-2 text-sm text-primary hover:underline transition-colors"
+            >
+              {expanded 
+                ? 'Show fewer options' 
+                : `+${layers.length - displayLimit} more options`}
             </button>
           )}
         </motion.div>
-      )}
+      </AnimatePresence>
     </div>
   )
 }
