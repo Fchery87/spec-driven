@@ -4,10 +4,11 @@ import { useState, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { CompositionLayerCard } from "./CompositionLayerCard"
 import { CompositionPreviewCard } from "./CompositionPreviewCard"
+import { ProjectTypeSelector } from "./ProjectTypeSelector"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Layers, Smartphone, Server, Database, Globe, Sparkles, CheckCircle2 } from "lucide-react"
-import { StackComposition } from "@/types/composition"
+import { StackComposition, CompositionSystem, ProjectType, getRequiredLayerCount, PROJECT_TYPE_CONFIG } from "@/types/composition"
 
 interface LayerDefinition {
   id: string
@@ -17,15 +18,6 @@ interface LayerDefinition {
   strengths?: string[]
   tradeoffs?: string[]
   type?: string
-}
-
-interface CompositionSystem {
-  version: string
-  base_layers: Record<string, LayerDefinition>
-  mobile_addons: Record<string, LayerDefinition>
-  backend_addons: Record<string, LayerDefinition>
-  data_addons: Record<string, LayerDefinition>
-  architecture_addons: Record<string, LayerDefinition>
 }
 
 interface CompositionBuilderProps {
@@ -39,6 +31,7 @@ export function CompositionBuilder({
   onComplete,
   isLoading = false
 }: CompositionBuilderProps) {
+  const [projectType, setProjectType] = useState<ProjectType>(ProjectType.WEB_APP)
   const [selection, setSelection] = useState<{
     base: string | null
     mobile: string | null
@@ -53,7 +46,9 @@ export function CompositionBuilder({
     architecture: null
   })
 
-  const isComplete = Object.values(selection).every(v => v !== null)
+  const requiredLayerCount = getRequiredLayerCount(projectType)
+  const completedCount = Object.values(selection).filter(v => v !== null).length
+  const isComplete = completedCount >= requiredLayerCount
 
   const layers = useMemo(() => [
     {
@@ -63,10 +58,11 @@ export function CompositionBuilder({
       layers: Object.entries(compositionSystem.base_layers).map(([id, layer]) => ({
         id,
         name: layer.name,
-        description: layer.description,
-        strengths: layer.strengths
+        description: layer.description
       })),
-      icon: <Layers className="h-5 w-5" />
+      icon: <Layers className="h-5 w-5" />,
+      required: true,
+      showFor: [ProjectType.WEB_APP, ProjectType.BOTH, ProjectType.API_ONLY]
     },
     {
       key: 'mobile' as const,
@@ -75,10 +71,11 @@ export function CompositionBuilder({
       layers: Object.entries(compositionSystem.mobile_addons).map(([id, layer]) => ({
         id,
         name: layer.name,
-        description: layer.description,
-        strengths: layer.strengths
+        description: layer.description
       })),
-      icon: <Smartphone className="h-5 w-5" />
+      icon: <Smartphone className="h-5 w-5" />,
+      required: projectType === ProjectType.BOTH || projectType === ProjectType.MOBILE_APP,
+      showFor: [ProjectType.WEB_APP, ProjectType.MOBILE_APP, ProjectType.BOTH]
     },
     {
       key: 'backend' as const,
@@ -87,10 +84,11 @@ export function CompositionBuilder({
       layers: Object.entries(compositionSystem.backend_addons).map(([id, layer]) => ({
         id,
         name: layer.name,
-        description: layer.description,
-        strengths: layer.strengths
+        description: layer.description
       })),
-      icon: <Server className="h-5 w-5" />
+      icon: <Server className="h-5 w-5" />,
+      required: true,
+      showFor: [ProjectType.WEB_APP, ProjectType.MOBILE_APP, ProjectType.BOTH, ProjectType.API_ONLY]
     },
     {
       key: 'data' as const,
@@ -99,10 +97,11 @@ export function CompositionBuilder({
       layers: Object.entries(compositionSystem.data_addons).map(([id, layer]) => ({
         id,
         name: layer.name,
-        description: layer.description,
-        strengths: layer.strengths
+        description: layer.description
       })),
-      icon: <Database className="h-5 w-5" />
+      icon: <Database className="h-5 w-5" />,
+      required: true,
+      showFor: [ProjectType.WEB_APP, ProjectType.MOBILE_APP, ProjectType.BOTH, ProjectType.API_ONLY]
     },
     {
       key: 'architecture' as const,
@@ -111,12 +110,34 @@ export function CompositionBuilder({
       layers: Object.entries(compositionSystem.architecture_addons).map(([id, layer]) => ({
         id,
         name: layer.name,
-        description: layer.description,
-        strengths: layer.strengths
+        description: layer.description
       })),
-      icon: <Globe className="h-5 w-5" />
+      icon: <Globe className="h-5 w-5" />,
+      required: true,
+      showFor: [ProjectType.WEB_APP, ProjectType.MOBILE_APP, ProjectType.BOTH, ProjectType.API_ONLY]
     }
-  ], [compositionSystem])
+  ], [compositionSystem, projectType])
+
+  // Full-stack frameworks
+  const fullStackLayers = useMemo(() => [
+    {
+      key: 'fullstack' as const,
+      title: 'Full-Stack Framework',
+      description: 'Frontend + Built-in Backend',
+      layers: [
+        { id: 'nextjs_fullstack', name: 'Next.js (Full-Stack)' },
+        { id: 'remix_fullstack', name: 'Remix (Full-Stack)' },
+        { id: 'sveltekit_fullstack', name: 'SvelteKit (Full-Stack)' },
+        { id: 'nuxt_fullstack', name: 'Nuxt (Full-Stack)' },
+        { id: 'django_fullstack', name: 'Django (Full-Stack)' },
+        { id: 'laravel_fullstack', name: 'Laravel (Full-Stack)' },
+        { id: 'tanstack_start', name: 'TanStack Start (Full-Stack)' }
+      ],
+      icon: <Sparkles className="h-5 w-5" />,
+      required: false,
+      showFor: [ProjectType.WEB_APP, ProjectType.BOTH]
+    }
+  ], [])
 
   const previewComposition = useMemo(() => {
     const getLayer = (key: keyof typeof selection, collection: Record<string, LayerDefinition>) => {
@@ -143,21 +164,29 @@ export function CompositionBuilder({
     if (isComplete) {
       onComplete(
         {
-          base: selection.base!,
-          mobile: selection.mobile!,
-          backend: selection.backend!,
-          data: selection.data!,
-          architecture: selection.architecture!
+          base: selection.base || 'none',
+          mobile: selection.mobile || 'none',
+          backend: selection.backend || 'none',
+          data: selection.data || 'none',
+          architecture: selection.architecture || 'monolith'
         },
         previewComposition
       )
     }
   }
 
-  const completedCount = Object.values(selection).filter(Boolean).length
+  // Filter layers based on project type
+  const visibleLayers = layers.filter(l => l.showFor.includes(projectType))
+  const visibleFullStackLayers = fullStackLayers.filter(l => l.showFor.includes(projectType))
 
   return (
     <div className="space-y-6">
+      {/* Project Type Selector */}
+      <ProjectTypeSelector
+        selected={projectType}
+        onSelect={setProjectType}
+      />
+
       {/* Progress Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -166,25 +195,61 @@ export function CompositionBuilder({
             Compose Your Stack
           </h2>
           <p className="text-muted-foreground text-sm">
-            Build your perfect stack by selecting each layer
+            Select your technology stack for this {PROJECT_TYPE_CONFIG[projectType].label.toLowerCase()}
           </p>
         </div>
         <Badge variant={isComplete ? "default" : "outline"} className="flex items-center gap-1">
           {isComplete ? <CheckCircle2 className="h-3 w-3" /> : null}
-          {completedCount}/5 Layers Selected
+          {completedCount}/{requiredLayerCount} required layers selected
         </Badge>
       </div>
 
       {/* Layer Cards Grid */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {layers.map((layer) => (
+        {visibleLayers.map((layer) => (
           <CompositionLayerCard
             key={layer.key}
             title={layer.title}
             description={layer.description}
             layers={layer.layers}
-            selectedId={selection[layer.key]}
+            selectedId={selection[layer.key as keyof typeof selection]}
             onSelect={(id) => handleSelect(layer.key, id)}
+            icon={layer.icon}
+          />
+        ))}
+        
+        {/* Full-Stack Card */}
+        {visibleFullStackLayers.map((layer) => (
+          <CompositionLayerCard
+            key={layer.key}
+            title={layer.title}
+            description={layer.description}
+            layers={layer.layers}
+            selectedId={null}
+            onSelect={(id) => {
+              if (id === 'nextjs_fullstack') {
+                handleSelect('base', 'nextjs_app_router')
+                handleSelect('backend', 'integrated')
+              } else if (id === 'remix_fullstack') {
+                handleSelect('base', 'remix')
+                handleSelect('backend', 'integrated')
+              } else if (id === 'sveltekit_fullstack') {
+                handleSelect('base', 'sveltekit')
+                handleSelect('backend', 'integrated')
+              } else if (id === 'nuxt_fullstack') {
+                handleSelect('base', 'vue_nuxt')
+                handleSelect('backend', 'integrated')
+              } else if (id === 'django_fullstack') {
+                handleSelect('base', 'django')
+                handleSelect('backend', 'integrated')
+              } else if (id === 'laravel_fullstack') {
+                handleSelect('base', 'laravel')
+                handleSelect('backend', 'integrated')
+              } else if (id === 'tanstack_start') {
+                handleSelect('base', 'tanstack_start')
+                handleSelect('backend', 'integrated')
+              }
+            }}
             icon={layer.icon}
           />
         ))}
