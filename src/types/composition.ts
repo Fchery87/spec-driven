@@ -145,6 +145,56 @@ export interface LegacyTemplateMapping {
   reason: string;
 }
 
+export enum ProjectType {
+  WEB_APP = 'web_app',
+  MOBILE_APP = 'mobile_app',
+  BOTH = 'both',
+  API_ONLY = 'api_only'
+}
+
+export interface ProjectTypeConfig {
+  label: string;
+  description: string;
+  icon: string;
+  requiredLayers: string[];
+  optionalLayers: string[];
+}
+
+export const PROJECT_TYPE_CONFIG: Record<ProjectType, ProjectTypeConfig> = {
+  [ProjectType.WEB_APP]: {
+    label: 'Web App',
+    description: 'Browser-based application',
+    icon: '🌐',
+    requiredLayers: ['base', 'backend', 'data', 'architecture'],
+    optionalLayers: ['mobile']
+  },
+  [ProjectType.MOBILE_APP]: {
+    label: 'Mobile App',
+    description: 'Native mobile application',
+    icon: '📱',
+    requiredLayers: ['mobile', 'backend', 'data', 'architecture'],
+    optionalLayers: ['base']
+  },
+  [ProjectType.BOTH]: {
+    label: 'Both Web + Mobile',
+    description: 'Web application with mobile companion',
+    icon: '🌐📱',
+    requiredLayers: ['base', 'mobile', 'backend', 'data', 'architecture'],
+    optionalLayers: []
+  },
+  [ProjectType.API_ONLY]: {
+    label: 'API Only',
+    description: 'Backend API without frontend',
+    icon: '🔌',
+    requiredLayers: ['backend', 'data', 'architecture'],
+    optionalLayers: ['base', 'mobile']
+  }
+};
+
+export function getRequiredLayerCount(projectType: ProjectType): number {
+  return PROJECT_TYPE_CONFIG[projectType].requiredLayers.length;
+}
+
 /**
  * Validate a stack composition for compatibility
  */
