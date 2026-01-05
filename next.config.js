@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  turbopack: {},
   webpack: (config, { isServer }) => {
     // Disable file system caching on Windows to prevent stale cache issues
     if (process.platform === 'win32') {
@@ -9,11 +10,6 @@ const nextConfig = {
     }
 
     return config;
-  },
-  experimental: {
-    turbo: {
-      enabled: false,
-    },
   },
 }
 
