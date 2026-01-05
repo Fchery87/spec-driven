@@ -24,7 +24,20 @@ export const GET = withAuth(
       }
 
     // Get artifacts for all phases (both completed and current)
-    const allPhases = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE', 'DONE'];
+    const allPhases = [
+      'ANALYSIS',
+      'STACK_SELECTION',
+      'SPEC_PM',
+      'SPEC_ARCHITECT',
+      'SPEC_DESIGN_TOKENS',
+      'SPEC_DESIGN_COMPONENTS',
+      'FRONTEND_BUILD',
+      'DEPENDENCIES',
+      'SOLUTIONING',
+      'VALIDATE',
+      'AUTO_REMEDY',
+      'DONE'
+    ];
     const artifactsByPhase: Record<string, Array<{ name: string; size: number; content: string | null }>> = {};
 
     for (const phase of allPhases) {

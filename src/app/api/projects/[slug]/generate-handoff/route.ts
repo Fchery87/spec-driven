@@ -51,7 +51,18 @@ export const POST = withAuth(
       await saveArtifact(slug, 'DONE', 'HANDOFF.md', handoffContent);
 
       // Collect artifacts for README generation
-	      const allPhases = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE'];
+	      const allPhases = [
+          'ANALYSIS',
+          'STACK_SELECTION',
+          'SPEC_PM',
+          'SPEC_ARCHITECT',
+          'SPEC_DESIGN_TOKENS',
+          'SPEC_DESIGN_COMPONENTS',
+          'FRONTEND_BUILD',
+          'DEPENDENCIES',
+          'SOLUTIONING',
+          'VALIDATE'
+        ];
 	      const artifacts: Record<string, string> = {};
 	      for (const phase of allPhases) {
 	        try {
@@ -108,7 +119,7 @@ export const POST = withAuth(
             handoff: handoffContent.length,
             readme: readmeContent.length
           },
-          phases_included: ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE'],
+          phases_included: ['ANALYSIS', 'STACK_SELECTION', 'SPEC_PM', 'SPEC_ARCHITECT', 'SPEC_DESIGN_TOKENS', 'SPEC_DESIGN_COMPONENTS', 'FRONTEND_BUILD', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE'],
           ready_for_download: true
         }
       });

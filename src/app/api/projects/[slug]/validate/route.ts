@@ -78,7 +78,11 @@ const validateHandler = withAuth(
       const phases = [
         'ANALYSIS',
         'STACK_SELECTION',
-        'SPEC',
+        'SPEC_PM',
+        'SPEC_ARCHITECT',
+        'SPEC_DESIGN_TOKENS',
+        'SPEC_DESIGN_COMPONENTS',
+        'FRONTEND_BUILD',
         'DEPENDENCIES',
         'SOLUTIONING',
       ];
@@ -242,7 +246,7 @@ function determineOverallStatus(
 async function checkRequirementToTaskMapping(
   artifacts: Record<string, string>
 ): Promise<ValidationCheck> {
-  const prd = artifacts['SPEC/PRD.md'] || '';
+  const prd = artifacts['SPEC_PM/PRD.md'] || '';
   const tasks = artifacts['SOLUTIONING/tasks.md'] || '';
 
   if (!prd || !tasks) {
@@ -286,8 +290,8 @@ async function checkRequirementToTaskMapping(
 async function checkApiToDataModelMapping(
   artifacts: Record<string, string>
 ): Promise<ValidationCheck> {
-  const apiSpec = artifacts['SPEC/api-spec.json'] || '';
-  const dataModel = artifacts['SPEC/data-model.md'] || '';
+  const apiSpec = artifacts['SPEC_ARCHITECT/api-spec.json'] || '';
+  const dataModel = artifacts['SPEC_ARCHITECT/data-model.md'] || '';
 
   if (!apiSpec || !dataModel) {
     return {
@@ -358,7 +362,7 @@ async function checkPersonaConsistency(
   artifacts: Record<string, string>
 ): Promise<ValidationCheck> {
   const personas = artifacts['ANALYSIS/personas.md'] || '';
-  const prd = artifacts['SPEC/PRD.md'] || '';
+  const prd = artifacts['SPEC_PM/PRD.md'] || '';
 
   if (!personas || !prd) {
     return {
@@ -615,16 +619,16 @@ async function checkAIAssumptionsDocumented(
 async function checkDesignSystemCompliance(
   artifacts: Record<string, string>
 ): Promise<ValidationCheck> {
-  const designSystem = artifacts['SPEC/design-system.md'] || '';
+  const designTokens = artifacts['SPEC_DESIGN_TOKENS/design-tokens.md'] || '';
 
-  if (!designSystem) {
+  if (!designTokens) {
     return {
       id: 'design-system-compliance',
       name: 'Design System Compliance',
       description: 'Design system follows established guidelines',
       category: 'compliance',
       status: 'pending',
-      details: 'design-system.md not found',
+      details: 'design-tokens.md not found',
     };
   }
 
@@ -637,7 +641,7 @@ async function checkDesignSystemCompliance(
   // Check for purple/indigo (not allowed as primary)
   const hasPurplePrimary =
     /primary.*(?:purple|indigo|#[89ab][0-9a-f]{2}[89ab][0-9a-f]{2})/i.test(
-      designSystem
+      designTokens
     );
   items.push({
     item: 'No purple/indigo as primary color',
@@ -648,7 +652,7 @@ async function checkDesignSystemCompliance(
   });
 
   // Check for OKLCH color format
-  const hasOKLCH = /oklch/i.test(designSystem);
+  const hasOKLCH = /oklch/i.test(designTokens);
   items.push({
     item: 'OKLCH color format used',
     status: hasOKLCH ? 'pass' : 'warning',
@@ -657,7 +661,7 @@ async function checkDesignSystemCompliance(
 
   // Check for typography sizes (should have exactly 4)
   const typographySizes =
-    designSystem.match(/text-(?:xs|sm|base|lg|xl|2xl|3xl|4xl)/g) || [];
+    designTokens.match(/text-(?:xs|sm|base|lg|xl|2xl|3xl|4xl)/g) || [];
   const uniqueSizes = [...new Set(typographySizes)].length;
   items.push({
     item: 'Exactly 4 typography sizes',
@@ -900,7 +904,11 @@ generated_at: ${new Date().toISOString()}
   const phases = [
     'ANALYSIS',
     'STACK_SELECTION',
-    'SPEC',
+    'SPEC_PM',
+    'SPEC_ARCHITECT',
+    'SPEC_DESIGN_TOKENS',
+    'SPEC_DESIGN_COMPONENTS',
+    'FRONTEND_BUILD',
     'DEPENDENCIES',
     'SOLUTIONING',
   ];

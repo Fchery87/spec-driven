@@ -13,7 +13,20 @@ export const runtime = 'nodejs';
 
 // Phase order for determining which phases to clear
 // NOTE: Must match the canonical order used throughout the app (ProjectPage, phase-status utils, /phase route)
-const PHASE_ORDER = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE', 'DONE'];
+const PHASE_ORDER = [
+  'ANALYSIS',
+  'STACK_SELECTION',
+  'SPEC_PM',
+  'SPEC_ARCHITECT',
+  'SPEC_DESIGN_TOKENS',
+  'SPEC_DESIGN_COMPONENTS',
+  'FRONTEND_BUILD',
+  'DEPENDENCIES',
+  'SOLUTIONING',
+  'VALIDATE',
+  'AUTO_REMEDY',
+  'DONE'
+];
 
 export const POST = withAuth(
   async (
