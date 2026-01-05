@@ -9,22 +9,22 @@ const mockStacksResponse = {
     mode: 'hybrid',
     templates: [
       {
-        id: 'nextjs_convex',
-        name: 'Next.js + Convex (Web App)',
-        description: 'Modern full-stack web app with Next.js App Router and Convex backend',
-        composition: { frontend: 'Next.js', backend: 'Convex', database: 'Convex' },
-        best_for: ['Web apps', 'SaaS dashboards', 'Real-time collaboration'],
-        strengths: ['Type-safe end-to-end', 'Realtime by default', 'Fastest iteration'],
+        id: 'nextjs_shadcn_design',
+        name: 'Next.js Design System (Web Landing)',
+        description: 'Premium web landing pages with Next.js App Router, Tailwind CSS, shadcn/ui, and Framer Motion animations',
+        composition: { frontend: 'Next.js', styling: 'Tailwind + shadcn/ui' },
+        best_for: ['Landing pages', 'Marketing sites', 'Design showcases'],
+        strengths: ['High-fidelity animations', 'Premium typography', 'Type-safe components'],
         tradeoffs: [],
         scaling: ''
       },
       {
-        id: 'react_native_supabase',
-        name: 'React Native + Supabase (Mobile App)',
-        description: 'Cross-platform mobile with React Native/Expo and Supabase backend',
-        composition: { mobile: 'React Native', backend: 'Supabase', database: 'PostgreSQL' },
-        best_for: ['Mobile-first apps', 'Consumer apps', 'Real-time features'],
-        strengths: ['Single codebase for iOS/Android', 'PostgreSQL power', 'Real-time subscriptions'],
+        id: 'nextjs_convex_saas',
+        name: 'Next.js + Convex SaaS (Web App)',
+        description: 'Production-ready full-stack SaaS with Next.js App Router, Convex real-time backend',
+        composition: { frontend: 'Next.js', backend: 'Convex', database: 'Convex' },
+        best_for: ['SaaS applications', 'Real-time dashboards', 'AI-integrated apps'],
+        strengths: ['Type-safe end-to-end', 'Realtime by default', 'Fastest iteration'],
         tradeoffs: [],
         scaling: ''
       }
@@ -61,8 +61,8 @@ describe('StackSelection Component', () => {
 
     // Templates are hidden in compose mode by default, click "Browse All Templates"
     await user.click(screen.getByRole('button', { name: 'Browse All Templates' }));
-    expect(await screen.findByText('Next.js + Convex (Web App)')).toBeInTheDocument();
-    expect(screen.getByText('React Native + Supabase (Mobile App)')).toBeInTheDocument();
+    expect(await screen.findByText('Next.js Design System (Web Landing)')).toBeInTheDocument();
+    expect(screen.getByText('Next.js + Convex SaaS (Web App)')).toBeInTheDocument();
   });
 
   it('requires confirmation before calling onStackSelect', async () => {
@@ -71,13 +71,13 @@ describe('StackSelection Component', () => {
 
     // Templates are hidden in compose mode by default
     await user.click(screen.getByRole('button', { name: 'Browse All Templates' }));
-    await screen.findByText('Next.js + Convex (Web App)');
+    await screen.findByText('Next.js Design System (Web Landing)');
 
-    await user.click(screen.getByText('Next.js + Convex (Web App)'));
+    await user.click(screen.getByText('Next.js Design System (Web Landing)'));
     expect(screen.getByText(/Confirm Your Selection/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Confirm Stack Choice' }));
-    expect(mockOnStackSelect).toHaveBeenCalledWith('nextjs_convex', '', {});
+    expect(mockOnStackSelect).toHaveBeenCalledWith('nextjs_shadcn_design', '', {});
   });
 
   it('includes reasoning when confirming a stack choice', async () => {
@@ -85,14 +85,14 @@ describe('StackSelection Component', () => {
     render(<StackSelection onStackSelect={mockOnStackSelect} />);
 
     await user.click(screen.getByRole('button', { name: 'Browse All Templates' }));
-    await screen.findByText('Next.js + Convex (Web App)');
-    await user.click(screen.getByText('Next.js + Convex (Web App)'));
+    await screen.findByText('Next.js Design System (Web Landing)');
+    await user.click(screen.getByText('Next.js Design System (Web Landing)'));
 
     const textarea = screen.getByPlaceholderText(/We need fast iteration/i);
     await user.type(textarea, 'Fast iteration needed');
     await user.click(screen.getByRole('button', { name: 'Confirm Stack Choice' }));
 
-    expect(mockOnStackSelect).toHaveBeenCalledWith('nextjs_convex', 'Fast iteration needed', {});
+    expect(mockOnStackSelect).toHaveBeenCalledWith('nextjs_shadcn_design', 'Fast iteration needed', {});
   });
 
   it('supports custom stack entry', async () => {
@@ -100,7 +100,7 @@ describe('StackSelection Component', () => {
     render(<StackSelection onStackSelect={mockOnStackSelect} />);
 
     await user.click(screen.getByRole('button', { name: 'Browse All Templates' }));
-    await screen.findByText('Next.js + Convex (Web App)');
+    await screen.findByText('Next.js Design System (Web Landing)');
 
     await user.click(screen.getByRole('button', { name: 'Define Custom Stack' }));
     const input = screen.getByPlaceholderText(/Describe your custom stack/i);
@@ -111,9 +111,9 @@ describe('StackSelection Component', () => {
   });
 
   it('shows approved notice when selectedStack is provided', async () => {
-    render(<StackSelection onStackSelect={mockOnStackSelect} selectedStack="nextjs_convex" />);
+    render(<StackSelection onStackSelect={mockOnStackSelect} selectedStack="nextjs_shadcn_design" />);
 
-    expect(await screen.findByText(/Stack Approved: Next\.js \+ Convex/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Stack Approved: Next\.js Design System/i)).toBeInTheDocument();
   });
 
   it('disables confirm button and shows Confirming... when isLoading is true', async () => {
@@ -121,8 +121,8 @@ describe('StackSelection Component', () => {
     render(<StackSelection onStackSelect={mockOnStackSelect} isLoading />);
 
     await user.click(screen.getByRole('button', { name: 'Browse All Templates' }));
-    await screen.findByText('Next.js + Convex (Web App)');
-    await user.click(screen.getByText('Next.js + Convex (Web App)'));
+    await screen.findByText('Next.js Design System (Web Landing)');
+    await user.click(screen.getByText('Next.js Design System (Web Landing)'));
 
     const confirmButton = screen.getByRole('button', { name: 'Confirming...' });
     expect(confirmButton).toBeDisabled();
@@ -133,7 +133,7 @@ describe('StackSelection Component', () => {
     render(<StackSelection onStackSelect={mockOnStackSelect} />);
 
     await user.click(screen.getByRole('button', { name: 'Browse All Templates' }));
-    await screen.findByText('Next.js + Convex (Web App)');
+    await screen.findByText('Next.js Design System (Web Landing)');
     expect(screen.getAllByText('Best For').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Strengths').length).toBeGreaterThan(0);
   });

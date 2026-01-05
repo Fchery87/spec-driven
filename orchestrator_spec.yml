@@ -944,117 +944,117 @@ composition_system:
 # Legacy template mapping for backward compatibility
 # Maps old template IDs to new compositional definitions
 legacy_template_migration:
-  nextjs_convex:
+  nextjs_shadcn_design:
+    composition:
+      base: "nextjs_app_router"
+      mobile: "none"
+      backend: "integrated"
+      data: "none"
+      architecture: "monolith"
+    reason: "Next.js with shadcn/ui for design-focused landing pages"
+
+  expo_convex_mobile:
+    composition:
+      base: "react_spa"
+      mobile: "expo_integration"
+      backend: "integrated"
+      data: "convex"
+      architecture: "monolith"
+    reason: "Expo mobile with Convex backend for real-time apps"
+
+  nextjs_convex_saas:
     composition:
       base: "nextjs_app_router"
       mobile: "none"
       backend: "integrated"
       data: "convex"
       architecture: "monolith"
-    reason: "Full-stack Next.js + Convex web app"
+    reason: "Full-stack Next.js + Convex SaaS application"
 
-  react_native_supabase:
-    composition:
-      base: "react_spa"
-      mobile: "expo_integration"
-      backend: "integrated"
-      data: "supabase_full"
-      architecture: "monolith"
-    reason: "React Native mobile with Supabase backend"
-
-  nextjs_convex_expo:
-    composition:
-      base: "nextjs_app_router"
-      mobile: "expo_integration"
-      backend: "integrated"
-      data: "convex"
-      architecture: "monolith"
-    reason: "Next.js + Convex + Expo for web + mobile"
-
-  fastapi_postgresql:
+  hono_bun_api:
     composition:
       base: "react_spa"
       mobile: "none"
-      backend: "fastapi_api"
-      data: "postgresql"
-      architecture: "microservices"
-    reason: "FastAPI Python backend with PostgreSQL"
+      backend: "serverless_only"
+      data: "turso"
+      architecture: "edge"
+    reason: "Hono + Bun for ultrafast edge APIs"
 
 # Stack Templates (Quick-start options)
 # Streamlined to 4 popular templates based on current market trends (2025-2026)
 # See Context7 documentation for framework accuracy:
 # - Next.js: /vercel/next.js - Most popular full-stack React framework
-# - Convex: /websites/convex_dev - Fastest growing fullstack BaaS
-# - React Native: /websites/reactnative_dev - Dominant cross-platform mobile
-# - Supabase: /websites/supabase - Popular open-source Firebase alternative
+# - Convex: /websites/convex_dev - Fastest growing fullstack BaaS with built-in auth
+# - React Native: /facebook/react-native - Dominant cross-platform mobile (Context7 docs)
+# - Hono: /honojs/website - Ultrafast web framework for edge/serverless
+# - Fastify: /fastify/fastify - High-performance Node.js API framework
 stack_templates:
-  # === WEB APP ===
-  nextjs_convex:
-    name: 'Next.js + Convex (Web App)'
-    description: 'Modern full-stack web app with Next.js App Router and Convex backend - fastest growing stack for 2025-2026'
+  # === WEB (LANDING & DESIGN) ===
+  nextjs_shadcn_design:
+    name: 'Next.js Design System (Web Landing)'
+    description: 'Premium web landing pages with Next.js App Router, Tailwind CSS, shadcn/ui, and Framer Motion animations'
     composition:
       frontend: 'Next.js 16 (App Router) with React 19'
-      backend: 'Convex (serverless functions, realtime database, auth)'
-      database: 'Convex (PostgreSQL-backed, auto-scaling)'
-      auth: 'Convex Auth (Clerk, Google, GitHub, email)'
-      storage: 'Convex Storage (file uploads)'
-      deployment: 'Vercel (frontend) + Convex (backend)'
-    best_for: ['Web apps', 'SaaS dashboards', 'real-time collaboration', 'MVP to production']
-    strengths: ['Type-safe end-to-end', 'realtime by default', 'fastest iteration', 'minimal setup']
-    tradeoffs: ['Convex vendor lock-in', 'less control than self-hosted']
-    scaling: 'Excellent - Convex handles scaling automatically'
-    market_popularity: 'highest'  # Based on Context7 research - most active fullstack stack
+      styling: 'Tailwind CSS + shadcn/ui components'
+      animations: 'Framer Motion'
+      deployment: 'Vercel'
+    best_for: ['Landing pages', 'Marketing sites', 'Design showcases', 'Premium portfolios']
+    strengths: ['High-fidelity animations', 'Premium typography', 'Type-safe components', 'SEO optimized']
+    tradeoffs: ['No backend included', 'Client-side interactivity only']
+    scaling: 'CDN-based, infinitely scalable with Vercel'
+    market_popularity: 'high'
 
-  # === MOBILE APP ===
-  react_native_supabase:
-    name: 'React Native + Supabase (Mobile App)'
-    description: 'Cross-platform mobile with React Native/Expo and Supabase backend - leading mobile stack'
+  # === MOBILE (NATIVE & HYBRID) ===
+  expo_convex_mobile:
+    name: 'Expo + Convex (Mobile App)'
+    description: 'Cross-platform mobile with Expo, NativeWind (Tailwind), and Convex backend for real-time data'
     composition:
-      frontend: 'React Native + Expo (iOS + Android)'
-      backend: 'Supabase (PostgreSQL, Auth, Edge Functions)'
-      database: 'PostgreSQL (via Supabase)'
-      auth: 'Supabase Auth (email, social, phone)'
-      storage: 'Supabase Storage (S3-compatible)'
-      deployment: 'Expo EAS + Supabase Cloud'
-    best_for: ['Mobile-first apps', 'consumer apps', 'real-time features', 'offline support']
-    strengths: ['Single codebase for iOS/Android', 'PostgreSQL power', 'real-time subscriptions', 'self-hostable']
-    tradeoffs: ['Expo/Supabase vendor dependency', 'Firestore vs Supabase choice']
-    scaling: 'Good - scales with PostgreSQL'
-    market_popularity: 'high'  # Based on Context7 - dominant mobile + SQL stack
-
-  # === WEB + MOBILE ===
-  nextjs_convex_expo:
-    name: 'Next.js + Convex + Expo (Web + Mobile)'
-    description: 'Unified TypeScript codebase for web and mobile with best-in-class DX'
-    composition:
-      frontend: 'Next.js 16 (App Router) + Expo (React Native)'
-      backend: 'Convex (serverless functions, realtime)'
+      mobile: 'Expo + React Native with Expo Router'
+      styling: 'NativeWind (Tailwind CSS for RN)'
+      backend: 'Convex (serverless functions, realtime DB, auth)'
       database: 'Convex (PostgreSQL-backed)'
-      auth: 'Convex Auth'
-      storage: 'Convex Storage'
-      deployment: 'Vercel (web) + Expo EAS (mobile) + Convex (backend)'
-    best_for: ['Web + mobile products', 'startups', 'unified codebase teams']
-    strengths: ['Single language (TypeScript)', 'shared logic', 'best DX', 'realtime everywhere']
-    tradeoffs: ['Two platforms to manage', 'Convex lock-in', 'larger codebase']
-    scaling: 'Good for early-mid stage'
-    market_popularity: 'high'  # T3 stack variant - very popular
+      auth: 'Convex Auth or Clerk'
+      deployment: 'Expo EAS + Convex Cloud'
+    best_for: ['Mobile-first apps', 'Consumer apps', 'Real-time features', 'Cross-platform iOS/Android']
+    strengths: ['Single codebase for iOS/Android', 'Tailwind styling via NativeWind', 'Realtime by default', 'Fast iteration']
+    tradeoffs: ['Expo managed workflow limitations', 'Convex vendor lock-in']
+    scaling: 'Excellent - Convex handles scaling automatically'
+    market_popularity: 'high'
 
-  # === API ONLY ===
-  fastapi_postgresql:
-    name: 'FastAPI + PostgreSQL (API Only)'
-    description: 'High-performance Python API with PostgreSQL - industry standard for Python backends'
+  # === WEB APP (FULL-STACK SAAS) ===
+  nextjs_convex_saas:
+    name: 'Next.js + Convex SaaS (Web App)'
+    description: 'Production-ready full-stack SaaS with Next.js App Router, Convex real-time backend, and Clerk/Convex Auth'
+    composition:
+      frontend: 'Next.js 16 (App Router) with React 19'
+      backend: 'Convex (serverless functions, realtime database)'
+      auth: 'Clerk or Convex Auth'
+      database: 'Convex (PostgreSQL-backed)'
+      styling: 'Tailwind CSS + shadcn/ui'
+      deployment: 'Vercel (frontend) + Convex (backend)'
+    best_for: ['SaaS applications', 'Real-time dashboards', 'AI-integrated apps', 'Startup MVPs']
+    strengths: ['Type-safe end-to-end', 'Realtime by default', 'Fastest iteration velocity', 'Minimal setup']
+    tradeoffs: ['Convex vendor lock-in', 'Less control than self-hosted backend']
+    scaling: 'Excellent - Convex auto-scales with usage'
+    market_popularity: 'highest'  # Based on Context7 research - fastest growing stack
+
+  # === API (BACKENDS & SERVICES) ===
+  hono_bun_api:
+    name: 'Hono + Bun (API Only)'
+    description: 'Ultrafast edge-ready API with Hono web framework, Bun runtime, and Zod validation'
     composition:
       frontend: 'None (API-only)'
-      backend: 'FastAPI (Python 3.12+, async)'
-      database: 'PostgreSQL (Neon, Supabase, or self-hosted)'
-      auth: 'FastAPI-Users or Auth0'
-      storage: 'Cloudflare R2 or S3'
-      deployment: 'Railway, Render, AWS, or Docker'
-    best_for: ['Backend APIs', 'ML/AI services', 'Python teams', 'microservices', 'high-throughput APIs']
-    strengths: ['Python ecosystem', 'async/await', 'ML/AI libraries', 'auto-generated docs', 'excellent performance']
-    tradeoffs: ['No frontend included', 'separate frontend deployment', 'two languages for fullstack']
-    scaling: 'Excellent - FastAPI handles high concurrency'
-    market_popularity: 'high'  # Python backend standard - based on Context7 docs
+      backend: 'Hono (web framework)'
+      runtime: 'Bun (JavaScript runtime)'
+      validation: 'Zod'
+      database: 'Optional: Turso, Neon, or external'
+      auth: 'JWT or integrate with external provider'
+      deployment: 'Bun server, Cloudflare Workers, or Docker'
+    best_for: ['REST APIs', 'Microservices', 'Edge functions', 'High-performance backends']
+    strengths: ['Ultrafast performance (Context7: /honojs/website)', 'Web standards based', 'Works on any JS runtime', 'Minimal footprint']
+    tradeoffs: ['No frontend included', 'Two languages for fullstack projects']
+    scaling: 'Excellent - Bun handles high concurrency'
+    market_popularity: 'high'
 
 # Custom Stack Schema
 # When user selects "custom", they define each layer
