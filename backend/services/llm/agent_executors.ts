@@ -1092,6 +1092,15 @@ ${prd.slice(0, 15000)}
 - display: 32-48px (semibold) - hero text, page titles
 - NO OTHER SIZES ALLOWED
 
+### Font Selection (CRITICAL - Will fail validation if ignored):
+- **NEVER use Inter** - this is considered "AI slop" and will be rejected
+- Choose a font appropriate to the project's personality:
+  - Professional/Corporate: "DM Sans", "IBM Plex Sans", "Source Sans Pro"
+  - Creative/Modern: "Outfit", "Space Grotesk", "Manrope"
+  - Editorial/Content: "Merriweather", "Lora", "Crimson Pro"
+  - Technical/Developer: "JetBrains Mono", "Fira Code", "IBM Plex Mono"
+- Use system font stack as fallback: -apple-system, BlinkMacSystemFont, system-ui, sans-serif
+
 ### Spacing: 8pt Grid ONLY
 - All spacing values MUST be: 8, 16, 24, 32, 48, 64, 96
 - NO values like 10, 15, 20, 25, 30
@@ -1108,10 +1117,10 @@ ${prd.slice(0, 15000)}
 - Spring config: { stiffness: 400, damping: 30 } for snappy interactions
 - Always include reduced motion alternatives
 
-### ANTI-PATTERNS TO AVOID (AI Slop):
+### ANTI-PATTERNS TO AVOID (AI Slop - Will cause validation failure):
+- NO "Inter" font anywhere in the document - VALIDATION WILL FAIL
 - NO purple/violet as primary color unless brand-specific
 - NO gradient blob backgrounds
-- NO Inter font as default (choose project-appropriate font)
 - NO excessive border radius (max 12px for containers)
 - NO generic "modern" purple gradient buttons
 

@@ -52,7 +52,10 @@ import {
   deriveIntelligentDefaultStack,
   parseProjectClassification,
 } from '@/backend/lib/stack_defaults';
-import { validateAntiAISlop } from '../validation/anti_ai_slop_validator';
+import {
+  validateAntiAISlop,
+  autoFixAntiAISlop,
+} from '../validation/anti_ai_slop_validator';
 import { db } from '@/backend/lib/drizzle';
 import { regenerationRuns, artifactVersions } from '@/backend/lib/schema';
 import { eq } from 'drizzle-orm';
@@ -109,7 +112,9 @@ export class OrchestratorEngine {
       this.approvalGateService = new ApprovalGateService();
       this.gitService = new Map();
       this.rollbackService = new Map();
-      logger.info('[OrchestratorEngine] ApprovalGateService, GitService, and RollbackService initialized');
+      logger.info(
+        '[OrchestratorEngine] ApprovalGateService, GitService, and RollbackService initialized'
+      );
     } catch (error) {
       logger.error(
         '[OrchestratorEngine] Failed to initialize validators/artifact manager:',
@@ -433,12 +438,19 @@ export class OrchestratorEngine {
 
       if (!canProceed) {
         // Get pending blocking gates for better error message
-        const projectGates = await this.approvalGateService.getProjectGates(projectId);
+        const projectGates = await this.approvalGateService.getProjectGates(
+          projectId
+        );
         const pendingBlockingGates = projectGates.filter(
-          gate => gate.phase === currentPhaseName && gate.blocking && gate.status === 'pending'
+          (gate) =>
+            gate.phase === currentPhaseName &&
+            gate.blocking &&
+            gate.status === 'pending'
         );
 
-        const gateNames = pendingBlockingGates.map(g => g.gateName).join(', ');
+        const gateNames = pendingBlockingGates
+          .map((g) => g.gateName)
+          .join(', ');
         const error = `Cannot execute phase ${currentPhaseName}: pending approval gates: ${gateNames}`;
 
         logger.error('[OrchestratorEngine] Approval gate check failed', {
@@ -461,18 +473,24 @@ export class OrchestratorEngine {
       const projectPath = project.project_path;
       if (projectPath && !this.gitService.has(projectId)) {
         try {
-          logger.info('[OrchestratorEngine] Initializing GitService and RollbackService for project', {
-            projectId,
-            projectPath,
-          });
+          logger.info(
+            '[OrchestratorEngine] Initializing GitService and RollbackService for project',
+            {
+              projectId,
+              projectPath,
+            }
+          );
           this.gitService.set(projectId, new GitService(projectPath));
           this.rollbackService.set(projectId, new RollbackService(projectPath));
         } catch (error) {
-          logger.warn('[OrchestratorEngine] Failed to initialize GitService/RollbackService', {
-            projectId,
-            projectPath,
-            error: error instanceof Error ? error.message : String(error),
-          });
+          logger.warn(
+            '[OrchestratorEngine] Failed to initialize GitService/RollbackService',
+            {
+              projectId,
+              projectPath,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
         }
       }
 
@@ -507,12 +525,12 @@ export class OrchestratorEngine {
           validationResult: {
             passed: validationResult.status === 'pass',
             canProceed: validationResult.status !== 'fail',
-            warnings: (validationResult.warnings || []).map(w => ({
+            warnings: (validationResult.warnings || []).map((w) => ({
               severity: 'warning' as const,
               message: w,
               phase: currentPhaseName,
             })),
-            errors: (validationResult.errors || []).map(e => ({
+            errors: (validationResult.errors || []).map((e) => ({
               severity: 'error' as const,
               message: e,
               phase: currentPhaseName,
@@ -525,8 +543,10 @@ export class OrchestratorEngine {
         if (outcome.state === 'failures_detected') {
           const autoRemedyContext = {
             projectId,
-            failedPhase: project.phases_completed[project.phases_completed.length - 1] || 'ANALYSIS',
-            validationFailures: (validationResult.errors || []).map(e => ({
+            failedPhase:
+              project.phases_completed[project.phases_completed.length - 1] ||
+              'ANALYSIS',
+            validationFailures: (validationResult.errors || []).map((e) => ({
               phase: currentPhaseName,
               message: e,
               artifactId: 'unknown',
@@ -538,7 +558,9 @@ export class OrchestratorEngine {
           const result = await executeAutoRemedy(autoRemedyContext);
 
           if (result.canProceed) {
-            logger.info('[AUTO_REMEDY] Remediation succeeded - re-running validation');
+            logger.info(
+              '[AUTO_REMEDY] Remediation succeeded - re-running validation'
+            );
             // Return empty artifacts - actual fixes applied by remediation
             return {
               success: true,
@@ -643,7 +665,9 @@ export class OrchestratorEngine {
                 warnings: inlineResult.warnings,
               } as any);
               throw new Error(
-                `Inline validation failed: ${inlineResult.errors.map(e => e.message).join(', ')}`
+                `Inline validation failed: ${inlineResult.errors
+                  .map((e) => e.message)
+                  .join(', ')}`
               );
             }
 
@@ -676,12 +700,15 @@ export class OrchestratorEngine {
 
         case 'SPEC_ARCHITECT':
           // SPEC_ARCHITECT phase - Architect generates data model and API spec
-          logger.info('[SPEC_ARCHITECT] Executing Architect Executor for data model and API spec');
-          
+          logger.info(
+            '[SPEC_ARCHITECT] Executing Architect Executor for data model and API spec'
+          );
+
           // Add PRD to artifacts if it exists from SPEC_PM
           const artifactsWithPRDForArch: Record<string, string> = {
             ...artifacts,
-            'SPEC_PM/PRD.md': artifacts['SPEC_PM/PRD.md'] || artifacts['SPEC/PRD.md'] || '',
+            'SPEC_PM/PRD.md':
+              artifacts['SPEC_PM/PRD.md'] || artifacts['SPEC/PRD.md'] || '',
           };
 
           const archSpecArtifacts = await getArchitectExecutor(
@@ -769,7 +796,9 @@ export class OrchestratorEngine {
                 warnings: inlineResult.warnings,
               } as any);
               throw new Error(
-                `Inline validation failed: ${inlineResult.errors.map(e => e.message).join(', ')}`
+                `Inline validation failed: ${inlineResult.errors
+                  .map((e) => e.message)
+                  .join(', ')}`
               );
             }
 
@@ -796,7 +825,11 @@ export class OrchestratorEngine {
           });
 
           if (!designTokensResult.success) {
-            throw new Error(`SPEC_DESIGN_TOKENS failed: ${JSON.stringify(designTokensResult.metadata)}`);
+            throw new Error(
+              `SPEC_DESIGN_TOKENS failed: ${JSON.stringify(
+                designTokensResult.metadata
+              )}`
+            );
           }
 
           generatedArtifacts = designTokensResult.artifacts;
@@ -804,16 +837,38 @@ export class OrchestratorEngine {
             artifactKeys: Object.keys(generatedArtifacts),
           });
 
-          // Anti-AI-Slop validation for design tokens
-          for (const [filename, content] of Object.entries(generatedArtifacts)) {
-            const slopResult = validateAntiAISlop(filename, content);
-            if (slopResult.status === 'fail') {
-              logger.error('[SPEC_DESIGN_TOKENS] Anti-AI-slop validation failed', {
+          // Anti-AI-Slop validation and auto-fix for design tokens
+          for (const [filename, content] of Object.entries(
+            generatedArtifacts
+          )) {
+            // Apply auto-fix for common AI slop patterns (e.g., Inter font -> DM Sans)
+            const fixResult = autoFixAntiAISlop(content);
+            if (fixResult.fixed) {
+              logger.info('[SPEC_DESIGN_TOKENS] Auto-fixed AI slop patterns', {
                 artifact: filename,
-                errors: slopResult.errors,
-              } as any);
+                replacements: fixResult.replacements,
+              });
+              // Use the fixed content
+              generatedArtifacts[filename] = fixResult.content;
+            }
+
+            // Now validate the (potentially fixed) content
+            const slopResult = validateAntiAISlop(
+              filename,
+              fixResult.fixed ? fixResult.content : content
+            );
+            if (slopResult.status === 'fail') {
+              logger.error(
+                '[SPEC_DESIGN_TOKENS] Anti-AI-slop validation failed',
+                {
+                  artifact: filename,
+                  errors: slopResult.errors,
+                } as any
+              );
               throw new Error(
-                `Anti-AI-slop validation failed for ${filename}: ${slopResult.errors?.join(', ')}`
+                `Anti-AI-slop validation failed for ${filename}: ${slopResult.errors?.join(
+                  ', '
+                )}`
               );
             }
           }
@@ -821,20 +876,27 @@ export class OrchestratorEngine {
 
         case 'SPEC_DESIGN_COMPONENTS':
           // Design components phase - stack-specific component mapping
-          logger.info('[SPEC_DESIGN_COMPONENTS] Executing Design Agent for components');
+          logger.info(
+            '[SPEC_DESIGN_COMPONENTS] Executing Design Agent for components'
+          );
           const designerExecutor2 = getDesignerExecutor();
-          const designComponentsResult = await designerExecutor2.generateArtifacts({
-            phase: 'SPEC_DESIGN_COMPONENTS',
-            stack: stackChoice,
-            constitution: artifacts['ANALYSIS/constitution.md'] || '',
-            projectBrief: artifacts['ANALYSIS/project-brief.md'] || '',
-            projectPath: project.project_path,
-            projectId,
-            llmClient,
-          });
+          const designComponentsResult =
+            await designerExecutor2.generateArtifacts({
+              phase: 'SPEC_DESIGN_COMPONENTS',
+              stack: stackChoice,
+              constitution: artifacts['ANALYSIS/constitution.md'] || '',
+              projectBrief: artifacts['ANALYSIS/project-brief.md'] || '',
+              projectPath: project.project_path,
+              projectId,
+              llmClient,
+            });
 
           if (!designComponentsResult.success) {
-            throw new Error(`SPEC_DESIGN_COMPONENTS failed: ${JSON.stringify(designComponentsResult.metadata)}`);
+            throw new Error(
+              `SPEC_DESIGN_COMPONENTS failed: ${JSON.stringify(
+                designComponentsResult.metadata
+              )}`
+            );
           }
 
           generatedArtifacts = designComponentsResult.artifacts;
@@ -842,16 +904,41 @@ export class OrchestratorEngine {
             artifactKeys: Object.keys(generatedArtifacts),
           });
 
-          // Anti-AI-Slop validation for design components
-          for (const [filename, content] of Object.entries(generatedArtifacts)) {
-            const slopResult = validateAntiAISlop(filename, content);
+          // Anti-AI-Slop validation and auto-fix for design components
+          for (const [filename, content] of Object.entries(
+            generatedArtifacts
+          )) {
+            // Apply auto-fix for common AI slop patterns (e.g., Inter font -> DM Sans)
+            const fixResult = autoFixAntiAISlop(content);
+            if (fixResult.fixed) {
+              logger.info(
+                '[SPEC_DESIGN_COMPONENTS] Auto-fixed AI slop patterns',
+                {
+                  artifact: filename,
+                  replacements: fixResult.replacements,
+                }
+              );
+              // Use the fixed content
+              generatedArtifacts[filename] = fixResult.content;
+            }
+
+            // Now validate the (potentially fixed) content
+            const slopResult = validateAntiAISlop(
+              filename,
+              fixResult.fixed ? fixResult.content : content
+            );
             if (slopResult.status === 'fail') {
-              logger.error('[SPEC_DESIGN_COMPONENTS] Anti-AI-slop validation failed', {
-                artifact: filename,
-                errors: slopResult.errors,
-              } as any);
+              logger.error(
+                '[SPEC_DESIGN_COMPONENTS] Anti-AI-slop validation failed',
+                {
+                  artifact: filename,
+                  errors: slopResult.errors,
+                } as any
+              );
               throw new Error(
-                `Anti-AI-slop validation failed for ${filename}: ${slopResult.errors?.join(', ')}`
+                `Anti-AI-slop validation failed for ${filename}: ${slopResult.errors?.join(
+                  ', '
+                )}`
               );
             }
           }
@@ -859,20 +946,34 @@ export class OrchestratorEngine {
 
         case 'FRONTEND_BUILD':
           // Frontend build phase - generate React components from design tokens and component inventory
-          logger.info('[FRONTEND_BUILD] Executing Frontend Executor for component generation');
-          const frontendExecutor = getFrontendExecutor({ perspective: 'creative_technologist' });
+          logger.info(
+            '[FRONTEND_BUILD] Executing Frontend Executor for component generation'
+          );
+          const frontendExecutor = getFrontendExecutor({
+            perspective: 'creative_technologist',
+          });
           const frontendResult = await frontendExecutor.generateArtifacts({
             phase: 'SPEC_FRONTEND',
             projectName: projectName,
             projectBrief: artifacts['ANALYSIS/project-brief.md'] || '',
-            designTokens: artifacts['SPEC_DESIGN_TOKENS/design-tokens.md'] || artifacts['design-tokens.md'] || '',
-            componentInventory: artifacts['SPEC_DESIGN_COMPONENTS/component-inventory.md'] || artifacts['component-inventory.md'] || '',
+            designTokens:
+              artifacts['SPEC_DESIGN_TOKENS/design-tokens.md'] ||
+              artifacts['design-tokens.md'] ||
+              '',
+            componentInventory:
+              artifacts['SPEC_DESIGN_COMPONENTS/component-inventory.md'] ||
+              artifacts['component-inventory.md'] ||
+              '',
             stack: stackChoice,
             llmClient,
           });
 
           if (!frontendResult.success) {
-            throw new Error(`FRONTEND_BUILD failed: ${JSON.stringify(frontendResult.metadata)}`);
+            throw new Error(
+              `FRONTEND_BUILD failed: ${JSON.stringify(
+                frontendResult.metadata
+              )}`
+            );
           }
 
           generatedArtifacts = frontendResult.artifacts;
@@ -881,7 +982,9 @@ export class OrchestratorEngine {
           });
 
           // Anti-AI-Slop validation for frontend components
-          for (const [filename, content] of Object.entries(generatedArtifacts)) {
+          for (const [filename, content] of Object.entries(
+            generatedArtifacts
+          )) {
             const slopResult = validateAntiAISlop(filename, content);
             if (slopResult.status === 'fail') {
               logger.error('[FRONTEND_BUILD] Anti-AI-slop validation failed', {
@@ -889,7 +992,9 @@ export class OrchestratorEngine {
                 errors: slopResult.errors,
               } as any);
               throw new Error(
-                `Anti-AI-slop validation failed for ${filename}: ${slopResult.errors?.join(', ')}`
+                `Anti-AI-slop validation failed for ${filename}: ${slopResult.errors?.join(
+                  ', '
+                )}`
               );
             }
           }
@@ -901,23 +1006,32 @@ export class OrchestratorEngine {
 
         case 'AUTO_REMEDY':
           // AUTO_REMEDY phase - Automated remediation of validation failures
-          logger.info('[AUTO_REMEDY] Analyzing validation failures for automated remediation');
-          
+          logger.info(
+            '[AUTO_REMEDY] Analyzing validation failures for automated remediation'
+          );
+
           // Import the auto remedy executor and types
           const autoRemedyModule = await import('./auto_remedy_executor');
           const { executeAutoRemedy } = autoRemedyModule;
-          
+
           // Define minimal context interface inline for TypeScript
           interface LocalAutoRemedyContext {
             projectId: string;
             failedPhase: string;
-            validationFailures: Array<{ phase: string; message: string; artifactId: string }>;
+            validationFailures: Array<{
+              phase: string;
+              message: string;
+              artifactId: string;
+            }>;
             currentAttempt: number;
             maxAttempts: number;
-            artifactContent?: Record<string, { current: string; original: string; originalHash: string }>;
+            artifactContent?: Record<
+              string,
+              { current: string; original: string; originalHash: string }
+            >;
             validationRunId?: string;
           }
-          
+
           // Get validation failures from the database for this project
           // For now, we'll create a minimal context - in production, this would query the DB
           const autoRemedyContext: LocalAutoRemedyContext = {
@@ -927,9 +1041,11 @@ export class OrchestratorEngine {
             currentAttempt: 1,
             maxAttempts: 3,
           };
-          
-          const autoRemedyResult = await executeAutoRemedy(autoRemedyContext as any);
-          
+
+          const autoRemedyResult = await executeAutoRemedy(
+            autoRemedyContext as any
+          );
+
           logger.info('[AUTO_REMEDY] Auto remedy analysis complete', {
             canProceed: autoRemedyResult.canProceed,
             requiresManualReview: autoRemedyResult.requiresManualReview,
@@ -941,7 +1057,9 @@ export class OrchestratorEngine {
           // If canProceed is true, the validation failure was resolved
           // If requiresManualReview is true, human intervention is needed
           if (autoRemedyResult.requiresManualReview) {
-            throw new Error(`AUTO_REMEDY requires manual review: ${autoRemedyResult.reason}`);
+            throw new Error(
+              `AUTO_REMEDY requires manual review: ${autoRemedyResult.reason}`
+            );
           }
 
           generatedArtifacts = {
@@ -954,13 +1072,15 @@ export class OrchestratorEngine {
 ## Remediation Strategy
 - Agent: ${autoRemedyResult.remediation?.agentToRerun || 'none'}
 - Phase: ${autoRemedyResult.remediation?.phase || 'none'}
-- Instructions: ${autoRemedyResult.remediation?.additionalInstructions || 'none'}
+- Instructions: ${
+              autoRemedyResult.remediation?.additionalInstructions || 'none'
+            }
 
 ## Result
 - Can Proceed: ${autoRemedyResult.canProceed}
 - Reason: ${autoRemedyResult.reason}
 - Next Attempt: ${autoRemedyResult.nextAttempt}
-`
+`,
           };
           break;
 
@@ -1026,8 +1146,11 @@ export class OrchestratorEngine {
       if (gitService) {
         const durationMs = Date.now() - phaseStartTime;
         const artifactNames = Object.keys(generatedArtifacts);
-        const phaseOwner = this.spec.phases[currentPhaseName]?.owner || 'unknown';
-        const agentType = Array.isArray(phaseOwner) ? phaseOwner[0] : phaseOwner;
+        const phaseOwner =
+          this.spec.phases[currentPhaseName]?.owner || 'unknown';
+        const agentType = Array.isArray(phaseOwner)
+          ? phaseOwner[0]
+          : phaseOwner;
 
         const commitResult = await gitService.commitPhaseArtifacts({
           projectSlug: project.name || projectId,
@@ -1127,9 +1250,7 @@ export class OrchestratorEngine {
     }
   }
 
-  public parseStackAnalysis(
-    content: string
-  ): {
+  public parseStackAnalysis(content: string): {
     primary?: string;
     alternative1?: string;
     alternative2?: string;
@@ -1163,9 +1284,7 @@ export class OrchestratorEngine {
       if (lowered === 'custom' || lowered === 'custom stack') {
         return 'custom';
       }
-      return lowered
-        .replace(/\s+/g, '_')
-        .replace(/[^a-z0-9_]/g, '');
+      return lowered.replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
     };
 
     const primary =
@@ -1278,9 +1397,7 @@ export class OrchestratorEngine {
     };
   }
 
-  public resolveStackSelectionMetadata(
-    artifacts: Record<string, string>
-  ): {
+  public resolveStackSelectionMetadata(artifacts: Record<string, string>): {
     projectType?: string;
     scaleTier?: string;
     recommendedStack?: string;
@@ -1606,12 +1723,12 @@ ${
       validationResult: {
         passed: validationResult.status === 'pass',
         canProceed: validationResult.status !== 'fail',
-        warnings: (validationResult.warnings || []).map(w => ({
+        warnings: (validationResult.warnings || []).map((w) => ({
           severity: 'warning' as const,
           message: w,
           phase: project.current_phase,
         })),
-        errors: (validationResult.errors || []).map(e => ({
+        errors: (validationResult.errors || []).map((e) => ({
           severity: 'error' as const,
           message: e,
           phase: project.current_phase,
@@ -1650,8 +1767,12 @@ ${
     newContent: string
   ): ArtifactChange | null {
     // Calculate SHA-256 hashes for both content versions
-    const oldHash = createHash('sha256').update(oldContent || '').digest('hex');
-    const newHash = createHash('sha256').update(newContent || '').digest('hex');
+    const oldHash = createHash('sha256')
+      .update(oldContent || '')
+      .digest('hex');
+    const newHash = createHash('sha256')
+      .update(newContent || '')
+      .digest('hex');
 
     // Return null if hashes match (no changes)
     if (oldHash === newHash) {
@@ -1847,7 +1968,8 @@ ${
     // Calculate impact summary
     const impactSummary = {
       high: affectedArtifacts.filter((a) => a.impactLevel === 'HIGH').length,
-      medium: affectedArtifacts.filter((a) => a.impactLevel === 'MEDIUM').length,
+      medium: affectedArtifacts.filter((a) => a.impactLevel === 'MEDIUM')
+        .length,
       low: affectedArtifacts.filter((a) => a.impactLevel === 'LOW').length,
     };
 
@@ -1885,7 +2007,9 @@ ${
     >();
 
     // Helper to get outputs as array (handles both string "all" and array cases)
-    const getOutputsArray = (outputs: string | string[] | undefined): string[] => {
+    const getOutputsArray = (
+      outputs: string | string[] | undefined
+    ): string[] => {
       if (!outputs) return [];
       if (Array.isArray(outputs)) return outputs;
       // If it's a string like "all", we can't determine specific outputs
@@ -2036,8 +2160,8 @@ ${
       changedSection?.changeType === 'added'
         ? 'added'
         : changedSection?.changeType === 'deleted'
-          ? 'removed'
-          : 'modified';
+        ? 'removed'
+        : 'modified';
 
     const sectionDescription = changedSection
       ? ` section "${changedSection.header}"`
@@ -2063,7 +2187,8 @@ ${
     if (affectedArtifacts.length === 0) {
       return {
         recommendedStrategy: 'ignore',
-        reasoning: 'No artifacts depend on the changed artifact, so no regeneration is needed.',
+        reasoning:
+          'No artifacts depend on the changed artifact, so no regeneration is needed.',
       };
     }
 
@@ -2086,7 +2211,8 @@ ${
     // LOW impact changes - recommend manual review
     return {
       recommendedStrategy: 'manual_review',
-      reasoning: 'Only LOW impact changes detected. Manual review is recommended to determine if regeneration is necessary.',
+      reasoning:
+        'Only LOW impact changes detected. Manual review is recommended to determine if regeneration is necessary.',
     };
   }
 
@@ -2238,11 +2364,18 @@ ${
             triggerChange.impactLevel
           );
         } catch (artifactError) {
-          const error = artifactError instanceof Error ? artifactError : new Error(String(artifactError));
-          logger.error('[OrchestratorEngine] Failed to regenerate artifact', undefined, {
-            artifactId,
-            error: error.message,
-          });
+          const error =
+            artifactError instanceof Error
+              ? artifactError
+              : new Error(String(artifactError));
+          logger.error(
+            '[OrchestratorEngine] Failed to regenerate artifact',
+            undefined,
+            {
+              artifactId,
+              error: error.message,
+            }
+          );
           artifactsSkipped.push(artifactId);
         }
       }
@@ -2258,9 +2391,10 @@ ${
           completedAt: new Date(),
           durationMs,
           success,
-          errorMessage: artifactsSkipped.length > 0
-            ? `Skipped ${artifactsSkipped.length} artifacts`
-            : null,
+          errorMessage:
+            artifactsSkipped.length > 0
+              ? `Skipped ${artifactsSkipped.length} artifacts`
+              : null,
         })
         .where(eq(regenerationRuns.id, runId));
 
@@ -2285,13 +2419,18 @@ ${
       };
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      const errorObj = error instanceof Error ? error : new Error(String(error));
+      const errorObj =
+        error instanceof Error ? error : new Error(String(error));
 
-      logger.error('[OrchestratorEngine] Regeneration workflow failed', undefined, {
-        projectId,
-        error: errorObj.message,
-        durationMs,
-      });
+      logger.error(
+        '[OrchestratorEngine] Regeneration workflow failed',
+        undefined,
+        {
+          projectId,
+          error: errorObj.message,
+          durationMs,
+        }
+      );
 
       // Update regeneration_run with error if it was created
       if (regenerationRunId) {
@@ -2396,9 +2535,12 @@ ${
         return [];
 
       default:
-        logger.warn('[OrchestratorEngine] Unknown strategy, defaulting to ignore', {
-          strategy: selectedStrategy,
-        });
+        logger.warn(
+          '[OrchestratorEngine] Unknown strategy, defaulting to ignore',
+          {
+            strategy: selectedStrategy,
+          }
+        );
         return [];
     }
   }
@@ -2424,9 +2566,10 @@ ${
       const newVersion = versions + 1;
 
       // Create reason based on impact level
-      const reason = triggerImpactLevel === 'HIGH'
-        ? 'Regenerated due to HIGH impact structural changes'
-        : 'Regenerated due to MEDIUM impact content changes';
+      const reason =
+        triggerImpactLevel === 'HIGH'
+          ? 'Regenerated due to HIGH impact structural changes'
+          : 'Regenerated due to MEDIUM impact content changes';
 
       // Insert new version record
       await db.insert(artifactVersions).values({
@@ -2445,12 +2588,17 @@ ${
         regenerationRunId,
       });
     } catch (error) {
-      const errorObj = error instanceof Error ? error : new Error(String(error));
-      logger.error('[OrchestratorEngine] Failed to create artifact version', undefined, {
-        projectId,
-        artifactId,
-        error: errorObj.message,
-      });
+      const errorObj =
+        error instanceof Error ? error : new Error(String(error));
+      logger.error(
+        '[OrchestratorEngine] Failed to create artifact version',
+        undefined,
+        {
+          projectId,
+          artifactId,
+          error: errorObj.message,
+        }
+      );
       // Don't throw - version tracking is not critical
     }
   }
@@ -2485,7 +2633,9 @@ ${
     );
     if (invalidPhases.length > 0) {
       throw new Error(
-        `Invalid phases in parallel group "${group.name}": ${invalidPhases.join(', ')}`
+        `Invalid phases in parallel group "${group.name}": ${invalidPhases.join(
+          ', '
+        )}`
       );
     }
 
@@ -2531,14 +2681,19 @@ ${
           } as PhaseExecutionResult;
         } catch (error) {
           const durationMs = Date.now() - phaseStartTime;
-          const errorObj = error instanceof Error ? error : new Error(String(error));
+          const errorObj =
+            error instanceof Error ? error : new Error(String(error));
 
-          logger.error('[OrchestratorEngine] Parallel phase failed', undefined, {
-            projectId,
-            phase: phaseName,
-            error: errorObj.message,
-            durationMs,
-          });
+          logger.error(
+            '[OrchestratorEngine] Parallel phase failed',
+            undefined,
+            {
+              projectId,
+              phase: phaseName,
+              error: errorObj.message,
+              durationMs,
+            }
+          );
 
           return {
             phase: phaseName,
@@ -2580,10 +2735,13 @@ ${
     const rollbackService = this.rollbackService.get(projectId);
 
     if (!gitService || !rollbackService) {
-      logger.debug('[OrchestratorEngine] Git/Rollback service not available for snapshot', {
-        projectId,
-        groupName: group.name,
-      });
+      logger.debug(
+        '[OrchestratorEngine] Git/Rollback service not available for snapshot',
+        {
+          projectId,
+          groupName: group.name,
+        }
+      );
       return;
     }
 
@@ -2624,11 +2782,14 @@ ${
         snapshotId: snapshotResult.snapshotId,
       });
     } else {
-      logger.warn('[OrchestratorEngine] Parallel group snapshot creation failed', {
-        projectId,
-        groupName: group.name,
-        error: snapshotResult.error,
-      });
+      logger.warn(
+        '[OrchestratorEngine] Parallel group snapshot creation failed',
+        {
+          projectId,
+          groupName: group.name,
+          error: snapshotResult.error,
+        }
+      );
     }
   }
 
@@ -2650,11 +2811,14 @@ ${
     options: ParallelWorkflowOptions
   ): Promise<ParallelWorkflowResult> {
     const startTime = Date.now();
-    logger.info('[OrchestratorEngine] Starting workflow with parallel execution', {
-      projectId,
-      enableParallel: options.enableParallel,
-      fallbackToSequential: options.fallbackToSequential,
-    });
+    logger.info(
+      '[OrchestratorEngine] Starting workflow with parallel execution',
+      {
+        projectId,
+        enableParallel: options.enableParallel,
+        fallbackToSequential: options.fallbackToSequential,
+      }
+    );
 
     // Define parallel groups based on orchestrator spec
     // Groups phases that can run in parallel when dependencies are satisfied
@@ -2708,7 +2872,8 @@ ${
     let fallbackUsed = false;
 
     // Calculate estimated sequential duration for comparison
-    const sequentialDurationMs = this.estimateSequentialDuration(executionOrder);
+    const sequentialDurationMs =
+      this.estimateSequentialDuration(executionOrder);
 
     // Execute groups in order
     for (const group of executionOrder) {
@@ -2724,16 +2889,21 @@ ${
         );
 
         if (unsatisfiedDeps.length > 0) {
-          logger.warn('[OrchestratorEngine] Skipping group due to unsatisfied dependencies', {
-            projectId,
-            groupName,
-            unsatisfiedDeps,
-          });
+          logger.warn(
+            '[OrchestratorEngine] Skipping group due to unsatisfied dependencies',
+            {
+              projectId,
+              groupName,
+              unsatisfiedDeps,
+            }
+          );
           // Mark phases as completed with error status
           for (const phase of group) {
             errors.push({
               phase,
-              error: `Skipped: unsatisfied dependencies: ${unsatisfiedDeps.join(', ')}`,
+              error: `Skipped: unsatisfied dependencies: ${unsatisfiedDeps.join(
+                ', '
+              )}`,
             });
             project.phases_completed.push(phase);
           }
@@ -2748,7 +2918,10 @@ ${
             phases: group,
           };
 
-          const results = await this.executeParallelGroup(projectId, parallelGroup);
+          const results = await this.executeParallelGroup(
+            projectId,
+            parallelGroup
+          );
 
           // Collect artifacts from successful phases
           const allArtifacts: Record<string, string> = {};
@@ -2792,7 +2965,8 @@ ${
               });
             } catch (error) {
               const phaseDurationMs = Date.now() - phaseStartTime;
-              const errorMessage = error instanceof Error ? error.message : String(error);
+              const errorMessage =
+                error instanceof Error ? error.message : String(error);
               project.phases_completed.push(phase);
 
               results.push({
@@ -2819,7 +2993,8 @@ ${
         }
       } catch (error) {
         const groupDurationMs = Date.now() - groupStartTime;
-        const errorObj = error instanceof Error ? error : new Error(String(error));
+        const errorObj =
+          error instanceof Error ? error : new Error(String(error));
 
         logger.error('[OrchestratorEngine] Group execution failed', undefined, {
           projectId,
@@ -2829,10 +3004,13 @@ ${
 
         // Fallback to sequential if enabled
         if (options.fallbackToSequential && !fallbackUsed) {
-          logger.info('[OrchestratorEngine] Falling back to sequential execution', {
-            projectId,
-            groupName,
-          });
+          logger.info(
+            '[OrchestratorEngine] Falling back to sequential execution',
+            {
+              projectId,
+              groupName,
+            }
+          );
           fallbackUsed = true;
           options.enableParallel = false;
           // Re-execute this group sequentially
@@ -2865,9 +3043,10 @@ ${
     const totalDurationMs = Date.now() - startTime;
     const parallelDurationMs = totalDurationMs;
     const timeSavedMs = Math.max(0, sequentialDurationMs - parallelDurationMs);
-    const timeSavedPercent = sequentialDurationMs > 0
-      ? Math.round((timeSavedMs / sequentialDurationMs) * 100)
-      : 0;
+    const timeSavedPercent =
+      sequentialDurationMs > 0
+        ? Math.round((timeSavedMs / sequentialDurationMs) * 100)
+        : 0;
 
     const overallSuccess = errors.length === 0;
 
