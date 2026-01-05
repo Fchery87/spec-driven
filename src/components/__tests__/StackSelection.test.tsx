@@ -9,22 +9,22 @@ const mockStacksResponse = {
     mode: 'hybrid',
     templates: [
       {
-        id: 'nextjs_drizzle',
-        name: 'Next.js + Drizzle',
-        description: 'Modern full-stack TypeScript',
-        composition: { frontend: 'Next.js', backend: 'Next.js', database: 'PostgreSQL' },
-        best_for: ['MVP'],
-        strengths: ['Type safety'],
+        id: 'nextjs_convex',
+        name: 'Next.js + Convex (Web App)',
+        description: 'Modern full-stack web app with Next.js App Router and Convex backend',
+        composition: { frontend: 'Next.js', backend: 'Convex', database: 'Convex' },
+        best_for: ['Web apps', 'SaaS dashboards', 'Real-time collaboration'],
+        strengths: ['Type-safe end-to-end', 'Realtime by default', 'Fastest iteration'],
         tradeoffs: [],
         scaling: ''
       },
       {
-        id: 'expo_supabase',
-        name: 'Expo + Supabase',
-        description: 'Mobile-first with managed backend',
-        composition: { mobile: 'Expo', backend: 'Supabase', database: 'PostgreSQL' },
-        best_for: ['Mobile'],
-        strengths: ['Fast setup'],
+        id: 'react_native_supabase',
+        name: 'React Native + Supabase (Mobile App)',
+        description: 'Cross-platform mobile with React Native/Expo and Supabase backend',
+        composition: { mobile: 'React Native', backend: 'Supabase', database: 'PostgreSQL' },
+        best_for: ['Mobile-first apps', 'Consumer apps', 'Real-time features'],
+        strengths: ['Single codebase for iOS/Android', 'PostgreSQL power', 'Real-time subscriptions'],
         tradeoffs: [],
         scaling: ''
       }
@@ -54,76 +54,86 @@ describe('StackSelection Component', () => {
   });
 
   it('renders templates after loading', async () => {
+    const user = userEvent.setup();
     render(<StackSelection onStackSelect={mockOnStackSelect} />);
 
     expect(screen.getByText(/Loading stack templates/i)).toBeInTheDocument();
 
-    expect(await screen.findByText('Next.js + Drizzle')).toBeInTheDocument();
-    expect(screen.getByText('Expo + Supabase')).toBeInTheDocument();
+    // Templates are hidden in compose mode by default, click "Browse All Templates"
+    await user.click(screen.getByRole('button', { name: 'Browse All Templates' }));
+    expect(await screen.findByText('Next.js + Convex (Web App)')).toBeInTheDocument();
+    expect(screen.getByText('React Native + Supabase (Mobile App)')).toBeInTheDocument();
   });
 
   it('requires confirmation before calling onStackSelect', async () => {
     const user = userEvent.setup();
     render(<StackSelection onStackSelect={mockOnStackSelect} />);
 
-    await screen.findByText('Next.js + Drizzle');
+    // Templates are hidden in compose mode by default
+    await user.click(screen.getByRole('button', { name: 'Browse All Templates' }));
+    await screen.findByText('Next.js + Convex (Web App)');
 
-    await user.click(screen.getByText('Next.js + Drizzle'));
+    await user.click(screen.getByText('Next.js + Convex (Web App)'));
     expect(screen.getByText(/Confirm Your Selection/i)).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /Confirm Stack Choice/i }));
-    expect(mockOnStackSelect).toHaveBeenCalledWith('nextjs_drizzle', '', {});
+    await user.click(screen.getByRole('button', { name: 'Confirm Stack Choice' }));
+    expect(mockOnStackSelect).toHaveBeenCalledWith('nextjs_convex', '', {});
   });
 
   it('includes reasoning when confirming a stack choice', async () => {
     const user = userEvent.setup();
     render(<StackSelection onStackSelect={mockOnStackSelect} />);
 
-    await screen.findByText('Next.js + Drizzle');
-    await user.click(screen.getByText('Next.js + Drizzle'));
+    await user.click(screen.getByRole('button', { name: 'Browse All Templates' }));
+    await screen.findByText('Next.js + Convex (Web App)');
+    await user.click(screen.getByText('Next.js + Convex (Web App)'));
 
     const textarea = screen.getByPlaceholderText(/We need fast iteration/i);
     await user.type(textarea, 'Fast iteration needed');
-    await user.click(screen.getByRole('button', { name: /Confirm Stack Choice/i }));
+    await user.click(screen.getByRole('button', { name: 'Confirm Stack Choice' }));
 
-    expect(mockOnStackSelect).toHaveBeenCalledWith('nextjs_drizzle', 'Fast iteration needed', {});
+    expect(mockOnStackSelect).toHaveBeenCalledWith('nextjs_convex', 'Fast iteration needed', {});
   });
 
   it('supports custom stack entry', async () => {
     const user = userEvent.setup();
     render(<StackSelection onStackSelect={mockOnStackSelect} />);
 
-    await screen.findByText('Next.js + Drizzle');
+    await user.click(screen.getByRole('button', { name: 'Browse All Templates' }));
+    await screen.findByText('Next.js + Convex (Web App)');
 
-    await user.click(screen.getByRole('button', { name: /Define Custom Stack/i }));
+    await user.click(screen.getByRole('button', { name: 'Define Custom Stack' }));
     const input = screen.getByPlaceholderText(/Describe your custom stack/i);
     await user.type(input, 'SvelteKit + Go + Turso');
-    await user.click(screen.getByRole('button', { name: /Use Custom Stack/i }));
+    await user.click(screen.getByRole('button', { name: 'Use Custom Stack' }));
 
     expect(mockOnStackSelect).toHaveBeenCalledWith('custom', '', {});
   });
 
   it('shows approved notice when selectedStack is provided', async () => {
-    render(<StackSelection onStackSelect={mockOnStackSelect} selectedStack="nextjs_drizzle" />);
+    render(<StackSelection onStackSelect={mockOnStackSelect} selectedStack="nextjs_convex" />);
 
-    expect(await screen.findByText(/Stack Approved: Next\.js \+ Drizzle/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Stack Approved: Next\.js \+ Convex/i)).toBeInTheDocument();
   });
 
   it('disables confirm button and shows Confirming... when isLoading is true', async () => {
     const user = userEvent.setup();
     render(<StackSelection onStackSelect={mockOnStackSelect} isLoading />);
 
-    await screen.findByText('Next.js + Drizzle');
-    await user.click(screen.getByText('Next.js + Drizzle'));
+    await user.click(screen.getByRole('button', { name: 'Browse All Templates' }));
+    await screen.findByText('Next.js + Convex (Web App)');
+    await user.click(screen.getByText('Next.js + Convex (Web App)'));
 
-    const confirmButton = screen.getByRole('button', { name: /Confirming\.\.\./i });
+    const confirmButton = screen.getByRole('button', { name: 'Confirming...' });
     expect(confirmButton).toBeDisabled();
   });
 
   it('renders stack details sections (Best For / Strengths) for templates', async () => {
+    const user = userEvent.setup();
     render(<StackSelection onStackSelect={mockOnStackSelect} />);
 
-    await screen.findByText('Next.js + Drizzle');
+    await user.click(screen.getByRole('button', { name: 'Browse All Templates' }));
+    await screen.findByText('Next.js + Convex (Web App)');
     expect(screen.getAllByText('Best For').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Strengths').length).toBeGreaterThan(0);
   });
@@ -136,9 +146,9 @@ describe('StackSelection Component', () => {
         composition_system: {
           version: '2.0',
           base_layers: { nextjs_app_router: { name: 'Next.js' } },
-          mobile_addons: { none: { name: 'No Mobile' } },
-          backend_addons: { integrated: { name: 'Integrated' } },
-          data_addons: { neon_postgres: { name: 'Neon Postgres' } },
+          mobile_addons: { expo_integration: { name: 'Expo' } },
+          backend_addons: { convex: { name: 'Convex' } },
+          data_addons: { convex: { name: 'Convex' } },
           architecture_addons: { monolith: { name: 'Monolith' } }
         }
       }
@@ -160,6 +170,6 @@ describe('StackSelection Component', () => {
 
     render(<StackSelection onStackSelect={mockOnStackSelect} />);
     
-    expect(await screen.findByRole('button', { name: /Compose Custom/i })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Compose Custom' })).toBeInTheDocument();
   });
 });

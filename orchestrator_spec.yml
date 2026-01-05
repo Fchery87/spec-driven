@@ -792,6 +792,19 @@ composition_system:
 
   # Data Addons - Database and storage solutions
   data_addons:
+    convex:
+      name: "Convex"
+      type: "database"
+      description: "Convex - PostgreSQL-backed reactive database with built-in auth and file storage (Context7: /websites/convex_dev)"
+      composition:
+        database: "Convex (PostgreSQL-backed)"
+        auth: "Convex Auth"
+        storage: "Convex Storage"
+      compatible_with_all: true
+      strengths: ["Type-safe end-to-end", "realtime by default", "fastest iteration", "minimal setup"]
+      tradeoffs: ["Vendor dependency", "less control than self-hosted"]
+      best_for: ["Web apps", "real-time collaboration", "MVP to production"]
+
     neon_postgres:
       name: "Neon Postgres + Drizzle"
       type: "database"
@@ -931,355 +944,117 @@ composition_system:
 # Legacy template mapping for backward compatibility
 # Maps old template IDs to new compositional definitions
 legacy_template_migration:
-  nextjs_fullstack_expo:
-    composition:
-      base: "nextjs_app_router"
-      mobile: "expo_integration"
-      backend: "integrated"
-      data: "neon_postgres"
-      architecture: "monolith"
-    reason: "Full-stack Next.js + Expo mobile + Neon Postgres"
-
-  hybrid_nextjs_fastapi:
-    composition:
-      base: "nextjs_app_router"
-      mobile: "expo_integration"
-      backend: "fastapi_api"
-      data: "postgresql"
-      architecture: "microservices"
-    reason: "Next.js + Python backend for ML/AI workloads"
-
-  nextjs_web_app:
+  nextjs_convex:
     composition:
       base: "nextjs_app_router"
       mobile: "none"
       backend: "integrated"
-      data: "neon_postgres"
+      data: "convex"
       architecture: "monolith"
-    reason: "Web-only Next.js with Neon Postgres"
-
-  nextjs_web_only:
-    composition:
-      base: "nextjs_app_router"
-      mobile: "none"
-      backend: "integrated"
-      data: "neon_postgres"
-      architecture: "monolith"
-    reason: "Legacy alias for nextjs_web_app"
-
-  react_express:
-    composition:
-      base: "react_spa"
-      mobile: "none"
-      backend: "express_api"
-      data: "postgresql"
-      architecture: "monolith"
-    reason: "Traditional SPA with Express backend"
-
-  vue_nuxt:
-    composition:
-      base: "vue_nuxt"
-      mobile: "none"
-      backend: "integrated"
-      data: "neon_postgres"
-      architecture: "monolith"
-    reason: "Nuxt 3 full-stack"
-
-  svelte_kit:
-    composition:
-      base: "sveltekit"
-      mobile: "none"
-      backend: "integrated"
-      data: "neon_postgres"
-      architecture: "monolith"
-    reason: "SvelteKit full-stack"
-
-  astro_static:
-    composition:
-      base: "astro"
-      mobile: "none"
-      backend: "serverless_only"
-      data: "headless_cms"
-      architecture: "monolith"
-    reason: "Static site with optional CMS"
-
-  serverless_edge:
-    composition:
-      base: "nextjs_app_router"
-      mobile: "none"
-      backend: "serverless_only"
-      data: "turso"
-      architecture: "edge"
-    reason: "Edge-first serverless stack"
-
-  django_htmx:
-    composition:
-      base: "django"
-      mobile: "none"
-      backend: "integrated"
-      data: "postgresql"
-      architecture: "monolith"
-    reason: "Django with HTMX for hypermedia approach"
-
-  go_react:
-    composition:
-      base: "react_spa"
-      mobile: "none"
-      backend: "go_api"
-      data: "postgresql"
-      architecture: "microservices"
-    reason: "High-performance Go backend with React"
-
-  flutter_firebase:
-    composition:
-      base: "react_spa"
-      mobile: "flutter"
-      backend: "integrated"
-      data: "firebase_full"
-      architecture: "monolith"
-    reason: "Flutter mobile with Firebase backend"
+    reason: "Full-stack Next.js + Convex web app"
 
   react_native_supabase:
     composition:
-      base: "nextjs_app_router"
-      mobile: "react_native_bare"
+      base: "react_spa"
+      mobile: "expo_integration"
       backend: "integrated"
       data: "supabase_full"
       architecture: "monolith"
-    reason: "React Native mobile with Supabase"
+    reason: "React Native mobile with Supabase backend"
+
+  nextjs_convex_expo:
+    composition:
+      base: "nextjs_app_router"
+      mobile: "expo_integration"
+      backend: "integrated"
+      data: "convex"
+      architecture: "monolith"
+    reason: "Next.js + Convex + Expo for web + mobile"
+
+  fastapi_postgresql:
+    composition:
+      base: "react_spa"
+      mobile: "none"
+      backend: "fastapi_api"
+      data: "postgresql"
+      architecture: "microservices"
+    reason: "FastAPI Python backend with PostgreSQL"
 
 # Stack Templates (Quick-start options)
-# These are SUGGESTIONS, not requirements. The Architect agent will propose the best fit
-# based on project requirements, or the user can fully customize.
+# Streamlined to 4 popular templates based on current market trends (2025-2026)
+# See Context7 documentation for framework accuracy:
+# - Next.js: /vercel/next.js - Most popular full-stack React framework
+# - Convex: /websites/convex_dev - Fastest growing fullstack BaaS
+# - React Native: /websites/reactnative_dev - Dominant cross-platform mobile
+# - Supabase: /websites/supabase - Popular open-source Firebase alternative
 stack_templates:
-  # === FULL-STACK WEB + MOBILE ===
-  nextjs_fullstack_expo:
-    name: 'Next.js Full-Stack + Expo Mobile'
-    description: 'Unified TypeScript codebase with Next.js App Router, Expo mobile, and a serverless-ready Neon + Drizzle backend'
+  # === WEB APP ===
+  nextjs_convex:
+    name: 'Next.js + Convex (Web App)'
+    description: 'Modern full-stack web app with Next.js App Router and Convex backend - fastest growing stack for 2025-2026'
     composition:
-      frontend: 'Next.js 16 (App Router)'
-      mobile: 'Expo with React Native'
-      backend: 'Next.js API routes / tRPC'
-      database: 'Neon Postgres + Drizzle ORM'
-      auth: 'Better Auth'
-      storage: 'Cloudflare R2 (S3-compatible)'
-      deployment: 'Vercel'
-    best_for: ['MVPs', 'dashboards', 'CRUD SaaS', 'low ops footprint']
-    strengths:
-      [
-        'Single language',
-        'unified codebase',
-        'fast iteration',
-        'integrated API',
-      ]
-    tradeoffs:
-      [
-        'Less suitable for heavy backend compute',
-        'mobile distribution adds release complexity',
-      ]
-    scaling: 'Good for <10k DAU, managed infrastructure'
+      frontend: 'Next.js 16 (App Router) with React 19'
+      backend: 'Convex (serverless functions, realtime database, auth)'
+      database: 'Convex (PostgreSQL-backed, auto-scaling)'
+      auth: 'Convex Auth (Clerk, Google, GitHub, email)'
+      storage: 'Convex Storage (file uploads)'
+      deployment: 'Vercel (frontend) + Convex (backend)'
+    best_for: ['Web apps', 'SaaS dashboards', 'real-time collaboration', 'MVP to production']
+    strengths: ['Type-safe end-to-end', 'realtime by default', 'fastest iteration', 'minimal setup']
+    tradeoffs: ['Convex vendor lock-in', 'less control than self-hosted']
+    scaling: 'Excellent - Convex handles scaling automatically'
+    market_popularity: 'highest'  # Based on Context7 research - most active fullstack stack
 
-  hybrid_nextjs_fastapi:
-    name: 'Next.js + FastAPI + Expo'
-    description: 'Decoupled services with Python backend for heavy compute'
-    composition:
-      frontend: 'Next.js 16'
-      mobile: 'Expo with React Native'
-      backend: 'FastAPI (Python)'
-      database: 'PostgreSQL with SQLAlchemy'
-      deployment: 'Separate infra (Vercel + Railway/Render)'
-    best_for: ['AI/ML applications', 'ETL/data pipelines', 'long-running jobs']
-    strengths: ['Python ecosystem', 'decoupled services', 'async workers']
-    tradeoffs: ['More operational complexity', 'separate deployments']
-    scaling: 'Good for 10k-100k DAU, complex backend logic'
-
-  # === WEB-ONLY (NO MOBILE) ===
-  nextjs_web_app:
-    name: 'Next.js Web App (Neon + Drizzle + R2 + Better Auth)'
-    description: 'Full-stack Next.js App Router with Neon Postgres, Drizzle ORM, Cloudflare R2 storage, and Better Auth'
-    composition:
-      frontend: 'Next.js 16 (App Router)'
-      mobile: 'None (responsive web design)'
-      backend: 'Next.js API routes / Server Actions'
-      database: 'Neon Postgres + Drizzle ORM'
-      auth: 'Better Auth'
-      storage: 'Cloudflare R2 (S3-compatible)'
-      deployment: 'Vercel'
-    best_for:
-      [
-        'Web apps',
-        'admin dashboards',
-        'internal tools',
-        'B2B SaaS',
-        'CRUD SaaS',
-      ]
-    strengths:
-      [
-        'Fast iteration',
-        'type-safe DB access',
-        'simple ops',
-        'R2-backed media storage',
-      ]
-    tradeoffs: ['No native mobile experience']
-    scaling: 'Good for any scale with proper caching; Neon + serverless patterns support growth'
-
-  nextjs_web_only:
-    name: 'Next.js Web Only (Legacy ID)'
-    description: 'Legacy template id retained for compatibility; prefer nextjs_web_app'
-    composition:
-      frontend: 'Next.js 16 (App Router)'
-      mobile: 'None (responsive web design)'
-      backend: 'Next.js API routes / Server Actions'
-      database: 'Neon Postgres + Drizzle ORM'
-      auth: 'Better Auth'
-      storage: 'Cloudflare R2 (S3-compatible)'
-      deployment: 'Vercel'
-    best_for: ['Web apps', 'admin dashboards', 'internal tools', 'B2B SaaS']
-    strengths: ['Simplest setup', 'server components', 'no mobile complexity']
-    tradeoffs: ['No native mobile experience']
-    scaling: 'Good for any scale with proper caching'
-
-  react_express:
-    name: 'React SPA + Express API'
-    description: 'Traditional SPA with separate Node.js backend'
-    composition:
-      frontend: 'React 18 + Vite'
-      mobile: 'None (or add React Native later)'
-      backend: 'Express.js or Fastify'
-      database: 'PostgreSQL or MongoDB'
-      deployment: 'Any (Vercel, AWS, Railway, etc.)'
-    best_for: ['Traditional SPAs', 'custom server needs', 'WebSocket apps']
-    strengths: ['Full control', 'flexible architecture', 'mature ecosystem']
-    tradeoffs: ['More setup required', 'manual optimizations']
-    scaling: 'Highly flexible based on backend design'
-
-  vue_nuxt:
-    name: 'Vue + Nuxt Full-Stack'
-    description: 'Vue.js ecosystem with Nuxt for SSR/SSG'
-    composition:
-      frontend: 'Nuxt 3 (Vue 3)'
-      mobile: 'None (or Capacitor/Ionic)'
-      backend: 'Nuxt server routes / Nitro'
-      database: 'PostgreSQL with Prisma'
-      deployment: 'Vercel, Netlify, or Cloudflare'
-    best_for: ['Vue teams', 'content-heavy sites', 'progressive enhancement']
-    strengths: ['Excellent DX', 'auto-imports', 'hybrid rendering']
-    tradeoffs: ['Smaller ecosystem than React']
-    scaling: 'Good for most use cases'
-
-  svelte_kit:
-    name: 'SvelteKit Full-Stack'
-    description: 'Svelte with SvelteKit for full-stack apps'
-    composition:
-      frontend: 'SvelteKit (Svelte 5)'
-      mobile: 'None (or Capacitor)'
-      backend: 'SvelteKit endpoints'
-      database: 'PostgreSQL with Drizzle'
-      deployment: 'Vercel, Cloudflare, or Netlify'
-    best_for:
-      [
-        'Performance-critical apps',
-        'smaller bundle size',
-        'simpler mental model',
-      ]
-    strengths: ['Smallest bundle', 'no virtual DOM', 'excellent performance']
-    tradeoffs: ['Smaller ecosystem', 'fewer libraries']
-    scaling: 'Excellent performance at any scale'
-
-  # === STATIC / JAMstack ===
-  astro_static:
-    name: 'Astro Static Site'
-    description: 'Content-focused static site with optional islands'
-    composition:
-      frontend: 'Astro with React/Vue/Svelte islands'
-      mobile: 'None (responsive web)'
-      backend: 'Serverless functions (optional)'
-      database: 'Headless CMS (Sanity, Contentful, Strapi) or none'
-      deployment: 'Vercel, Netlify, or Cloudflare Pages'
-    best_for: ['Marketing sites', 'blogs', 'documentation', 'low interactivity']
-    strengths: ['Zero JS by default', 'fastest load times', 'SEO-optimized']
-    tradeoffs: ['Limited interactivity', 'rebuild for content updates']
-    scaling: 'CDN-based, infinitely scalable'
-
-  # === SERVERLESS / EDGE ===
-  serverless_edge:
-    name: 'Serverless Edge Stack'
-    description: 'Edge-first architecture for global low-latency'
-    composition:
-      frontend: 'Next.js or Remix'
-      mobile: 'None or React Native'
-      backend: 'Cloudflare Workers / Vercel Edge Functions'
-      database: 'Turso, PlanetScale, or Supabase'
-      deployment: 'Cloudflare or Vercel'
-    best_for: ['Global apps', 'low latency requirements', 'cost optimization']
-    strengths: ['Sub-50ms latency globally', 'auto-scaling', 'pay-per-use']
-    tradeoffs: ['Edge runtime limitations', 'cold starts']
-    scaling: 'Global edge, virtually unlimited'
-
-  # === BACKEND-HEAVY ===
-  django_htmx:
-    name: 'Django + HTMX'
-    description: 'Python-first with hypermedia approach'
-    composition:
-      frontend: 'Django templates + HTMX + Alpine.js'
-      mobile: 'None (or Django REST + mobile app)'
-      backend: 'Django'
-      database: 'PostgreSQL'
-      deployment: 'Railway, Render, or AWS'
-    best_for: ['Python teams', 'rapid prototyping', 'admin-heavy apps']
-    strengths: ['Batteries included', 'excellent admin', 'mature ecosystem']
-    tradeoffs: ['Less interactive UIs', 'monolithic by default']
-    scaling: 'Good with proper caching and async views'
-
-  go_react:
-    name: 'Go Backend + React Frontend'
-    description: 'High-performance Go backend with React SPA'
-    composition:
-      frontend: 'React 18 + Vite'
-      mobile: 'None or React Native'
-      backend: 'Go (Gin, Echo, or Chi)'
-      database: 'PostgreSQL'
-      deployment: 'Docker on any cloud'
-    best_for: ['High-throughput APIs', 'microservices', 'performance-critical']
-    strengths: ['Fastest backend', 'low memory', 'great concurrency']
-    tradeoffs: ['Two languages', 'more verbose backend']
-    scaling: 'Excellent for high-traffic systems'
-
-  # === MOBILE-FIRST ===
-  flutter_firebase:
-    name: 'Flutter + Firebase'
-    description: 'Cross-platform mobile with Firebase backend'
-    composition:
-      frontend: 'Flutter Web (optional)'
-      mobile: 'Flutter (iOS + Android)'
-      backend: 'Firebase (Firestore, Auth, Functions)'
-      database: 'Firestore (NoSQL)'
-      deployment: 'Firebase Hosting + App Stores'
-    best_for: ['Mobile-first apps', 'real-time features', 'rapid prototyping']
-    strengths:
-      ['Single codebase for iOS/Android', 'real-time sync', 'offline-first']
-    tradeoffs:
-      ['Dart language', 'Firebase vendor lock-in', 'Firestore limitations']
-    scaling: 'Good for most mobile apps, watch Firestore costs'
-
+  # === MOBILE APP ===
   react_native_supabase:
-    name: 'React Native + Supabase'
-    description: 'React Native mobile with Supabase backend'
+    name: 'React Native + Supabase (Mobile App)'
+    description: 'Cross-platform mobile with React Native/Expo and Supabase backend - leading mobile stack'
     composition:
-      frontend: 'React (web, optional)'
-      mobile: 'React Native (bare or Expo)'
-      backend: 'Supabase (PostgreSQL + Auth + Storage)'
+      frontend: 'React Native + Expo (iOS + Android)'
+      backend: 'Supabase (PostgreSQL, Auth, Edge Functions)'
       database: 'PostgreSQL (via Supabase)'
-      deployment: 'Supabase + App Stores'
-    best_for:
-      [
-        'Mobile apps needing SQL',
-        'real-time features',
-        'open-source preference',
-      ]
-    strengths: ['PostgreSQL power', 'real-time subscriptions', 'self-hostable']
-    tradeoffs: ['Less mature than Firebase']
-    scaling: 'Good, scales with PostgreSQL'
+      auth: 'Supabase Auth (email, social, phone)'
+      storage: 'Supabase Storage (S3-compatible)'
+      deployment: 'Expo EAS + Supabase Cloud'
+    best_for: ['Mobile-first apps', 'consumer apps', 'real-time features', 'offline support']
+    strengths: ['Single codebase for iOS/Android', 'PostgreSQL power', 'real-time subscriptions', 'self-hostable']
+    tradeoffs: ['Expo/Supabase vendor dependency', 'Firestore vs Supabase choice']
+    scaling: 'Good - scales with PostgreSQL'
+    market_popularity: 'high'  # Based on Context7 - dominant mobile + SQL stack
+
+  # === WEB + MOBILE ===
+  nextjs_convex_expo:
+    name: 'Next.js + Convex + Expo (Web + Mobile)'
+    description: 'Unified TypeScript codebase for web and mobile with best-in-class DX'
+    composition:
+      frontend: 'Next.js 16 (App Router) + Expo (React Native)'
+      backend: 'Convex (serverless functions, realtime)'
+      database: 'Convex (PostgreSQL-backed)'
+      auth: 'Convex Auth'
+      storage: 'Convex Storage'
+      deployment: 'Vercel (web) + Expo EAS (mobile) + Convex (backend)'
+    best_for: ['Web + mobile products', 'startups', 'unified codebase teams']
+    strengths: ['Single language (TypeScript)', 'shared logic', 'best DX', 'realtime everywhere']
+    tradeoffs: ['Two platforms to manage', 'Convex lock-in', 'larger codebase']
+    scaling: 'Good for early-mid stage'
+    market_popularity: 'high'  # T3 stack variant - very popular
+
+  # === API ONLY ===
+  fastapi_postgresql:
+    name: 'FastAPI + PostgreSQL (API Only)'
+    description: 'High-performance Python API with PostgreSQL - industry standard for Python backends'
+    composition:
+      frontend: 'None (API-only)'
+      backend: 'FastAPI (Python 3.12+, async)'
+      database: 'PostgreSQL (Neon, Supabase, or self-hosted)'
+      auth: 'FastAPI-Users or Auth0'
+      storage: 'Cloudflare R2 or S3'
+      deployment: 'Railway, Render, AWS, or Docker'
+    best_for: ['Backend APIs', 'ML/AI services', 'Python teams', 'microservices', 'high-throughput APIs']
+    strengths: ['Python ecosystem', 'async/await', 'ML/AI libraries', 'auto-generated docs', 'excellent performance']
+    tradeoffs: ['No frontend included', 'separate frontend deployment', 'two languages for fullstack']
+    scaling: 'Excellent - FastAPI handles high concurrency'
+    market_popularity: 'high'  # Python backend standard - based on Context7 docs
 
 # Custom Stack Schema
 # When user selects "custom", they define each layer

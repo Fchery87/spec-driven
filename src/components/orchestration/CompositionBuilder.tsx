@@ -157,7 +157,12 @@ export function CompositionBuilder({
   }, [selection, compositionSystem])
 
   const handleSelect = (key: keyof typeof selection, id: string) => {
-    setSelection(prev => ({ ...prev, [key]: id }))
+    // If already selected, deselect it (toggle behavior)
+    if (selection[key] === id) {
+      setSelection(prev => ({ ...prev, [key]: null }))
+    } else {
+      setSelection(prev => ({ ...prev, [key]: id }))
+    }
   }
 
   const handleComplete = () => {

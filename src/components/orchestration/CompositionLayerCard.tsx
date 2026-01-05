@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { CheckCircle2, ChevronDown, ChevronUp } from "lucide-react"
+import { CheckCircle2, ChevronDown, ChevronUp, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface LayerOption {
@@ -79,8 +79,10 @@ export function CompositionLayerCard({
                     <p className="text-sm text-muted-foreground">{layer.description}</p>
                   )}
                 </div>
-                {isSelected && (
-                  <CheckCircle2 className="h-5 w-5 text-primary" />
+                {isSelected ? (
+                  <X className="h-5 w-5 text-primary hover:text-primary/80" />
+                ) : (
+                  <CheckCircle2 className="h-5 w-5 text-muted-foreground/50" />
                 )}
               </button>
             )

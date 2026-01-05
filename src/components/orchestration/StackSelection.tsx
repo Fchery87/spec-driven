@@ -51,7 +51,11 @@ export function StackSelection({
   const [preferences, setPreferences] = useState<TechnicalPreferences>({})
   
   // View state: 'recommendation' | 'browse' | 'compose'
-  const [viewMode, setViewMode] = useState<'recommendation' | 'browse' | 'compose'>('recommendation')
+  // Default to 'compose' for better UX - templates are hidden behind toggle
+  const [viewMode, setViewMode] = useState<'recommendation' | 'browse' | 'compose'>('compose')
+  
+  // Show all templates toggle (for Browse mode)
+  const [showAllTemplates, setShowAllTemplates] = useState(false)
 
   // Composition system state
   const [compositionSystem, setCompositionSystem] = useState<any>(null)
@@ -80,11 +84,13 @@ export function StackSelection({
     fetchTemplates()
   }, [])
 
-  // Switch to browse mode if no analysis content is available
+  // Switch to compose mode by default - templates are hidden behind toggle
+  // Only show recommendation if analysis content exists and user hasn't chosen compose
   useEffect(() => {
-    if (!loading && !analysisContent) {
-      setViewMode('browse')
+    if (!loading && analysisContent) {
+      setViewMode('recommendation')
     }
+    // Otherwise stay in 'compose' mode (the default)
   }, [loading, analysisContent])
 
   const handleStackClick = (stackId: string) => {
@@ -150,28 +156,34 @@ export function StackSelection({
         </h2>
         <div className="flex items-center justify-center gap-2 text-sm">
           {analysisContent && (
-             <Button
-               variant={viewMode === 'recommendation' ? "secondary" : "ghost"}
-               onClick={() => setViewMode('recommendation')}
-               size="sm"
-             >
-               AI Recommendations
-             </Button>
+            <Button
+              variant={viewMode === 'recommendation' ? "secondary" : "ghost"}
+              onClick={() => setViewMode('recommendation')}
+              size="sm"
+            >
+              AI Recommendations
+            </Button>
           )}
           <Button
-            variant={viewMode === 'browse' ? "secondary" : "ghost"}
-            onClick={() => setViewMode('browse')}
-            size="sm"
-          >
-            Browse All Templates
-          </Button>
-          <Button
             variant={viewMode === 'compose' ? "secondary" : "ghost"}
-            onClick={() => setViewMode('compose')}
+            onClick={() => {
+              setViewMode('compose')
+              setShowAllTemplates(false)
+            }}
             size="sm"
             disabled={!compositionSystem}
           >
             Compose Custom
+          </Button>
+          <Button
+            variant={viewMode === 'browse' ? "secondary" : "ghost"}
+            onClick={() => {
+              setViewMode('browse')
+              setShowAllTemplates(true)
+            }}
+            size="sm"
+          >
+            Browse All Templates
           </Button>
         </div>
       </div>
@@ -198,20 +210,48 @@ export function StackSelection({
           isLoading={isLoading}
         />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {templates.map((template) => (
-            <StackCard
-              key={template.id}
-              template={template}
-              isSelected={pendingStack === template.id}
-              onSelect={handleStackClick}
-            />
-          ))}
-        </div>
+        <>
+          {/* Quick Picks Toggle */}
+          <div className="flex items-center justify-between mb-4">
+            <Button
+              variant={!showAllTemplates ? "secondary" : "outline"}
+              onClick={() => setShowAllTemplates(false)}
+              size="sm"
+            >
+              Quick Picks (4)
+            </Button>
+            <Button
+              variant={showAllTemplates ? "secondary" : "outline"}
+              onClick={() => setShowAllTemplates(true)}
+              size="sm"
+            >
+              Show All Templates ({templates.length})
+            </Button>
+          </div>
+
+          {/* Templates Grid */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {(showAllTemplates ? templates : templates.slice(0, 4)).map((template) => (
+              <StackCard
+                key={template.id}
+                template={template}
+                isSelected={pendingStack === template.id}
+                onSelect={handleStackClick}
+              />
+            ))}
+          </div>
+
+          {/* Show All Notice */}
+          {!showAllTemplates && templates.length > 4 && (
+            <p className="text-center text-sm text-muted-foreground mt-4">
+              Showing 4 popular templates. Click &quot;Show All Templates&quot; to browse all {templates.length} options.
+            </p>
+          )}
+        </>
       )}
 
-      {/* Custom Stack Option (Visible in Browse Mode or if selected) */}
-      {(viewMode === 'browse' || showCustom) && (
+      {/* Custom Stack Option (Visible in Browse Mode with Show All or if selected) */}
+      {(viewMode === 'browse' && (showAllTemplates || showCustom)) && (
         <Card className={`border-dashed border-border ${showCustom ? 'ring-2 ring-primary' : ''}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
