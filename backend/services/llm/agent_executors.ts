@@ -357,7 +357,7 @@ async function executeArchitectAgent(
 
   let expectedFiles: string[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let variables: Record<string, any>;
+  let variables: Record<string, any> | undefined;
 
   if (phase === 'STACK_SELECTION') {
     expectedFiles = [
@@ -379,7 +379,8 @@ async function executeArchitectAgent(
       defaultStackReason:
         defaultStackReason || 'Fallback default for web applications',
     };
-  } else if (phase === 'SPEC') {
+  } else if (phase === 'SPEC' || phase === 'SPEC_ARCHITECT') {
+    // SPEC and SPEC_ARCHITECT both generate data-model.md and api-spec.json
     expectedFiles = ['data-model.md', 'api-spec.json'];
     variables = {
       brief: projectBrief,
@@ -390,7 +391,7 @@ async function executeArchitectAgent(
       stackChoice: stackChoice || 'web_application',
       projectName: projectName || 'Untitled Project',
     };
-  } else {
+  } else if (phase === 'SOLUTIONING') {
     expectedFiles = ['architecture.md'];
     // Use a dedicated, shorter prompt for SOLUTIONING architecture generation
     // Increased limits to provide more context while staying within 1M token context window
@@ -523,6 +524,9 @@ Generate the complete architecture.md now:`;
       architectureLength: artifacts['architecture.md']?.length || 0,
     });
     return artifacts;
+  } else {
+    // This should never happen with valid phases
+    throw new Error(`Unhandled architect phase: ${phase}`);
   }
 
   const prompt = buildPrompt(agentConfig.prompt_template, variables);
@@ -540,14 +544,14 @@ Generate the complete architecture.md now:`;
     apiSpecLength: artifacts['api-spec.json']?.length || 0,
   });
 
-  // Fallback: If api-spec.json is empty in SPEC phase, try to regenerate it specifically
+  // Fallback: If api-spec.json is empty in SPEC or SPEC_ARCHITECT phase, try to regenerate it specifically
   if (
-    phase === 'SPEC' &&
+    (phase === 'SPEC' || phase === 'SPEC_ARCHITECT') &&
     (!artifacts['api-spec.json'] ||
       artifacts['api-spec.json'].trim().length < 100)
   ) {
     logger.warn(
-      '[SPEC] api-spec.json missing or too short, triggering fallback generation'
+      `[${phase}] api-spec.json missing or too short, triggering fallback generation`
     );
     const fallbackPrompt = `You are a Chief Architect. Generate ONLY an OpenAPI 3.0.3 specification based on the following PRD.
 
@@ -595,14 +599,14 @@ Output the complete OpenAPI JSON now:`;
     }
   }
 
-  // Fallback: If data-model.md is too short, try to regenerate
+  // Fallback: If data-model.md is too short in SPEC or SPEC_ARCHITECT phase, try to regenerate
   if (
-    phase === 'SPEC' &&
+    (phase === 'SPEC' || phase === 'SPEC_ARCHITECT') &&
     (!artifacts['data-model.md'] ||
       artifacts['data-model.md'].trim().length < 500)
   ) {
     logger.warn(
-      '[SPEC] data-model.md missing or too short, triggering fallback generation'
+      `[${phase}] data-model.md missing or too short, triggering fallback generation`
     );
 
     // Extract key entities from PRD to focus the generation
