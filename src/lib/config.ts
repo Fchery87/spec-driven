@@ -10,7 +10,8 @@ import path from 'path';
  */
 export const ARTIFACT_CONFIG = {
   // Base directory for projects
-  baseDir: process.env.ARTIFACT_BASE_DIR || path.join(process.cwd(), 'projects'),
+  baseDir:
+    process.env.ARTIFACT_BASE_DIR || path.join(process.cwd(), 'projects'),
 
   // Subdirectories
   specsSubdir: 'specs',
@@ -43,18 +44,37 @@ export const PHASE_CONFIG = {
     'SOLUTIONING',
     'VALIDATE',
     'AUTO_REMEDY',
-    'DONE'
+    'DONE',
   ] as const,
 
-  // Files required for each phase
+  // Files required for each phase (must match orchestrator_spec.yml outputs)
   requiredFiles: {
-    ANALYSIS: ['constitution.md', 'project-brief.md', 'project-classification.json', 'personas.md'],
-    STACK_SELECTION: ['stack-analysis.md', 'stack-decision.md', 'stack-rationale.md', 'stack.json'],
+    ANALYSIS: [
+      'constitution.md',
+      'project-brief.md',
+      'project-classification.json',
+      'personas.md',
+    ],
+    STACK_SELECTION: [
+      'stack-analysis.md',
+      'stack-decision.md',
+      'stack-rationale.md',
+      'stack.json',
+    ],
     SPEC_PM: ['PRD.md'],
     SPEC_ARCHITECT: ['data-model.md', 'api-spec.json'],
     SPEC_DESIGN_TOKENS: ['design-tokens.md'],
-    SPEC_DESIGN_COMPONENTS: ['component-inventory.md', 'user-journey-maps.md'],
-    FRONTEND_BUILD: ['frontend-components.md'],
+    SPEC_DESIGN_COMPONENTS: ['component-mapping.md', 'journey-maps.md'],
+    FRONTEND_BUILD: [
+      'button.tsx',
+      'card.tsx',
+      'input.tsx',
+      'globals.css',
+      'page.tsx',
+      // Additional components defined in spec but may be generated dynamically:
+      // 'badge.tsx', 'dialog.tsx', 'dropdown-menu.tsx', 'tabs.tsx',
+      // 'select.tsx', 'textarea.tsx', 'form.tsx', 'alert.tsx', 'toast.tsx', 'motion.ts'
+    ],
     DEPENDENCIES: ['DEPENDENCIES.md', 'dependencies.json'],
     SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],
     VALIDATE: ['validation-report.md', 'coverage-matrix.md'],
@@ -93,7 +113,11 @@ export const RATE_LIMIT_CONFIG = {
  */
 export const LOGGING_CONFIG = {
   // Log level
-  level: (process.env.LOG_LEVEL || 'info') as 'debug' | 'info' | 'warn' | 'error',
+  level: (process.env.LOG_LEVEL || 'info') as
+    | 'debug'
+    | 'info'
+    | 'warn'
+    | 'error',
 
   // External log aggregation
   aggregation: {
@@ -145,7 +169,11 @@ export function getProjectPath(projectId: string): string {
   return path.join(ARTIFACT_CONFIG.baseDir, projectId);
 }
 
-export function getPhasePath(projectId: string, phase: string, version?: string): string {
+export function getPhasePath(
+  projectId: string,
+  phase: string,
+  version?: string
+): string {
   const { baseDir, specsSubdir, currentVersion } = ARTIFACT_CONFIG;
   const v = version || currentVersion;
   return path.join(baseDir, projectId, specsSubdir, phase, v);
@@ -154,8 +182,12 @@ export function getPhasePath(projectId: string, phase: string, version?: string)
 /**
  * Type-safe phase checking
  */
-export function isValidPhase(phase: string): phase is (typeof PHASE_CONFIG.phases)[number] {
-  return (PHASE_CONFIG.phases as readonly (typeof PHASE_CONFIG.phases)[number][]).includes(phase as (typeof PHASE_CONFIG.phases)[number]);
+export function isValidPhase(
+  phase: string
+): phase is (typeof PHASE_CONFIG.phases)[number] {
+  return (
+    PHASE_CONFIG.phases as readonly (typeof PHASE_CONFIG.phases)[number][]
+  ).includes(phase as (typeof PHASE_CONFIG.phases)[number]);
 }
 
 /**

@@ -1447,22 +1447,56 @@ ${
 7. Z-index scale
 
 Format as markdown with frontmatter.`
-    : `Generate component-mapping.md and journey-maps.md with:
+    : `Generate TWO separate files: component-mapping.md and journey-maps.md
 
-1. Component mapping (design tokens to stack components)
-   - Color tokens to component props
-   - Typography tokens to text components
-   - Spacing tokens to layout components
-   - Shadcn components to use (if Next.js)
+IMPORTANT: Output MUST follow this exact structure with file markers:
 
-2. Journey maps (user interaction patterns)
-   - Key user flows
-   - Screen states
-   - Transition animations
-   - Micro-interactions
-   - Accessibility considerations
+---FILE: component-mapping.md---
+---
+title: "Component Mapping"
+owner: "designer"
+version: "1"
+date: "${new Date().toISOString().split('T')[0]}"
+status: "draft"
+---
 
-Format as markdown with frontmatter.`
+# Component Mapping
+
+## Design Tokens to Component Props
+- Color tokens mapped to component props
+- Typography tokens to text components
+- Spacing tokens to layout components
+
+## Stack-Specific Components
+- ${
+        stack
+          ? `Components for ${stack}`
+          : 'Shadcn/ui components (if React/Next.js)'
+      }
+- Component variants and states
+- Props interface for each component
+
+---FILE: journey-maps.md---
+---
+title: "Journey Maps"
+owner: "designer"
+version: "1"
+date: "${new Date().toISOString().split('T')[0]}"
+status: "draft"
+---
+
+# Journey Maps
+
+## User Flows
+- Key user journeys
+- Screen states and transitions
+
+## Interactions
+- Transition animations
+- Micro-interactions
+- Accessibility considerations
+
+You MUST include both ---FILE: markers exactly as shown above.`
 }`;
 
       const llmResponse = await llmClient.generateCompletion(
@@ -1478,19 +1512,59 @@ Format as markdown with frontmatter.`
       if (phase === 'SPEC_DESIGN_TOKENS') {
         artifacts['design-tokens.md'] = llmResponse.content;
       } else if (phase === 'SPEC_DESIGN_COMPONENTS') {
-        // Parse both component-mapping and journey-maps from response
-        const sections = llmResponse.content.split('## ');
-        sections.forEach((section: string) => {
-          if (section.startsWith('Component Mapping')) {
-            artifacts['component-mapping.md'] = '## ' + section;
-          } else if (section.startsWith('Journey Maps')) {
-            artifacts['journey-maps.md'] = '## ' + section;
-          }
-        });
+        // Parse both component-mapping and journey-maps using file markers
+        const content = llmResponse.content;
 
-        // If parsing failed, put all in component-mapping.md
+        // Split by file markers
+        const componentMappingMatch = content.match(
+          /---FILE:\s*component-mapping\.md---\s*([\s\S]*?)(?=---FILE:|$)/i
+        );
+        const journeyMapsMatch = content.match(
+          /---FILE:\s*journey-maps\.md---\s*([\s\S]*?)(?=---FILE:|$)/i
+        );
+
+        if (componentMappingMatch && componentMappingMatch[1]) {
+          artifacts['component-mapping.md'] = componentMappingMatch[1].trim();
+        }
+
+        if (journeyMapsMatch && journeyMapsMatch[1]) {
+          artifacts['journey-maps.md'] = journeyMapsMatch[1].trim();
+        }
+
+        // Fallback: try splitting by ## headers if markers weren't used
+        if (
+          !artifacts['component-mapping.md'] ||
+          !artifacts['journey-maps.md']
+        ) {
+          const sections = content.split(/(?=^##\s+)/m);
+          sections.forEach((section: string) => {
+            if (
+              /^##\s*Component\s*Mapping/i.test(section) &&
+              !artifacts['component-mapping.md']
+            ) {
+              artifacts['component-mapping.md'] = section.trim();
+            } else if (
+              /^##\s*Journey\s*Maps/i.test(section) &&
+              !artifacts['journey-maps.md']
+            ) {
+              artifacts['journey-maps.md'] = section.trim();
+            }
+          });
+        }
+
+        // Final fallback: if parsing failed, put all in component-mapping.md
         if (!artifacts['component-mapping.md']) {
-          artifacts['component-mapping.md'] = llmResponse.content;
+          logger.warn(
+            '[DESIGNER] Could not parse component-mapping.md from response, using full content'
+          );
+          artifacts['component-mapping.md'] = content;
+        }
+
+        // Log warning if journey-maps.md is still missing
+        if (!artifacts['journey-maps.md']) {
+          logger.warn(
+            '[DESIGNER] Could not parse journey-maps.md from response'
+          );
         }
       }
 
