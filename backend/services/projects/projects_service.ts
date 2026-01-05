@@ -3,7 +3,7 @@ import {
   Project,
   OrchestrationState,
   PhaseHistory,
-  ProjectArtifact
+  ProjectArtifact,
 } from '@/types/orchestrator';
 import { ProjectStorage } from '../file_system/project_storage';
 
@@ -47,7 +47,9 @@ export class ProjectsService {
     }
 
     // Create project directory
-    const projectPath = this.projectStorage.createProjectDirectory(request.slug);
+    const projectPath = this.projectStorage.createProjectDirectory(
+      request.slug
+    );
 
     // Initialize project with defaults
     const project: Project = {
@@ -63,22 +65,27 @@ export class ProjectsService {
       orchestration_state: {
         artifact_versions: {},
         validation_results: {},
-        approval_gates: {}
+        approval_gates: {},
       },
       project_path: projectPath,
       created_at: new Date(),
-      updated_at: new Date()
+      updated_at: new Date(),
     };
 
     // Save project metadata
     this.projectStorage.updateProjectMetadata(request.slug, {
       ...project,
       created_at: project.created_at.toISOString(),
-      updated_at: project.updated_at.toISOString()
+      updated_at: project.updated_at.toISOString(),
     });
 
     // Record initial phase history
-    await this.recordPhaseHistory(project.id, 'INITIAL', 'ANALYSIS', request.created_by_id);
+    await this.recordPhaseHistory(
+      project.id,
+      'INITIAL',
+      'ANALYSIS',
+      request.created_by_id
+    );
 
     return project;
   }
@@ -88,7 +95,7 @@ export class ProjectsService {
    */
   async getProject(slug: string): Promise<Project | null> {
     const metadata = this.projectStorage.getProjectMetadata(slug);
-    
+
     if (!metadata) {
       return null;
     }
@@ -104,29 +111,38 @@ export class ProjectsService {
       phases_completed: metadata.phases_completed || [],
       stack_choice: metadata.stack_choice || undefined,
       stack_approved: metadata.stack_approved || false,
-      stack_approval_date: metadata.stack_approval_date ? new Date(metadata.stack_approval_date) : undefined,
+      stack_approval_date: metadata.stack_approval_date
+        ? new Date(metadata.stack_approval_date)
+        : undefined,
       orchestration_state: metadata.orchestration_state || {
         artifact_versions: {},
         validation_results: {},
-        approval_gates: {}
+        approval_gates: {},
       },
       project_path: this.projectStorage.getProjectPath(slug),
-      created_at: metadata.created_at ? new Date(metadata.created_at) : new Date(),
-      updated_at: metadata.updated_at ? new Date(metadata.updated_at) : new Date()
+      created_at: metadata.created_at
+        ? new Date(metadata.created_at)
+        : new Date(),
+      updated_at: metadata.updated_at
+        ? new Date(metadata.updated_at)
+        : new Date(),
     };
   }
 
   /**
    * List projects with pagination
    */
-  async listProjects(page: number = 1, perPage: number = 20): Promise<ProjectListResponse> {
+  async listProjects(
+    page: number = 1,
+    perPage: number = 20
+  ): Promise<ProjectListResponse> {
     const allSlugs = this.projectStorage.listProjects();
     const startIndex = (page - 1) * perPage;
     const endIndex = startIndex + perPage;
     const paginatedSlugs = allSlugs.slice(startIndex, endIndex);
 
     const projects: Project[] = [];
-    
+
     for (const slug of paginatedSlugs) {
       const project = await this.getProject(slug);
       if (project) {
@@ -138,16 +154,19 @@ export class ProjectsService {
       projects,
       total: allSlugs.length,
       page,
-      per_page: perPage
+      per_page: perPage,
     };
   }
 
   /**
    * Update project
    */
-  async updateProject(slug: string, request: UpdateProjectRequest): Promise<Project> {
+  async updateProject(
+    slug: string,
+    request: UpdateProjectRequest
+  ): Promise<Project> {
     const existingProject = await this.getProject(slug);
-    
+
     if (!existingProject) {
       throw new Error(`Project not found: ${slug}`);
     }
@@ -156,7 +175,7 @@ export class ProjectsService {
     const updatedProject: Project = {
       ...existingProject,
       ...request,
-      updated_at: new Date()
+      updated_at: new Date(),
     };
 
     // Handle stack approval
@@ -165,11 +184,18 @@ export class ProjectsService {
     }
 
     // Handle phase change
-    if (request.current_phase && request.current_phase !== existingProject.current_phase) {
-      if (!existingProject.phases_completed.includes(existingProject.current_phase)) {
+    if (
+      request.current_phase &&
+      request.current_phase !== existingProject.current_phase
+    ) {
+      if (
+        !existingProject.phases_completed.includes(
+          existingProject.current_phase
+        )
+      ) {
         updatedProject.phases_completed.push(existingProject.current_phase);
       }
-      
+
       await this.recordPhaseHistory(
         updatedProject.id,
         existingProject.current_phase,
@@ -194,7 +220,7 @@ export class ProjectsService {
    */
   async deleteProject(slug: string): Promise<boolean> {
     const project = await this.getProject(slug);
-    
+
     if (!project) {
       return false;
     }
@@ -205,19 +231,39 @@ export class ProjectsService {
   /**
    * Get project artifacts
    */
-  async getProjectArtifacts(slug: string, phase?: string): Promise<ProjectArtifact[]> {
+  async getProjectArtifacts(
+    slug: string,
+    phase?: string
+  ): Promise<ProjectArtifact[]> {
     const project = await this.getProject(slug);
-    
+
     if (!project) {
       throw new Error(`Project not found: ${slug}`);
     }
 
     const artifacts: ProjectArtifact[] = [];
-    const phases = phase ? [phase] : ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE'];
+    const phases = phase
+      ? [phase]
+      : [
+          'ANALYSIS',
+          'STACK_SELECTION',
+          'SPEC_PM',
+          'SPEC_ARCHITECT',
+          'SPEC_DESIGN_TOKENS',
+          'SPEC_DESIGN_COMPONENTS',
+          'FRONTEND_BUILD',
+          'DEPENDENCIES',
+          'SOLUTIONING',
+          'VALIDATE',
+          'AUTO_REMEDY',
+          'DONE',
+          // Legacy fallback for existing projects
+          'SPEC',
+        ];
 
     for (const phaseName of phases) {
       const phaseArtifacts = this.projectStorage.listArtifacts(slug, phaseName);
-      
+
       for (const artifact of phaseArtifacts) {
         const projectArtifact: ProjectArtifact = {
           id: this.generateId(),
@@ -230,7 +276,7 @@ export class ProjectsService {
           content_hash: artifact.hash,
           validation_status: 'pending',
           created_at: artifact.created_at,
-          updated_at: artifact.modified_at
+          updated_at: artifact.modified_at,
         };
 
         artifacts.push(projectArtifact);
@@ -254,22 +300,22 @@ export class ProjectsService {
    * Update orchestration state
    */
   async updateOrchestrationState(
-    slug: string, 
+    slug: string,
     state: Partial<OrchestrationState>
   ): Promise<void> {
     const project = await this.getProject(slug);
-    
+
     if (!project) {
       throw new Error(`Project not found: ${slug}`);
     }
 
     const updatedState = {
       ...project.orchestration_state,
-      ...state
+      ...state,
     };
 
     this.projectStorage.updateProjectMetadata(slug, {
-      orchestration_state: updatedState
+      orchestration_state: updatedState,
     });
   }
 
@@ -280,7 +326,7 @@ export class ProjectsService {
   async getProjectStats(slug: string): Promise<any> {
     const stats = this.projectStorage.getProjectStats(slug);
     const project = await this.getProject(slug);
-    
+
     if (!project) {
       return null;
     }
@@ -291,7 +337,7 @@ export class ProjectsService {
       phases_completed: project.phases_completed.length,
       stack_approved: project.stack_approved,
       created_at: project.created_at,
-      updated_at: project.updated_at
+      updated_at: project.updated_at,
     };
   }
 
@@ -304,7 +350,7 @@ export class ProjectsService {
 
     for (const slug of allSlugs) {
       const project = await this.getProject(slug);
-      
+
       if (project && this.matchesQuery(project, query, userId)) {
         matchingProjects.push(project);
       }
@@ -330,7 +376,7 @@ export class ProjectsService {
       artifacts_generated: [],
       validation_passed: true,
       transitioned_by: userId,
-      transition_date: new Date()
+      transition_date: new Date(),
     };
 
     // In a real implementation, this would save to a database
@@ -340,11 +386,15 @@ export class ProjectsService {
   /**
    * Check if project matches search query
    */
-  private matchesQuery(project: Project, query: string, userId?: string): boolean {
+  private matchesQuery(
+    project: Project,
+    query: string,
+    userId?: string
+  ): boolean {
     const searchQuery = query.toLowerCase();
-    
+
     // Check name, description, slug
-    const matchesText = 
+    const matchesText =
       project.name.toLowerCase().includes(searchQuery) ||
       project.description.toLowerCase().includes(searchQuery) ||
       project.slug.toLowerCase().includes(searchQuery);
@@ -373,7 +423,9 @@ export class ProjectsService {
     }
 
     if (!/^[a-z0-9-]+$/.test(slug)) {
-      errors.push('Slug can only contain lowercase letters, numbers, and hyphens');
+      errors.push(
+        'Slug can only contain lowercase letters, numbers, and hyphens'
+      );
     }
 
     if (slug.startsWith('-') || slug.endsWith('-')) {
@@ -386,7 +438,7 @@ export class ProjectsService {
 
     return {
       valid: errors.length === 0,
-      errors
+      errors,
     };
   }
 }

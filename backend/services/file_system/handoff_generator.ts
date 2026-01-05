@@ -149,14 +149,22 @@ This project was generated using the Spec-Driven Platform.
     const stackChoice = projectMetadata.stack_choice || 'custom';
     const name = projectMetadata.name || 'Unnamed Project';
 
-    // Collect artifacts from all completed phases (7-phase workflow v3.0)
+    // Collect artifacts from all completed phases (12-phase workflow v4.0)
     const allPhases = [
       'ANALYSIS',
       'STACK_SELECTION',
-      'SPEC',
+      'SPEC_PM',
+      'SPEC_ARCHITECT',
+      'SPEC_DESIGN_TOKENS',
+      'SPEC_DESIGN_COMPONENTS',
+      'FRONTEND_BUILD',
       'DEPENDENCIES',
       'SOLUTIONING',
       'VALIDATE',
+      'AUTO_REMEDY',
+      'DONE',
+      // Legacy fallback for existing projects
+      'SPEC',
     ];
     const artifacts: Record<string, string> = {};
 
