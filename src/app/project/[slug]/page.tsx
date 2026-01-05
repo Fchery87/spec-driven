@@ -1369,9 +1369,9 @@ export default function ProjectPage() {
 function shouldShowExecuteButton(phase: string): boolean {
   // STACK_SELECTION: Uses approval flow, not execute
   // VALIDATE: Uses /validate endpoint via ValidationResultsPanel
-  // AUTO_REMEDY: Automated, no manual execution
   // DONE: Uses /generate-handoff endpoint
-  if (phase === 'STACK_SELECTION' || phase === 'VALIDATE' || phase === 'AUTO_REMEDY' || phase === 'DONE') {
+  // Note: AUTO_REMEDY now has execute button for manual trigger
+  if (phase === 'STACK_SELECTION' || phase === 'VALIDATE' || phase === 'DONE') {
     return false;
   }
   return true;
@@ -1415,7 +1415,7 @@ function getPhaseOutputs(phase: string): string[] {
     DEPENDENCIES: ['DEPENDENCIES.md', 'dependencies.json'],
     SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],
     VALIDATE: ['validation-report.md', 'coverage-matrix.md'],
-    AUTO_REMEDY: ['updated_artifacts'],
+    AUTO_REMEDY: ['auto-remedy-report.md'],
     DONE: ['README.md', 'HANDOFF.md']
   };
   return outputs[phase] || [];
