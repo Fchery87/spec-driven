@@ -289,7 +289,7 @@ async function executePMAgent(
 async function executeArchitectAgent(
   llmClient: LLMProvider,
   configLoader: ConfigLoader,
-  phase: 'STACK_SELECTION' | 'SPEC' | 'SOLUTIONING',
+  phase: 'STACK_SELECTION' | 'SPEC' | 'SPEC_ARCHITECT' | 'SOLUTIONING',
   projectBrief: string,
   personas: string,
   constitution: string,
@@ -1006,7 +1006,7 @@ export async function getArchitectExecutor(
   llmClient: LLMProvider,
   projectId: string,
   artifacts: Record<string, string>,
-  phase: 'SPEC' | 'SOLUTIONING' = 'SOLUTIONING',
+  phase: 'SPEC' | 'SPEC_ARCHITECT' | 'SOLUTIONING' = 'SOLUTIONING',
   stackChoice?: string,
   projectName?: string
 ): Promise<Record<string, string>> {
@@ -1014,7 +1014,8 @@ export async function getArchitectExecutor(
   const brief = artifacts['ANALYSIS/project-brief.md'] || '';
   const personas = artifacts['ANALYSIS/personas.md'] || '';
   const constitution = artifacts['ANALYSIS/constitution.md'] || '';
-  const prd = artifacts['SPEC/PRD.md'] || '';
+  // Support both SPEC_PM and SPEC paths for PRD
+  const prd = artifacts['SPEC_PM/PRD.md'] || artifacts['SPEC/PRD.md'] || '';
   return executeArchitectAgent(llmClient, configLoader, phase, brief, personas, constitution, prd, stackChoice, projectName);
 }
 

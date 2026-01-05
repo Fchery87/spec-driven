@@ -655,14 +655,10 @@ export class OrchestratorEngine {
           }
           break;
 
-        case 'SPEC':
-          // SPEC phase has three parts:
-          // 1. PM generates PRD
-          // 2. Architect generates data-model and api-spec
-          // 3. Design generates design-system, component-inventory, user-flows
-
-          // First generate PRD with PM
-          const prdArtifacts = await getPMExecutor(
+        case 'SPEC_PM':
+          // SPEC_PM phase - PM generates PRD
+          logger.info('[SPEC_PM] Executing PM Executor for PRD generation');
+          const pmArtifacts = await getPMExecutor(
             llmClient,
             projectId,
             artifacts,
@@ -670,61 +666,41 @@ export class OrchestratorEngine {
             projectName
           );
 
-          logger.debug('[SPEC] PRD generation complete', {
-            prdLength: prdArtifacts['PRD.md']?.length || 0,
-            hasContent: !!prdArtifacts['PRD.md']?.trim(),
+          logger.debug('[SPEC_PM] PRD generation complete', {
+            prdLength: pmArtifacts['PRD.md']?.length || 0,
+            hasContent: !!pmArtifacts['PRD.md']?.trim(),
           });
 
-          // Add the newly generated PRD to artifacts for subsequent agents
-          const artifactsWithPRD: Record<string, string> = {
+          generatedArtifacts = pmArtifacts;
+          break;
+
+        case 'SPEC_ARCHITECT':
+          // SPEC_ARCHITECT phase - Architect generates data model and API spec
+          logger.info('[SPEC_ARCHITECT] Executing Architect Executor for data model and API spec');
+          
+          // Add PRD to artifacts if it exists from SPEC_PM
+          const artifactsWithPRDForArch: Record<string, string> = {
             ...artifacts,
-            'SPEC/PRD.md': prdArtifacts['PRD.md'] || '',
+            'SPEC_PM/PRD.md': artifacts['SPEC_PM/PRD.md'] || artifacts['SPEC/PRD.md'] || '',
           };
 
-          logger.debug('[SPEC] Calling Architect with PRD', {
-            prdLength: artifactsWithPRD['SPEC/PRD.md']?.length || 0,
-            briefLength: artifacts['ANALYSIS/project-brief.md']?.length || 0,
+          const archSpecArtifacts = await getArchitectExecutor(
+            llmClient,
+            projectId,
+            artifactsWithPRDForArch,
+            'SPEC_ARCHITECT',
+            stackChoice,
+            projectName
+          );
+
+          logger.debug('[SPEC_ARCHITECT] Architect generation complete', {
+            dataModelLength: archSpecArtifacts['data-model.md']?.length || 0,
+            apiSpecLength: archSpecArtifacts['api-spec.json']?.length || 0,
+            hasDataModel: !!archSpecArtifacts['data-model.md']?.trim(),
+            hasApiSpec: !!archSpecArtifacts['api-spec.json']?.trim(),
           });
 
-          // Generate data model, API spec, and design artifacts in parallel
-          const [architectArtifacts, designArtifacts] = await Promise.all([
-            getArchitectExecutor(
-              llmClient,
-              projectId,
-              artifactsWithPRD,
-              'SPEC',
-              stackChoice,
-              projectName
-            ),
-            getDesignExecutor(
-              llmClient,
-              projectId,
-              artifactsWithPRD,
-              projectName
-            ),
-          ]);
-
-          logger.debug('[SPEC] Architect generation complete', {
-            dataModelLength: architectArtifacts['data-model.md']?.length || 0,
-            apiSpecLength: architectArtifacts['api-spec.json']?.length || 0,
-            hasDataModel: !!architectArtifacts['data-model.md']?.trim(),
-            hasApiSpec: !!architectArtifacts['api-spec.json']?.trim(),
-          });
-
-          logger.debug('[SPEC] Design generation complete', {
-            designSystemLength:
-              designArtifacts['design-system.md']?.length || 0,
-            componentInventoryLength:
-              designArtifacts['component-inventory.md']?.length || 0,
-            userFlowsLength: designArtifacts['user-flows.md']?.length || 0,
-          });
-
-          // Combine all artifacts
-          generatedArtifacts = {
-            ...prdArtifacts,
-            ...architectArtifacts,
-            ...designArtifacts,
-          };
+          generatedArtifacts = archSpecArtifacts;
           break;
 
         case 'SOLUTIONING':
@@ -921,6 +897,71 @@ export class OrchestratorEngine {
 
         case 'VALIDATE':
           generatedArtifacts = await this.generateValidationArtifacts(project);
+          break;
+
+        case 'AUTO_REMEDY':
+          // AUTO_REMEDY phase - Automated remediation of validation failures
+          logger.info('[AUTO_REMEDY] Analyzing validation failures for automated remediation');
+          
+          // Import the auto remedy executor and types
+          const autoRemedyModule = await import('./auto_remedy_executor');
+          const { executeAutoRemedy } = autoRemedyModule;
+          
+          // Define minimal context interface inline for TypeScript
+          interface LocalAutoRemedyContext {
+            projectId: string;
+            failedPhase: string;
+            validationFailures: Array<{ phase: string; message: string; artifactId: string }>;
+            currentAttempt: number;
+            maxAttempts: number;
+            artifactContent?: Record<string, { current: string; original: string; originalHash: string }>;
+            validationRunId?: string;
+          }
+          
+          // Get validation failures from the database for this project
+          // For now, we'll create a minimal context - in production, this would query the DB
+          const autoRemedyContext: LocalAutoRemedyContext = {
+            projectId,
+            failedPhase: 'VALIDATE', // AUTO_REMEDY typically runs after VALIDATE fails
+            validationFailures: [],
+            currentAttempt: 1,
+            maxAttempts: 3,
+          };
+          
+          const autoRemedyResult = await executeAutoRemedy(autoRemedyContext as any);
+          
+          logger.info('[AUTO_REMEDY] Auto remedy analysis complete', {
+            canProceed: autoRemedyResult.canProceed,
+            requiresManualReview: autoRemedyResult.requiresManualReview,
+            reason: autoRemedyResult.reason,
+            classificationType: autoRemedyResult.classification?.type,
+          });
+
+          // AUTO_REMEDY doesn't generate new artifacts but may trigger phase retry
+          // If canProceed is true, the validation failure was resolved
+          // If requiresManualReview is true, human intervention is needed
+          if (autoRemedyResult.requiresManualReview) {
+            throw new Error(`AUTO_REMEDY requires manual review: ${autoRemedyResult.reason}`);
+          }
+
+          generatedArtifacts = {
+            'auto-remedy-report.md': `# AUTO_REMEDY Report
+
+## Classification
+- Type: ${autoRemedyResult.classification?.type || 'unknown'}
+- Confidence: ${autoRemedyResult.classification?.confidence || 0}%
+
+## Remediation Strategy
+- Agent: ${autoRemedyResult.remediation?.agentToRerun || 'none'}
+- Phase: ${autoRemedyResult.remediation?.phase || 'none'}
+- Instructions: ${autoRemedyResult.remediation?.additionalInstructions || 'none'}
+
+## Result
+- Can Proceed: ${autoRemedyResult.canProceed}
+- Reason: ${autoRemedyResult.reason}
+- Next Attempt: ${autoRemedyResult.nextAttempt}
+`
+          };
           break;
 
         case 'DONE':
