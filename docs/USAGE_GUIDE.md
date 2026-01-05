@@ -6,21 +6,26 @@ Quick reference for using the Spec-Driven platform features.
 
 ---
 
-## Phase Workflow (7 Phases)
+## Phase Workflow (12 Phases)
 
 ```
-ANALYSIS → STACK_SELECTION → SPEC → DEPENDENCIES → SOLUTIONING → VALIDATE → DONE
+ANALYSIS → STACK_SELECTION → SPEC_PM → SPEC_ARCHITECT → SPEC_DESIGN_TOKENS → SPEC_DESIGN_COMPONENTS → FRONTEND_BUILD → DEPENDENCIES → SOLUTIONING → VALIDATE → AUTO_REMEDY → DONE
 ```
 
-| Phase           | User Action                                              | Outputs                                                  |
-| --------------- | -------------------------------------------------------- | -------------------------------------------------------- |
-| ANALYSIS        | Answer clarification questions (or let AI assume)        | constitution.md, project-brief.md, personas.md           |
-| STACK_SELECTION | Review AI recommendation, approve/customize stack (GATE) | stack-analysis.md, stack-decision.md, stack-rationale.md |
-| SPEC            | Review generated specs                                   | PRD.md, data-model.md, api-spec.json, design-system.md   |
-| DEPENDENCIES    | Auto-generated from approved stack (no approval needed)  | DEPENDENCIES.md, dependencies.json                       |
-| SOLUTIONING     | Review architecture and tasks                            | architecture.md, epics.md, tasks.md, plan.md             |
-| VALIDATE        | Run validation checks, review results                    | validation-report.md, coverage-matrix.md                 |
-| DONE            | Download handoff                                         | README.md, HANDOFF.md, project.zip                       |
+| Phase                  | User Action                                              | Outputs                                                  |
+| ---------------------- | -------------------------------------------------------- | -------------------------------------------------------- |
+| ANALYSIS               | Answer clarification questions (or let AI assume)        | constitution.md, project-brief.md, personas.md           |
+| STACK_SELECTION        | Review AI recommendation, approve/customize stack (GATE) | stack-analysis.md, stack-decision.md, stack-rationale.md |
+| SPEC_PM                | Review Product Requirements Document                     | PRD.md                                                   |
+| SPEC_ARCHITECT         | Review technical architecture specs                      | data-model.md, api-spec.json                             |
+| SPEC_DESIGN_TOKENS     | Review brand colors, fonts, and motion tokens            | design-tokens.md, design-system.md                       |
+| SPEC_DESIGN_COMPONENTS | Review component mapping and user flows                  | component-inventory.md, user-flows.md                    |
+| FRONTEND_BUILD         | Monitor codebase generation (no artifacts)               | (Source code files in background)                        |
+| DEPENDENCIES           | Auto-generated from approved stack                       | DEPENDENCIES.md, dependencies.json                       |
+| SOLUTIONING            | Review implementation plan and tasks                     | architecture.md, epics.md, tasks.md, plan.md             |
+| VALIDATE               | Run consistency checks and review results                | validation-report.md, coverage-matrix.md                 |
+| AUTO_REMEDY            | Review AI-generated fixes for validation failures        | auto-remedy-report.md                                    |
+| DONE                   | Download final project package                           | README.md, HANDOFF.md, project.zip                       |
 
 ---
 
@@ -187,7 +192,7 @@ After stack approval:
 
 ## Design System
 
-The SPEC phase generates design system artifacts following [fire-your-design-team.md](../fire-your-design-team.md).
+The design phases (`SPEC_DESIGN_TOKENS` and `SPEC_DESIGN_COMPONENTS`) generate design system artifacts following [fire-your-design-team.md](../fire-your-design-team.md).
 
 ### Artifacts Generated
 
@@ -408,8 +413,8 @@ const path = getArtifactPath('my-project', 'SPEC', 'PRD.md');
 // Result: /projects/my-project/specs/SPEC/v1/PRD.md
 
 // Get required files for phase
-const required = getRequiredFilesForPhase('SPEC');
-// Result: ['PRD.md', 'data-model.md', 'api-spec.json']
+const required = getRequiredFilesForPhase('SPEC_PM');
+// Result: ['PRD.md']
 
 // Type-safe phase checking
 if (isValidPhase(userInput)) {
@@ -612,12 +617,12 @@ export const POST = withCorrelationId(async (req: NextRequest) => {
       // 3. Log operation start
       logger.info('Starting phase execution', {
         projectId,
-        phase: 'SPEC',
+        phase: 'SPEC_PM',
         userId,
       });
 
       // 4. Execute operation
-      const result = await executePhase(projectId, 'SPEC');
+      const result = await executePhase(projectId, 'SPEC_PM');
 
       // 5. Log success
       logger.info('Phase execution completed', {
