@@ -25,7 +25,9 @@ export interface AgentExecutor {
   role: string;
   perspective: string;
   expertise: string[];
-  generateArtifacts: (context: Record<string, unknown>) => Promise<ArtifactGenerationResult>;
+  generateArtifacts: (
+    context: Record<string, unknown>
+  ) => Promise<ArtifactGenerationResult>;
   validateArtifacts?: (artifacts: Record<string, string>) => ValidationResult;
 }
 
@@ -62,7 +64,7 @@ function buildPrompt(template: string, variables: Record<string, any>): string {
   // Add standard variables that should always be available
   const standardVars = {
     currentDate: new Date().toISOString().split('T')[0],
-    ...variables
+    ...variables,
   };
 
   for (const [key, value] of Object.entries(standardVars)) {
@@ -78,18 +80,25 @@ function buildPrompt(template: string, variables: Record<string, any>): string {
 // ARTIFACT PARSING
 // ============================================================================
 
-function parseArtifacts(content: string, expectedFiles: string[]): Record<string, string> {
+function parseArtifacts(
+  content: string,
+  expectedFiles: string[]
+): Record<string, string> {
   const artifacts: Record<string, string> = {};
-  const expectedMap = expectedFiles.reduce<Record<string, string>>((map, filename) => {
-    map[filename.toLowerCase()] = filename;
-    return map;
-  }, {});
+  const expectedMap = expectedFiles.reduce<Record<string, string>>(
+    (map, filename) => {
+      map[filename.toLowerCase()] = filename;
+      return map;
+    },
+    {}
+  );
 
   // Try to extract files from markdown code blocks with explicit filename markers
   // Supports:
   // ```markdown filename: plan.md\n...``` and
   // ```\nfilename: plan.md\n...```
-  const fileRegex = /```(?:(\w+)[ \t]*)?\n?filename:\s*([^\n]+)\n([\s\S]*?)```/g;
+  const fileRegex =
+    /```(?:(\w+)[ \t]*)?\n?filename:\s*([^\n]+)\n([\s\S]*?)```/g;
   let match;
 
   while ((match = fileRegex.exec(content)) !== null) {
@@ -153,17 +162,26 @@ function parseArtifacts(content: string, expectedFiles: string[]): Record<string
   }
 
   // If some but not all files found, try header-based parsing
-  if (Object.keys(artifacts).length > 0 && Object.keys(artifacts).length < expectedFiles.length) {
+  if (
+    Object.keys(artifacts).length > 0 &&
+    Object.keys(artifacts).length < expectedFiles.length
+  ) {
     for (const filename of expectedFiles) {
       if (!artifacts[filename]) {
-        const fileHeader = new RegExp(`#?\\s*${filename.replace('.', '\\.')}`, 'i');
+        const fileHeader = new RegExp(
+          `#?\\s*${filename.replace('.', '\\.')}`,
+          'i'
+        );
         const parts = content.split(fileHeader);
 
         if (parts.length > 1) {
           let fileContent = parts[1];
           for (const otherFile of expectedFiles) {
             if (otherFile !== filename) {
-              const nextHeader = new RegExp(`#?\\s*${otherFile.replace('.', '\\.')}`, 'i');
+              const nextHeader = new RegExp(
+                `#?\\s*${otherFile.replace('.', '\\.')}`,
+                'i'
+              );
               const headerParts = fileContent.split(nextHeader);
               if (headerParts.length > 1) {
                 fileContent = headerParts[0];
@@ -180,14 +198,20 @@ function parseArtifacts(content: string, expectedFiles: string[]): Record<string
   // If no files extracted, try header-based parsing for all expected files
   if (Object.keys(artifacts).length === 0) {
     for (const filename of expectedFiles) {
-      const fileHeader = new RegExp(`#?\\s*${filename.replace('.', '\\.')}`, 'i');
+      const fileHeader = new RegExp(
+        `#?\\s*${filename.replace('.', '\\.')}`,
+        'i'
+      );
       const parts = content.split(fileHeader);
 
       if (parts.length > 1) {
         let fileContent = parts[1];
         for (const otherFile of expectedFiles) {
           if (otherFile !== filename) {
-            const nextHeader = new RegExp(`#?\\s*${otherFile.replace('.', '\\.')}`, 'i');
+            const nextHeader = new RegExp(
+              `#?\\s*${otherFile.replace('.', '\\.')}`,
+              'i'
+            );
             const headerParts = fileContent.split(nextHeader);
             if (headerParts.length > 1) {
               fileContent = headerParts[0];
@@ -202,15 +226,21 @@ function parseArtifacts(content: string, expectedFiles: string[]): Record<string
 
   // Fallback: if still no artifacts, put entire content into first file
   if (Object.keys(artifacts).length === 0 && expectedFiles.length > 0) {
-    logger.warn(`Failed to parse artifacts. Expected files: ${expectedFiles.join(', ')}`);
-    logger.warn(`Putting entire response in first expected file: ${expectedFiles[0]}`);
+    logger.warn(
+      `Failed to parse artifacts. Expected files: ${expectedFiles.join(', ')}`
+    );
+    logger.warn(
+      `Putting entire response in first expected file: ${expectedFiles[0]}`
+    );
     artifacts[expectedFiles[0]] = content;
   }
 
   // Fill missing files with empty strings
   for (const filename of expectedFiles) {
     if (!artifacts[filename]) {
-      logger.warn(`Missing expected artifact: ${filename}. Creating placeholder.`);
+      logger.warn(
+        `Missing expected artifact: ${filename}. Creating placeholder.`
+      );
       artifacts[filename] = '';
     }
   }
@@ -237,18 +267,25 @@ async function executeAnalystAgent(
   const agentConfig = configLoader.getSection('agents').analyst;
   const prompt = buildPrompt(agentConfig.prompt_template, {
     projectIdea,
-    projectName: projectName || 'Untitled Project'
+    projectName: projectName || 'Untitled Project',
   });
 
-  const response = await llmClient.generateCompletion(prompt, undefined, 3, 'ANALYSIS');
+  const response = await llmClient.generateCompletion(
+    prompt,
+    undefined,
+    3,
+    'ANALYSIS'
+  );
   const artifacts = parseArtifacts(response.content, [
     'constitution.md',
     'project-brief.md',
     'project-classification.json',
-    'personas.md'
+    'personas.md',
   ]);
 
-  logger.info('[ANALYSIS] Agent completed', { artifacts: Object.keys(artifacts) });
+  logger.info('[ANALYSIS] Agent completed', {
+    artifacts: Object.keys(artifacts),
+  });
   return artifacts;
 }
 
@@ -269,13 +306,20 @@ async function executePMAgent(
   const prompt = buildPrompt(agentConfig.prompt_template, {
     brief: projectBrief,
     personas: personas,
-    projectName: projectName || 'Untitled Project'
+    projectName: projectName || 'Untitled Project',
   });
 
-  const response = await llmClient.generateCompletion(prompt, undefined, 3, 'SPEC');
+  const response = await llmClient.generateCompletion(
+    prompt,
+    undefined,
+    3,
+    'SPEC'
+  );
   const artifacts = parseArtifacts(response.content, ['PRD.md']);
 
-  logger.info('[SPEC] PM Agent completed', { artifacts: Object.keys(artifacts) });
+  logger.info('[SPEC] PM Agent completed', {
+    artifacts: Object.keys(artifacts),
+  });
   return artifacts;
 }
 
@@ -306,7 +350,7 @@ async function executeArchitectAgent(
     constitutionLength: constitution?.length || 0,
     prdLength: prd?.length || 0,
     stackChoice,
-    projectName
+    projectName,
   });
 
   const agentConfig = configLoader.getSection('agents').architect;
@@ -316,7 +360,12 @@ async function executeArchitectAgent(
   let variables: Record<string, any>;
 
   if (phase === 'STACK_SELECTION') {
-    expectedFiles = ['stack-analysis.md', 'stack-decision.md', 'stack-rationale.md', 'stack.json'];
+    expectedFiles = [
+      'stack-analysis.md',
+      'stack-decision.md',
+      'stack-rationale.md',
+      'stack.json',
+    ];
     variables = {
       brief: projectBrief,
       personas,
@@ -327,7 +376,8 @@ async function executeArchitectAgent(
       projectName: projectName || 'Untitled Project',
       classification: projectClassification || '',
       defaultStack: defaultStack || 'nextjs_web_app',
-      defaultStackReason: defaultStackReason || 'Fallback default for web applications'
+      defaultStackReason:
+        defaultStackReason || 'Fallback default for web applications',
     };
   } else if (phase === 'SPEC') {
     expectedFiles = ['data-model.md', 'api-spec.json'];
@@ -338,7 +388,7 @@ async function executeArchitectAgent(
       prd: prd,
       phase: 'SPEC',
       stackChoice: stackChoice || 'web_application',
-      projectName: projectName || 'Untitled Project'
+      projectName: projectName || 'Untitled Project',
     };
   } else {
     expectedFiles = ['architecture.md'];
@@ -354,24 +404,25 @@ async function executeArchitectAgent(
       originalBriefLength: projectBrief.length,
       truncatedBriefLength: truncatedBrief.length,
       originalPrdLength: prd.length,
-      truncatedPrdLength: truncatedPrd.length
+      truncatedPrdLength: truncatedPrd.length,
     });
-    
+
     // Dedicated architecture prompt - much shorter than the full template
     // Get stack template details for consistency
     const stackTemplates: Record<string, string> = {
-      'nextjs_fullstack_expo': 'Next.js 14 + TypeScript + Expo for mobile',
-      'nextjs_web_only': 'Next.js 14 + TypeScript (web only, no mobile)',
-      'nextjs_web_app': 'Next.js 14 + TypeScript (web application)',
-      'hybrid_nextjs_fastapi': 'Next.js frontend + FastAPI Python backend',
-      'react_express': 'React SPA + Express.js backend',
-      'vue_nuxt': 'Vue 3 + Nuxt 3',
-      'svelte_kit': 'SvelteKit fullstack',
-      'django_htmx': 'Django + HTMX hypermedia',
-      'go_react': 'Go backend + React frontend',
+      nextjs_fullstack_expo: 'Next.js 14 + TypeScript + Expo for mobile',
+      nextjs_web_only: 'Next.js 14 + TypeScript (web only, no mobile)',
+      nextjs_web_app: 'Next.js 14 + TypeScript (web application)',
+      hybrid_nextjs_fastapi: 'Next.js frontend + FastAPI Python backend',
+      react_express: 'React SPA + Express.js backend',
+      vue_nuxt: 'Vue 3 + Nuxt 3',
+      svelte_kit: 'SvelteKit fullstack',
+      django_htmx: 'Django + HTMX hypermedia',
+      go_react: 'Go backend + React frontend',
     };
     const chosenStack = stackChoice || 'nextjs_web_only';
-    const stackDescription = stackTemplates[chosenStack] || `Custom stack: ${chosenStack}`;
+    const stackDescription =
+      stackTemplates[chosenStack] || `Custom stack: ${chosenStack}`;
 
     const architecturePrompt = `You are a Chief Architect designing the system architecture for "${name}".
 
@@ -448,35 +499,56 @@ graph TB
 
 Generate the complete architecture.md now:`;
 
-    const response = await llmClient.generateCompletion(architecturePrompt, undefined, 3, phase);
+    const response = await llmClient.generateCompletion(
+      architecturePrompt,
+      undefined,
+      3,
+      phase
+    );
     const artifacts = parseArtifacts(response.content, expectedFiles);
-    
+
     // If parsing failed, use raw response
-    if (!artifacts['architecture.md'] || artifacts['architecture.md'].trim().length < 500) {
-      logger.warn('[SOLUTIONING] architecture.md parsing failed, using raw response');
+    if (
+      !artifacts['architecture.md'] ||
+      artifacts['architecture.md'].trim().length < 500
+    ) {
+      logger.warn(
+        '[SOLUTIONING] architecture.md parsing failed, using raw response'
+      );
       artifacts['architecture.md'] = response.content;
     }
-    
+
     logger.info(`[${phase}] Architect Agent completed`, {
       artifacts: Object.keys(artifacts),
-      architectureLength: artifacts['architecture.md']?.length || 0
+      architectureLength: artifacts['architecture.md']?.length || 0,
     });
     return artifacts;
   }
 
   const prompt = buildPrompt(agentConfig.prompt_template, variables);
-  const response = await llmClient.generateCompletion(prompt, undefined, 3, phase);
+  const response = await llmClient.generateCompletion(
+    prompt,
+    undefined,
+    3,
+    phase
+  );
   const artifacts = parseArtifacts(response.content, expectedFiles);
 
   logger.info(`[${phase}] Architect Agent initial parse`, {
     artifacts: Object.keys(artifacts),
     dataModelLength: artifacts['data-model.md']?.length || 0,
-    apiSpecLength: artifacts['api-spec.json']?.length || 0
+    apiSpecLength: artifacts['api-spec.json']?.length || 0,
   });
 
   // Fallback: If api-spec.json is empty in SPEC phase, try to regenerate it specifically
-  if (phase === 'SPEC' && (!artifacts['api-spec.json'] || artifacts['api-spec.json'].trim().length < 100)) {
-    logger.warn('[SPEC] api-spec.json missing or too short, triggering fallback generation');
+  if (
+    phase === 'SPEC' &&
+    (!artifacts['api-spec.json'] ||
+      artifacts['api-spec.json'].trim().length < 100)
+  ) {
+    logger.warn(
+      '[SPEC] api-spec.json missing or too short, triggering fallback generation'
+    );
     const fallbackPrompt = `You are a Chief Architect. Generate ONLY an OpenAPI 3.0.3 specification based on the following PRD.
 
 ## PRD Summary:
@@ -492,33 +564,50 @@ ${prd.slice(0, 20000)}
 
 Output the complete OpenAPI JSON now:`;
 
-    const apiSpecResponse = await llmClient.generateCompletion(fallbackPrompt, undefined, 3, phase);
-    
+    const apiSpecResponse = await llmClient.generateCompletion(
+      fallbackPrompt,
+      undefined,
+      3,
+      phase
+    );
+
     // Try to extract JSON from the response
     let apiSpecContent = apiSpecResponse.content.trim();
-    
+
     // Remove markdown code fences if present
     if (apiSpecContent.startsWith('```')) {
-      apiSpecContent = apiSpecContent.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+      apiSpecContent = apiSpecContent
+        .replace(/^```(?:json)?\n?/, '')
+        .replace(/\n?```$/, '');
     }
-    
+
     // Try to parse to validate
     try {
       JSON.parse(apiSpecContent);
       artifacts['api-spec.json'] = apiSpecContent;
-      logger.info('[SPEC] api-spec.json fallback generation successful', { length: apiSpecContent.length });
+      logger.info('[SPEC] api-spec.json fallback generation successful', {
+        length: apiSpecContent.length,
+      });
     } catch (e) {
-      logger.error('[SPEC] api-spec.json fallback generation failed to produce valid JSON');
+      logger.error(
+        '[SPEC] api-spec.json fallback generation failed to produce valid JSON'
+      );
     }
   }
 
   // Fallback: If data-model.md is too short, try to regenerate
-  if (phase === 'SPEC' && (!artifacts['data-model.md'] || artifacts['data-model.md'].trim().length < 500)) {
-    logger.warn('[SPEC] data-model.md missing or too short, triggering fallback generation');
-    
+  if (
+    phase === 'SPEC' &&
+    (!artifacts['data-model.md'] ||
+      artifacts['data-model.md'].trim().length < 500)
+  ) {
+    logger.warn(
+      '[SPEC] data-model.md missing or too short, triggering fallback generation'
+    );
+
     // Extract key entities from PRD to focus the generation
     const prdSummary = prd.slice(0, 15000);
-    
+
     const fallbackPrompt = `You are a Chief Architect. Generate a CONCISE but complete data-model.md.
 
 ## PRD Context:
@@ -571,20 +660,40 @@ status: draft
 Generate now:`;
 
     // Use SOLUTIONING phase config for fallback (has 32768 tokens vs 16384 for SPEC)
-    const dataModelResponse = await llmClient.generateCompletion(fallbackPrompt, undefined, 3, 'SOLUTIONING');
-    const fallbackArtifacts = parseArtifacts(dataModelResponse.content, ['data-model.md']);
-    
-    if (fallbackArtifacts['data-model.md'] && fallbackArtifacts['data-model.md'].trim().length > 500) {
+    const dataModelResponse = await llmClient.generateCompletion(
+      fallbackPrompt,
+      undefined,
+      3,
+      'SOLUTIONING'
+    );
+    const fallbackArtifacts = parseArtifacts(dataModelResponse.content, [
+      'data-model.md',
+    ]);
+
+    if (
+      fallbackArtifacts['data-model.md'] &&
+      fallbackArtifacts['data-model.md'].trim().length > 500
+    ) {
       artifacts['data-model.md'] = fallbackArtifacts['data-model.md'];
-      logger.info('[SPEC] data-model.md fallback generation successful', { length: artifacts['data-model.md'].length });
+      logger.info('[SPEC] data-model.md fallback generation successful', {
+        length: artifacts['data-model.md'].length,
+      });
     } else {
       // If still too short, use the response content directly if it looks like a data model
       const rawContent = dataModelResponse.content;
-      if (rawContent.includes('erDiagram') || rawContent.includes('Table') || rawContent.includes('Column')) {
+      if (
+        rawContent.includes('erDiagram') ||
+        rawContent.includes('Table') ||
+        rawContent.includes('Column')
+      ) {
         artifacts['data-model.md'] = rawContent;
-        logger.info('[SPEC] data-model.md using raw response', { length: rawContent.length });
+        logger.info('[SPEC] data-model.md using raw response', {
+          length: rawContent.length,
+        });
       } else {
-        logger.error('[SPEC] data-model.md fallback generation failed to produce sufficient content');
+        logger.error(
+          '[SPEC] data-model.md fallback generation failed to produce sufficient content'
+        );
       }
     }
   }
@@ -592,7 +701,7 @@ Generate now:`;
   logger.info(`[${phase}] Architect Agent completed`, {
     artifacts: Object.keys(artifacts),
     dataModelLength: artifacts['data-model.md']?.length || 0,
-    apiSpecLength: artifacts['api-spec.json']?.length || 0
+    apiSpecLength: artifacts['api-spec.json']?.length || 0,
   });
   return artifacts;
 }
@@ -600,7 +709,8 @@ Generate now:`;
 /**
  * Execute Scrum Master Agent (SOLUTIONING phase)
  * Generates: epics.md, tasks.md, plan.md
- * Split into 3 separate calls to avoid token limit truncation
+ *
+ * Leveraging automatic multi-turn continuation in GeminiClient for maximum output.
  */
 async function executeScrumMasterAgent(
   llmClient: LLMProvider,
@@ -610,273 +720,100 @@ async function executeScrumMasterAgent(
   apiSpec: string,
   projectName?: string
 ): Promise<Record<string, string>> {
-  logger.info('[SOLUTIONING] Executing Scrum Master Agent (split into 3 calls)');
+  logger.info(
+    '[SOLUTIONING] Executing Scrum Master Agent (single comprehensive prompt)'
+  );
 
-  const artifacts: Record<string, string> = {};
   const currentDate = new Date().toISOString().split('T')[0];
   const name = projectName || 'Untitled Project';
 
   // Truncate context to fit within 1M token context window while providing comprehensive context
-  // Supporting Gemini 3.0 Flash's 64K output capability for detailed epics, tasks, and planning
-  const prdContext = prd.slice(0, 80000);
-  const dataModelContext = dataModel.slice(0, 30000);
-  const apiSpecContext = apiSpec.slice(0, 30000);
+  // Supporting Gemini 3.0 Flash's 64K output capability (multi-turn) for detailed epics, tasks, and planning
+  const prdContext = prd.slice(0, 100000);
+  const dataModelContext = dataModel.slice(0, 40000);
+  const apiSpecContext = apiSpec.slice(0, 40000);
 
-  // Extract requirement IDs from FULL PRD (not truncated) to ensure all are mapped
+  // Extract requirement IDs from FULL PRD
   const requirementIds = prd.match(/REQ-[A-Z]+-\d+/g) || [];
   const uniqueReqs = Array.from(new Set(requirementIds));
-  
-  logger.info('[SOLUTIONING] Extracted requirements from PRD', { 
+
+  logger.info('[SOLUTIONING] Extracted requirements from PRD', {
     totalRequirements: uniqueReqs.length,
-    requirements: uniqueReqs.join(', ')
+    requirements: uniqueReqs.join(', '),
   });
-  
-  // === CALL 1: Generate epics.md ===
-  logger.info('[SOLUTIONING] Generating epics.md...');
-  const epicsPrompt = `You are an expert Scrum Master. Generate epics.md for "${name}".
+
+  const comprehensivePrompt = `You are an expert Scrum Master designing the project plan for "${name}".
 
 ## Context
 PRD Summary:
 ${prdContext}
 
-Data Model Summary:
+Data Model & API Spec Context:
 ${dataModelContext}
+${apiSpecContext}
 
 ## PRD Requirements to Cover (${uniqueReqs.length} total)
-The following requirements MUST be mapped to epics:
+The following requirements MUST be mapped to epics and tasks:
 ${uniqueReqs.join(', ') || 'Extract REQ-XXX-YYY from PRD above'}
 
-## Instructions
-Create 4-8 epics covering the full MVP scope. CRITICAL REQUIREMENTS:
+## Your Task
+Generate three comprehensive artifacts: epics.md, tasks.md, and plan.md.
 
-1. **Each epic MUST list the PRD requirements it addresses** using the REQ-XXX-YYY format
-2. Every requirement from the PRD must be covered by at least one epic
-3. Include clear acceptance criteria in Gherkin format (Given/When/Then)
+### 1. epics.md
+- Create 4-8 epics covering the full MVP scope.
+- **Each epic MUST list the PRD requirements it addresses** (REQ-XXX-YYY).
+- Include clear acceptance criteria in Gherkin format.
+
+### 2. tasks.md
+- Break down epics into concrete development tasks.
+- **Each task MUST reference specific REQ-XXX-YYY IDs.**
+- Include test specifications (Gherkin) for every task.
+- Ensure EVERY requirement has at least one implementing task.
+
+### 3. plan.md
+- Provide a timeline, MVP scope summary, and risk assessment.
+- Define success metrics tied to specific requirements.
 
 ## Output Format
-Output ONLY a single fenced code block:
+Output each file in a separate fenced code block with the "filename: [name]" marker.
+
 \`\`\`
 filename: epics.md
----
-title: Product Epics
-owner: scrummaster
-version: 1.0
-date: ${currentDate}
-status: draft
----
-
-# Product Epics
-
-## Epic 1: User Authentication
-**Description:** Implement secure user authentication system
-**Requirements Covered:** REQ-AUTH-001, REQ-AUTH-002, REQ-AUTH-003
-**Business Value:** Enables secure access and protects user data
-**Acceptance Criteria:**
-- Given a new user, When they register with valid email/password, Then account is created
-- Given a registered user, When they login with correct credentials, Then they receive auth token
-- Given an authenticated user, When their token expires, Then they are prompted to re-login
-**Dependencies:** None
-
-## Epic 2: [Title]
-**Description:** ...
-**Requirements Covered:** REQ-XXX-001, REQ-XXX-002
-**Business Value:** ...
-**Acceptance Criteria:**
-- Given ... When ... Then ...
-**Dependencies:** Epic 1
-
-(continue for all epics - MUST cover ALL requirements)
+...
 \`\`\`
 
-Generate now:`;
-
-  const epicsResponse = await llmClient.generateCompletion(epicsPrompt, undefined, 3, 'SOLUTIONING');
-  const epicsArtifacts = parseArtifacts(epicsResponse.content, ['epics.md']);
-  artifacts['epics.md'] = epicsArtifacts['epics.md'] || epicsResponse.content;
-
-  // === CALL 2: Generate tasks.md ===
-  logger.info('[SOLUTIONING] Generating tasks.md...');
-  const epicsContext = artifacts['epics.md']?.slice(0, 6000) || '';
-  
-  const tasksPrompt = `You are an expert Scrum Master. Generate tasks.md for "${name}".
-
-## Context
-Epics (with Requirements):
-${epicsContext}
-
-PRD Summary:
-${prdContext.slice(0, 15000)}
-
-## PRD Requirements to Implement (${uniqueReqs.length} total - MANDATORY - ALL MUST BE MAPPED)
-The following requirements MUST each have at least one implementing task:
-${uniqueReqs.join(', ') || 'Extract ALL REQ-XXX-YYY from PRD above'}
-
-IMPORTANT: If you see requirements in the PRD that are not in this list, you MUST still create tasks for them.
-
-## Instructions
-Break down epics into concrete development tasks. CRITICAL REQUIREMENTS:
-
-1. **Each task MUST reference the specific PRD requirement(s) it implements** (REQ-XXX-YYY)
-2. **EVERY requirement from the PRD must have at least one implementing task - NO EXCEPTIONS**
-3. Include test specifications BEFORE implementation details (Test-First)
-4. Use Gherkin format (Given/When/Then) for acceptance criteria
-5. **Before finishing, verify EVERY REQ-XXX-YYY has at least one task**
-
-## Output Format
-Output ONLY a single fenced code block:
 \`\`\`
 filename: tasks.md
----
-title: Development Tasks
-owner: scrummaster
-version: 1.0
-date: ${currentDate}
-status: draft
----
-
-# Development Tasks
-
-## Sprint 1 Tasks
-
-### TASK-001: Implement User Registration API
-- **Epic:** Epic 1 - User Authentication
-- **Implements:** REQ-AUTH-001, REQ-AUTH-002
-- **Points:** 5
-- **Priority:** P0
-- **Description:** Create registration endpoint with email/password validation
-- **Test Specification:**
-  - Given valid email and password, When POST /auth/register, Then return 201 with user object
-  - Given existing email, When POST /auth/register, Then return 409 Conflict
-  - Given invalid email format, When POST /auth/register, Then return 400 Bad Request
-- **Technical Notes:** Use bcrypt for password hashing, validate email format
-
-### TASK-002: [Title]
-- **Epic:** Epic X
-- **Implements:** REQ-XXX-001
-- **Points:** N
-- **Priority:** P0/P1/P2
-- **Description:** ...
-- **Test Specification:**
-  - Given ... When ... Then ...
-- **Technical Notes:** ...
-
-(continue for ALL tasks - every requirement MUST have implementing tasks)
+...
 \`\`\`
 
-## VALIDATION CHECKLIST (Complete before generating)
-Before outputting, verify:
-- [ ] Every REQ-AUTH-XXX has at least one task
-- [ ] Every REQ-USER-XXX has at least one task  
-- [ ] Every REQ-CRUD-XXX has at least one task
-- [ ] Every REQ-MEDIA-XXX has at least one task
-- [ ] Every REQ-PAYMENT-XXX has at least one task
-- [ ] Every REQ-ADMIN-XXX has at least one task
-- [ ] Every REQ-SEARCH-XXX has at least one task
-- [ ] Every REQ-NOTIF-XXX has at least one task
-- [ ] Every REQ-INTEG-XXX has at least one task
-- [ ] All tasks have Gherkin test specifications
-
-If ANY requirement is missing a task, ADD ONE before generating output.
-
-Generate now:`;
-
-  const tasksResponse = await llmClient.generateCompletion(tasksPrompt, undefined, 3, 'SOLUTIONING');
-  const tasksArtifacts = parseArtifacts(tasksResponse.content, ['tasks.md']);
-  artifacts['tasks.md'] = tasksArtifacts['tasks.md'] || tasksResponse.content;
-
-  // === CALL 3: Generate plan.md ===
-  logger.info('[SOLUTIONING] Generating plan.md...');
-  const tasksContext = artifacts['tasks.md']?.slice(0, 4000) || '';
-
-  const planPrompt = `You are an expert Scrum Master. Generate plan.md for "${name}".
-
-## Context
-Epics Summary:
-${epicsContext.slice(0, 3000)}
-
-Tasks Summary:
-${tasksContext}
-
-## Instructions
-Create a comprehensive execution plan. CRITICAL REQUIREMENTS:
-
-1. **Reference specific requirements** (REQ-XXX-YYY) when defining MVP scope
-2. **Include test milestones** - tests must be written before implementation
-3. **Use Gherkin acceptance criteria** for key deliverables
-4. **Define clear success metrics** tied to requirements
-
-## Output Format
-Output ONLY a single fenced code block:
 \`\`\`
 filename: plan.md
----
-title: Execution Plan
-owner: scrummaster
-version: 1.0
-date: ${currentDate}
-status: draft
----
-
-# Execution Plan
-
-## 1. Timeline Overview
-| Sprint | Duration | Focus | Key Deliverables |
-|--------|----------|-------|------------------|
-| Sprint 1 | 2 weeks | Auth & Core | REQ-AUTH-001 to REQ-AUTH-004 |
-| Sprint 2 | 2 weeks | Features | REQ-CRUD-001 to REQ-CRUD-005 |
-| ... | ... | ... | ... |
-
-## 2. MVP Scope (Requirements Included)
-The MVP will implement the following requirements:
-- **Authentication:** REQ-AUTH-001, REQ-AUTH-002, REQ-AUTH-003, REQ-AUTH-004
-- **Core CRUD:** REQ-CRUD-001, REQ-CRUD-002, REQ-CRUD-003
-- **User Management:** REQ-USER-001, REQ-USER-002
-(list all MVP requirements)
-
-## 3. Phase 2 Scope (Post-MVP)
-Requirements deferred to Phase 2:
-- REQ-XXX-YYY: [reason for deferral]
-(list deferred requirements)
-
-## 4. Test-First Milestones
-| Milestone | Tests Due | Implementation Due | Requirements |
-|-----------|-----------|-------------------|--------------|
-| Auth Tests | Week 1 | Week 2 | REQ-AUTH-* |
-| ... | ... | ... | ... |
-
-## 5. Resource Allocation
 ...
-
-## 6. Risk Assessment
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| ... | ... | ... | ... |
-
-## 7. Success Metrics
-| Metric | Target | Measures Requirements |
-|--------|--------|----------------------|
-| User Registration Rate | >80% completion | REQ-AUTH-001 |
-| ... | ... | ... |
-
-## 8. Go-Live Checklist
-- [ ] All REQ-AUTH-* requirements tested and passing
-- [ ] All REQ-CRUD-* requirements tested and passing
-- [ ] Security audit complete
-- [ ] Performance benchmarks met
 \`\`\`
 
-Generate now:`;
+Generate all three artifacts now. If the output is long, continue until complete:`;
 
-  const planResponse = await llmClient.generateCompletion(planPrompt, undefined, 3, 'SOLUTIONING');
-  const planArtifacts = parseArtifacts(planResponse.content, ['plan.md']);
-  artifacts['plan.md'] = planArtifacts['plan.md'] || planResponse.content;
+  const response = await llmClient.generateCompletion(
+    comprehensivePrompt,
+    undefined,
+    3,
+    'SOLUTIONING'
+  );
+  const artifacts = parseArtifacts(response.content, [
+    'epics.md',
+    'tasks.md',
+    'plan.md',
+  ]);
 
-  logger.info('[SOLUTIONING] Scrum Master Agent completed', { 
+  logger.info('[SOLUTIONING] Scrum Master Agent completed', {
     artifacts: Object.keys(artifacts),
+    totalLength: response.content.length,
     epicsLength: artifacts['epics.md']?.length || 0,
     tasksLength: artifacts['tasks.md']?.length || 0,
-    planLength: artifacts['plan.md']?.length || 0
+    planLength: artifacts['plan.md']?.length || 0,
   });
+
   return artifacts;
 }
 
@@ -913,13 +850,18 @@ async function executeDevOpsAgent(
     dependencyPreset,
     detectedFeatures: detectedFeatures.length
       ? detectedFeatures.join(', ')
-      : 'None'
+      : 'None',
   });
 
-  const response = await llmClient.generateCompletion(prompt, undefined, 3, 'DEPENDENCIES');
+  const response = await llmClient.generateCompletion(
+    prompt,
+    undefined,
+    3,
+    'DEPENDENCIES'
+  );
   const artifacts = parseArtifacts(response.content, [
     'DEPENDENCIES.md',
-    'dependencies.json'
+    'dependencies.json',
   ]);
 
   if (!artifacts['DEPENDENCIES.md']) {
@@ -942,32 +884,35 @@ ${dependencyContract.baseline.dependencies
   .join('\n')}
 
 ## Dev Dependencies
-${dependencyContract.baseline.devDependencies.length > 0
-  ? dependencyContract.baseline.devDependencies
-      .map((dep) => `- ${dep.name}@${dep.range}`)
-      .join('\n')
-  : '- None'}
+${
+  dependencyContract.baseline.devDependencies.length > 0
+    ? dependencyContract.baseline.devDependencies
+        .map((dep) => `- ${dep.name}@${dep.range}`)
+        .join('\n')
+    : '- None'
+}
 
 ## Add-ons
-${dependencyContract.addons.length > 0
-  ? dependencyContract.addons
-      .map((addon) =>
-        `### ${addon.capability}\n${addon.packages
-          .map((dep) => `- ${dep.name}@${dep.range}`)
-          .join('\n')}`
-      )
-      .join('\n\n')
-  : 'None'}
+${
+  dependencyContract.addons.length > 0
+    ? dependencyContract.addons
+        .map(
+          (addon) =>
+            `### ${addon.capability}\n${addon.packages
+              .map((dep) => `- ${dep.name}@${dep.range}`)
+              .join('\n')}`
+        )
+        .join('\n\n')
+    : 'None'
+}
 `;
   }
 
-  artifacts['dependencies.json'] = JSON.stringify(
-    dependencyContract,
-    null,
-    2
-  );
+  artifacts['dependencies.json'] = JSON.stringify(dependencyContract, null, 2);
 
-  logger.info('[DEPENDENCIES] DevOps Agent completed', { artifacts: Object.keys(artifacts) });
+  logger.info('[DEPENDENCIES] DevOps Agent completed', {
+    artifacts: Object.keys(artifacts),
+  });
   return artifacts;
 }
 
@@ -1016,7 +961,17 @@ export async function getArchitectExecutor(
   const constitution = artifacts['ANALYSIS/constitution.md'] || '';
   // Support both SPEC_PM and SPEC paths for PRD
   const prd = artifacts['SPEC_PM/PRD.md'] || artifacts['SPEC/PRD.md'] || '';
-  return executeArchitectAgent(llmClient, configLoader, phase, brief, personas, constitution, prd, stackChoice, projectName);
+  return executeArchitectAgent(
+    llmClient,
+    configLoader,
+    phase,
+    brief,
+    personas,
+    constitution,
+    prd,
+    stackChoice,
+    projectName
+  );
 }
 
 export async function getStackSelectionExecutor(
@@ -1060,7 +1015,14 @@ export async function getScruMasterExecutor(
   const prd = artifacts['SPEC/PRD.md'] || '';
   const dataModel = artifacts['SPEC/data-model.md'] || '';
   const apiSpec = artifacts['SPEC/api-spec.json'] || '';
-  return executeScrumMasterAgent(llmClient, configLoader, prd, dataModel, apiSpec, projectName);
+  return executeScrumMasterAgent(
+    llmClient,
+    configLoader,
+    prd,
+    dataModel,
+    apiSpec,
+    projectName
+  );
 }
 
 export async function getDevOpsExecutor(
@@ -1072,7 +1034,13 @@ export async function getDevOpsExecutor(
 ): Promise<Record<string, string>> {
   const configLoader = new ConfigLoader();
   const prd = artifacts['SPEC/PRD.md'] || '';
-  return executeDevOpsAgent(llmClient, configLoader, prd, stackChoice || 'nextjs_web_app', projectName);
+  return executeDevOpsAgent(
+    llmClient,
+    configLoader,
+    prd,
+    stackChoice || 'nextjs_web_app',
+    projectName
+  );
 }
 
 // ============================================================================
@@ -1095,7 +1063,7 @@ async function executeDesignAgent(
     briefLength: projectBrief?.length || 0,
     prdLength: prd?.length || 0,
     personasLength: personas?.length || 0,
-    projectName
+    projectName,
   });
 
   const designSystemPrompt = `You are a Senior UI/UX Designer following strict design system principles.
@@ -1293,28 +1261,41 @@ status: "draft"
 \`\`\``;
 
   // Generate all three design artifacts
-  const [designSystemResponse, componentResponse, userFlowsResponse] = await Promise.all([
-    llmClient.generateCompletion(designSystemPrompt, undefined, 2, 'SPEC'),
-    llmClient.generateCompletion(componentInventoryPrompt, undefined, 2, 'SPEC'),
-    llmClient.generateCompletion(userFlowsPrompt, undefined, 2, 'SPEC')
-  ]);
+  const [designSystemResponse, componentResponse, userFlowsResponse] =
+    await Promise.all([
+      llmClient.generateCompletion(designSystemPrompt, undefined, 2, 'SPEC'),
+      llmClient.generateCompletion(
+        componentInventoryPrompt,
+        undefined,
+        2,
+        'SPEC'
+      ),
+      llmClient.generateCompletion(userFlowsPrompt, undefined, 2, 'SPEC'),
+    ]);
 
   const artifacts: Record<string, string> = {};
 
   // Parse design-system.md
-  const designSystemArtifacts = parseArtifacts(designSystemResponse.content, ['design-system.md']);
+  const designSystemArtifacts = parseArtifacts(designSystemResponse.content, [
+    'design-system.md',
+  ]);
   if (designSystemArtifacts['design-system.md']) {
     artifacts['design-system.md'] = designSystemArtifacts['design-system.md'];
   }
 
   // Parse component-inventory.md
-  const componentArtifacts = parseArtifacts(componentResponse.content, ['component-inventory.md']);
+  const componentArtifacts = parseArtifacts(componentResponse.content, [
+    'component-inventory.md',
+  ]);
   if (componentArtifacts['component-inventory.md']) {
-    artifacts['component-inventory.md'] = componentArtifacts['component-inventory.md'];
+    artifacts['component-inventory.md'] =
+      componentArtifacts['component-inventory.md'];
   }
 
   // Parse user-flows.md
-  const userFlowsArtifacts = parseArtifacts(userFlowsResponse.content, ['user-flows.md']);
+  const userFlowsArtifacts = parseArtifacts(userFlowsResponse.content, [
+    'user-flows.md',
+  ]);
   if (userFlowsArtifacts['user-flows.md']) {
     artifacts['user-flows.md'] = userFlowsArtifacts['user-flows.md'];
   }
@@ -1323,7 +1304,7 @@ status: "draft"
     artifacts: Object.keys(artifacts),
     designSystemLength: artifacts['design-system.md']?.length || 0,
     componentInventoryLength: artifacts['component-inventory.md']?.length || 0,
-    userFlowsLength: artifacts['user-flows.md']?.length || 0
+    userFlowsLength: artifacts['user-flows.md']?.length || 0,
   });
 
   return artifacts;
@@ -1341,7 +1322,6 @@ export async function getDesignExecutor(
   return executeDesignAgent(llmClient, brief, prd, personas, projectName);
 }
 
-
 /**
  * Design Agent - UI/UX Designer and Design Systems Architect
  * Perspective: Head of Design
@@ -1351,11 +1331,24 @@ export function getDesignerExecutor(config: AgentConfig = {}): AgentExecutor {
   return {
     role: 'designer',
     perspective: 'head_of_design',
-    expertise: ['ui_ux_design', 'design_systems', 'accessibility', 'color_theory'],
-    
+    expertise: [
+      'ui_ux_design',
+      'design_systems',
+      'accessibility',
+      'color_theory',
+    ],
+
     async generateArtifacts(context: any): Promise<ArtifactGenerationResult> {
-      const { phase, stack, constitution, projectBrief, projectPath, projectId, llmClient } = context;
-      
+      const {
+        phase,
+        stack,
+        constitution,
+        projectBrief,
+        projectPath,
+        projectId,
+        llmClient,
+      } = context;
+
       // Build design context from project inputs
       const designContext = {
         phase,
@@ -1365,16 +1358,27 @@ export function getDesignerExecutor(config: AgentConfig = {}): AgentExecutor {
         projectPath,
         projectId,
         antiAISlopRules: {
-          forbidden: ['purple gradients', 'Inter font default', 'blob backgrounds'],
-          required: ['OKLCH colors', '60/30/10 rule', '8pt grid', '4 typography sizes']
-        }
+          forbidden: [
+            'purple gradients',
+            'Inter font default',
+            'blob backgrounds',
+          ],
+          required: [
+            'OKLCH colors',
+            '60/30/10 rule',
+            '8pt grid',
+            '4 typography sizes',
+          ],
+        },
       };
 
       // llmClient must be provided in context (passed from orchestrator)
       if (!llmClient) {
-        throw new Error('llmClient is required in context for getDesignerExecutor.generateArtifacts');
+        throw new Error(
+          'llmClient is required in context for getDesignerExecutor.generateArtifacts'
+        );
       }
-      
+
       // Generate artifacts using LLM
       const llmPrompt = `You are a Head of Design (UI/UX Designer and Design Systems Architect).
 
@@ -1399,8 +1403,9 @@ ${projectBrief ? `Project Brief:\n${projectBrief}\n\n` : ''}
 ${constitution ? `Constitution:\n${constitution}\n\n` : ''}
 ${stack ? `Tech Stack:\n${stack}\n\n` : ''}
 
-${phase === 'SPEC_DESIGN_TOKENS' ? 
-`Generate design-tokens.md with:
+${
+  phase === 'SPEC_DESIGN_TOKENS'
+    ? `Generate design-tokens.md with:
 
 1. Colors (OKLCH format)
    - Primary: 60% lightness
@@ -1428,9 +1433,8 @@ ${phase === 'SPEC_DESIGN_TOKENS' ?
 
 7. Z-index scale
 
-Format as markdown with frontmatter.` :
-
-`Generate component-mapping.md and journey-maps.md with:
+Format as markdown with frontmatter.`
+    : `Generate component-mapping.md and journey-maps.md with:
 
 1. Component mapping (design tokens to stack components)
    - Color tokens to component props
@@ -1445,13 +1449,19 @@ Format as markdown with frontmatter.` :
    - Micro-interactions
    - Accessibility considerations
 
-Format as markdown with frontmatter.`}`;
+Format as markdown with frontmatter.`
+}`;
 
-      const llmResponse = await llmClient.generateCompletion(llmPrompt, undefined, 2, phase);
-      
+      const llmResponse = await llmClient.generateCompletion(
+        llmPrompt,
+        undefined,
+        2,
+        phase
+      );
+
       // Parse artifacts from response
       const artifacts: Record<string, string> = {};
-      
+
       if (phase === 'SPEC_DESIGN_TOKENS') {
         artifacts['design-tokens.md'] = llmResponse.content;
       } else if (phase === 'SPEC_DESIGN_COMPONENTS') {
@@ -1464,7 +1474,7 @@ Format as markdown with frontmatter.`}`;
             artifacts['journey-maps.md'] = '## ' + section;
           }
         });
-        
+
         // If parsing failed, put all in component-mapping.md
         if (!artifacts['component-mapping.md']) {
           artifacts['component-mapping.md'] = llmResponse.content;
@@ -1474,7 +1484,7 @@ Format as markdown with frontmatter.`}`;
       logger.info('[DESIGNER] Artifacts generated', {
         phase,
         artifacts: Object.keys(artifacts),
-        stackAgnostic: phase === 'SPEC_DESIGN_TOKENS'
+        stackAgnostic: phase === 'SPEC_DESIGN_TOKENS',
       });
 
       return {
@@ -1485,8 +1495,8 @@ Format as markdown with frontmatter.`}`;
           agent: 'designer',
           generatedAt: new Date().toISOString(),
           stackAgnostic: phase === 'SPEC_DESIGN_TOKENS',
-          stack: stack
-        }
+          stack: stack,
+        },
       };
     },
 
@@ -1495,34 +1505,45 @@ Format as markdown with frontmatter.`}`;
 
       for (const [artifactName, content] of Object.entries(artifacts)) {
         // Anti-AI-Slop validation
-        const forbiddenPatterns = ['purple-gradient', 'blob background', 'Inter, sans-serif', '"Inter",', "'Inter'"];
-        const requiredPatterns = ['oklch', '60/30/10', '8pt', 'typography-sizes'];
+        const forbiddenPatterns = [
+          'purple-gradient',
+          'blob background',
+          'Inter, sans-serif',
+          '"Inter",',
+          "'Inter'",
+        ];
+        const requiredPatterns = [
+          'oklch',
+          '60/30/10',
+          '8pt',
+          'typography-sizes',
+        ];
 
-        forbiddenPatterns.forEach(pattern => {
+        forbiddenPatterns.forEach((pattern) => {
           if (content.toLowerCase().includes(pattern)) {
             results.push({
               severity: 'error',
               artifactId: artifactName,
-              message: `Anti-AI-slop violation: forbidden pattern "${pattern}" detected`
+              message: `Anti-AI-slop violation: forbidden pattern "${pattern}" detected`,
             });
           }
         });
 
-        requiredPatterns.forEach(pattern => {
+        requiredPatterns.forEach((pattern) => {
           if (!content.toLowerCase().includes(pattern)) {
             results.push({
               severity: 'warning',
               artifactId: artifactName,
-              message: `Anti-AI-slop warning: required pattern "${pattern}" not found`
+              message: `Anti-AI-slop warning: required pattern "${pattern}" not found`,
             });
           }
         });
       }
 
       return {
-        canProceed: !results.some(r => r.severity === 'error'),
-        issues: results
+        canProceed: !results.some((r) => r.severity === 'error'),
+        issues: results,
       };
-    }
+    },
   };
 }

@@ -193,7 +193,8 @@ export class GeminiClient implements LLMProvider {
     prompt: string,
     context?: string[],
     retries = 3,
-    phase?: string
+    phase?: string,
+    continuationCount = 0
   ): Promise<LLMResponse> {
     if (!this.config.api_key) {
       throw new Error('Gemini API key not configured');
@@ -214,7 +215,8 @@ export class GeminiClient implements LLMProvider {
       topP: effectiveConfig.top_p,
       phase: phase || this.config.phase || 'default',
       contextDocsCount: context?.length || 0,
-    });
+      continuationCount,
+    } as any);
 
     if (approxPromptTokens > 120000) {
       logger.warn(
@@ -223,7 +225,7 @@ export class GeminiClient implements LLMProvider {
           approxPromptTokens,
           model: effectiveConfig.model,
           phase: phase || this.config.phase || 'default',
-        }
+        } as any
       );
     }
 
@@ -294,6 +296,7 @@ export class GeminiClient implements LLMProvider {
     };
 
     let lastError: Error | null = null;
+    let accumulatedContent = '';
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
@@ -326,7 +329,7 @@ export class GeminiClient implements LLMProvider {
         );
 
         if (response.status === 429) {
-          // Rate limit - wait and retry with exponential backoff (1s, 2s, 4s, 8s)
+          // Rate limit - wait and retry with exponential backoff
           if (attempt >= retries) {
             const errorText = await readResponseTextLimited(response);
             throw new Error(
@@ -359,87 +362,109 @@ export class GeminiClient implements LLMProvider {
 
         if (!response.ok) {
           const errorText = await readResponseTextLimited(response);
-          const error = new Error(
+          throw new Error(
             `Gemini API error: ${response.status} ${response.statusText} - ${errorText}`
           );
-          logger.error('Gemini API error details:', error, {
-            status: response.status,
-            statusText: response.statusText,
-            errorText,
-            model: this.config.model,
-            attempt: attempt + 1,
-          });
-          throw error;
         }
 
         const data = await response.json();
-        const finishReason = data.candidates?.[0]?.finishReason;
+        const candidate = data.candidates?.[0];
+        if (!candidate) throw new Error('No candidates in Gemini response');
 
-        logger.info('Gemini API success:', {
-          model: data.modelVersion,
-          candidatesCount: data.candidates?.length,
-          finishReason: finishReason,
-        });
+        const finishReason = candidate.finishReason;
+        const currentContent = candidate.content?.parts?.[0]?.text || '';
+        accumulatedContent += currentContent;
 
-        // Warn if response was truncated
+        // Check for truncation and handle continuation
         if (finishReason === 'MAX_TOKENS') {
-          logger.warn(
-            'Gemini response was truncated due to MAX_TOKENS limit. Consider increasing max_tokens or reducing prompt size.',
-            {
-              model: effectiveConfig.model,
-              maxTokens: effectiveConfig.max_tokens,
-              phase: phase || this.config.phase,
-            }
-          );
+          const maxContinuations = (this.config as any).max_continuations || 3;
+          // Use the explicit parameter
+          const currentContinuations = continuationCount;
+
+          if (currentContinuations < maxContinuations) {
+            logger.warn(
+              'Gemini response truncated. Triggering continuation...',
+              {
+                model: effectiveConfig.model,
+                phase: phase || this.config.phase,
+                continuation: currentContinuations + 1,
+                maxContinuations,
+              } as any
+            );
+
+            // Use a specific continuation prompt to minimize repetition
+            const lastContext = currentContent.slice(-100);
+            const continuationPrompt = `The previous response was truncated. Please continue exactly from the last character: "${lastContext}". Do not repeat the previous content. Continue with the rest of the artifacts/content.`;
+
+            // Recurse with increased continuation count
+            const nextResponse = await this.generateCompletion(
+              continuationPrompt,
+              context,
+              retries,
+              phase,
+              currentContinuations + 1
+            );
+
+            accumulatedContent += nextResponse.content;
+
+            // Update usage metadata to reflect the total across all turns
+            return {
+              ...nextResponse,
+              content: accumulatedContent,
+              usage: {
+                prompt_tokens:
+                  (data.usageMetadata?.promptTokenCount || 0) +
+                  (nextResponse.usage?.prompt_tokens || 0),
+                completion_tokens:
+                  (data.usageMetadata?.candidatesTokenCount || 0) +
+                  (nextResponse.usage?.completion_tokens || 0),
+                total_tokens:
+                  (data.usageMetadata?.totalTokenCount || 0) +
+                  (nextResponse.usage?.total_tokens || 0),
+              },
+              finish_reason: nextResponse.finish_reason,
+            };
+          } else {
+            logger.error(
+              'Maximum continuations reached. Output remains truncated.',
+              {
+                maxContinuations,
+                phase: phase || this.config.phase,
+              } as any
+            );
+          }
         }
 
-        return this.parseResponse(data);
+        return {
+          content: accumulatedContent,
+          usage: {
+            prompt_tokens: data.usageMetadata?.promptTokenCount || 0,
+            completion_tokens: data.usageMetadata?.candidatesTokenCount || 0,
+            total_tokens: data.usageMetadata?.totalTokenCount || 0,
+          },
+          model: effectiveConfig.model,
+          finish_reason: finishReason,
+        };
       } catch (error) {
         lastError = error as Error;
-        logger.error(
-          'Gemini API call error:',
-          error instanceof Error ? error : new Error(String(error)),
-          {
-            attempt: attempt + 1,
-            maxRetries: retries,
-            model: effectiveConfig.model,
-            phase: phase || this.config.phase || 'default',
-          }
-        );
-
+        // Check for rate limit or timeout in the error message
         const message =
           error instanceof Error
             ? error.message.toLowerCase()
             : String(error).toLowerCase();
         const isRateLimited =
           message.includes('rate limited') || message.includes('429');
-        const isTimeout =
-          message.includes('timeout') || message.includes('abort');
-
-        if (isRateLimited) {
-          if (attempt < retries) {
-            const jitterMs = Math.floor(Math.random() * 250);
-            const waitTime = Math.pow(2, attempt) * 1000 + jitterMs;
-            logger.info(
-              `Rate limited. Waiting ${waitTime}ms before retry ${
-                attempt + 1
-              }/${retries}...`
-            );
-            await sleep(waitTime);
-            continue;
-          }
-          throw error instanceof Error
-            ? error
-            : new Error('Rate limited by Gemini API');
-        }
-
-        if (isTimeout) {
-          throw new Error(
-            `Gemini API request timeout after ${timeoutSeconds}s`
+        if (isRateLimited && attempt < retries) {
+          const jitterMs = Math.floor(Math.random() * 250);
+          const waitTime = Math.pow(2, attempt) * 1000 + jitterMs;
+          logger.info(
+            `Rate limited. Waiting ${waitTime}ms before retry ${
+              attempt + 1
+            }/${retries}...`
           );
+          await sleep(waitTime);
+          continue;
         }
-
-        // Non rate-limit errors: fail fast (no retries)
         throw error;
       }
     }

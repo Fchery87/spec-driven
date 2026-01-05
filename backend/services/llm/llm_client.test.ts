@@ -7,7 +7,7 @@ const baseConfig = {
   max_tokens: 1024,
   temperature: 0.7,
   timeout_seconds: 5,
-  api_key: 'test-key'
+  api_key: 'test-key',
 };
 
 describe('GeminiClient rate-limit handling', () => {
@@ -31,7 +31,9 @@ describe('GeminiClient rate-limit handling', () => {
   });
 
   it('retries on 429 up to max attempts then fails with rate-limit error', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response('', { status: 429 }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response('', { status: 429 }));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const client = new GeminiClient(baseConfig as any);
@@ -44,7 +46,11 @@ describe('GeminiClient rate-limit handling', () => {
   });
 
   it('fails fast on non-rate-limit errors without extra retries', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response('boom', { status: 500, statusText: 'Server Error' }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response('boom', { status: 500, statusText: 'Server Error' })
+      );
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const client = new GeminiClient(baseConfig as any);
@@ -54,5 +60,75 @@ describe('GeminiClient rate-limit handling', () => {
     await vi.runAllTimersAsync();
     await expectation;
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('triggers continuation when finishReason is MAX_TOKENS', async () => {
+    // We need to use real timers for this test to avoid Vitest timeout issues with recursive promises
+    vi.useRealTimers();
+
+    const firstResponse = {
+      candidates: [
+        {
+          finishReason: 'MAX_TOKENS',
+          content: { parts: [{ text: 'Part 1 content' }] },
+        },
+      ],
+      usageMetadata: {
+        promptTokenCount: 10,
+        candidatesTokenCount: 100,
+        totalTokenCount: 110,
+      },
+    };
+    const secondResponse = {
+      candidates: [
+        {
+          finishReason: 'STOP',
+          content: { parts: [{ text: 'Part 2 content' }] },
+        },
+      ],
+      usageMetadata: {
+        promptTokenCount: 15,
+        candidatesTokenCount: 50,
+        totalTokenCount: 65,
+      },
+    };
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(firstResponse), { status: 200 })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(secondResponse), { status: 200 })
+      );
+
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const client = new GeminiClient({
+      ...baseConfig,
+      max_continuations: 1,
+    } as any);
+    const result = await client.generateCompletion(
+      'initial prompt',
+      undefined,
+      0,
+      'PHASE'
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.content).toBe('Part 1 contentPart 2 content');
+    expect(result.usage?.total_tokens).toBe(110 + 65);
+    expect(result.finish_reason).toBe('STOP');
+
+    // fetch(url, options) -> options is at index 1
+    const secondCallBody = JSON.parse(
+      fetchMock.mock.calls[1][1]!.body as string
+    );
+    expect(secondCallBody.contents[0].parts[0].text).toContain(
+      'The previous response was truncated'
+    );
+    expect(secondCallBody.contents[0].parts[0].text).toContain(
+      'Part 1 content'
+    );
   });
 });
