@@ -111,12 +111,12 @@ ${slug}/
 | [stack-analysis.md](./specs/STACK_SELECTION/stack-analysis.md) | Stack recommendation summary |
 | [stack-decision.md](./specs/STACK_SELECTION/stack-decision.md) | Approved technology stack selection |
 | [stack.json](./specs/STACK_SELECTION/stack.json) | Machine-readable stack contract |
-| [PRD.md](./specs/SPEC/PRD.md) | Product Requirements Document |
+| [PRD.md](./specs/SPEC_PM/PRD.md) | Product Requirements Document |
 | [DEPENDENCIES.md](./specs/DEPENDENCIES/DEPENDENCIES.md) | Dependency rationale and grouping |
 | [dependencies.json](./specs/DEPENDENCIES/dependencies.json) | Machine-readable dependencies contract |
-| [design-system.md](./specs/SPEC/design-system.md) | Design tokens and UI guidelines |
-| [component-inventory.md](./specs/SPEC/component-inventory.md) | UI component specifications |
-| [user-flows.md](./specs/SPEC/user-flows.md) | User journey definitions |
+| [design-tokens.md](./specs/SPEC_DESIGN_TOKENS/design-tokens.md) | Design tokens and UI guidelines |
+| [component-mapping.md](./specs/SPEC_DESIGN_COMPONENTS/component-mapping.md) | UI component specifications |
+| [journey-maps.md](./specs/SPEC_DESIGN_COMPONENTS/journey-maps.md) | User journey definitions |
 | [architecture.md](./specs/SOLUTIONING/architecture.md) | System architecture |
 | [tasks.md](./specs/SOLUTIONING/tasks.md) | Implementation tasks (test-first, with [P] parallelism markers) |
 | [validation-report.md](./specs/VALIDATE/validation-report.md) | Cross-artifact consistency check results |
@@ -244,28 +244,34 @@ This document should be read in the following order for best understanding:
 6. **stack-rationale.md** - Why this stack was selected, alternatives considered
 7. **stack.json** - Canonical machine-readable stack contract
 
-### Phase 3: Specifications (SPEC)
-6. **PRD.md** - Product requirements and features
-7. **data-model.md** - Database schema and data structures
-8. **api-spec.json** - API endpoints and contracts
-9. **design-system.md** - Colors, typography, spacing, motion tokens (follow fire-your-design-team.md principles)
-10. **component-inventory.md** - UI components mapped to shadcn/ui
-11. **user-flows.md** - Key user journeys and interactions
+### Phase 3: Product Requirements (SPEC_PM)
+8. **PRD.md** - Product requirements and features
 
-### Phase 4: Dependencies (DEPENDENCIES)
-12. **DEPENDENCIES.md** - Dependency rationale (human-readable)
-13. **dependencies.json** - Canonical machine-readable dependencies contract
+### Phase 4: Technical Architecture (SPEC_ARCHITECT)
+9. **data-model.md** - Database schema and data structures
+10. **api-spec.json** - API endpoints and contracts
 
-### Phase 5: Implementation Plan (SOLUTIONING)
-13. **architecture.md** - System architecture and design patterns
-14. **epics.md** - Feature epics and logical groupings
-15. **tasks.md** - Detailed implementation tasks with dependencies and parallelism markers
+### Phase 5: Design Tokens (SPEC_DESIGN_TOKENS)
+11. **design-tokens.md** - Colors, typography, spacing, motion tokens (fire-your-design-team.md principles)
+
+### Phase 6: Component Design (SPEC_DESIGN_COMPONENTS)
+12. **component-mapping.md** - UI components mapped to shadcn/ui
+13. **journey-maps.md** - Key user journeys and interactions
+
+### Phase 7: Dependencies (DEPENDENCIES)
+14. **DEPENDENCIES.md** - Dependency rationale (human-readable)
+15. **dependencies.json** - Canonical machine-readable dependencies contract
+
+### Phase 8: Implementation Plan (SOLUTIONING)
+16. **architecture.md** - System architecture and design patterns
+17. **epics.md** - Feature epics and logical groupings
+18. **tasks.md** - Detailed implementation tasks with dependencies and parallelism markers
 
 > **Note:** Tasks marked with \`[P]\` can be executed in parallel.
 
-### Phase 6: Validation (VALIDATE)
-16. **validation-report.md** - Cross-artifact consistency check results
-17. **coverage-matrix.md** - Artifact coverage by phase
+### Phase 9: Validation (VALIDATE)
+19. **validation-report.md** - Cross-artifact consistency check results
+20. **coverage-matrix.md** - Artifact coverage by phase
 
 ---
 

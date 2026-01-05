@@ -409,18 +409,25 @@ export class Validators {
     const errors: string[] = [];
     const warnings: string[] = [];
 
+    // Look for spec-compliant design-tokens.md first, then legacy design-system.md
     const content =
+      this.getArtifactContent(
+        project.id,
+        'design-tokens.md',
+        'SPEC_DESIGN_TOKENS'
+      ) ||
       this.getArtifactContent(
         project.id,
         'design-system.md',
         'SPEC_DESIGN_TOKENS'
-      ) || this.getArtifactContent(project.id, 'design-system.md', 'SPEC'); // Legacy fallback
+      ) ||
+      this.getArtifactContent(project.id, 'design-system.md', 'SPEC'); // Legacy fallback
     if (!content) {
       return {
         status: 'warn',
-        checks: { design_system_exists: false },
+        checks: { design_tokens_exists: false },
         warnings: [
-          'design-system.md not found - skipping design system compliance validation',
+          'design-tokens.md (or legacy design-system.md) not found - skipping design system compliance validation',
         ],
       };
     }
@@ -428,7 +435,9 @@ export class Validators {
     const hasOKLCH = /oklch\(/i.test(content) || /\bOKLCH\b/i.test(content);
     checks['oklch_color_format'] = hasOKLCH;
     if (!hasOKLCH) {
-      errors.push('design-system.md does not appear to use OKLCH color format');
+      errors.push(
+        'Design tokens file does not appear to use OKLCH color format'
+      );
     }
 
     const forbiddenColorMatch = content.match(
@@ -437,7 +446,7 @@ export class Validators {
     checks['no_purple_primary'] = !forbiddenColorMatch;
     if (forbiddenColorMatch) {
       errors.push(
-        'design-system.md appears to use purple/indigo/violet for primary/accent tokens'
+        'Design tokens file appears to use purple/indigo/violet for primary/accent tokens'
       );
     }
 
@@ -446,7 +455,7 @@ export class Validators {
     checks['reduced_motion_support'] = hasReducedMotion;
     if (!hasReducedMotion) {
       warnings.push(
-        'design-system.md does not mention reduced motion support (useReducedMotion)'
+        'Design tokens file does not mention reduced motion support (useReducedMotion)'
       );
     }
 
@@ -455,7 +464,7 @@ export class Validators {
     checks['has_animation_tokens'] = hasAnimationTokens;
     if (!hasAnimationTokens) {
       warnings.push(
-        'design-system.md does not clearly define animation tokens (durations + springs)'
+        'Design tokens file does not clearly define animation tokens (durations + springs)'
       );
     }
 
@@ -2233,7 +2242,7 @@ export class Validators {
       SPEC_PM: ['PRD.md'],
       SPEC_ARCHITECT: ['data-model.md', 'api-spec.json'],
       SPEC_DESIGN_TOKENS: ['design-tokens.md'],
-      SPEC_DESIGN_COMPONENTS: ['component-inventory.md', 'user-flows.md'],
+      SPEC_DESIGN_COMPONENTS: ['component-mapping.md', 'journey-maps.md'],
       FRONTEND_BUILD: [], // Generates code files, not spec artifacts
       DEPENDENCIES: ['DEPENDENCIES.md', 'dependencies.json'],
       SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],

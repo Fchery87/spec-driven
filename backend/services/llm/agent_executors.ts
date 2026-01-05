@@ -1053,8 +1053,8 @@ export async function getDevOpsExecutor(
 
 /**
  * Execute Design System Agent
- * Generates design-system.md, component-inventory.md, and user-flows.md
- * Following fire-your-design-team.md principles
+ * Generates design-tokens.md, component-mapping.md, and journey-maps.md
+ * Following fire-your-design-team.md principles and orchestrator_spec.yml phase definitions
  */
 async function executeDesignAgent(
   llmClient: LLMProvider,
@@ -1126,7 +1126,7 @@ Generate a design-system.md file with:
 
 Output format:
 \`\`\`markdown
-filename: design-system.md
+filename: design-tokens.md
 ---
 title: "Design System"
 owner: "architect"
@@ -1160,7 +1160,7 @@ status: "draft"
 ## PRD Features:
 ${prd.slice(0, 15000)}
 
-Generate component-inventory.md listing ALL UI components needed for this project.
+Generate component-mapping.md listing ALL UI components needed for this project and their mapping to the design system.
 
 For each component, specify:
 1. Component name
@@ -1170,16 +1170,16 @@ For each component, specify:
 
 Output format:
 \`\`\`markdown
-filename: component-inventory.md
+filename: component-mapping.md
 ---
-title: "Component Inventory"
+title: "Component Mapping"
 owner: "architect"
 version: "1"
 date: "${new Date().toISOString().split('T')[0]}"
 status: "draft"
 ---
 
-# Component Inventory
+# Component Mapping
 
 ## Layout Components
 | Component | Base | Variants | Animation |
@@ -1217,7 +1217,7 @@ ${personas.slice(0, 4000)}
 ## PRD Features:
 ${prd.slice(0, 15000)}
 
-Generate user-flows.md documenting the key user journeys.
+Generate journey-maps.md documenting the key user journeys and interaction patterns.
 
 For each flow:
 1. Flow name and description
@@ -1229,16 +1229,16 @@ For each flow:
 
 Output format:
 \`\`\`markdown
-filename: user-flows.md
+filename: journey-maps.md
 ---
-title: "User Flows"
+title: "Journey Maps"
 owner: "architect"
 version: "1"
 date: "${new Date().toISOString().split('T')[0]}"
 status: "draft"
 ---
 
-# User Flows
+# Journey Maps
 
 ## Flow 1: [Primary User Journey]
 **Persona**: [Target persona]
@@ -1279,36 +1279,36 @@ status: "draft"
 
   const artifacts: Record<string, string> = {};
 
-  // Parse design-system.md
+  // Parse design-tokens.md
   const designSystemArtifacts = parseArtifacts(designSystemResponse.content, [
-    'design-system.md',
+    'design-tokens.md',
   ]);
-  if (designSystemArtifacts['design-system.md']) {
-    artifacts['design-system.md'] = designSystemArtifacts['design-system.md'];
+  if (designSystemArtifacts['design-tokens.md']) {
+    artifacts['design-tokens.md'] = designSystemArtifacts['design-tokens.md'];
   }
 
-  // Parse component-inventory.md
+  // Parse component-mapping.md
   const componentArtifacts = parseArtifacts(componentResponse.content, [
-    'component-inventory.md',
+    'component-mapping.md',
   ]);
-  if (componentArtifacts['component-inventory.md']) {
-    artifacts['component-inventory.md'] =
-      componentArtifacts['component-inventory.md'];
+  if (componentArtifacts['component-mapping.md']) {
+    artifacts['component-mapping.md'] =
+      componentArtifacts['component-mapping.md'];
   }
 
-  // Parse user-flows.md
+  // Parse journey-maps.md
   const userFlowsArtifacts = parseArtifacts(userFlowsResponse.content, [
-    'user-flows.md',
+    'journey-maps.md',
   ]);
-  if (userFlowsArtifacts['user-flows.md']) {
-    artifacts['user-flows.md'] = userFlowsArtifacts['user-flows.md'];
+  if (userFlowsArtifacts['journey-maps.md']) {
+    artifacts['journey-maps.md'] = userFlowsArtifacts['journey-maps.md'];
   }
 
   logger.info('[SPEC] Design Agent completed', {
     artifacts: Object.keys(artifacts),
-    designSystemLength: artifacts['design-system.md']?.length || 0,
-    componentInventoryLength: artifacts['component-inventory.md']?.length || 0,
-    userFlowsLength: artifacts['user-flows.md']?.length || 0,
+    designTokensLength: artifacts['design-tokens.md']?.length || 0,
+    componentMappingLength: artifacts['component-mapping.md']?.length || 0,
+    journeyMapsLength: artifacts['journey-maps.md']?.length || 0,
   });
 
   return artifacts;

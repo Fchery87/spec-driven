@@ -196,11 +196,11 @@ The design phases (`SPEC_DESIGN_TOKENS` and `SPEC_DESIGN_COMPONENTS`) generate d
 
 ### Artifacts Generated
 
-| Artifact                 | Content                                                             |
-| ------------------------ | ------------------------------------------------------------------- |
-| `design-system.md`       | Colors, typography (4 sizes max), spacing (8pt grid), motion tokens |
-| `component-inventory.md` | UI components mapped to shadcn/ui                                   |
-| `user-flows.md`          | Key user journeys with wireframes                                   |
+| Artifact               | Content                                                             |
+| ---------------------- | ------------------------------------------------------------------- |
+| `design-tokens.md`     | Colors, typography (4 sizes max), spacing (8pt grid), motion tokens |
+| `component-mapping.md` | UI components mapped to shadcn/ui                                   |
+| `journey-maps.md`      | Key user journeys with wireframes                                   |
 
 ### Anti-Patterns Avoided
 
