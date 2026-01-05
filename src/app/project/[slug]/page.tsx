@@ -1411,7 +1411,7 @@ function getPhaseOutputs(phase: string): string[] {
     SPEC_ARCHITECT: ['data-model.md', 'api-spec.json'],
     SPEC_DESIGN_TOKENS: ['design-tokens.md'],
     SPEC_DESIGN_COMPONENTS: ['component-mapping.md', 'journey-maps.md'],
-    FRONTEND_BUILD: ['components/ui/button.tsx', 'components/ui/card.tsx', 'components/ui/input.tsx'],
+    FRONTEND_BUILD: ['button.tsx', 'card.tsx', 'input.tsx', 'globals.css', 'page.tsx'],
     DEPENDENCIES: ['DEPENDENCIES.md', 'dependencies.json'],
     SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],
     VALIDATE: ['validation-report.md', 'coverage-matrix.md'],
@@ -1431,5 +1431,10 @@ function getPhaseGates(phase: string): string[] {
 
 function isOutputComplete(phase: string, output: string, artifacts: Record<string, Artifact[]> = {}): boolean {
   const phaseArtifacts = artifacts[phase] || [];
-  return phaseArtifacts.some((artifact: Artifact) => artifact.name?.toLowerCase() === output.toLowerCase());
+  // Compare basenames to handle both "button.tsx" and "components/ui/button.tsx"
+  const outputBasename = output.split('/').pop()?.toLowerCase() || output.toLowerCase();
+  return phaseArtifacts.some((artifact: Artifact) => {
+    const artifactBasename = artifact.name?.split('/').pop()?.toLowerCase() || artifact.name?.toLowerCase();
+    return artifactBasename === outputBasename;
+  });
 }
