@@ -57,7 +57,7 @@
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.344.0",
     "mermaid": "^11.12.1",
-    "next": "^14.2.33",
+    "next": "^16.1.1",
     "nprogress": "^0.2.0",
     "react": "^18",
     "react-dom": "^18",

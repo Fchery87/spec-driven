@@ -544,9 +544,9 @@ composition_system:
     nextjs_app_router:
       name: "Next.js App Router"
       type: "frontend_framework"
-      description: "Next.js 14+ with App Router, Server Components, Server Actions"
+      description: "Next.js 16+ with App Router, Server Components, Server Actions"
       composition:
-        frontend: "Next.js 14 (App Router)"
+        frontend: "Next.js 16 (App Router)"
         backend: "Next.js API routes / Server Actions"
       compatible_with:
         mobile: ["expo_integration", "react_native_bare", "capacitor", "none"]
@@ -1057,7 +1057,7 @@ stack_templates:
     name: 'Next.js Full-Stack + Expo Mobile'
     description: 'Unified TypeScript codebase with Next.js App Router, Expo mobile, and a serverless-ready Neon + Drizzle backend'
     composition:
-      frontend: 'Next.js 14 (App Router)'
+      frontend: 'Next.js 16 (App Router)'
       mobile: 'Expo with React Native'
       backend: 'Next.js API routes / tRPC'
       database: 'Neon Postgres + Drizzle ORM'
@@ -1083,7 +1083,7 @@ stack_templates:
     name: 'Next.js + FastAPI + Expo'
     description: 'Decoupled services with Python backend for heavy compute'
     composition:
-      frontend: 'Next.js 14'
+      frontend: 'Next.js 16'
       mobile: 'Expo with React Native'
       backend: 'FastAPI (Python)'
       database: 'PostgreSQL with SQLAlchemy'
@@ -1098,7 +1098,7 @@ stack_templates:
     name: 'Next.js Web App (Neon + Drizzle + R2 + Better Auth)'
     description: 'Full-stack Next.js App Router with Neon Postgres, Drizzle ORM, Cloudflare R2 storage, and Better Auth'
     composition:
-      frontend: 'Next.js 14 (App Router)'
+      frontend: 'Next.js 16 (App Router)'
       mobile: 'None (responsive web design)'
       backend: 'Next.js API routes / Server Actions'
       database: 'Neon Postgres + Drizzle ORM'
@@ -1127,7 +1127,7 @@ stack_templates:
     name: 'Next.js Web Only (Legacy ID)'
     description: 'Legacy template id retained for compatibility; prefer nextjs_web_app'
     composition:
-      frontend: 'Next.js 14 (App Router)'
+      frontend: 'Next.js 16 (App Router)'
       mobile: 'None (responsive web design)'
       backend: 'Next.js API routes / Server Actions'
       database: 'Neon Postgres + Drizzle ORM'
