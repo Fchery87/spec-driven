@@ -56,6 +56,8 @@ import {
   validateAntiAISlop,
   autoFixAntiAISlop,
 } from '../validation/anti_ai_slop_validator';
+import { CheckerPattern } from '../llm/checker_pattern';
+import { CheckerResult, CriticFeedback } from '../llm/checker_pattern';
 import { db } from '@/backend/lib/drizzle';
 import { regenerationRuns, artifactVersions } from '@/backend/lib/schema';
 import { eq } from 'drizzle-orm';
@@ -70,6 +72,8 @@ export class OrchestratorEngine {
   private approvalGateService: ApprovalGateService;
   private gitService: Map<string, GitService>;
   private rollbackService: Map<string, RollbackService>;
+  private checkerPattern: CheckerPattern;
+  private checkerEnabledPhases: Set<string>;
 
   constructor() {
     logger.info('[OrchestratorEngine] Constructor called');
@@ -112,6 +116,7 @@ export class OrchestratorEngine {
       this.approvalGateService = new ApprovalGateService();
       this.gitService = new Map();
       this.rollbackService = new Map();
+      
       logger.info(
         '[OrchestratorEngine] ApprovalGateService, GitService, and RollbackService initialized'
       );
@@ -224,6 +229,22 @@ export class OrchestratorEngine {
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.llmClient = new GeminiClient(llmConfig as any);
+    
+    // Initialize Checker Pattern for dual-LLM adversarial review
+    // This runs critic personas (Skeptical CTO, QA Lead, Security Auditor, A11y Specialist)
+    this.checkerPattern = new CheckerPattern(this.llmClient);
+    
+    // Configure which phases use the checker pattern
+    this.checkerEnabledPhases = new Set([
+      'STACK_SELECTION',
+      'SPEC_PM',
+      'SPEC_ARCHITECT',
+      'FRONTEND_BUILD',
+    ]);
+    
+    logger.info('[OrchestratorEngine] CheckerPattern initialized', {
+      checkerEnabledPhases: Array.from(this.checkerEnabledPhases),
+    });
   }
 
   /**
@@ -401,6 +422,105 @@ export class OrchestratorEngine {
       newPhase: nextPhaseName,
       message: `Advanced to ${nextPhaseName} phase`,
     };
+  }
+
+  // ============================================================================
+  // CHECKER PATTERN INTEGRATION
+  // ============================================================================
+
+  /**
+   * Run checker pattern for a phase and handle the decision
+   * @returns The artifacts (possibly regenerated) and any messages
+   */
+  private async runCheckerPattern(
+    phase: string,
+    artifacts: Record<string, string>,
+    projectId: string,
+    projectName: string
+  ): Promise<{
+    artifacts: Record<string, string>;
+    message: string;
+    escalated: boolean;
+  }> {
+    // Skip if checker not enabled for this phase
+    if (!this.checkerEnabledPhases.has(phase)) {
+      return { artifacts, message: 'Checker not enabled for this phase', escalated: false };
+    }
+
+    logger.info(`[CheckerPattern] Running for phase: ${phase}`);
+
+    const context = {
+      projectId,
+      projectName,
+      phase,
+      timestamp: new Date().toISOString(),
+    };
+
+    try {
+      const result = await this.checkerPattern.executeCheck(phase, artifacts, context);
+
+      logger.info(`[CheckerPattern] Result for ${phase}: ${result.status}`, {
+        confidence: result.confidence,
+        issues: result.feedback.length,
+        critical: result.feedback.filter(f => f.severity === 'critical').length,
+        medium: result.feedback.filter(f => f.severity === 'medium').length,
+        low: result.feedback.filter(f => f.severity === 'low').length,
+      });
+
+      // Handle the decision
+      switch (result.status) {
+        case 'approved':
+          return {
+            artifacts,
+            message: `Checker approved (${result.feedback.length} minor suggestions)`,
+            escalated: false,
+          };
+
+        case 'regenerate':
+          logger.warn(`[CheckerPattern] Regeneration needed for ${phase}`, {
+            issues: result.feedback.length,
+          });
+          return {
+            artifacts,
+            message: `Regeneration suggested: ${result.feedback.length} issues found`,
+            escalated: false,
+          };
+
+        case 'escalate':
+          const criticalCount = result.feedback.filter(f => f.severity === 'critical').length;
+          logger.error(
+            `[CheckerPattern] Escalating ${phase} to human review`,
+            undefined,
+            { criticalIssues: criticalCount }
+          );
+          return {
+            artifacts,
+            message: `ESCALATED: ${result.summary} - ${result.feedback.length} issues requiring human review`,
+            escalated: true,
+          };
+
+        default:
+          return { artifacts, message: 'Unknown checker status', escalated: false };
+      }
+    } catch (error) {
+      logger.error(`[CheckerPattern] Failed for ${phase}: ${error}`);
+      // On checker failure, proceed with original artifacts (fail-open)
+      return {
+        artifacts,
+        message: `Checker failed (${String(error).slice(0, 100)}), proceeding with artifacts`,
+        escalated: false,
+      };
+    }
+  }
+
+  /**
+   * Build regeneration prompt with checker feedback
+   */
+  private buildRegenerationPromptWithFeedback(
+    originalPrompt: string,
+    feedback: CriticFeedback[]
+  ): string {
+    return this.checkerPattern.buildRegenerationPrompt(originalPrompt, feedback);
   }
 
   /**
@@ -1140,6 +1260,38 @@ export class OrchestratorEngine {
         phase: currentPhaseName,
         artifactCount: Object.keys(normalizedArtifacts).length,
       });
+
+      // ============================================================================
+      // CHECKER PATTERN EXECUTION
+      // Run adversarial review after artifact generation
+      // ============================================================================
+      const checkerResult = await this.runCheckerPattern(
+        currentPhaseName,
+        generatedArtifacts,
+        projectId,
+        projectName
+      );
+
+      // Handle escalation - throw error if checker escalated to human review
+      if (checkerResult.escalated) {
+        logger.error('[OrchestratorEngine] Checker pattern escalated to human review', {
+          phase: currentPhaseName,
+          message: checkerResult.message,
+        } as any);
+        const err: any = new Error(
+          `[CHECKER ESCALATION] ${currentPhaseName}: ${checkerResult.message}`
+        );
+        err.projectId = projectId;
+        err.phase = currentPhaseName;
+        err.escalated = true;
+        err.artifacts = generatedArtifacts;
+        throw err;
+      }
+
+      // Log checker feedback for debugging
+      if (checkerResult.message.includes('issues found') || checkerResult.message.includes('minor suggestions')) {
+        logger.info(`[CheckerPattern] ${currentPhaseName}: ${checkerResult.message}`);
+      }
 
       // Create Git commit after successful artifact generation
       const gitService = this.gitService.get(projectId);

@@ -1,7 +1,7 @@
 import { Validator, ValidationResult, Project } from '@/types/orchestrator';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { existsSync, readFileSync, statSync } from 'fs';
-import { resolve } from 'path';
+import { existsSync, readFileSync, statSync, readdirSync } from 'fs';
+import { resolve, extname } from 'path';
 import { execSync } from 'child_process';
 import { logger } from '@/lib/logger';
 import {
@@ -196,6 +196,18 @@ export class Validators {
           (validator.checks as Record<string, unknown>) || {},
           (validator.anti_patterns as string[]) || []
         );
+
+      case 'two_file_design_output':
+        return this.validateTwoFileDesignOutput(project);
+
+      case 'no_console_log':
+        return this.validateNoConsoleLogs(project);
+
+      case 'accessibility_check':
+        return this.validateAccessibility(project);
+
+      case 'no_placeholder':
+        return this.validateNoPlaceholders(project);
 
       case 'stack_validator':
         return this.validateStackCompleteness(project);
@@ -2325,6 +2337,65 @@ export class Validators {
     }
   }
 
+  /**
+   * Find all files matching a pattern in the project directory
+   * Simple glob-like matching for frontend component files
+   */
+  private findProjectFiles(
+    projectId: string,
+    phase: string,
+    pattern: string
+  ): string[] {
+    const files: string[] = [];
+    const basePath = resolve(
+      this.projectsBasePath,
+      projectId,
+      'specs',
+      phase,
+      'v1'
+    );
+
+    if (!existsSync(basePath)) return [];
+
+    // Convert glob-like pattern to prefix
+    // components/**/*.tsx -> starts with components/
+    const prefix = pattern.split('**')[0].replace(/\/$/, '');
+    const targetExt = pattern.includes('.tsx') ? '.tsx' : 
+                      pattern.includes('.ts') ? '.ts' : null;
+
+    const searchDir = targetExt 
+      ? resolve(basePath, prefix || '.')
+      : resolve(basePath, prefix || '.');
+
+    if (!existsSync(searchDir)) return [];
+
+    const traverse = (dir: string, base: string) => {
+      if (!existsSync(dir)) return;
+      
+      try {
+        const entries = readdirSync(dir, { withFileTypes: true });
+        
+        for (const entry of entries) {
+          const fullPath = resolve(dir, entry.name);
+          if (entry.isDirectory()) {
+            traverse(fullPath, base);
+          } else if (entry.isFile()) {
+            const relPath = resolve(base, entry.name);
+            const ext = extname(entry.name);
+            if (!targetExt || ext === targetExt) {
+              files.push(relPath);
+            }
+          }
+        }
+      } catch {
+        // Directory might not be readable, skip
+      }
+    };
+
+    traverse(searchDir, searchDir);
+    return files;
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private extractFrontmatter(content: string): Record<string, any> | null {
     const frontmatterRegex = /^---\n([\s\S]*?)\n---/;
@@ -2499,6 +2570,211 @@ export class Validators {
 
     return {
       passed: errors.length === 0,
+      errors: errors.length > 0 ? errors : undefined,
+    };
+  }
+
+  /**
+   * Validate that SPEC_DESIGN_COMPONENTS generated BOTH required files
+   * This directly addresses the primary user complaint: journey-maps.md frequently missing
+   */
+  public async validateTwoFileDesignOutput(project: Project): Promise<ValidationResult> {
+    const checks: Record<string, boolean> = {};
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    const componentMapping = await this.getArtifactContent(
+      project.id,
+      'component-mapping.md',
+      'SPEC_DESIGN_COMPONENTS'
+    );
+    const journeyMaps = await this.getArtifactContent(
+      project.id,
+      'journey-maps.md',
+      'SPEC_DESIGN_COMPONENTS'
+    );
+
+    // Check both files exist with minimum content
+    const MIN_CONTENT_LENGTH = 500;
+    const hasComponentMapping = componentMapping && componentMapping.length >= MIN_CONTENT_LENGTH;
+    const hasJourneyMaps = journeyMaps && journeyMaps.length >= MIN_CONTENT_LENGTH;
+
+    checks['component_mapping_exists'] = Boolean(hasComponentMapping);
+    checks['journey_maps_exists'] = Boolean(hasJourneyMaps);
+
+    if (!hasComponentMapping) {
+      errors.push('component-mapping.md missing or incomplete (< 500 chars)');
+    }
+    if (!hasJourneyMaps) {
+      errors.push(
+        'journey-maps.md missing or incomplete (< 500 chars) - ' +
+        'THIS IS THE PRIMARY USER COMPLAINT - LLM must output both files!'
+      );
+    }
+
+    // Additional quality checks if both files exist
+    if (hasComponentMapping && hasJourneyMaps) {
+      // Check journey-maps.md has actual journey content
+      const journeyCount = (journeyMaps.match(/^##?\s*Journey\s*\d+/gim) || []).length;
+      checks['journey_count'] = journeyCount >= 3;
+      if (journeyCount < 3) {
+        warnings.push(`journey-maps.md has only ${journeyCount} journeys (min 3 recommended)`);
+      }
+
+      // Check for error states documentation
+      const hasErrorStates = /error\s*state/i.test(journeyMaps);
+      const hasEmptyStates = /empty\s*state/i.test(journeyMaps);
+      checks['has_error_states'] = hasErrorStates;
+      checks['has_empty_states'] = hasEmptyStates;
+
+      if (!hasErrorStates) {
+        warnings.push('journey-maps.md missing error states documentation');
+      }
+      if (!hasEmptyStates) {
+        warnings.push('journey-maps.md missing empty states documentation');
+      }
+
+      // Check that journey maps reference component mapping
+      const hasComponentRefs = /\b(COMP|COMPONENT)-?\d+/i.test(journeyMaps);
+      checks['has_component_references'] = hasComponentRefs;
+      if (!hasComponentRefs) {
+        warnings.push('journey-maps.md should reference components from component-mapping.md');
+      }
+    }
+
+    const status = errors.length > 0 ? 'fail' : warnings.length > 0 ? 'warn' : 'pass';
+
+    return {
+      status,
+      checks,
+      errors: errors.length > 0 ? errors : undefined,
+      warnings: warnings.length > 0 ? warnings : undefined,
+    };
+  }
+
+  /**
+   * Validate no console.log or debugger statements in frontend components
+   * From frontend-developer integration spec - Quality Gate #2
+   */
+  public async validateNoConsoleLogs(project: Project): Promise<ValidationResult> {
+    const checks: Record<string, boolean> = {};
+    const errors: string[] = [];
+
+    const componentFiles = this.findProjectFiles(project.id, 'FRONTEND_BUILD', 'components/**/*.tsx');
+    
+    for (const file of componentFiles) {
+      const content = readFileSync(file, 'utf8');
+      
+      const consolePatterns = [
+        /console\.(log|debug|info|warn|error)\s*\(/g,
+        /debugger/g,
+      ];
+      
+      for (const pattern of consolePatterns) {
+        const matches = content.match(pattern);
+        if (matches) {
+          errors.push(`${file}: Contains ${matches.length} console/debugger statement(s)`);
+        }
+      }
+    }
+
+    checks['no_console_logs'] = errors.length === 0;
+    
+    const status = errors.length > 0 ? 'fail' : 'pass';
+
+    return {
+      status,
+      checks,
+      errors: errors.length > 0 ? errors : undefined,
+    };
+  }
+
+  /**
+   * Validate accessibility patterns in frontend components
+   * From frontend-developer integration spec - WCAG 2.1 AA compliance
+   */
+  public async validateAccessibility(project: Project): Promise<ValidationResult> {
+    const checks: Record<string, boolean> = {};
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    const componentFiles = this.findProjectFiles(project.id, 'FRONTEND_BUILD', 'components/**/*.tsx');
+    
+    for (const file of componentFiles) {
+      const content = readFileSync(file, 'utf8');
+      
+      // Check for useReducedMotion accessibility
+      const hasReducedMotion = /prefers-reduced-motion|useReducedMotion/i.test(content);
+      checks[`${file}:has_useReducedMotion`] = hasReducedMotion;
+      if (!hasReducedMotion) {
+        warnings.push(`${file}: Missing useReducedMotion accessibility check`);
+      }
+      
+      // Check for interactive elements without ARIA
+      const hasInteractive = /<(button|a|input|select|textarea)/.test(content);
+      const hasAria = /aria-/.test(content);
+      if (hasInteractive && !hasAria) {
+        errors.push(`${file}: Interactive elements may lack ARIA attributes`);
+      }
+      
+      // Check for button elements without type attribute
+      const buttonWithoutType = /<button(?![^>]*type=)[^>]*>/gi;
+      const buttonMatches = content.match(buttonWithoutType);
+      if (buttonMatches && buttonMatches.length > 0) {
+        warnings.push(`${file}: ${buttonMatches.length} button(s) missing type attribute`);
+      }
+    }
+
+    checks['accessibility_compliant'] = errors.length === 0 && warnings.length === 0;
+    
+    const status = errors.length > 0 ? 'fail' : warnings.length > 0 ? 'warn' : 'pass';
+
+    return {
+      status,
+      checks,
+      errors: errors.length > 0 ? errors : undefined,
+      warnings: warnings.length > 0 ? warnings : undefined,
+    };
+  }
+
+  /**
+   * Validate no placeholder code (TODO, lorem ipsum, etc.)
+   * From frontend-developer integration spec - Quality Gate #1
+   */
+  public async validateNoPlaceholders(project: Project): Promise<ValidationResult> {
+    const checks: Record<string, boolean> = {};
+    const errors: string[] = [];
+
+    const componentFiles = this.findProjectFiles(project.id, 'FRONTEND_BUILD', 'components/**/*.tsx');
+    
+    const placeholderPatterns = [
+      /TODO[:\s]/i,
+      /FIXME[:\s]/i,
+      /placeholder/i,
+      /lorem ipsum/i,
+      /\/\/\s*.*implement/i,
+      /\/\/\s*.*todo/i,
+      /XXX[^\n]*/g,
+    ];
+    
+    for (const file of componentFiles) {
+      const content = readFileSync(file, 'utf8');
+      
+      for (const pattern of placeholderPatterns) {
+        const matches = content.match(pattern);
+        if (matches) {
+          errors.push(`${file}: Contains placeholder: "${matches[0].slice(0, 50)}"`);
+        }
+      }
+    }
+
+    checks['no_placeholders'] = errors.length === 0;
+    
+    const status = errors.length > 0 ? 'fail' : 'pass';
+
+    return {
+      status,
+      checks,
       errors: errors.length > 0 ? errors : undefined,
     };
   }

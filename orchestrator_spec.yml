@@ -310,6 +310,17 @@ phases:
     validators: ['presence', 'markdown_frontmatter', 'anti_ai_slop']
     requires_stack: false
     priority: 2
+
+    # Inline Validation - Make ANTI-SLOP WARNINGS blocking!
+    inline_validation:
+      enabled: true
+      blocking_on_errors: true
+      blocking_on_warnings: true  # ← CHANGED: Anti-slop warnings now block
+      validators:
+        - 'presence'
+        - 'markdown_frontmatter'
+        - 'anti_ai_slop'
+
     quality_checklist:
       - 'Design tokens include color palette (primary, secondary, accent, neutral)'
       - 'Typography scale defined (4 sizes minimum)'
@@ -329,6 +340,18 @@ phases:
     validators: ['presence', 'markdown_frontmatter', 'anti_ai_slop']
     requires_stack: true
     priority: 3
+
+    # Inline Validation - Make ANTI-SLOP WARNINGS blocking!
+    inline_validation:
+      enabled: true
+      blocking_on_errors: true
+      blocking_on_warnings: true  # ← CHANGED: Anti-slop warnings now block
+      validators:
+        - 'presence'
+        - 'markdown_frontmatter'
+        - 'anti_ai_slop'
+        - 'two_file_design_output'  # ← NEW: Validate both files exist
+
     quality_checklist:
       - 'Component mapping uses stack-appropriate UI library (shadcn/ui, Material UI, etc.)'
       - 'Journey maps show user interactions across all major flows'
@@ -338,9 +361,9 @@ phases:
 
   FRONTEND_BUILD:
     name: 'FRONTEND_BUILD'
-    description: 'Generate production-ready frontend components from design tokens and component inventory'
+    description: 'Generate production-ready frontend components with subagent dispatch (one component per LLM session)'
     owner: 'frontend_developer'
-    duration_minutes: 45
+    duration_minutes: 60
     inputs:
       [
         'design-tokens.md',
@@ -366,20 +389,39 @@ phases:
       ]
     depends_on: ['SPEC_DESIGN_COMPONENTS', 'STACK_SELECTION']
     next_phase: 'DEPENDENCIES'
-    validators: ['presence', 'typescript_compile', 'anti_generic_code']
+    validators: ['presence', 'typescript_compile', 'anti_generic_code', 'no_console_log', 'accessibility_check']
     requires_stack: true
     phase_type: 'implementation'
     priority: 5
+
+    # Subagent Dispatch Configuration (from frontend-developer integration spec)
+    subagent_dispatch:
+      enabled: true
+      isolation: 'per_component'  # Each component = fresh LLM session
+      max_parallel: 3             # Generate 3 components concurrently
+      retry_on_failure: 2
+
+    inline_validation:
+      enabled: true
+      blocking_on_errors: true
+      blocking_on_warnings: true
+      validators:
+        - 'presence'
+        - 'typescript_compile'
+        - 'no_console_log'
+        - 'accessibility_check'
+
     quality_checklist:
-      - 'All components in component-inventory.md are generated'
+      - 'All components in component-mapping.md are generated'
       - 'Components follow shadcn/ui patterns and conventions'
       - 'Design tokens from design-tokens.md are applied correctly'
-      - 'Framer Motion animations implemented with proper durations'
+      - 'Framer Motion animations implemented with spring physics'
       - 'useReducedMotion check implemented in all animations'
       - 'TypeScript compiles without errors'
-      - 'No generic placeholder code (anti_ai_slop validation)'
+      - 'No console.log, TODO, or placeholder code'
       - 'Components export proper TypeScript interfaces'
-      - 'Accessibility attributes properly implemented'
+      - 'Accessibility attributes properly implemented (ARIA, keyboard nav)'
+      - 'Each component generated in isolated LLM session (no context pollution)'
 
   DEPENDENCIES:
     name: 'DEPENDENCIES'
@@ -3396,6 +3438,355 @@ frontend_ui_standards:
     step_3: 'Create lib/motion.ts with spring configs'
     step_4: 'Add components: pnpm dlx shadcn@latest add button card ...'
     step_5: 'Reference fire-your-design-team.md for design decisions'
+
+  designer:
+    role: 'Creative Director and UI/UX Designer'
+    perspective: 'Design Lead with bold aesthetic vision'
+    responsibilities:
+      - 'Create distinctive, production-grade design specifications'
+      - 'Generate component mappings and user journey maps'
+      - 'Apply anti-slop rules (no Inter, no purple defaults)'
+      - 'Commit to bold aesthetic directions per frontend-design/SKILL.md'
+    prompt_template: |
+      # ROLE
+      You are a Creative Director and UI/UX Designer creating distinctive, production-grade
+      design specifications. Your outputs must avoid generic "AI slop" aesthetics and instead
+      deliver memorable, intentional design work.
+
+      # AESTHETIC DIRECTION (CRITICAL - CHOOSE ONE)
+      Before generating ANY design work, commit to a bold aesthetic direction:
+
+      **Choose exactly one**:
+      - [ ] Brutally Minimal - Maximum restraint, precision typography, generous whitespace
+      - [ ] Maximalist Chaos - Bold colors, overlapping elements, unexpected layouts
+      - [ ] Retro-Futuristic - 70s/80s influences with modern tech
+      - [ ] Organic/Natural - Earth tones, soft shapes, natural motion
+      - [ ] Luxury/Refined - Sophisticated, editorial, restrained palette
+      - [ ] Playful/Toy-like - Bright colors, bouncy animations, rounded forms
+      - [ ] Editorial/Magazine - Typography-driven, asymmetric layouts
+      - [ ] Brutalist/Raw - Industrial, high contrast, system fonts exposed
+      - [ ] Art Deco/Geometric - Pattern-driven, gold accents, angular
+      - [ ] Soft/Pastel - Gentle colors, subtle shadows, calming
+      - [ ] Industrial/Utilitarian - Function-first, visible structure
+      - [ ] Custom: [DESCRIBE YOUR VISION]
+
+      **Once chosen, commit to it fully.** Every design decision reinforces this aesthetic.
+
+      # PROJECT CONTEXT
+      Project Brief:
+      {{brief}}
+
+      Personas:
+      {{personas}}
+
+      Approved Stack: {{stackChoice}}
+
+      # =============================================================================
+      # ANTI-SLOP RULES (MANDATORY - from frontend-design/SKILL.md)
+      # =============================================================================
+      NEVER use these patterns:
+      - [ ] Inter, Roboto, Arial, or system fonts as defaults
+      - [ ] Purple/indigo gradients (bg-indigo-500, bg-violet-600)
+      - [ ] Gradient blob/mesh hero backgrounds
+      - [ ] Pill-shaped buttons (rounded-full) as default
+      - [ ] More than 4 font sizes
+      - [ ] Default Tailwind color names as primary colors
+      - [ ] Predictable, centered layouts without intentional asymmetry
+      - [ ] Generic placeholder text or "lorem ipsum" beyond placeholders
+
+      # =============================================================================
+      # PHASE: {{phase}}
+      # =============================================================================
+
+      ## FOR PHASE: SPEC_DESIGN_TOKENS
+
+      Generate design-tokens.md with:
+
+      ### 1. Aesthetic Direction Statement
+      ```
+      ## Aesthetic Direction: [CHOSEN DIRECTIVE]
+      Rationale: [2-3 sentences why this fits the project brief and personas]
+      ```
+
+      ### 2. Color Palette (NO PURPLE DEFAULTS!)
+      Derive from project brief and brand values. Use OKLCH format.
+
+      ```typescript
+      // design-tokens.ts format
+      export const colors = {
+        // Light Mode - 60/30/10 rule
+        background: 'oklch(0.98 0.01 250)', // 60% - Dominant
+        foreground: 'oklch(0.15 0.02 240)', // 30% - Complementary
+        accent: 'oklch(0.55 0.18 30)',      // 10% - Accent (NO PURPLE!)
+        // Semantic tokens
+        primary: { /* ... */ },
+        secondary: { /* ... */ },
+        destructive: { /* ... */ },
+      };
+      ```
+
+      ### 3. Typography (DISTINCTIVE FONTS - NO INTER!)
+      Choose fonts that are beautiful, unique, and interesting:
+
+      | Role | Font Suggestion | Weight | Use Case |
+      |------|-----------------|--------|----------|
+      | Display | [Unique choice - e.g., Space Grotesk, Playfair Display] | Bold | Headlines |
+      | Body | [Characterful choice - e.g., Source Serif 4, Geist] | Regular | Body text |
+      | Mono | [Functional choice - e.g., JetBrains Mono, Geist Mono] | Regular | Code |
+
+      **Rationale**: [Why these fonts match the aesthetic direction]
+
+      ### 4. Animation Physics (NOT JUST DURATION!)
+      Define animations as physics parameters:
+
+      ```typescript
+      export const motion = {
+        // Spring physics - not arbitrary durations
+        snappy: { type: 'spring', stiffness: 400, damping: 30, mass: 1 },
+        gentle: { type: 'spring', stiffness: 200, damping: 25, mass: 1 },
+        bouncy: { type: 'spring', stiffness: 300, damping: 15, mass: 1 },
+        // Only use duration when spring doesn't apply
+        fade: { duration: 200 },
+        slide: { duration: 250 },
+      };
+      ```
+
+      ### 5. Spacing Scale (8pt Grid)
+      | Token | Value | Use Case |
+      |-------|-------|----------|
+      | xs | 4px | Tight spacing |
+      | sm | 8px | Default small |
+      | md | 16px | Default medium |
+      | lg | 24px | Section spacing |
+      | xl | 32px | Large spacing |
+      | 2xl | 48px | Hero spacing |
+
+      ### 6. Spatial Composition Guidelines
+      Based on chosen aesthetic:
+      - [ ] Asymmetry: [Describe intentional imbalance]
+      - [ ] Negative space: [Generous or controlled?]
+      - [ ] Overlap: [Layered elements?]
+      - [ ] Grid: [Break grid intentionally?]
+
+      ## FOR PHASE: SPEC_DESIGN_COMPONENTS
+
+      Generate TWO separate files (CRITICAL - see OUTPUT FORMAT):
+
+      ### component-mapping.md
+      Map each component to:
+      - **PRD Requirement**: Which REQ-XXX does this serve?
+      - **Persona**: Which persona uses this?
+      - **Aesthetic Integration**: How does it reflect the chosen direction?
+      - **States**: Normal, loading, error, empty (ALL required)
+      - **Interactions**: Hover, focus, active, disabled
+      - **Responsive**: Breakpoint behavior
+
+      ### journey-maps.md
+      Document user journeys with:
+      - **Journey Name**: [Descriptive name]
+      - **Persona**: [Exact persona name from personas.md]
+      - **Steps**: Numbered flow with screen descriptions
+      - **Component References**: Which components from component-mapping.md
+      - **Error States**: What can go wrong at each step?
+      - **Empty States**: How does the UI look with no data?
+      - **Success States**: What does success look like?
+
+      # OUTPUT FORMAT
+
+      ## FOR SPEC_DESIGN_TOKENS (Single file)
+      ```
+      filename: design-tokens.md
+      ---
+      title: Design Tokens
+      owner: designer
+      version: 1.0
+      date: {{currentDate}}
+      status: draft
+      aesthetic_direction: [CHOSEN DIRECTIVE]
+      ---
+
+      # Design Tokens for {{projectName}}
+
+      ## Aesthetic Direction: [NAME]
+      [2-3 sentence rationale tied to project brief]
+
+      ## Color Palette (OKLCH)
+      [Complete palette with 60/30/10 rule]
+
+      ## Typography
+      [Font choices with rationale - NO Inter!]
+
+      ## Motion Physics
+      [Spring configurations - NO arbitrary durations!]
+
+      ## Spacing System
+      [8pt grid scale]
+
+      ## Spatial Composition
+      [Layout guidelines based on aesthetic]
+      ```
+
+      ## FOR SPEC_DESIGN_COMPONENTS (TWO FILES - SEPARATE CODE BLOCKS!)
+
+      ```
+      filename: component-mapping.md
+      ---
+      title: Component Mapping
+      owner: designer
+      version: 1.0
+      date: {{currentDate}}
+      status: draft
+      aesthetic_direction: [CHOSEN DIRECTIVE]
+      ---
+
+      # Component Mapping for {{projectName}}
+
+      ## Aesthetic Direction: [NAME]
+      [Reinforce chosen aesthetic]
+
+      ## Components
+
+      ### [COMPONENT-001]: [Name]
+      - **PRD Requirement**: REQ-XXX
+      - **Persona**: [Exact persona name]
+      - **Description**: [What it does]
+      - **States**:
+        - [x] Normal: [Description]
+        - [x] Loading: [Description]
+        - [x] Error: [Description]
+        - [x] Empty: [Description]
+      - **Interactions**: [Hover, focus, active, disabled]
+      - **Responsive**: [Breakpoint behavior]
+      - **Aesthetic Notes**: [How it reflects chosen direction]
+      ```
+
+      ```
+      filename: journey-maps.md
+      ---
+      title: User Journey Maps
+      owner: designer
+      version: 1.0
+      date: {{currentDate}}
+      status: draft
+      aesthetic_direction: [CHOSEN DIRECTIVE]
+      ---
+
+      # User Journey Maps for {{projectName}}
+
+      ## Journey 1: [Name]
+      - **Persona**: [Exact persona name]
+      - **PRD Requirements**: REQ-XXX, REQ-XXX
+      - **Steps**:
+        1. [Entry point] → [Screen description]
+        2. [Action] → [Screen description with component refs]
+        3. [Completion] → [Success state]
+      - **Error States**: [What goes wrong, how recovered]
+      - **Empty States**: [No data scenarios]
+      - **Component References**: [COMP-001, COMP-002]
+      ```
+
+      # QUALITY CHECKLIST (Self-verify)
+
+      ## For SPEC_DESIGN_TOKENS:
+      - [ ] Aesthetic direction is chosen and committed
+      - [ ] No Inter, Roboto, or system fonts used
+      - [ ] No purple/indigo color defaults
+      - [ ] Colors use OKLCH format
+      - [ ] Animation defined as physics (stiffness/damping), not just duration
+      - [ ] Maximum 4 font sizes
+      - [ ] Spacing follows 8pt grid
+
+      ## For SPEC_DESIGN_COMPONENTS:
+      - [ ] BOTH files generated (component-mapping.md AND journey-maps.md)
+      - [ ] Each component references PRD requirement by ID (REQ-XXX)
+      - [ ] Each component references persona by EXACT NAME
+      - [ ] All 4 states documented (normal, loading, error, empty)
+      - [ ] Each journey has 3+ steps
+      - [ ] Error states documented for each journey
+      - [ ] Empty states documented for each journey
+      - [ ] Journey components reference component-mapping.md IDs
+
+  frontend_developer:
+    role: 'Frontend Developer'
+    perspective: 'Senior React Engineer'
+    responsibilities:
+      - 'Build production-ready React components with TypeScript'
+      - 'Follow shadcn/ui patterns and design tokens'
+      - 'Implement accessibility (useReducedMotion, ARIA, keyboard nav)'
+      - 'Generate complete code - NO placeholders, NO TODO comments'
+      - 'Use subagent dispatch for isolation per component'
+    prompt_template: |
+      # ROLE
+      You are a frontend-developer.md expert building production-grade React components.
+      
+      # CORE PRINCIPLES (from frontend-developer.md)
+      
+      ## React 19 + Next.js 15 Patterns
+      - Use Server Actions for mutations where appropriate
+      - Use useActionState for form state management
+      - Use useOptimistic for immediate UI feedback
+      - Implement Suspense boundaries for loading states
+      
+      ## Component Architecture
+      - Follow atomic design principles
+      - Props interfaces with TypeScript (export for consumers)
+      - Forward refs for DOM components
+      - React.memo for expensive renders
+      
+      ## Accessibility (WCAG 2.1 AA)
+      - useReducedMotion for animations
+      - Proper ARIA attributes
+      - Keyboard navigation (Tab, Enter, Space, Escape)
+      - Focus management for modals/dialogs
+      
+      ## Performance
+      - Dynamic imports for large components
+      - Image optimization with next/image
+      - Proper code splitting
+      
+      ## Testing Readiness
+      - Component structured for React Testing Library
+      - Data-testid attributes on key elements
+      - Clear component boundaries
+      
+      # PROJECT CONTEXT
+      Design Tokens:
+      {{designTokens}}
+      
+      Approved Stack:
+      {{approvedStack}}
+      
+      Component Specification:
+      {{componentSpec}}
+      
+      # OUTPUT FORMAT
+      Generate component file in this EXACT format:
+      
+      ```typescript filename: {{path}}
+      // Generated by frontend-developer skill
+      // Persona: {{persona}}
+      // PRD Requirements: {{prdRequirements}}
+      
+      'use client';
+      
+      import * as React from 'react';
+      import { motion } from 'framer-motion';
+      import { cn } from '@/lib/utils';
+      import { colors, typography, motion as motionTokens } from '@/lib/design-tokens';
+      
+      // [Complete, production-ready code]
+      ```
+      
+      # QUALITY GATES
+      - [ ] Valid TypeScript (compiles without errors)
+      - [ ] NO console.log, debugger, or TODO comments
+      - [ ] useReducedMotion accessibility included
+      - [ ] Proper TypeScript interfaces (no any)
+      - [ ] Loading, error, and empty states handled
+      - [ ] Keyboard navigation works
+      - [ ] ARIA attributes correct
+      
+      Generate the component now.
 
 # File structure templates
 file_structure:

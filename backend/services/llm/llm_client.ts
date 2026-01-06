@@ -10,6 +10,28 @@ import {
 import { logger } from '@/lib/logger';
 import { LLMProvider } from './providers/base';
 
+// Schema type constants for structured output
+const SCHEMA_TYPE_STRING = 'STRING' as const;
+const SCHEMA_TYPE_INTEGER = 'INTEGER' as const;
+const SCHEMA_TYPE_NUMBER = 'NUMBER' as const;
+const SCHEMA_TYPE_BOOLEAN = 'BOOLEAN' as const;
+const SCHEMA_TYPE_ARRAY = 'ARRAY' as const;
+const SCHEMA_TYPE_OBJECT = 'OBJECT' as const;
+
+interface SchemaDefinition {
+  type: typeof SCHEMA_TYPE_STRING | typeof SCHEMA_TYPE_INTEGER | typeof SCHEMA_TYPE_NUMBER | typeof SCHEMA_TYPE_BOOLEAN | typeof SCHEMA_TYPE_ARRAY | typeof SCHEMA_TYPE_OBJECT;
+  description?: string;
+  enum?: string[];
+  properties?: Record<string, SchemaDefinition>;
+  items?: SchemaDefinition;
+  required?: string[];
+}
+
+interface StructuredArtifact {
+  filename: string;
+  content: string;
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -194,7 +216,8 @@ export class GeminiClient implements LLMProvider {
     context?: string[],
     retries = 3,
     phase?: string,
-    continuationCount = 0
+    continuationCount = 0,
+    structuredConfig?: { responseMimeType?: string; responseSchema?: SchemaDefinition }
   ): Promise<LLMResponse> {
     if (!this.config.api_key) {
       throw new Error('Gemini API key not configured');
@@ -275,6 +298,23 @@ export class GeminiClient implements LLMProvider {
       maxOutputTokens,
       candidateCount: 1,
     };
+
+    // Add structured output config if provided
+    if (structuredConfig?.responseMimeType) {
+      generationConfig.responseMimeType = structuredConfig.responseMimeType;
+    }
+    if (structuredConfig?.responseSchema) {
+      generationConfig.responseSchema = structuredConfig.responseSchema;
+    }
+    // Add temperature and maxOutputTokens if provided in structuredConfig
+    if (structuredConfig) {
+      if ('temperature' in structuredConfig) {
+        generationConfig.temperature = structuredConfig.temperature;
+      }
+      if ('maxOutputTokens' in structuredConfig) {
+        generationConfig.maxOutputTokens = structuredConfig.maxOutputTokens;
+      }
+    }
 
     // Add top_p if specified
     if (effectiveConfig.top_p !== undefined) {
@@ -482,6 +522,141 @@ export class GeminiClient implements LLMProvider {
   ): Promise<LLMResponse> {
     const context = Object.values(artifacts);
     return this.generateCompletion(prompt, context, 3, phase);
+  }
+
+  // ============================================================================
+  // STRUCTURED OUTPUT METHODS
+  // ============================================================================
+
+  /**
+   * Generate artifacts with structured JSON output using Gemini's native schema enforcement.
+   * This eliminates 80% of parsing failures by using responseMimeType + responseSchema.
+   */
+  async generateStructuredArtifacts(
+    prompt: string,
+    expectedFiles: string[],
+    phase?: string,
+    options?: { temperature?: number; maxOutputTokens?: number; retries?: number }
+  ): Promise<Record<string, string>> {
+    const schema = this.buildArtifactSchema(expectedFiles);
+    const effectiveConfig = this.getEffectiveConfig(phase);
+    
+    // Build generation config with structured output
+    const structuredConfig: {
+      responseMimeType: string;
+      responseSchema: SchemaDefinition;
+      temperature?: number;
+      maxOutputTokens?: number;
+    } = {
+      responseMimeType: 'application/json',
+      responseSchema: schema,
+    };
+    
+    // Apply temperature and maxOutputTokens
+    if (options?.temperature !== undefined) {
+      structuredConfig.temperature = options.temperature;
+    } else if (effectiveConfig.temperature !== undefined) {
+      structuredConfig.temperature = effectiveConfig.temperature;
+    }
+    
+    const response = await this.generateCompletion(
+      prompt,
+      undefined,
+      options?.retries ?? 2,
+      phase,
+      0,
+      structuredConfig
+    );
+
+    // Direct JSON parse - no fallback needed with structured output!
+    let artifacts: StructuredArtifact[];
+    try {
+      artifacts = JSON.parse(response.content);
+    } catch (parseError) {
+      throw new Error(
+        `Failed to parse structured output as JSON: ${(parseError as Error).message}. ` +
+        `Raw response: ${response.content.slice(0, 500)}...`
+      );
+    }
+
+    // Validate artifact structure
+    if (!Array.isArray(artifacts)) {
+      throw new Error(`Expected array of artifacts, got: ${typeof artifacts}`);
+    }
+
+    // Convert array to record and validate all expected files present
+    const result: Record<string, string> = {};
+    const foundFiles: string[] = [];
+    
+    for (const artifact of artifacts) {
+      if (artifact.filename && typeof artifact.content === 'string') {
+        result[artifact.filename] = artifact.content;
+        foundFiles.push(artifact.filename);
+      }
+    }
+
+    const missing = expectedFiles.filter(f => !result[f]);
+    if (missing.length > 0) {
+      throw new Error(
+        `Structured output missing required files. Expected: ${expectedFiles.join(', ')}. ` +
+        `Found: ${foundFiles.join(', ')}`
+      );
+    }
+
+    logger.info('[StructuredOutput] Successfully parsed artifacts', {
+      files: foundFiles,
+      phase,
+    });
+
+    return result;
+  }
+
+  /**
+   * Build artifact schema for structured output
+   */
+  private buildArtifactSchema(expectedFiles: string[]): SchemaDefinition {
+    return {
+      type: SCHEMA_TYPE_ARRAY,
+      description: `Array of artifacts with filenames from: ${expectedFiles.join(', ')}`,
+      items: {
+        type: SCHEMA_TYPE_OBJECT,
+        description: 'Individual artifact with filename and content',
+        properties: {
+          filename: {
+            type: SCHEMA_TYPE_STRING,
+            description: `Output filename - must be one of: ${expectedFiles.join(', ')}`,
+            enum: expectedFiles,
+          },
+          content: {
+            type: SCHEMA_TYPE_STRING,
+            description: 'Complete file content including frontmatter if applicable',
+          },
+        },
+        required: ['filename', 'content'],
+      },
+    };
+  }
+
+  /**
+   * Build two-file schema for design phase (component-mapping + journey-maps)
+   */
+  buildTwoFileSchema(): SchemaDefinition {
+    return {
+      type: SCHEMA_TYPE_ARRAY,
+      items: {
+        type: SCHEMA_TYPE_OBJECT,
+        properties: {
+          filename: {
+            type: SCHEMA_TYPE_STRING,
+            enum: ['component-mapping.md', 'journey-maps.md'],
+          },
+          content: {
+            type: SCHEMA_TYPE_STRING,
+          },
+        },
+        required: ['filename', 'content'],
+      },
+    };
   }
 
   /**

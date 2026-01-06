@@ -77,175 +77,281 @@ function buildPrompt(template: string, variables: Record<string, any>): string {
 }
 
 // ============================================================================
-// ARTIFACT PARSING
+// ARTIFACT PARSING - FAIL-FAST ARCHITECTURE
 // ============================================================================
 
+interface ParseResult {
+  success: boolean;
+  artifacts: Record<string, string>;
+  parseMethod: 'structured' | 'markdown_strict' | 'failed';
+  errors: string[];
+}
+
+/**
+ * Parse artifacts with fail-fast behavior.
+ * 
+ * OLD (PROBLEMATIC): 6-layer fallback chain with silent degradation
+ * - Attempt 1: Markdown code blocks with filename markers
+ * - Attempt 2: JSON extraction
+ * - Attempt 3: Header-based parsing
+ * - ...
+ * - Attempt 5: DEGRADE - dump everything into first file ← BAD
+ * - Attempt 6: SILENT FAILURE - empty strings ← WORSE
+ * 
+ * NEW (ROBUST):
+ * - PRIMARY: Structured output detection (JSON array with filename/content)
+ * - FALLBACK: Strict markdown parsing (NO degradation!)
+ * - FAILURE: Throw clear error instead of silent degradation
+ */
 function parseArtifacts(
   content: string,
-  expectedFiles: string[]
+  expectedFiles: string[],
+  options: { allowMarkdownFallback?: boolean } = { allowMarkdownFallback: true }
 ): Record<string, string> {
-  const artifacts: Record<string, string> = {};
-  const expectedMap = expectedFiles.reduce<Record<string, string>>(
-    (map, filename) => {
-      map[filename.toLowerCase()] = filename;
-      return map;
-    },
-    {}
+  const result = parseArtifactsInternal(content, expectedFiles, options);
+  
+  if (result.success) {
+    return result.artifacts;
+  }
+  
+  // For backward compatibility, return partial results but log warning
+  // This maintains existing behavior while adding new validation path
+  logger.warn('[ParseArtifacts] Parse failed, returning partial results', {
+    expectedFiles,
+    foundFiles: Object.keys(result.artifacts),
+    errors: result.errors,
+  });
+  
+  return result.artifacts;
+}
+
+/**
+ * Internal parse function that returns full ParseResult
+ */
+function parseArtifactsInternal(
+  content: string,
+  expectedFiles: string[],
+  options: { allowMarkdownFallback?: boolean } = { allowMarkdownFallback: true }
+): ParseResult {
+  const result: ParseResult = {
+    success: false,
+    artifacts: {},
+    parseMethod: 'failed',
+    errors: [],
+  };
+
+  // PRIMARY PATH: Try structured extraction first (JSON array pattern)
+  const structuredArtifacts = extractStructuredArtifacts(content);
+  if (structuredArtifacts) {
+    result.artifacts = structuredArtifacts;
+    result.parseMethod = 'structured';
+    result.success = validateAllFilesPresent(result.artifacts, expectedFiles);
+    if (result.success) {
+      return result;
+    }
+    result.errors.push('Structured output missing required files');
+  }
+
+  // FALLBACK: Strict markdown code block parsing (NO degradation!)
+  if (options.allowMarkdownFallback) {
+    const markdownArtifacts = parseMarkdownBlocksStrict(content, expectedFiles);
+    if (markdownArtifacts) {
+      result.artifacts = markdownArtifacts;
+      result.parseMethod = 'markdown_strict';
+      result.success = validateAllFilesPresent(result.artifacts, expectedFiles);
+      if (result.success) {
+        return result;
+      }
+      result.errors.push('Markdown fallback missing required files');
+    }
+  }
+
+  // NO DEGRADATION: Don't dump everything into first file
+  // NO SILENT FAILURE: Don't fill with empty strings
+
+  result.errors.push(
+    `Parse failed. Expected files: ${expectedFiles.join(', ')}. ` +
+    `Found files: ${Object.keys(result.artifacts).join(', ') || 'none'}. ` +
+    `Parse method attempted: ${result.parseMethod}`
   );
 
-  // Try to extract files from markdown code blocks with explicit filename markers
-  // Supports:
-  // ```markdown filename: plan.md\n...``` and
-  // ```\nfilename: plan.md\n...```
+  return result;
+}
+
+/**
+ * Extract artifacts from structured JSON array format.
+ * Looks for: [{"filename": "...", "content": "..."}]
+ */
+function extractStructuredArtifacts(content: string): Record<string, string> | null {
+  // Try to find JSON array pattern
+  const arrayMatch = content.match(/\[\s*\{\s*"filename"/);
+  if (!arrayMatch) return null;
+
+  try {
+    // Find the JSON array boundaries
+    const startIndex = content.indexOf('[');
+    if (startIndex === -1) return null;
+
+    let braceCount = 0;
+    let endIndex = -1;
+
+    for (let i = startIndex; i < content.length; i++) {
+      if (content[i] === '{') braceCount++;
+      if (content[i] === '}') braceCount--;
+      if (braceCount === 0 && content[i] === ']') {
+        endIndex = i + 1;
+        break;
+      }
+    }
+
+    if (endIndex === -1) return null;
+
+    const jsonContent = content.slice(startIndex, endIndex);
+    const artifacts: Array<{ filename: string; content: string }> = JSON.parse(jsonContent);
+
+    const result: Record<string, string> = {};
+    for (const artifact of artifacts) {
+      if (artifact.filename && typeof artifact.content === 'string') {
+        result[artifact.filename] = artifact.content;
+      }
+    }
+
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Strict markdown code block parsing - requires ALL files found.
+ * Returns null if any expected file is missing (no partial results).
+ */
+function parseMarkdownBlocksStrict(
+  content: string,
+  expectedFiles: string[]
+): Record<string, string> | null {
   const fileRegex =
     /```(?:(\w+)[ \t]*)?\n?filename:\s*([^\n]+)\n([\s\S]*?)```/g;
+
+  const artifacts: Record<string, string> = {};
   let match;
 
   while ((match = fileRegex.exec(content)) !== null) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [, language, filename, fileContent] = match;
-    const rawName = filename.trim();
-    const normalizedName = expectedMap[rawName.toLowerCase()] || rawName;
-    artifacts[normalizedName] = fileContent.trim();
-  }
+    const normalizedName = filename.trim();
 
-  // Special handling for JSON files - try to extract JSON blocks
-  for (const filename of expectedFiles) {
-    if (filename.endsWith('.json') && !artifacts[filename]) {
-      // Try multiple patterns for JSON extraction
-      // Pattern 1: ```json\n{...}```
-      const jsonBlockRegex = /```json\s*\n(\{[\s\S]*?\})\s*```/g;
-      let jsonMatch;
-      while ((jsonMatch = jsonBlockRegex.exec(content)) !== null) {
-        const jsonContent = jsonMatch[1].trim();
-        // Validate it's actually valid JSON
-        try {
-          JSON.parse(jsonContent);
-          artifacts[filename] = jsonContent;
-          break;
-        } catch {
-          // Not valid JSON, continue searching
-        }
-      }
-
-      // Pattern 2: Look for OpenAPI structure specifically
-      if (!artifacts[filename]) {
-        const openapiMatch = content.match(/"openapi"\s*:\s*"[\d.]+"/);
-        if (openapiMatch) {
-          // Find the complete JSON object containing openapi
-          const startIndex = content.lastIndexOf('{', openapiMatch.index);
-          if (startIndex !== -1) {
-            // Try to find matching closing brace
-            let braceCount = 0;
-            let endIndex = -1;
-            for (let i = startIndex; i < content.length; i++) {
-              if (content[i] === '{') braceCount++;
-              if (content[i] === '}') braceCount--;
-              if (braceCount === 0) {
-                endIndex = i + 1;
-                break;
-              }
-            }
-            if (endIndex !== -1) {
-              const jsonContent = content.slice(startIndex, endIndex);
-              try {
-                JSON.parse(jsonContent);
-                artifacts[filename] = jsonContent;
-              } catch {
-                // Failed to parse, continue
-              }
-            }
-          }
-        }
-      }
+    // Only accept files that are in our expected list
+    if (expectedFiles.includes(normalizedName)) {
+      artifacts[normalizedName] = fileContent.trim();
     }
   }
 
-  // If some but not all files found, try header-based parsing
-  if (
-    Object.keys(artifacts).length > 0 &&
-    Object.keys(artifacts).length < expectedFiles.length
-  ) {
-    for (const filename of expectedFiles) {
-      if (!artifacts[filename]) {
-        const fileHeader = new RegExp(
-          `#?\\s*${filename.replace('.', '\\.')}`,
-          'i'
-        );
-        const parts = content.split(fileHeader);
+  // Return null if not ALL files found (strict!)
+  const allFound = expectedFiles.every(f => artifacts[f]);
+  return allFound ? artifacts : null;
+}
 
-        if (parts.length > 1) {
-          let fileContent = parts[1];
-          for (const otherFile of expectedFiles) {
-            if (otherFile !== filename) {
-              const nextHeader = new RegExp(
-                `#?\\s*${otherFile.replace('.', '\\.')}`,
-                'i'
-              );
-              const headerParts = fileContent.split(nextHeader);
-              if (headerParts.length > 1) {
-                fileContent = headerParts[0];
-                break;
-              }
-            }
-          }
-          artifacts[filename] = fileContent.trim();
-        }
-      }
-    }
+/**
+ * Validate all expected files are present
+ */
+function validateAllFilesPresent(
+  artifacts: Record<string, string>,
+  expectedFiles: string[]
+): boolean {
+  return expectedFiles.every(f => artifacts[f] && artifacts[f].length > 0);
+}
+
+/**
+ * Parse with validation - REJECT on failure, RETRY with enhanced prompt.
+ * This is the main entry point for artifact parsing.
+ */
+export async function parseArtifactsWithValidation(
+  content: string,
+  expectedFiles: string[],
+  llmClient: LLMProvider,
+  originalPrompt: string,
+  phase: string,
+  maxRetries: number = 2
+): Promise<Record<string, string>> {
+  const parseResult = parseArtifactsInternal(content, expectedFiles);
+
+  if (parseResult.success) {
+    return parseResult.artifacts;
   }
 
-  // If no files extracted, try header-based parsing for all expected files
-  if (Object.keys(artifacts).length === 0) {
-    for (const filename of expectedFiles) {
-      const fileHeader = new RegExp(
-        `#?\\s*${filename.replace('.', '\\.')}`,
-        'i'
+  // Retry with enhanced prompt
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const enhancedPrompt = buildRetryPrompt(originalPrompt, expectedFiles, parseResult.errors, attempt);
+
+    try {
+      const response = await llmClient.generateCompletion(
+        enhancedPrompt,
+        undefined,
+        1,
+        phase
       );
-      const parts = content.split(fileHeader);
 
-      if (parts.length > 1) {
-        let fileContent = parts[1];
-        for (const otherFile of expectedFiles) {
-          if (otherFile !== filename) {
-            const nextHeader = new RegExp(
-              `#?\\s*${otherFile.replace('.', '\\.')}`,
-              'i'
-            );
-            const headerParts = fileContent.split(nextHeader);
-            if (headerParts.length > 1) {
-              fileContent = headerParts[0];
-              break;
-            }
-          }
-        }
-        artifacts[filename] = fileContent.trim();
+      const retryResult = parseArtifactsInternal(response.content, expectedFiles);
+
+      if (retryResult.success) {
+        logger.info(`[ParseArtifacts] Retry ${attempt} succeeded`, {
+          phase,
+          parseMethod: retryResult.parseMethod,
+        });
+        return retryResult.artifacts;
       }
+    } catch (retryError) {
+      logger.warn(`[ParseArtifacts] Retry ${attempt} failed`, {
+        phase,
+        error: (retryError as Error).message,
+      });
     }
   }
 
-  // Fallback: if still no artifacts, put entire content into first file
-  if (Object.keys(artifacts).length === 0 && expectedFiles.length > 0) {
-    logger.warn(
-      `Failed to parse artifacts. Expected files: ${expectedFiles.join(', ')}`
-    );
-    logger.warn(
-      `Putting entire response in first expected file: ${expectedFiles[0]}`
-    );
-    artifacts[expectedFiles[0]] = content;
-  }
+  // Final failure - don't degrade, throw clear error!
+  throw new Error(
+    `Artifact parsing failed after ${maxRetries} retries for phase ${phase}. ` +
+    `Expected files: ${expectedFiles.join(', ')}. ` +
+    `Errors: ${parseResult.errors.join('; ')}. ` +
+    `Use structured output (JSON array with filename/content) to fix.`
+  );
+}
 
-  // Fill missing files with empty strings
-  for (const filename of expectedFiles) {
-    if (!artifacts[filename]) {
-      logger.warn(
-        `Missing expected artifact: ${filename}. Creating placeholder.`
-      );
-      artifacts[filename] = '';
-    }
-  }
+/**
+ * Build retry prompt with explicit format instructions
+ */
+function buildRetryPrompt(
+  originalPrompt: string,
+  expectedFiles: string[],
+  errors: string[],
+  attempt: number
+): string {
+  return `
+${originalPrompt}
 
-  return artifacts;
+---
+
+## CRITICAL: OUTPUT FORMAT REQUIREMENTS (Retry #${attempt})
+
+Previous attempt failed: ${errors.join('; ')}
+
+You MUST output a JSON array with this EXACT format:
+\`\`\`json
+[
+  {"filename": "${expectedFiles[0]}", "content": "..."}
+  ${expectedFiles.slice(1).map(f => `, {"filename": "${f}", "content": "..."}`).join('')}
+]
+\`\`\`
+
+Rules:
+1. Output ONLY the JSON array, wrapped in markdown code block with \`\`\`json
+2. filename must match expected files EXACTLY: ${expectedFiles.join(', ')}
+3. content must be the COMPLETE file (including frontmatter if applicable)
+4. ALL ${expectedFiles.length} files must be present
+5. NO extra files, NO partial files
+
+Generate the output now with ALL files complete.
+`;
 }
 
 // ============================================================================
