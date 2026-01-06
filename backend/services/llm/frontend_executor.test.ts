@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
-import { getFrontendExecutor, type FrontendContext } from './frontend_executor';
+import { getFrontendExecutor, type FrontendContext, componentSelfReview } from './frontend_executor';
 
 // Mock LLM client for testing
 const createMockLLMClient = (response: string) => ({
@@ -512,6 +512,445 @@ body {
 
       requiredExpertise.forEach(expertise => {
         expect(executor.expertise).toContain(expertise);
+      });
+    });
+  });
+
+  describe('componentSelfReview', () => {
+    describe('Placeholder Code Detection', () => {
+      it('should detect // TODO comments', () => {
+        const code = `
+export function Button() {
+  // TODO: Implement button logic
+  return <button>Click</button>;
+}
+        `;
+        const result = componentSelfReview('Button', code);
+        expect(result.passed).toBe(false);
+        expect(result.issues.some(i => i.includes('// TODO'))).toBe(true);
+      });
+
+      it('should detect TODO: markers', () => {
+        const code = `
+export function Button() {
+  TODO: Add button logic
+  return <button>Click</button>;
+}
+        `;
+        const result = componentSelfReview('Button', code);
+        expect(result.passed).toBe(false);
+        expect(result.issues.some(i => i.includes('placeholder code'))).toBe(true);
+      });
+
+      it('should detect placeholder text', () => {
+        const code = `
+export function Button() {
+  return <button>placeholder</button>;
+}
+        `;
+        const result = componentSelfReview('Button', code);
+        expect(result.passed).toBe(false);
+      });
+
+      it('should pass for clean code without placeholders', () => {
+        const code = `
+import { Button } from '@/components/ui/button';
+
+export function Button() {
+  return <Button>Click me</Button>;
+}
+        `;
+        const result = componentSelfReview('Button', code);
+        expect(result.passed).toBe(true);
+        expect(result.issues.length).toBe(0);
+      });
+    });
+
+    describe('Lorem Ipsum Detection', () => {
+      it('should detect lorem ipsum text', () => {
+        const code = `
+export function Card() {
+  return (
+    <div>
+      <p>Lorem ipsum dolor sit amet</p>
+    </div>
+  );
+}
+        `;
+        const result = componentSelfReview('Card', code);
+        expect(result.passed).toBe(false);
+        expect(result.issues.some(i => i.includes('lorem ipsum'))).toBe(true);
+      });
+
+      it('should be case insensitive for lorem ipsum', () => {
+        const code = `
+export function Card() {
+  return <p>LOREM IPSUM DOLOR</p>;
+}
+        `;
+        const result = componentSelfReview('Card', code);
+        expect(result.passed).toBe(false);
+      });
+    });
+
+    describe('Console.log Detection', () => {
+      it('should detect console.log statements', () => {
+        const code = `
+export function Button() {
+  console.log('Button clicked');
+  return <button>Click</button>;
+}
+        `;
+        const result = componentSelfReview('Button', code);
+        expect(result.passed).toBe(false);
+        expect(result.issues.some(i => i.includes('console.log'))).toBe(true);
+      });
+
+      it('should detect console.debug statements', () => {
+        const code = `
+export function Button() {
+  console.debug('Debug info');
+  return <button>Click</button>;
+}
+        `;
+        const result = componentSelfReview('Button', code);
+        expect(result.passed).toBe(false);
+      });
+
+      it('should detect console.info statements', () => {
+        const code = `
+export function Button() {
+  console.info('Info');
+  return <button>Click</button>;
+}
+        `;
+        const result = componentSelfReview('Button', code);
+        expect(result.passed).toBe(false);
+      });
+    });
+
+    describe('useReducedMotion Accessibility Check', () => {
+      it('should flag missing useReducedMotion when animations are present', () => {
+        const code = `
+import { motion } from 'framer-motion';
+
+export function Button() {
+  return (
+    <motion.button
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+    >
+      Click
+    </motion.button>
+  );
+}
+        `;
+        const result = componentSelfReview('Button', code);
+        expect(result.passed).toBe(false);
+        expect(result.issues.some(i => i.includes('useReducedMotion'))).toBe(true);
+      });
+
+      it('should pass when useReducedMotion is used with animations', () => {
+        const code = `
+import { motion, useReducedMotion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
+
+export function Button() {
+  const shouldReduceMotion = useReducedMotion();
+  
+  return (
+    <motion.button
+      whileHover={{ scale: shouldReduceMotion ? 1 : 1.05 }}
+      whileTap={{ scale: shouldReduceMotion ? 1 : 0.95 }}
+    >
+      Click
+    </motion.button>
+  );
+}
+        `;
+        const result = componentSelfReview('Button', code);
+        expect(result.passed).toBe(true);
+        expect(result.issues.some(i => i.includes('useReducedMotion'))).toBe(false);
+      });
+
+      it('should pass when no animations are present', () => {
+        const code = `
+import { Button } from '@/components/ui/button';
+
+export function Button() {
+  return <Button>Click</Button>;
+}
+        `;
+        const result = componentSelfReview('Button', code);
+        expect(result.passed).toBe(true);
+      });
+
+      it('should detect various animation patterns', () => {
+        const animationPatterns = [
+          'animation: fadeIn',
+          'transition: all 0.3s',
+          '@keyframes fade',
+          'whileHover={{ scale: 1.1 }}',
+          'whileTap={{ scale: 0.9 }}',
+          'whileInView={{ opacity: 1 }}',
+          'initial={{ opacity: 0 }}',
+          'animate={{ opacity: 1 }}',
+          'exit={{ opacity: 0 }}'
+        ];
+
+        for (const pattern of animationPatterns) {
+          const result = componentSelfReview('TestComponent', pattern);
+          expect(result.passed).toBe(false);
+          expect(result.issues.some(i => i.includes('useReducedMotion'))).toBe(true);
+        }
+      });
+    });
+
+    describe('shadcn/ui Pattern Check', () => {
+      it('should flag missing shadcn/ui imports', () => {
+        const code = `
+export function Button() {
+  return <button className="btn-primary">Click</button>;
+}
+        `;
+        const result = componentSelfReview('Button', code);
+        expect(result.passed).toBe(false);
+        expect(result.issues.some(i => i.includes('shadcn/ui'))).toBe(true);
+      });
+
+      it('should pass when importing from @/components/ui/', () => {
+        const code = `
+import { Button } from '@/components/ui/button';
+
+export function MyButton() {
+  return <Button>Click</Button>;
+}
+        `;
+        const result = componentSelfReview('Button', code);
+        expect(result.passed).toBe(true);
+      });
+
+      it('should pass when importing multiple ui components', () => {
+        const code = `
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+
+export function MyComponent() {
+  return (
+    <Card>
+      <Button>Click</Button>
+    </Card>
+  );
+}
+        `;
+        const result = componentSelfReview('Card', code);
+        expect(result.passed).toBe(true);
+      });
+    });
+
+    describe('Design Token Color Validation', () => {
+      it('should detect hardcoded hex colors not in design tokens', () => {
+        const designTokens = {
+          'design-tokens.json': JSON.stringify({
+            colors: {
+              primary: 'oklch(0.6 0.15 250)',
+              secondary: 'oklch(0.3 0.1 200)'
+            }
+          })
+        };
+
+        const code = `
+export function Button() {
+  return <button style={{ backgroundColor: '#ff0000' }}>Click</button>;
+}
+        `;
+        const result = componentSelfReview('Button', code, designTokens);
+        expect(result.passed).toBe(false);
+        expect(result.issues.some(i => i.includes('#ff0000'))).toBe(true);
+      });
+
+      it('should accept colors from design tokens', () => {
+        const designTokens = {
+          'design-tokens.json': JSON.stringify({
+            colors: {
+              primary: 'oklch(0.6 0.15 250)',
+              secondary: 'oklch(0.3 0.1 200)'
+            }
+          })
+        };
+
+        const code = `
+import { Button } from '@/components/ui/button';
+
+export function Button() {
+  return <Button style={{ backgroundColor: 'oklch(0.6 0.15 250)' }}>Click</Button>;
+}
+        `;
+        const result = componentSelfReview('Button', code, designTokens);
+        expect(result.passed).toBe(true);
+      });
+
+      it('should detect multiple invalid hex colors', () => {
+        const designTokens = {
+          'design-tokens.json': JSON.stringify({
+            colors: {
+              primary: 'oklch(0.6 0.15 250)'
+            }
+          })
+        };
+
+        const code = `
+export function Button() {
+  return (
+    <button style={{ 
+      backgroundColor: '#ff0000',
+      color: '#00ff00',
+      border: '1px solid #0000ff'
+    }}>
+      Click
+    </button>
+  );
+}
+        `;
+        const result = componentSelfReview('Button', code, designTokens);
+        expect(result.passed).toBe(false);
+        const colorIssue = result.issues.find(i => i.includes('Hardcoded colors'));
+        expect(colorIssue).toBeDefined();
+        expect(colorIssue).toContain('#ff0000');
+        expect(colorIssue).toContain('#00ff00');
+        expect(colorIssue).toContain('#0000ff');
+      });
+
+      it('should handle nested design token structure', () => {
+        const designTokens = {
+          'design-tokens.json': JSON.stringify({
+            theme: {
+              light: {
+                colors: {
+                  primary: 'oklch(0.6 0.15 250)'
+                }
+              }
+            }
+          })
+        };
+
+        const code = `
+export function Button() {
+  return <button style={{ backgroundColor: '#123456' }}>Click</button>;
+}
+        `;
+        const result = componentSelfReview('Button', code, designTokens);
+        expect(result.passed).toBe(false);
+        expect(result.issues.some(i => i.includes('#123456'))).toBe(true);
+      });
+
+      it('should handle invalid design token JSON gracefully', () => {
+        const designTokens = {
+          'design-tokens.json': 'invalid json'
+        };
+
+        const code = `
+export function Button() {
+  return <button style={{ backgroundColor: '#ff0000' }}>Click</button>;
+}
+        `;
+        // Should not throw, just skip the check
+        const result = componentSelfReview('Button', code, designTokens);
+        expect(result.issues.length).toBe(1); // Only shadcn/ui warning
+      });
+
+      it('should handle missing design tokens gracefully', () => {
+        const code = `
+export function Button() {
+  return <button style={{ backgroundColor: '#ff0000' }}>Click</button>;
+}
+        `;
+        const result = componentSelfReview('Button', code, {});
+        // Should only fail shadcn/ui check, not color check
+        expect(result.issues.some(i => i.includes('shadcn/ui'))).toBe(true);
+        expect(result.issues.some(i => i.includes('Hardcoded colors'))).toBe(false);
+      });
+
+      it('should detect 3-digit hex colors', () => {
+        const designTokens = {
+          'design-tokens.json': JSON.stringify({
+            colors: {
+              primary: 'oklch(0.6 0.15 250)'
+            }
+          })
+        };
+
+        const code = `
+export function Button() {
+  return <button style={{ color: '#f00' }}>Click</button>;
+}
+        `;
+        const result = componentSelfReview('Button', code, designTokens);
+        expect(result.passed).toBe(false);
+        expect(result.issues.some(i => i.includes('#f00'))).toBe(true);
+      });
+    });
+
+    describe('Edge Cases', () => {
+      it('should return passed: true with no issues for clean component', () => {
+        const code = `
+import { Button } from '@/components/ui/button';
+
+export function MyButton() {
+  return <Button>Click me</Button>;
+}
+        `;
+        const result = componentSelfReview('Button', code);
+        expect(result.passed).toBe(true);
+        expect(result.issues.length).toBe(0);
+      });
+
+      it('should report all issues when multiple problems exist', () => {
+        const code = `
+// TODO: Fix this later
+console.log('debug');
+
+export function BadButton() {
+  return (
+    <button style={{ backgroundColor: '#abc123' }}>
+      placeholder
+    </button>
+  );
+}
+        `;
+        const result = componentSelfReview('BadButton', code);
+        expect(result.passed).toBe(false);
+        expect(result.issues.length).toBeGreaterThanOrEqual(3);
+      });
+
+      it('should handle empty code', () => {
+        const code = '';
+        const result = componentSelfReview('Empty', code);
+        // Empty code has no shadcn/ui import, so it should fail that check
+        expect(result.issues.some(i => i.includes('shadcn/ui'))).toBe(true);
+      });
+
+      it('should handle component with animation and useReducedMotion', () => {
+        const code = `
+import { motion, useReducedMotion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
+
+export function AnimatedButton() {
+  const shouldReduce = useReducedMotion();
+  
+  return (
+    <motion.button
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: shouldReduce ? 0 : 0.3 }}
+    >
+      Animate
+    </motion.button>
+  );
+}
+        `;
+        const result = componentSelfReview('AnimatedButton', code);
+        expect(result.passed).toBe(true);
       });
     });
   });

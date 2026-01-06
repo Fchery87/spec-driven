@@ -10,8 +10,9 @@ import { ValidationResult } from '@/types/orchestrator';
 /**
  * Checks for forbidden AI-generated design patterns.
  * Returns errors when these patterns are detected.
+ * Exported for use in blocking validators.
  */
-function detectForbiddenPatterns(content: string): string[] {
+export function detectForbiddenPatterns(content: string): string[] {
   const errors: string[] = [];
 
   // Check for purple gradients (common AI slop pattern)

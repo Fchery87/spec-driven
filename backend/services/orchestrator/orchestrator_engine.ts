@@ -58,6 +58,8 @@ import {
 } from '../validation/anti_ai_slop_validator';
 import { CheckerPattern } from '../llm/checker_pattern';
 import { CheckerResult, CriticFeedback } from '../llm/checker_pattern';
+import { SuperpowersExecutor } from '../superpowers/skill_executor';
+import { SuperpowersIntegrationConfig } from '../superpowers/types';
 import { db } from '@/backend/lib/drizzle';
 import { regenerationRuns, artifactVersions } from '@/backend/lib/schema';
 import { eq } from 'drizzle-orm';
@@ -74,6 +76,7 @@ export class OrchestratorEngine {
   private rollbackService: Map<string, RollbackService>;
   private checkerPattern: CheckerPattern;
   private checkerEnabledPhases: Set<string>;
+  private superpowersExecutor: SuperpowersExecutor;
 
   constructor() {
     logger.info('[OrchestratorEngine] Constructor called');
@@ -245,6 +248,12 @@ export class OrchestratorEngine {
     logger.info('[OrchestratorEngine] CheckerPattern initialized', {
       checkerEnabledPhases: Array.from(this.checkerEnabledPhases),
     });
+    
+    // Initialize Superpowers Executor for skill invocation framework
+    this.superpowersExecutor = new SuperpowersExecutor();
+    logger.info('[OrchestratorEngine] SuperpowersExecutor initialized', {
+      availableSkills: this.superpowersExecutor.getAllSkills(),
+    });
   }
 
   /**
@@ -294,6 +303,124 @@ export class OrchestratorEngine {
       );
       return {};
     }
+  }
+
+  // ============================================================================
+  // SUPERPOWERS INTEGRATION
+  // ============================================================================
+
+  /**
+   * Check if a phase has Superpowers integration configured
+   */
+  private getSuperpowersIntegration(phase: string): SuperpowersIntegrationConfig | null {
+    const phaseSpec = this.spec.phases[phase];
+    if (!phaseSpec) return null;
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const integration = (phaseSpec as any).superpowers_integration;
+    if (!integration) return null;
+    
+    return integration as SuperpowersIntegrationConfig;
+  }
+
+  /**
+   * Map input values from context based on mapping configuration
+   */
+  private mapSkillInputs(
+    inputMapping: Record<string, string>,
+    context: Record<string, unknown>
+  ): Record<string, unknown> {
+    const mapped: Record<string, unknown> = {};
+    
+    for (const [targetField, sourcePath] of Object.entries(inputMapping)) {
+      // Handle variable substitution (e.g., $project_description)
+      if (sourcePath.startsWith('$')) {
+        const variableName = sourcePath.slice(1);
+        mapped[targetField] = context[variableName];
+      } else {
+        mapped[targetField] = context[sourcePath];
+      }
+    }
+    
+    return mapped;
+  }
+
+  /**
+   * Execute Superpowers skill for a phase if configured
+   * @returns The skill result and any output to merge into context
+   */
+  private async executeSuperpowersSkill(
+    phase: string,
+    context: Record<string, unknown>,
+    projectId: string,
+    projectName: string
+  ): Promise<{
+    executed: boolean;
+    result?: Record<string, unknown>;
+    error?: string;
+  }> {
+    const integration = this.getSuperpowersIntegration(phase);
+    
+    if (!integration) {
+      return { executed: false };
+    }
+
+    logger.info(`[Superpowers] Executing skill for phase: ${phase}`, {
+      skill: integration.skill,
+      trigger: integration.trigger,
+    });
+
+    try {
+      // Map inputs according to configuration
+      const mappedInputs = integration.input_mapping
+        ? this.mapSkillInputs(integration.input_mapping, context)
+        : context;
+
+      // Execute the skill
+      const result = await this.superpowersExecutor.executeSkill(
+        integration.skill,
+        phase,
+        mappedInputs,
+        projectId,
+        projectName
+      );
+
+      if (!result.success) {
+        logger.warn(`[Superpowers] Skill execution failed for phase: ${phase}`, {
+          errors: result.errors,
+        });
+        return {
+          executed: true,
+          error: `Skill execution failed: ${result.errors.join(', ')}`,
+        };
+      }
+
+      logger.info(`[Superpowers] Skill executed successfully for phase: ${phase}`, {
+        skill: integration.skill,
+        durationMs: result.durationMs,
+      });
+
+      return {
+        executed: true,
+        result: result.output,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error(`[Superpowers] Skill execution error for phase: ${phase}`, {
+        error: message,
+      });
+      return {
+        executed: true,
+        error: message,
+      };
+    }
+  }
+
+  /**
+   * Get available Superpowers skills for a given phase
+   */
+  getAvailableSuperpowersSkills(phase: string): string[] {
+    return this.superpowersExecutor.getAvailableSkills(phase);
   }
 
   /**
@@ -627,6 +754,51 @@ export class OrchestratorEngine {
       // Validate phase exists
       if (!spec.phases[currentPhaseName]) {
         throw new Error(`Unknown phase: ${currentPhaseName}`);
+      }
+
+      // ============================================================================
+      // SUPERPOWERS SKILL EXECUTION
+      // Execute skill before phase generation if configured
+      // ============================================================================
+      const superpowersContext: Record<string, unknown> = {
+        projectId,
+        projectName: project.name || 'Untitled Project',
+        project_description: project.description,
+        scale_tier: project.scale_tier,
+        constitution_summary: artifacts['ANALYSIS/constitution.md'] || '',
+        artifact_context: artifacts,
+        all_artifacts: artifacts,
+        all_phase_artifacts: artifacts,
+        quality_checklist: spec.phases[currentPhaseName]?.quality_checklist || [],
+        phase_name: currentPhaseName,
+        component_generation: 'Generate frontend components',
+        component_list: Object.keys(artifacts).filter(k => k.includes('component')),
+        validation_issue: 'Validation failed',
+        error_logs: '',
+        project_branch: `${project.slug}-${currentPhaseName.toLowerCase()}`,
+      };
+
+      // Check trigger type from spec configuration
+      const superpowersIntegration = this.getSuperpowersIntegration(currentPhaseName);
+      const shouldExecutePreGeneration = superpowersIntegration?.trigger === 'pre_generation';
+      
+      if (shouldExecutePreGeneration) {
+        logger.info(`[Superpowers] Pre-generation skill execution for phase: ${currentPhaseName}`);
+        const skillResult = await this.executeSuperpowersSkill(
+          currentPhaseName,
+          superpowersContext,
+          projectId,
+          project.name || 'Untitled Project'
+        );
+        
+        if (skillResult.executed && skillResult.error) {
+          logger.warn(`[Superpowers] Pre-generation skill warning: ${skillResult.error}`);
+          // Continue with normal execution - skill warnings are non-blocking
+        } else if (skillResult.executed && skillResult.result) {
+          logger.info(`[Superpowers] Pre-generation skill completed`, {
+            skillOutputKeys: Object.keys(skillResult.result),
+          });
+        }
       }
 
       // Handle AUTO_REMEDY phase specially (Phase 1 Integration)

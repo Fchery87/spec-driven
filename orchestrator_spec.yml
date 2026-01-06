@@ -206,6 +206,19 @@ phases:
       - 'project-brief.md has TAM/SAM/SOM analysis'
       - 'Competitive analysis identifies real or realistic competitors'
 
+    # Superpowers Integration (Skill Invocation Framework)
+    superpowers_integration:
+      skill: "brainstorming"
+      trigger: "pre_generation"
+      input_mapping:
+        topic: "$project_description"
+        constraints: "$scale_tier"
+        additionalContext: "$constitution_summary"
+      output_mapping:
+        refined_requirements: "ideas"
+        recommendations: "recommendations"
+        ranked_options: "rankedOptions"
+
   STACK_SELECTION:
     name: 'STACK_SELECTION'
     description: 'AI-driven stack recommendation with scored alternatives; user approves, modifies, or customizes'
@@ -423,6 +436,18 @@ phases:
       - 'Accessibility attributes properly implemented (ARIA, keyboard nav)'
       - 'Each component generated in isolated LLM session (no context pollution)'
 
+    # Superpowers Integration (Skill Invocation Framework)
+    superpowers_integration:
+      skill: "subagent_driven_development"
+      trigger: "pre_generation"
+      input_mapping:
+        task: "$component_generation"
+        subtasks: "$component_list"
+      output_mapping:
+        dispatch_plan: "dispatchPlan"
+        execution_order: "executionOrder"
+        parallel_groups: "parallelGroups"
+
   DEPENDENCIES:
     name: 'DEPENDENCIES'
     description: 'Auto-generate project dependencies from approved stack'
@@ -479,6 +504,18 @@ phases:
       - 'Article 3 (Simplicity): <= 3 services for MVP or justified'
       - 'Article 5 (Integration-First): Test config specifies real services'
 
+    # Superpowers Integration (Skill Invocation Framework)
+    superpowers_integration:
+      skill: "writing_plans"
+      trigger: "pre_generation"
+      input_mapping:
+        phaseType: "$phase_name"
+        requirements: "$artifact_context"
+      output_mapping:
+        plan_content: "plan"
+        tasks: "tasks"
+        milestones: "milestones"
+
   VALIDATE:
     name: 'VALIDATE'
     description: 'Cross-artifact consistency and coverage analysis'
@@ -527,6 +564,18 @@ phases:
         source: 'architecture.md'
         target: 'stack-decision.md'
 
+    # Superpowers Integration (Skill Invocation Framework)
+    superpowers_integration:
+      skill: "verification_before_completion"
+      trigger: "post_generation"
+      input_mapping:
+        artifacts: "$all_phase_artifacts"
+        checklist: "$quality_checklist"
+      output_mapping:
+        status: "status"
+        checks: "checks"
+        can_proceed: "canProceed"
+
   AUTO_REMEDY:
     name: 'AUTO_REMEDY'
     description: 'Automated remediation of validation failures through targeted agent re-runs'
@@ -549,6 +598,18 @@ phases:
       - 'Agent re-run instructions generated'
       - 'ValidationRun and AutoRemedyRun records created'
 
+    # Superpowers Integration (Skill Invocation Framework)
+    superpowers_integration:
+      skill: "systematic_debugging"
+      trigger: "on_demand"
+      input_mapping:
+        issue: "$validation_issue"
+        errorLogs: "$error_logs"
+      output_mapping:
+        root_cause: "rootCause"
+        recommendations: "recommendations"
+        resolution_steps: "resolutionSteps"
+
   DONE:
     name: 'DONE'
     description: 'Generate handoff and ZIP package'
@@ -568,6 +629,19 @@ phases:
       - 'Security baseline checklist included'
       - 'Validation report shows all checks passed'
       - 'No unresolved issues from VALIDATE phase'
+
+    # Superpowers Integration (Skill Invocation Framework)
+    superpowers_integration:
+      skill: "finishing_a_development_branch"
+      trigger: "on_demand"
+      input_mapping:
+        branchName: "$project_branch"
+        artifacts: "$all_artifacts"
+      output_mapping:
+        status: "status"
+        checklist: "checklist"
+        actions: "actions"
+        can_merge: "canMerge"
 
 # Technology Stack Configuration
 # Mode: hybrid - Architect proposes based on requirements, user can accept, modify, or go custom
@@ -1303,6 +1377,43 @@ agents:
       Generate three comprehensive analysis documents plus a classification summary that will guide all subsequent development phases.
       These documents must be detailed enough to serve as the foundation for PRD creation and architecture decisions.
 
+      # =============================================================================
+      # CHAIN-OF-THOUGHT REASONING (REQUIRED)
+      # =============================================================================
+      Before generating any artifacts, you MUST think through your analysis step-by-step.
+      Document your reasoning in a <reasoning> block below. This reasoning will be validated
+      and stored alongside your artifacts.
+
+      <reasoning>
+      ## 1. User Need Analysis
+      - What is the core problem users are trying to solve?
+      - Who are the primary user personas affected by this project?
+      - What are the critical user workflows and journeys?
+      - What evidence or data supports these needs?
+
+      ## 2. Project Classification Reasoning
+      - Based on the project description, why did you classify this as [project_type]?
+      - What factors determined the [scale_tier] selection?
+      - How will the scale tier affect downstream architecture decisions?
+      - What backend complexity level is appropriate and why?
+
+      ## 3. Assumptions & Risks Identified
+      - What key assumptions did you make in your analysis?
+      - What risks might affect the project's success?
+      - How do these assumptions impact the recommended architecture?
+
+      ## 4. Persona Design Rationale
+      - Why were these specific personas selected?
+      - How do personas differ from each other in their needs and workflows?
+      - What are the key differentiating factors between personas?
+      - Which personas are MVP-critical vs. nice-to-have?
+
+      ## 5. Competitive Differentiation
+      - What makes this project different from existing competitors?
+      - What unique value proposition does it offer?
+      - What market gaps is it addressing?
+      </reasoning>
+
       # PROJECT DESCRIPTION
       {{projectIdea}}
 
@@ -1416,6 +1527,62 @@ agents:
       # OUTPUT FORMAT
       Generate each file in a SEPARATE code block with this EXACT format:
 
+      ## OUTPUT FORMAT EXAMPLES
+
+      ### Example 1: project-classification.json
+      ```json
+      {
+        "project_type": "saas_application",
+        "scale_tier": "startup",
+        "platform_targets": ["web"],
+        "backend_complexity": "moderate_business_logic"
+      }
+      ```
+
+      ### Example 2: personas.md
+      ```markdown
+      # User Personas
+
+      ## Alex - The Indie Full-Stack Developer
+      - **Goals**: Build and ship side projects quickly, minimize maintenance overhead, focus on code quality
+      - **Pain Points**: Spending too much time on boilerplate, getting stuck on infrastructure decisions, wrestling with authentication
+      - **Tech Proficiency**: Advanced - 10 years experience, uses Next.js, TypeScript, and PostgreSQL daily
+
+      ## Maya - The DevRel Team Lead
+      - **Goals**: Create compelling content, engage with developer community, measure campaign effectiveness
+      - **Pain Points**: Manual data collection from multiple platforms, inconsistent metrics across tools, time-consuming reporting
+      - **Tech Proficiency**: Intermediate - comfortable with APIs and can write scripts, prefers no-code tools when possible
+      ```
+
+      ### Example 3: constitution.md
+      ```markdown
+      # Project Constitution
+
+      ## Mission Statement
+      Build a developer tool that reduces time-to-first-commit from hours to minutes for indie hackers.
+
+      ## Core Values
+      1. **Developer Experience First** - Every feature must pass the "would I use this daily?" test
+      2. **Opinionated Defaults** - Choose the best tool for the job; don't make users decide
+      3. **Zero Maintenance** - Architecture must be simple enough that a single developer can maintain it
+      ```
+
+      ### Example 4: project-brief.md
+      ```markdown
+      # Project Brief
+
+      ## Executive Summary
+      A SaaS platform that generates production-ready project scaffolds for indie developers, reducing setup time from 4+ hours to under 15 minutes.
+
+      ## Problem Statement
+      Indie developers waste an average of 4.2 hours setting up project infrastructure before writing their first line of business logic.
+
+      ## Success Metrics
+      - Generate 1,000 projects in the first month
+      - Achieve 80% user completion rate for project setup
+      - Collect NPS score of 50+ from generated projects
+      ```
+
       ```
       filename: constitution.md
       ---
@@ -1501,6 +1668,34 @@ agents:
 
       Personas:
       {{personas}}
+
+      # =============================================================================
+      # CHAIN-OF-THOUGHT REASONING (REQUIRED)
+      # =============================================================================
+      Before writing requirements, you MUST analyze and document your prioritization reasoning.
+      Output your reasoning in a <reasoning> block before generating the PRD.
+
+      <reasoning>
+      ## 1. Feature Prioritization Rationale
+      - Why were certain features prioritized for MVP vs. Phase 2/3?
+      - What dependencies exist between features that affected ordering?
+      - How did you balance user needs vs. technical complexity?
+
+      ## 2. Requirement Scope Analysis
+      - How did you determine the boundary of the MVP?
+      - What features were intentionally excluded and why?
+      - What is the minimum viable set of features to deliver value?
+
+      ## 3. User Need Mapping
+      - How do requirements map back to user pain points from personas.md?
+      - Which persona needs does each requirement address?
+      - Are there any gaps between persona needs and requirements?
+
+      ## 4. Technical Feasibility Assessment
+      - Are there any requirements that may be technically challenging?
+      - What assumptions did you make about implementation complexity?
+      - Are there any requirements that need further technical clarification?
+      </reasoning>
 
       # MANDATORY SECTIONS
 
@@ -1651,6 +1846,53 @@ agents:
       - If the product uses JWTs: include max expiry + rotation/refresh strategy
       - Always include: HTTPS-only, input validation, and audit logging rules (no PII in logs)
 
+      ## OUTPUT FORMAT EXAMPLES
+
+      ### Example 1: Functional Requirement Format
+      ```markdown
+      ### REQ-AUTH-001: User Registration
+      - **Priority**: MVP
+      - **Persona(s)**: Alex - The Indie Full-Stack Developer
+      - **Description**: The system SHALL allow users to create accounts with email and password
+      - **Acceptance Criteria** (Gherkin format):
+        - GIVEN a user is on the registration page WHEN they submit valid credentials THEN an account is created
+        - GIVEN a user submits an existing email WHEN registering THEN an error message is displayed
+      - **Dependencies**: None
+      - **Notes**: Password must be at least 8 characters with mixed case and numbers
+      ```
+
+      ### Example 2: Non-Functional Requirement Format
+      ```markdown
+      ### NFR-PERF-001: API Response Time
+      - **Requirement**: API endpoints SHALL respond within 500ms for 95% of requests
+      - **Measurement**: Monitored via APM tool, excluding cold starts
+      - **Target**: p95 response time < 500ms
+      ```
+
+      ### Example 3: Traceability Matrix Format
+      ```markdown
+      ## 8. Traceability Matrix
+      | Requirement ID | Epic | User Story | Persona | Priority | Dependencies |
+      |----------------|------|------------|---------|----------|--------------|
+      | REQ-AUTH-001   | EPIC-001 | US-001-001 | Alex | MVP | None |
+      | REQ-AUTH-002   | EPIC-001 | US-001-002 | Maya | MVP | REQ-AUTH-001 |
+      ```
+
+      ## OUTPUT FORMAT
+      ```
+      filename: PRD.md
+      ---
+      title: Product Requirements Document
+      owner: pm
+      version: 1.0
+      date: {{currentDate}}
+      status: draft
+      project: {{projectName}}
+      ---
+
+      [Complete PRD content following ALL sections above]
+      ```
+
       Generate the complete PRD now with comprehensive coverage.
 
   architect:
@@ -1687,6 +1929,37 @@ agents:
       Analyze project requirements and recommend the optimal stack with scored alternatives.
 
       **CRITICAL: Use intelligent defaults ONLY if inputs are incomplete.**
+
+      # =============================================================================
+      # CHAIN-OF-THOUGHT REASONING (REQUIRED)
+      # =============================================================================
+      Before recommending a stack, you MUST analyze and document your reasoning.
+      Output your reasoning in a <reasoning> block before generating any artifacts.
+
+      <reasoning>
+      ## 1. Requirements Analysis
+      - What are the key technical constraints from the project brief and constitution?
+      - What are the performance requirements (users, data volume, traffic)?
+      - What is the expected scale tier (prototype/startup/growth/enterprise)?
+      - What platforms must be supported (web, mobile, desktop)?
+
+      ## 2. Technology Evaluation
+      - Why did you select the primary recommendation over alternatives?
+      - What specific factors made alternative stacks less suitable?
+      - How does the chosen stack align with team expertise and preferences?
+      - What trade-offs were made in the selection?
+
+      ## 3. Risk Assessment
+      - What are the technical risks of this stack choice?
+      - What are the operational/maintenance risks?
+      - What is the mitigation strategy for identified risks?
+      - What are the exit costs if the stack needs to change later?
+
+      ## 4. Scoring Rationale
+      - How did you score each criteria (platform, scale, expertise, complexity, integrations)?
+      - What was the weighted importance of each criteria?
+      - Why did the chosen stack score higher than alternatives?
+      </reasoning>
 
       #### INPUT ANALYSIS
       Review these documents for stack-relevant signals:
@@ -2034,6 +2307,39 @@ agents:
       ### FOR PHASE: solutioning
       Generate architecture.md with comprehensive system design.
 
+      # =============================================================================
+      # CHAIN-OF-THOUGHT REASONING (REQUIRED)
+      # =============================================================================
+      Before designing the architecture, you MUST analyze and document your architectural decisions.
+      Output your reasoning in a <reasoning> block before generating architecture.md.
+
+      <reasoning>
+      ## 1. Architectural Design Rationale
+      - What are the key architectural patterns being used and why?
+      - How does the architecture support the approved stack selection?
+      - What trade-offs were made between simplicity and extensibility?
+
+      ## 2. Component Design Decisions
+      - How did you decide on the component boundaries?
+      - What is the rationale for the data flow between components?
+      - How do components map to PRD requirements?
+
+      ## 3. Security Architecture Justification
+      - How does the architecture address OWASP Top 10 risks?
+      - What authentication and authorization patterns are being used?
+      - How is sensitive data protected at rest and in transit?
+
+      ## 4. Scalability & Performance Considerations
+      - How does the architecture handle expected scale (users, traffic, data)?
+      - What caching strategies are recommended and why?
+      - What are the horizontal/vertical scaling approaches?
+
+      ## 5. Technology Selection Justification
+      - Why were specific libraries/frameworks chosen for each layer?
+      - How do these choices align with team expertise?
+      - What are the maintenance and evolution considerations?
+      </reasoning>
+
       #### ARCHITECTURE.MD STRUCTURE
 
       **1. System Overview**
@@ -2126,6 +2432,117 @@ agents:
       - More than 4 font sizes
       - Pill-shaped buttons (rounded-full) as default
       - Default Tailwind color names as primary colors
+
+      ## OUTPUT FORMAT EXAMPLES
+
+      ### Example 1: data-model.md Entity Format
+      ```markdown
+      filename: data-model.md
+      ---
+      title: Data Model
+      owner: architect
+      version: 1.0
+      date: 2026-01-06
+      status: draft
+      ---
+
+      # Data Model
+
+      ## Entity-Relationship Diagram
+      ```mermaid
+      erDiagram
+          USER ||--o{ PROJECT : owns
+          PROJECT ||--o{ TASK : contains
+          USER ||--o{ TASK : assigned
+      ```
+
+      ## User Table
+      | Column | Type | Constraints | Default | Description |
+      |--------|------|-------------|---------|-------------|
+      | id | UUID | PK, NOT NULL | gen_random_uuid() | Unique identifier |
+      | email | VARCHAR(255) | UNIQUE, NOT NULL | - | User email address |
+      | password_hash | VARCHAR(255) | NOT NULL | - | bcrypt hashed password |
+
+      ## Indexes
+      - `CREATE INDEX idx_user_email ON users(email) -- Fast email lookup`
+      ```
+
+      ### Example 2: api-spec.json OpenAPI Format
+      ```json
+      filename: api-spec.json
+      {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "Project API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/auth/register": {
+            "post": {
+              "tags": ["auth"],
+              "summary": "Register new user",
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/RegisterRequest"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "201": { "description": "User created" },
+                "400": { "$ref": "#/components/responses/BadRequest" }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {
+            "RegisterRequest": {
+              "type": "object",
+              "required": ["email", "password"],
+              "properties": {
+                "email": { "type": "string", "format": "email" },
+                "password": { "type": "string", "minLength": 8 }
+              }
+            }
+          },
+          "responses": {
+            "BadRequest": { "description": "Invalid input" }
+          }
+        }
+      }
+      ```
+
+      ### Example 3: architecture.md System Overview
+      ```markdown
+      filename: architecture.md
+      ---
+      title: System Architecture
+      owner: architect
+      version: 1.0
+      date: 2026-01-06
+      status: draft
+      ---
+
+      # System Architecture
+
+      ## System Overview
+      ```mermaid
+      graph TB
+          Client[Web Client] --> API[Next.js API]
+          API --> DB[(PostgreSQL)]
+          API --> Auth[Auth Service]
+      ```
+
+      ## Technology Stack
+      | Layer | Technology | Version |
+      |-------|------------|---------|
+      | Frontend | Next.js | 14.x |
+      | Database | PostgreSQL | 15.x |
+      ```
 
       # OUTPUT FORMAT
 
@@ -2469,6 +2886,85 @@ agents:
       - API integration tasks
       - UI component tasks
       - Testing tasks
+
+      ## OUTPUT FORMAT EXAMPLES
+
+      ### Example 1: plan.md Timeline Section
+      ```markdown
+      filename: plan.md
+      ---
+      title: Execution Plan
+      owner: scrummaster
+      version: 1.0
+      date: 2026-01-06
+      status: draft
+      ---
+
+      # Execution Plan
+
+      ## Project Timeline
+      | Phase | Duration | Key Deliverables | Dependencies |
+      |-------|----------|------------------|--------------|
+      | Setup | Week 1 | Dev environment, CI/CD | None |
+      | Sprint 1 | Week 2-3 | Auth, Core Models | Setup |
+      ```
+
+      ### Example 2: epics.md Format
+      ```markdown
+      filename: epics.md
+      ---
+      title: Project Epics
+      owner: scrummaster
+      version: 1.0
+      date: 2026-01-06
+      status: draft
+      ---
+
+      # Project Epics
+
+      ## EPIC-001: User Authentication
+      - **Description**: Implement user registration and login flows
+      - **Requirements**: REQ-AUTH-001, REQ-AUTH-002, REQ-AUTH-003
+      - **Priority**: MVP
+      - **Estimated Effort**: M (2-3 sprints)
+      - **Story Points**: 8
+      ```
+
+      ### Example 3: tasks.md Task Format
+      ```markdown
+      filename: tasks.md
+      ---
+      title: Task Breakdown
+      owner: scrummaster
+      version: 1.0
+      date: 2026-01-06
+      status: draft
+      ---
+
+      ## TASK-AUTH-001: Implement User Registration API
+
+      | Field | Value |
+      |-------|-------|
+      | **Epic** | EPIC-001 |
+      | **Requirements** | REQ-AUTH-001 |
+      | **Priority** | MVP |
+      | **Complexity** | Medium (4-6h) |
+      | **Story Points** | 3 |
+      | **Depends On** | None |
+      | **Parallel** | No |
+
+      **User Story**: As a new user, I want to register with email/password so I can create an account
+
+      **Acceptance Criteria**:
+      - [ ] GIVEN user on registration page WHEN submits valid data THEN account created
+      - [ ] GIVEN existing email WHEN registering THEN error shown
+
+      **Test Specifications**:
+      | Test Type | Test Name |
+      |-----------|-----------|
+      | Contract | auth.contract.test.ts |
+      | Integration | auth.integration.test.ts |
+      ```
 
       # OUTPUT FORMAT
 
@@ -2912,6 +3408,91 @@ agents:
       - ruff>=0.1.0 - Linting
       - black>=23.0.0 - Formatting
       - mypy>=1.8.0 - Type checking
+
+      ## OUTPUT FORMAT EXAMPLES
+
+      ### Example 1: DEPENDENCIES.md Dependency Entry Format
+      ```markdown
+      # Project Dependencies
+
+      ## Executive Summary
+      | Metric | Value |
+      |--------|-------|
+      | **Total Packages** | 42 |
+      | **Production** | 28 |
+      | **Development** | 14 |
+      | **Security Status** | 🟢 GREEN |
+      | **License Compliance** | ✅ All compatible |
+
+      ## Production Dependencies
+
+      ### Core Framework
+      #### next@14.1.0
+      | Attribute | Value |
+      |-----------|-------|
+      | **Category** | Production |
+      | **Purpose** | React framework with App Router |
+      | **PRD Requirement** | REQ-FRONT-001 |
+      | **License** | MIT |
+      | **Security Status** | ✅ No known vulnerabilities |
+      | **Maintenance** | Active (last release: 2024-12-01) |
+      | **Bundle Impact** | 70 KB (gzipped) |
+      | **Alternatives** | Remix (more learning curve), Gatsby (static focus) |
+
+      ### Authentication
+      #### bcryptjs@2.4.3
+      | Attribute | Value |
+      |-----------|-------|
+      | **Category** | Production |
+      | **Purpose** | Password hashing for auth |
+      | **PRD Requirement** | REQ-AUTH-003 |
+      | **License** | BSD-3-Clause |
+      | **Security Status** | ✅ No known vulnerabilities |
+      | **Maintenance** | Active (last release: 2024-06-15) |
+      | **Bundle Impact** | 2 KB (gzipped) |
+      ```
+
+      ### Example 2: dependencies.json Format
+      ```json
+      filename: dependencies.json
+      {
+        "package_manager": "pnpm",
+        "lockfile": "pnpm-lock.yaml",
+        "baseline": {
+          "dependencies": [
+            {
+              "name": "next",
+              "range": "^14.1.0",
+              "reason": "React framework with App Router for full-stack React",
+              "links": ["REQ-FRONT-001"],
+              "category": "core"
+            },
+            {
+              "name": "react",
+              "range": "^18.2.0",
+              "reason": "UI library",
+              "links": ["REQ-FRONT-001"],
+              "category": "core"
+            }
+          ],
+          "devDependencies": [
+            {
+              "name": "vitest",
+              "range": "^1.2.0",
+              "reason": "Unit testing framework",
+              "links": ["NFR-TEST-001"],
+              "category": "testing"
+            }
+          ]
+        },
+        "commands": {
+          "pnpm": {
+            "install": "pnpm install",
+            "ci": "pnpm install --frozen-lockfile"
+          }
+        }
+      }
+      ```
 
       # OUTPUT 1: DEPENDENCIES.md
 
@@ -3591,6 +4172,97 @@ frontend_ui_standards:
       - **Empty States**: How does the UI look with no data?
       - **Success States**: What does success look like?
 
+      ## OUTPUT FORMAT EXAMPLES
+
+      ### Example 1: design-tokens.md Color Palette Format
+      ```markdown
+      filename: design-tokens.md
+      ---
+      title: Design Tokens
+      owner: designer
+      version: 1.0
+      date: 2026-01-06
+      status: draft
+      aesthetic_direction: Brutally Minimal
+      ---
+
+      # Design Tokens for Project Scaffold
+
+      ## Aesthetic Direction: Brutally Minimal
+      Rationale: Maximum restraint allows content to shine; perfect for developer tools where clarity is paramount.
+
+      ## Color Palette (OKLCH)
+      ### Light Mode
+      | Role | OKLCH Value | Tailwind Var | Use Case |
+      |------|-------------|--------------|----------|
+      | Neutral (60%) | oklch(0.99 0.005 250) | --background | Page backgrounds |
+      | Complementary (30%) | oklch(0.13 0.02 240) | --foreground | Primary text |
+      | Accent (10%) | oklch(0.55 0.18 200) | --primary | CTAs, links |
+
+      ### Dark Mode
+      | Role | OKLCH Value | Tailwind Var | Use Case |
+      |------|-------------|--------------|----------|
+      | Neutral (60%) | oklch(0.10 0.01 240) | --background | Page backgrounds |
+      ```
+
+      ### Example 2: component-mapping.md Component Entry
+      ```markdown
+      filename: component-mapping.md
+      ---
+      title: Component Mapping
+      owner: designer
+      version: 1.0
+      date: 2026-01-06
+      status: draft
+      aesthetic_direction: Brutally Minimal
+      ---
+
+      # Component Mapping for Project Scaffold
+
+      ## Components
+
+      ### COMP-001: Primary Button
+      - **PRD Requirement**: REQ-UI-001
+      - **Persona**: Alex - The Indie Full-Stack Developer
+      - **Description**: Main call-to-action button for form submissions
+      - **States**:
+        - [x] Normal: Solid primary color, sharp corners
+        - [x] Loading: Spinner icon, reduced opacity
+        - [x] Error: Red border, error icon
+        - [x] Empty: Dashed border, "No data" text
+      - **Interactions**: Hover (darker), Focus (ring), Active (press), Disabled (grayed)
+      - **Responsive**: Full width on mobile, auto on desktop
+      - **Aesthetic Notes**: Sharp edges reinforce brutalist minimal aesthetic
+      ```
+
+      ### Example 3: journey-maps.md Journey Flow
+      ```markdown
+      filename: journey-maps.md
+      ---
+      title: User Journey Maps
+      owner: designer
+      version: 1.0
+      date: 2026-01-06
+      status: draft
+      aesthetic_direction: Brutally Minimal
+      ---
+
+      # User Journey Maps for Project Scaffold
+
+      ## Journey 1: Project Creation Flow
+      - **Persona**: Alex - The Indie Full-Stack Developer
+      - **PRD Requirements**: REQ-PROJ-001, REQ-PROJ-002
+      - **Steps**:
+        1. Landing → User sees minimal hero with "Start Project" button
+        2. Template Selection → Grid of template cards (COMP-002)
+        3. Configuration → Form inputs (COMP-003) for project settings
+        4. Review → Summary view with "Generate" button (COMP-001)
+        5. Completion → Download ready indicator
+      - **Error States**: Invalid config shows inline error messages
+      - **Empty States**: Placeholder templates shown when no selection
+      - **Component References**: COMP-001, COMP-002, COMP-003
+      ```
+
       # OUTPUT FORMAT
 
       ## FOR SPEC_DESIGN_TOKENS (Single file)
@@ -3759,6 +4431,114 @@ frontend_ui_standards:
       Component Specification:
       {{componentSpec}}
       
+      ## OUTPUT FORMAT EXAMPLES
+
+      ### Example 1: Button.tsx Component
+      ```typescript filename: components/ui/button.tsx
+      // Generated by frontend-developer skill
+      // Persona: Alex - The Indie Full-Stack Developer
+      // PRD Requirements: REQ-UI-001
+
+      'use client';
+
+      import * as React from 'react';
+      import { cva, type VariantProps } from 'class-variance-authority';
+      import { motion } from 'framer-motion';
+      import { cn } from '@/lib/utils';
+      import { motionConfig } from '@/lib/motion';
+
+      const buttonVariants = cva(
+        'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
+        {
+          variants: {
+            variant: {
+              default: 'bg-primary text-primary-foreground shadow hover:bg-primary/90',
+              destructive: 'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90',
+              outline: 'border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground',
+              secondary: 'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80',
+              ghost: 'hover:bg-accent hover:text-accent-foreground',
+              link: 'text-primary underline-offset-4 hover:underline',
+            },
+            size: {
+              default: 'h-9 px-4 py-2',
+              sm: 'h-8 rounded-md px-3 text-xs',
+              lg: 'h-10 rounded-md px-8',
+              icon: 'h-9 w-9',
+            },
+          },
+          defaultVariants: {
+            variant: 'default',
+            size: 'default',
+          },
+        }
+      );
+
+      export interface ButtonProps
+        extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+          VariantProps<typeof buttonVariants> {
+        asChild?: boolean;
+      }
+
+      function Button({
+        className,
+        variant,
+        size,
+        ...props
+      }: ButtonProps) {
+        return (
+          <motion.button
+            className={cn(buttonVariants({ variant, size, className }))}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            transition={motionConfig.spring.gentle}
+            {...props}
+          />
+        );
+      }
+
+      export { Button, buttonVariants };
+      ```
+
+      ### Example 2: Card.tsx Component
+      ```typescript filename: components/ui/card.tsx
+      // Generated by frontend-developer skill
+      // Persona: Maya - The DevRel Team Lead
+      // PRD Requirements: REQ-UI-002
+
+      'use client';
+
+      import * as React from 'react';
+      import { motion } from 'framer-motion';
+      import { cn } from '@/lib/utils';
+
+      function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+        return (
+          <motion.div
+            className={cn(
+              'rounded-xl border bg-card text-card-foreground shadow',
+              className
+            )}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            {...props}
+          />
+        );
+      }
+
+      function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+        return (
+          <div className={cn('flex flex-col space-y-1.5 p-6', className)} {...props} />
+        );
+      }
+
+      function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+        return <div className={cn('p-6 pt-0', className)} {...props} />;
+      }
+
+      export { Card, CardHeader, CardContent };
+      ```
+
       # OUTPUT FORMAT
       Generate component file in this EXACT format:
       
@@ -3937,6 +4717,62 @@ llm_config:
       minTokens: 10000 # Minimum 10K tokens
       # Legacy fallback:
       max_tokens: 38400
+
+  # Streaming validation configuration
+  # Monitors LLM output in real-time and can abort on violations
+  streaming_validation:
+    enabled: true
+    abort_on_violations: true
+    check_interval_ms: 100
+    # Phases where streaming validation is enabled
+    enabled_phases:
+      - 'SPEC_DESIGN_COMPONENTS'
+      - 'FRONTEND_BUILD'
+      - 'SOLUTIONING'
+    # Phase-specific overrides
+    phase_overrides:
+      SPEC_DESIGN_COMPONENTS:
+        abort_on_violations: true
+        check_interval_ms: 100
+      FRONTEND_BUILD:
+        abort_on_violations: true
+        check_interval_ms: 50
+      SOLUTIONING:
+        abort_on_violations: false
+        check_interval_ms: 200
+    # Validation patterns (regex strings)
+    patterns:
+      placeholder:
+        - "/\\/\\/\\s*TODO[:\\s]/i"
+        - "/\\/\\*\\s*TODO[:\\s]/i"
+        - "/placeholder/i"
+        - "/lorem ipsum/i"
+        - "/\\[?TO BE IMPLEMENTED\\]?/i"
+        - "/\\[?WIP\\]?/i"
+        - "/\\[?XXX\\]?/i"
+        - "/TBD/i"
+        - "/FIXME/i"
+        - "/REVIEW:/i"
+      slop:
+        - "/purple.*gradient/i"
+        - "/indigo.*gradient/i"
+        - "/blob.*background/i"
+        - "/inter font/i"
+        - "/beautiful.*gradient/i"
+        - "/stunning.*design/i"
+        - "/eye-catching/i"
+        - "/modern.*look/i"
+        - "/sleek.*design/i"
+        - "/visually.*appealing/i"
+        - "/captivating/i"
+        - "/breathtaking/i"
+        - "/exquisite/i"
+        - "/radiant/i"
+        - "/ethereal/i"
+      format:
+        - "/undefined/i"
+        - "/null\\s*[,\\n]/"
+        - "/\\[object Object\\]/"
 
   # Rate limiting and cost management
   rate_limit:

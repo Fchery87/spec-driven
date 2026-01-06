@@ -8,6 +8,7 @@ import {
   buildArtifactCacheForProject,
   ORCHESTRATOR_PHASES,
 } from './artifact_access';
+import { detectForbiddenPatterns } from '@/backend/services/validation/anti_ai_slop_validator';
 
 export class Validators {
   private validators: Record<string, Validator>;
@@ -1436,25 +1437,26 @@ export class Validators {
     const dependencies: Record<string, string[]> = {};
 
     // Match task entries with IDs and dependencies
-    // Expected format: # T-001: Task Name\nDependencies: T-002, T-003
-    const taskRegex = /#{1,3}\s+([T\w-]+):\s+(.+?)(?=#{1,3}\s+[T\w-]+:|$)/gs;
+    // Expected format: ## TASK-001: Task Name\nDepends on: T-002, T-003
+    // Use [\s\S]*? to match across lines until next task header or end
+    const taskRegex = /#{1,3}\s+([T\w-]+):\s*([\s\S]*?)(?=#{1,3}\s+[T\w-]+:|$)/g;
     let match;
 
     while ((match = taskRegex.exec(tasksContent)) !== null) {
       const taskId = match[1].trim();
-      const taskBlock = match[2];
+      const taskBlock = match[2].trim();
 
-      // Find dependencies section
-      const depsRegex = /(?:depends\s+on|dependencies?):\s*(.+?)(?:\n\n|$)/i;
+      // Find dependencies section - handle various formats
+      const depsRegex = /(?:depends\s+on|dependencies?)[:\s]+([^\n]+)/i;
       const depsMatch = depsRegex.exec(taskBlock);
 
       if (depsMatch) {
         const depsText = depsMatch[1];
         // Extract task IDs from comma/space-separated list
         const depIds = depsText
-          .split(/[,\s]+/)
+          .split(/[,;\s]+/)
           .map((id) => id.trim())
-          .filter((id) => id.match(/^[T\w-]+$/));
+          .filter((id) => id.match(/^[T\w-]+$/i));
 
         dependencies[taskId] = depIds;
       } else {
@@ -2275,6 +2277,582 @@ export class Validators {
     return phaseFiles[phase] || [];
   }
 
+  // ============================================================================
+  // QUALITY CHECKLIST VALIDATORS (Phases 1, 3, 6, 9)
+  // These validators enforce blocking quality checks as defined in orchestrator_spec.yml
+  // ============================================================================
+
+  /**
+   * PHASE 1 (ANALYSIS) - validateAnalysisQuality
+   * Validates the ANALYSIS phase quality checklist:
+   * - 3-5 distinct personas exist in user-personas.md
+   * - 5+ guiding principles in guiding-principles.md
+   * - All 4 required files exist
+   * - Personas are specific (not generic like "developer", "user")
+   */
+  public validateAnalysisQuality(
+    artifacts: Record<string, string>
+  ): { canProceed: boolean; issues: Array<{ severity: string; category: string; message: string }> } {
+    const issues: Array<{ severity: string; category: string; message: string }> = [];
+
+    // Check 1: File presence
+    const requiredFiles = [
+      'project-classification.json',
+      'guiding-principles.md',
+      'user-personas.md',
+      'user-journeys.md',
+    ];
+
+    for (const file of requiredFiles) {
+      if (!artifacts[file] || artifacts[file].length === 0) {
+        issues.push({
+          severity: 'error',
+          category: 'missing_file',
+          message: `Required file missing or empty: ${file}`,
+        });
+      }
+    }
+
+    // Check 2: Persona count (3-5 distinct personas)
+    const personasContent = artifacts['user-personas.md'] || '';
+    if (personasContent) {
+      // Extract persona names from markdown headers
+      const personaMatches = personasContent.match(/^##?\s+(?:Persona\s*:?\s*)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gm) || [];
+      // Also try YAML frontmatter if present
+      const frontmatterPersonas = personasContent.match(/^-?\s*name:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gim) || [];
+      
+      const totalPersonas = new Set([...personaMatches.map(p => p.replace(/^##?\s+(?:Persona\s*:?\s*)?/i, '')), ...frontmatterPersonas.map(p => p.replace(/^-?\s*name:\s*/i, ''))]);
+      
+      if (totalPersonas.size < 3) {
+        issues.push({
+          severity: 'error',
+          category: 'persona_count',
+          message: `Only ${totalPersonas.size} personas found. Minimum: 3`,
+        });
+      } else if (totalPersonas.size > 5) {
+        issues.push({
+          severity: 'warning',
+          category: 'persona_count',
+          message: `${totalPersonas.size} personas found. Consider consolidating (max 5 recommended)`,
+        });
+      }
+    }
+
+    // Check 3: Persona specificity (not generic)
+    const genericPersonas = ['developer', 'user', 'admin', 'customer', 'visitor', 'guest', 'member'];
+    const personaContent = artifacts['user-personas.md'] || '';
+    for (const generic of genericPersonas) {
+      // Check if a persona is named exactly "User", "Developer", etc. without specific modifiers
+      const genericHeaderRegex = new RegExp(`^##?\\s+${generic}$`, 'im');
+      if (genericHeaderRegex.test(personaContent)) {
+        issues.push({
+          severity: 'warning',
+          category: 'persona_specificity',
+          message: `Generic persona found: "${generic}". Consider using a more specific name like "Senior Developer" or "Power User"`,
+        });
+      }
+    }
+
+    // Check 4: Guiding principles count (5+)
+    const principlesContent = artifacts['guiding-principles.md'] || '';
+    if (principlesContent) {
+      // Count principles by looking for numbered lists, bullet points with headers, or section headers
+      const principlePatterns = [
+        /\d+\.\s+\*\*[^*]+\*\*/g,  // 1. **Principle Name**
+        /##?\s+[Pp]rinciple/g,     // ## Principle or # Principle
+        /^\s*[-*]\s+\*\*[^*]+\*\*/gm, // - **Principle**
+      ];
+      
+      let totalPrinciples = 0;
+      for (const pattern of principlePatterns) {
+        const matches = principlesContent.match(pattern) || [];
+        totalPrinciples = Math.max(totalPrinciples, matches.length);
+      }
+      
+      if (totalPrinciples < 5) {
+        issues.push({
+          severity: 'error',
+          category: 'principles_count',
+          message: `Only ${totalPrinciples} guiding principles found. Minimum: 5`,
+        });
+      }
+    }
+
+    return {
+      canProceed: issues.filter(i => i.severity === 'error').length === 0,
+      issues,
+    };
+  }
+
+  /**
+   * PHASE 3 (SPEC_PM) - validatePMSpecQuality
+   * Validates the SPEC_PM phase quality checklist:
+   * - PRD.md has 15+ requirements (REQ-XXX format)
+   * - Each REQ-XXX references a persona by name
+   * - Acceptance criteria have Given/When/Then format (Gherkin)
+   * - All artifacts present (PRD.md, user-stories.md, acceptance-criteria.md)
+   */
+  public validatePMSpecQuality(
+    artifacts: Record<string, string>
+  ): { canProceed: boolean; issues: Array<{ severity: string; category: string; message: string }> } {
+    const issues: Array<{ severity: string; category: string; message: string }> = [];
+
+    // Check 1: Required artifacts presence
+    const requiredFiles = ['PRD.md', 'user-stories.md', 'acceptance-criteria.md'];
+    for (const file of requiredFiles) {
+      if (!artifacts[file] || artifacts[file].length === 0) {
+        issues.push({
+          severity: 'error',
+          category: 'missing_file',
+          message: `Required file missing or empty: ${file}`,
+        });
+      }
+    }
+
+    const prdContent = artifacts['PRD.md'] || '';
+    const userStoriesContent = artifacts['user-stories.md'] || '';
+    const acceptanceCriteriaContent = artifacts['acceptance-criteria.md'] || '';
+
+    // Check 2: REQ-XXX count (15+)
+    if (prdContent) {
+      // Match REQ-XXX or REQ-CATEGORY-XXX format
+      // Use separate patterns to avoid regex overlap issues
+      const reqMatches = prdContent.match(/REQ-[A-Z0-9]+/g) || [];
+      const uniqueReqs = Array.from(new Set(reqMatches));
+
+      if (uniqueReqs.length < 15) {
+        issues.push({
+          severity: 'error',
+          category: 'requirement_count',
+          message: `Only ${uniqueReqs.length} requirements found (REQ-XXX format). Minimum: 15`,
+        });
+      }
+    }
+
+    // Check 3: Each REQ-XXX references a persona
+    if (prdContent) {
+      const reqMatches = prdContent.match(/REQ-[A-Z]+-\d{3}/g) || [];
+      const uniqueReqs = [...new Set(reqMatches)];
+      
+      // Extract persona names from PRD or personas file
+      const personaNames = artifacts['user-personas.md'] 
+        ? this.extractPersonaNames(artifacts['user-personas.md'])
+        : [];
+      
+      // Common persona patterns to look for in PRD
+      const commonPersonas = ['Admin', 'User', 'Developer', 'Manager', 'Customer'];
+      const allPersonas = [...new Set([...personaNames, ...commonPersonas])];
+
+      const reqsWithoutPersona: string[] = [];
+      for (const req of uniqueReqs) {
+        // Find context around the requirement
+        const reqIndex = prdContent.indexOf(req);
+        if (reqIndex === -1) continue;
+        
+        const contextEnd = Math.min(prdContent.length, reqIndex + 400);
+        const context = prdContent.slice(reqIndex, contextEnd);
+        
+        // Check if any persona is mentioned in the context
+        const hasPersonaRef = allPersonas.some(p => 
+          new RegExp(`\\b${p}\\b`, 'i').test(context)
+        );
+        
+        if (!hasPersonaRef) {
+          reqsWithoutPersona.push(req);
+        }
+      }
+
+      if (reqsWithoutPersona.length > 0) {
+        issues.push({
+          severity: 'warning',
+          category: 'requirement_persona_reference',
+          message: `${reqsWithoutPersona.length} requirements may not reference a persona: ${reqsWithoutPersona.slice(0, 3).join(', ')}`,
+        });
+      }
+    }
+
+    // Check 4: Gherkin format (Given/When/Then) in acceptance criteria
+    if (acceptanceCriteriaContent) {
+      const hasGherkin = /GIVEN\s+/i.test(acceptanceCriteriaContent) &&
+                        /WHEN\s+/i.test(acceptanceCriteriaContent) &&
+                        /THEN\s+/i.test(acceptanceCriteriaContent);
+      
+      if (!hasGherkin) {
+        issues.push({
+          severity: 'warning',
+          category: 'gherkin_format',
+          message: 'Acceptance criteria may not follow Gherkin format (GIVEN/WHEN/THEN)',
+        });
+      }
+    }
+
+    // Check 5: User stories have proper format (As a..., I want..., So that...)
+    if (userStoriesContent) {
+      const storyPattern = /As\s+a\s+\w+/i;
+      const wantPattern = /I\s+want\s+to?/i;
+      const soThatPattern = /so\s+that/i;
+      
+      const stories = userStoriesContent.split(/^##?\s+|^\d+\.\s+/m).filter(s => s.trim().length > 50);
+      
+      if (stories.length > 0) {
+        const wellFormedCount = stories.slice(0, 10).filter(story => 
+          storyPattern.test(story) && wantPattern.test(story) && soThatPattern.test(story)
+        ).length;
+        
+        // Warn if less than half of stories are well-formed
+        if (wellFormedCount === 0 && stories.length > 0) {
+          issues.push({
+            severity: 'warning',
+            category: 'user_story_format',
+            message: 'User stories may not follow standard format (As a... I want... So that...)',
+          });
+        }
+      }
+    }
+
+    return {
+      canProceed: issues.filter(i => i.severity === 'error').length === 0,
+      issues,
+    };
+  }
+
+  /**
+   * PHASE 6 (SPEC_DESIGN_COMPONENTS) - validateDesignQuality
+   * Validates the SPEC_DESIGN_COMPONENTS phase quality checklist:
+   * - Both component-mapping.md AND journey-maps.md exist
+   * - journey-maps.md has 3+ user journeys
+   * - journey-maps.md has error states documented
+   * - journey-maps.md has empty states documented
+   * - component-mapping.md references journey steps
+   * - No placeholder code (// TODO, lorem ipsum, placeholder)
+   */
+  public validateDesignQuality(
+    artifacts: Record<string, string>
+  ): { canProceed: boolean; issues: Array<{ severity: string; category: string; message: string }> } {
+    const issues: Array<{ severity: string; category: string; message: string }> = [];
+
+    const componentMapping = artifacts['component-mapping.md'] || '';
+    const journeyMaps = artifacts['journey-maps.md'] || '';
+
+    // Check 1: Both files exist
+    if (!componentMapping || componentMapping.length < 500) {
+      issues.push({
+        severity: 'error',
+        category: 'missing_file',
+        message: 'component-mapping.md missing or incomplete (< 500 chars)',
+      });
+    }
+
+    if (!journeyMaps || journeyMaps.length < 500) {
+      issues.push({
+        severity: 'error',
+        category: 'missing_file',
+        message: 'journey-maps.md missing or incomplete (< 500 chars)',
+      });
+    }
+
+    if (journeyMaps) {
+      // Check 2: 3+ user journeys
+      const journeyPatterns = [
+        /^##?\s*(?:User\s+)?[Jj]ourney\s*\d+/gm,
+        /^##?\s*(?:User\s+)?[Jj]ourney\s*\d+\s*:/gm,  // Handle "Journey 1: Onboarding"
+        /^###\s+Step\s+\d+/gm, // Journey steps
+      ];
+      
+      let journeyCount = 0;
+      for (const pattern of journeyPatterns) {
+        const matches = journeyMaps.match(pattern) || [];
+        journeyCount = Math.max(journeyCount, matches.length);
+      }
+      
+      // Also check for any "Journey" mentions in headers
+      const allJourneyHeaders = journeyMaps.match(/^##+\s+.*[Jj]ourney.*$/gm) || [];
+      if (allJourneyHeaders.length > journeyCount) {
+        journeyCount = allJourneyHeaders.length;
+      }
+      
+      if (journeyCount < 3) {
+        issues.push({
+          severity: 'error',
+          category: 'journey_count',
+          message: `Only ${journeyCount} user journeys found. Minimum: 3`,
+        });
+      }
+
+      // Check 3: Error states documented
+      const hasErrorStates = /error\s+state/i.test(journeyMaps) || 
+                            /error\s+handling/i.test(journeyMaps) ||
+                            /failure\s+state/i.test(journeyMaps);
+      if (!hasErrorStates) {
+        issues.push({
+          severity: 'warning',
+          category: 'error_states',
+          message: 'journey-maps.md missing error states documentation',
+        });
+      }
+
+      // Check 4: Empty states documented
+      const hasEmptyStates = /empty\s+state/i.test(journeyMaps) || 
+                            /no\s+data\s+state/i.test(journeyMaps) ||
+                            /blank\s+state/i.test(journeyMaps);
+      if (!hasEmptyStates) {
+        issues.push({
+          severity: 'warning',
+          category: 'empty_states',
+          message: 'journey-maps.md missing empty states documentation',
+        });
+      }
+    }
+
+    if (componentMapping && journeyMaps) {
+      // Check 5: Component mapping references journey steps
+      const hasComponentRefs = /COMP-\d+|COMPONENT-\d+|\[\s*STEP\s*\d+\s*\]/i.test(componentMapping);
+      if (!hasComponentRefs) {
+        issues.push({
+          severity: 'warning',
+          category: 'component_references',
+          message: 'component-mapping.md should reference journey steps (e.g., COMP-001, STEP-1)',
+        });
+      }
+    }
+
+    // Check 6: No placeholders in either file
+    const placeholderPatterns = [
+      /\/\/\s*TODO/i,
+      /\/\/\s*FIXME/i,
+      /TODO[:\s]/i,
+      /FIXME[:\s]/i,
+      /lorem\s+ipsum/i,
+      /placeholder/i,
+    ];
+
+    for (const [filename, content] of Object.entries({ 'component-mapping.md': componentMapping, 'journey-maps.md': journeyMaps })) {
+      if (content) {
+        for (const pattern of placeholderPatterns) {
+          if (pattern.test(content)) {
+            issues.push({
+              severity: 'error',
+              category: 'placeholder',
+              message: `${filename} contains placeholder code (TODO, lorem ipsum, etc.)`,
+            });
+            break; // Only report once per file
+          }
+        }
+      }
+    }
+
+    return {
+      canProceed: issues.filter(i => i.severity === 'error').length === 0,
+      issues,
+    };
+  }
+
+  /**
+   * Anti-AI-Slop blocking validator for design tokens and components.
+   * Detects forbidden AI-generated design patterns and blocks progression if found.
+   * This is used by inline validation to enforce blocking behavior for anti-slop checks.
+   */
+  public validateAntiAISlopBlocking(
+    artifacts: Record<string, string>
+  ): { canProceed: boolean; issues: Array<{ severity: string; category: string; message: string }> } {
+    const issues: Array<{ severity: string; category: string; message: string }> = [];
+
+    for (const [filename, content] of Object.entries(artifacts)) {
+      if (!content) continue;
+
+      const errors = detectForbiddenPatterns(content);
+      for (const error of errors) {
+        issues.push({
+          severity: 'error',  // Make these blocking!
+          category: 'anti_slop',
+          message: `${filename}: ${error}`,
+        });
+      }
+    }
+
+    return {
+      canProceed: issues.filter(i => i.severity === 'error').length === 0,  // BLOCK if any found
+      issues,
+    };
+  }
+
+  /**
+   * PHASE 9 (SOLUTIONING) - validateSolutionQuality
+   * Validates the SOLUTIONING phase quality checklist:
+   * - tasks.md has 15+ tasks
+   * - Test specifications come BEFORE implementation notes
+   * - Each task has time estimate
+   * - Each task has file paths
+   * - No circular dependencies in task graph
+   */
+  public validateSolutionQuality(
+    artifacts: Record<string, string>
+  ): { canProceed: boolean; issues: Array<{ severity: string; category: string; message: string }> } {
+    const issues: Array<{ severity: string; category: string; message: string }> = [];
+
+    const tasksContent = artifacts['tasks.md'] || '';
+    const architectureContent = artifacts['architecture.md'] || '';
+    const epicsContent = artifacts['epics.md'] || '';
+
+    if (!tasksContent || tasksContent.length < 100) {
+      issues.push({
+        severity: 'error',
+        category: 'missing_file',
+        message: 'tasks.md missing or incomplete (< 100 chars)',
+      });
+      return {
+        canProceed: issues.filter(i => i.severity === 'error').length === 0,
+        issues,
+      };
+    }
+
+    // Check 1: Task count (15+)
+    const taskPatterns = [
+      /#{1,3}\s+TASK-[A-Z0-9]+(?:-[0-9]+)?/g,  // TASK-XXX or TASK-XXX-YYY
+      /#{1,3}\s+Task\s+\d+/gi,
+      /##?\s*\d+\.\s+Task/g,
+    ];
+    
+    let taskCount = 0;
+    for (const pattern of taskPatterns) {
+      const matches = tasksContent.match(pattern) || [];
+      taskCount = Math.max(taskCount, matches.length);
+    }
+    
+    if (taskCount < 15) {
+      issues.push({
+        severity: 'error',
+        category: 'task_count',
+        message: `Only ${taskCount} tasks found. Minimum: 15`,
+      });
+    }
+
+    // Check 2: Test specifications come BEFORE implementation notes
+    // Match TASK-XXX or TASK-XXX-YYY format
+    const taskBlocks = tasksContent.split(/#{1,3}\s+TASK-[A-Z0-9]+(?:-[0-9]+)?:/g);
+    let wrongOrderCount = 0;
+    
+    for (let i = 1; i < taskBlocks.length; i++) { // Skip first (before first task header)
+      const block = taskBlocks[i];
+      
+      const testIndex = block.search(/#{1,3}\s+(?:Test\s+)?[Ss]pecifications?\b/i);
+      const implIndex = block.search(/#{1,3}\s+[Ii]mplementation\s+[Nn]otes\b/i);
+      
+      if (testIndex !== -1 && implIndex !== -1 && testIndex > implIndex) {
+        wrongOrderCount++;
+      }
+    }
+    
+    if (wrongOrderCount > 0) {
+      issues.push({
+        severity: 'error',
+        category: 'test_order',
+        message: `${wrongOrderCount} task(s) have implementation notes before test specifications (violates Article 2)`,
+      });
+    }
+
+    // Check 3: Time estimates
+    const timeEstimatePattern = /(?:Estimate|Time|Complexity|Story\s*Points?)[:\s]*\d+/i;
+    const tasksWithTimeEstimates = (tasksContent.match(timeEstimatePattern) || []).length;
+    const totalTasks = taskCount || 15;
+    
+    if (tasksWithTimeEstimates < totalTasks * 0.5) {
+      issues.push({
+        severity: 'warning',
+        category: 'time_estimates',
+        message: `Only ${tasksWithTimeEstimates} tasks have time estimates. All tasks should have estimates.`,
+      });
+    }
+
+    // Check 4: File paths
+    const filePathPatterns = [
+      /src\//g,
+      /components\//g,
+      /lib\//g,
+      /app\//g,
+      /\.tsx?/g,
+      /\.json/g,
+    ];
+    
+    let hasFilePaths = false;
+    for (const pattern of filePathPatterns) {
+      if (pattern.test(tasksContent)) {
+        hasFilePaths = true;
+        break;
+      }
+    }
+    
+    if (!hasFilePaths) {
+      issues.push({
+        severity: 'warning',
+        category: 'file_paths',
+        message: 'tasks.md may not reference specific file paths for implementation',
+      });
+    }
+
+    // Check 5: Circular dependencies
+    const taskDependencies = this.parseTaskDependencies(tasksContent);
+    const circularDeps = this.detectCircularDependencies(taskDependencies);
+    
+    if (circularDeps.length > 0) {
+      for (const cycle of circularDeps) {
+        issues.push({
+          severity: 'error',
+          category: 'circular_dependencies',
+          message: `Circular dependency detected: ${cycle.join(' → ')}`,
+        });
+      }
+    }
+
+    // Check 6: Architecture references approved stack
+    if (architectureContent) {
+      const stackContent = artifacts['stack-decision.md'] || artifacts['stack.json'] || '';
+      if (stackContent) {
+        // Extract stack info
+        const stackName = stackContent.includes('Next.js') ? 'Next.js' :
+                         stackContent.includes('React') ? 'React' :
+                         stackContent.includes('Express') ? 'Express' : null;
+        
+        if (stackName && !architectureContent.toLowerCase().includes(stackName.toLowerCase())) {
+          issues.push({
+            severity: 'warning',
+            category: 'stack_consistency',
+            message: 'architecture.md may not reference the approved stack from stack-decision.md',
+          });
+        }
+      }
+    }
+
+    return {
+      canProceed: issues.filter(i => i.severity === 'error').length === 0,
+      issues,
+    };
+  }
+
+  /**
+   * Helper: Extract persona names from personas.md content
+   */
+  public extractPersonaNames(content: string): string[] {
+    const names: string[] = [];
+    
+    // Match markdown headers like "## Sarah - Marketing Manager" or "## Persona: Admin"
+    // Use [ \t]+ instead of \s+ to avoid matching across newlines
+    const headerMatches = content.match(/^##?[ \t]+(?:Persona[ \t]*:?[ \t]*)?([A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)*)/gm) || [];
+    for (const match of headerMatches) {
+      const name = match.replace(/^##?[ \t]+(?:Persona[ \t]*:?[ \t]*)?/i, '').trim();
+      if (name.length > 2 && !name.includes('\n')) names.push(name);
+    }
+    
+    // Match YAML frontmatter
+    const frontmatterMatches = content.match(/^-?[ \t]*name:[ \t]*([A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)*)/gim) || [];
+    for (const match of frontmatterMatches) {
+      const name = match.replace(/^-?[ \t]*name:[ \t]*/i, '').trim();
+      if (name.length > 2 && !name.includes('\n')) names.push(name);
+    }
+    
+    return [...new Set(names)];
+  }
+
   private getMarkdownFilesForPhase(phase: string): string[] {
     return this.getRequiredFilesForPhase(phase).filter((file) =>
       file.endsWith('.md')
@@ -2776,6 +3354,771 @@ export class Validators {
       status,
       checks,
       errors: errors.length > 0 ? errors : undefined,
+    };
+  }
+
+  /**
+   * Validate minimum character length for an artifact
+   * Prevents empty or nearly-empty files to ensure content quality
+   */
+  public validateMinimumLength(
+    content: string,
+    artifactName: string,
+    minLength: number
+  ): { passed: boolean; errors?: string[] } {
+    const errors: string[] = [];
+    
+    if (content.length < minLength) {
+      errors.push(
+        `${artifactName} is too short (${content.length} chars). Minimum: ${minLength} chars.`
+      );
+    }
+    
+    return {
+      passed: errors.length === 0,
+      errors: errors.length > 0 ? errors : undefined,
+    };
+  }
+
+  /**
+   * Validate minimum length for all artifacts based on type-specific standards
+   * Maps artifact names to their minimum character counts
+   */
+  public validateArtifactLengths(
+    artifacts: Record<string, string>
+  ): { passed: boolean; errors?: string[]; checks: Record<string, boolean> } {
+    const errors: string[] = [];
+    const checks: Record<string, boolean> = {};
+    
+    // Minimum length standards per artifact type
+    const minLengths: Record<string, number> = {
+      'project-classification.json': 500,
+      'guiding-principles.md': 1000,
+      'user-personas.md': 1500,
+      'user-journeys.md': 2000,
+      'stack.json': 500,
+      'stack-analysis.md': 1500,
+      'PRD.md': 3000,
+      'api-spec.json': 1000,
+      'data-model.md': 1500,
+      'design-tokens.json': 500,
+      'component-mapping.md': 2000,
+      'journey-maps.md': 2000,
+      'dependencies.json': 500,
+      'tasks.md': 2000,
+    };
+
+    for (const [artifactName, content] of Object.entries(artifacts)) {
+      const minLength = minLengths[artifactName];
+      if (minLength !== undefined) {
+        const result = this.validateMinimumLength(content, artifactName, minLength);
+        checks[artifactName] = result.passed;
+        if (!result.passed && result.errors) {
+          errors.push(...result.errors);
+        }
+      }
+    }
+
+    return {
+      passed: errors.length === 0,
+      errors: errors.length > 0 ? errors : undefined,
+      checks,
+    };
+  }
+
+  // ============================================================================
+  // TRACEABILITY VALIDATORS (Task 11)
+  // These validators ensure artifacts are consistent across phases
+  // ============================================================================
+
+  /**
+   * Validate that requirements reference personas
+   * PHASE 3 (SPEC_PM) - Ensures each REQ-XXX in PRD.md references a persona
+   */
+  public validatePersonaTraceability(
+    artifacts: Record<string, string>
+  ): { canProceed: boolean; issues: Array<{ severity: string; category: string; message: string }> } {
+    const issues: Array<{ severity: string; category: string; message: string }> = [];
+
+    const prdContent = artifacts['PRD.md'] || '';
+    const personasContent = artifacts['user-personas.md'] || '';
+
+    if (!prdContent) {
+      return {
+        canProceed: false,
+        issues: [{
+          severity: 'error',
+          category: 'missing_file',
+          message: 'PRD.md missing - cannot validate persona traceability',
+        }],
+      };
+    }
+
+    // Extract persona names from personas.md
+    const personaNames = this.extractPersonaNames(personasContent);
+
+    // Add common persona patterns that might appear in PRD
+    const commonPersonas = ['Admin', 'User', 'Developer', 'Manager', 'Customer', 'Guest', 'Member'];
+    const allPersonas = [...new Set([...personaNames, ...commonPersonas])];
+
+    // Find all unique REQ-XXX requirements in PRD
+    const reqMatches = prdContent.match(/REQ-[A-Z]+-\d{3}/g) || [];
+    const uniqueReqs = [...new Set(reqMatches)];
+
+    if (uniqueReqs.length === 0) {
+      return {
+        canProceed: true,
+        issues: [{
+          severity: 'warning',
+          category: 'no_requirements',
+          message: 'No REQ-XXX requirements found in PRD.md',
+        }],
+      };
+    }
+
+    // For each requirement, check if it references a persona
+    const reqsWithoutPersona: string[] = [];
+    const reqPattern = /##?\s*(REQ-[A-Z]+-\d{3})[^\n]*\n([\s\S]*?)(?=##?\s*REQ-|##?\s+#|$)/g;
+    let match;
+
+    while ((match = reqPattern.exec(prdContent)) !== null) {
+      const reqId = match[1];
+      const reqContent = match[2];
+
+      // Check if any persona is mentioned in the requirement content
+      const hasPersonaRef = allPersonas.some(p => 
+        new RegExp(`\\b${p}\\b`, 'i').test(reqContent)
+      );
+
+      if (!hasPersonaRef) {
+        reqsWithoutPersona.push(reqId);
+      }
+    }
+
+    if (reqsWithoutPersona.length > 0) {
+      issues.push({
+        severity: 'warning',
+        category: 'persona_traceability',
+        message: `${reqsWithoutPersona.length} requirement(s) do not reference any persona: ${reqsWithoutPersona.slice(0, 5).join(', ')}${reqsWithoutPersona.length > 5 ? '...' : ''}`,
+      });
+    }
+
+    return {
+      canProceed: issues.filter(i => i.severity === 'error').length === 0,
+      issues,
+    };
+  }
+
+  /**
+   * Validate that acceptance criteria use Gherkin format (Given/When/Then)
+   * PHASE 3 (SPEC_PM) - Ensures acceptance criteria follow Gherkin syntax
+   */
+  public validateGherkinStructure(
+    artifacts: Record<string, string>
+  ): { canProceed: boolean; issues: Array<{ severity: string; category: string; message: string }> } {
+    const issues: Array<{ severity: string; category: string; message: string }> = [];
+
+    const acceptanceCriteriaContent = artifacts['acceptance-criteria.md'] || '';
+
+    if (!acceptanceCriteriaContent) {
+      return {
+        canProceed: false,
+        issues: [{
+          severity: 'error',
+          category: 'missing_file',
+          message: 'acceptance-criteria.md missing - cannot validate Gherkin structure',
+        }],
+      };
+    }
+
+    // Check for Gherkin keywords (case-insensitive)
+    const hasGiven = /GIVEN\s+/i.test(acceptanceCriteriaContent);
+    const hasWhen = /WHEN\s+/i.test(acceptanceCriteriaContent);
+    const hasThen = /THEN\s+/i.test(acceptanceCriteriaContent);
+
+    // Check for generic "As a user" style criteria (not proper Gherkin)
+    const genericCriteriaPattern = /as\s+a\s+\w+\s*,?\s*i\s+want\s+to?/i;
+    const hasGenericCriteria = genericCriteriaPattern.test(acceptanceCriteriaContent);
+
+    const checks: Record<string, boolean> = {
+      has_given: hasGiven,
+      has_when: hasWhen,
+      has_then: hasThen,
+      has_gherkin_format: hasGiven && hasWhen && hasThen,
+      is_generic_format: hasGenericCriteria,
+    };
+
+    // If no Gherkin format found
+    if (!checks.has_gherkin_format) {
+      // Check if it's using generic user story format instead
+      if (hasGenericCriteria) {
+        issues.push({
+          severity: 'warning',
+          category: 'gherkin_format',
+          message: 'Acceptance criteria use generic user story format (As a... I want...) instead of Gherkin (Given/When/Then)',
+        });
+      } else {
+        issues.push({
+          severity: 'warning',
+          category: 'gherkin_format',
+          message: 'Acceptance criteria do not appear to follow Gherkin format (missing GIVEN/WHEN/THEN keywords)',
+        });
+      }
+    }
+
+    // Check for scenario count
+    const scenarioCount = (acceptanceCriteriaContent.match(/^#{0,3}\s*(?:Scenario|Given|When|Then|And|But)/gim) || []).length;
+    if (scenarioCount < 3) {
+      issues.push({
+        severity: 'warning',
+        category: 'scenario_count',
+        message: `Only ${scenarioCount} scenario(s) found in acceptance criteria. Minimum 3 recommended.`,
+      });
+    }
+
+    return {
+      canProceed: issues.filter(i => i.severity === 'error').length === 0,
+      issues,
+    };
+  }
+
+  /**
+   * Validate that tasks map to requirements
+   * PHASE 9 (SOLUTIONING) - Ensures each TASK-XXX references at least one REQ-XXX
+   */
+  public validateRequirementToTaskMapping(
+    artifacts: Record<string, string>
+  ): { canProceed: boolean; issues: Array<{ severity: string; category: string; message: string }> } {
+    const issues: Array<{ severity: string; category: string; message: string }> = [];
+
+    const prdContent = artifacts['PRD.md'] || '';
+    const tasksContent = artifacts['tasks.md'] || '';
+
+    if (!tasksContent) {
+      return {
+        canProceed: false,
+        issues: [{
+          severity: 'error',
+          category: 'missing_file',
+          message: 'tasks.md missing - cannot validate requirement-to-task mapping',
+        }],
+      };
+    }
+
+    // Extract all REQ-XXX requirements from PRD
+    const prdReqs = this.extractRequirementReferences(prdContent);
+
+    // Extract all TASK-XXX tasks from tasks.md
+    const taskIds = this.extractTaskReferences(tasksContent);
+
+    if (taskIds.length === 0) {
+      return {
+        canProceed: true,
+        issues: [{
+          severity: 'warning',
+          category: 'no_tasks',
+          message: 'No TASK-XXX references found in tasks.md',
+        }],
+      };
+    }
+
+    // For each task, check if it references any requirement
+    const orphanTasks: string[] = [];
+
+    // Parse task blocks to check requirement references within each task
+    const taskBlocks = tasksContent.split(/#{1,3}\s+TASK-[A-Z0-9]+(?:-[0-9]+)?:/g);
+    
+    for (let i = 1; i < taskBlocks.length; i++) { // Skip first (before first task header)
+      const taskBlock = taskBlocks[i];
+      const taskReqs = this.extractRequirementReferences(taskBlock);
+      
+      if (taskReqs.length === 0) {
+        // Find the task ID from the previous match
+        const taskPattern = /#{1,3}\s+TASK-[A-Z0-9]+(?:-[0-9]+)?:/g;
+        // Reset and find the i-th match
+        const matches = [...taskBlocks[i-1].matchAll(taskPattern)];
+        if (matches.length > 0) {
+          const lastMatch = matches[matches.length - 1];
+          const taskId = lastMatch[0].replace(/^#{1,3}\s+/, '').replace(/:$/, '');
+          orphanTasks.push(taskId);
+        }
+      }
+    }
+
+    // Also check for tasks that reference requirements not in PRD
+    const invalidReqRefs: string[] = [];
+    const allTaskReqs = this.extractRequirementReferences(tasksContent);
+    for (const req of allTaskReqs) {
+      if (!prdReqs.includes(req)) {
+        if (!invalidReqRefs.includes(req)) {
+          invalidReqRefs.push(req);
+        }
+      }
+    }
+
+    if (orphanTasks.length > 0) {
+      issues.push({
+        severity: 'warning',
+        category: 'orphan_tasks',
+        message: `${orphanTasks.length} task(s) do not reference any requirement (REQ-XXX): ${orphanTasks.slice(0, 5).join(', ')}${orphanTasks.length > 5 ? '...' : ''}`,
+      });
+    }
+
+    if (invalidReqRefs.length > 0) {
+      issues.push({
+        severity: 'error',
+        category: 'invalid_requirement_refs',
+        message: `${invalidReqRefs.length} task(s) reference requirements not in PRD.md: ${invalidReqRefs.join(', ')}`,
+      });
+    }
+
+    return {
+      canProceed: issues.filter(i => i.severity === 'error').length === 0,
+      issues,
+    };
+  }
+
+  // ============================================================================
+  // HELPER FUNCTIONS FOR TRACEABILITY VALIDATORS
+  // Made public for testing purposes
+  // ============================================================================
+
+  /**
+   * Split content by REQ-XXX headers and return map of requirement ID to content
+   */
+  public splitByRequirement(content: string): Record<string, string> {
+    const result: Record<string, string> = {};
+
+    // Match REQ-XXX followed by content until next REQ or end
+    const reqPattern = /#{0,3}\s*(REQ-[A-Z]+-\d{3})[^\n]*\n([\s\S]*?)(?=#{0,3}\s*REQ-[A-Z]+-\d{3}|#{0,3}\s*#{1,3}\s*[^#]|$)/g;
+    let match;
+
+    while ((match = reqPattern.exec(content)) !== null) {
+      const reqId = match[1];
+      const reqContent = match[2].trim();
+      result[reqId] = reqContent;
+    }
+
+    return result;
+  }
+
+  /**
+   * Extract all TASK-XXX references from content
+   */
+  public extractTaskReferences(content: string): string[] {
+    const matches = content.match(/TASK-[A-Z0-9]+(?:-[0-9]+)?/g) || [];
+    return [...new Set(matches)];
+  }
+
+  /**
+   * Extract all REQ-XXX references from content
+   */
+  public extractRequirementReferences(content: string): string[] {
+    const matches = content.match(/REQ-[A-Z]+-\d{3}/g) || [];
+    return [...new Set(matches)];
+  }
+
+  // ============================================================================
+  // CONSTITUTIONAL COMPLIANCE VALIDATORS (Task 12)
+  // Implements validation for all 5 Constitutional Articles from constitution.md
+  // ============================================================================
+
+  /**
+   * Article 1: Semantic Goal Locking
+   * Validates that all phases reference and honor constitution.md + project-classification.json
+   */
+  public validateSemanticGoalLocking(
+    artifacts: Record<string, string>
+  ): { canProceed: boolean; issues: Array<{ severity: string; category: string; message: string }> } {
+    const issues: Array<{ severity: string; category: string; message: string }> = [];
+
+    const constitutionContent = artifacts['constitution.md'] || '';
+    const classificationContent = artifacts['project-classification.json'] || '';
+    const prdContent = artifacts['PRD.md'] || '';
+    const architectureContent = artifacts['architecture.md'] || '';
+
+    // Check 1: constitution.md exists
+    if (!constitutionContent || constitutionContent.length < 100) {
+      issues.push({
+        severity: 'error',
+        category: 'article_1',
+        message: 'constitution.md missing or too short - Semantic Goal Locking cannot be enforced',
+      });
+      return { canProceed: false, issues };
+    }
+
+    // Check 2: project-classification.json exists and is valid JSON
+    if (!classificationContent) {
+      issues.push({
+        severity: 'error',
+        category: 'article_1',
+        message: 'project-classification.json missing - cannot validate project classification',
+      });
+    } else {
+      try {
+        const classification = JSON.parse(classificationContent);
+        if (!classification.project_type && !classification.scale_tier) {
+          issues.push({
+            severity: 'warning',
+            category: 'article_1',
+            message: 'project-classification.json missing key fields (project_type, scale_tier)',
+          });
+        }
+      } catch {
+        issues.push({
+          severity: 'error',
+          category: 'article_1',
+          message: 'project-classification.json is not valid JSON',
+        });
+      }
+    }
+
+    // Check 3: PRD.md references constitution principles
+    if (prdContent) {
+      const hasGuidingPrinciplesRef = /guiding\s+principles?|constitution/i.test(prdContent) ||
+                                     /article\s+\d/i.test(prdContent);
+      if (!hasGuidingPrinciplesRef) {
+        issues.push({
+          severity: 'warning',
+          category: 'article_1',
+          message: 'PRD.md does not reference constitution.md or guiding principles',
+        });
+      }
+    }
+
+    // Check 4: architecture.md references project classification
+    if (architectureContent && classificationContent) {
+      try {
+        const classification = JSON.parse(classificationContent);
+        const projectType = classification.project_type || '';
+        const scaleTier = classification.scale_tier || '';
+
+        if (projectType && !architectureContent.toLowerCase().includes(projectType.toLowerCase())) {
+          issues.push({
+            severity: 'warning',
+            category: 'article_1',
+            message: `architecture.md does not reference project type: ${projectType}`,
+          });
+        }
+
+        if (scaleTier && !architectureContent.toLowerCase().includes(scaleTier.toLowerCase())) {
+          issues.push({
+            severity: 'warning',
+            category: 'article_1',
+            message: `architecture.md does not reference scale tier: ${scaleTier}`,
+          });
+        }
+      } catch {
+        // JSON parsing already handled above
+      }
+    }
+
+    return {
+      canProceed: issues.filter(i => i.severity === 'error').length === 0,
+      issues,
+    };
+  }
+
+  /**
+   * Article 2: Test-First Compliance (Task 12 implementation)
+   * Validates that tests are specified BEFORE implementation in tasks.md
+   * Pattern: "Test:" section should appear before "Implement:" section
+   * This is the public version for direct invocation (Article 2 specific)
+   */
+  public validateTestFirstComplianceArt2(
+    artifacts: Record<string, string>
+  ): { canProceed: boolean; issues: Array<{ severity: string; category: string; message: string }> } {
+    const issues: Array<{ severity: string; category: string; message: string }> = [];
+
+    const tasksContent = artifacts['tasks.md'] || '';
+
+    if (!tasksContent || tasksContent.length < 100) {
+      return {
+        canProceed: true,
+        issues: [{
+          severity: 'warning',
+          category: 'article_2',
+          message: 'tasks.md missing or too short - skipping test-first validation',
+        }],
+      };
+    }
+
+    // Parse TASK-XXX sections
+    const taskSections = tasksContent.split(/#{1,3}\s+TASK-[A-Z0-9]+(?:-[0-9]+)?:/g);
+
+    for (let i = 1; i < taskSections.length; i++) {
+      const section = taskSections[i];
+      const taskId = `TASK-${i.toString().padStart(3, '0')}`;
+
+      // Find "Test:" section - handle multiple formats
+      const testPatterns = [
+        /(?:^|\n)#{1,3}\s*Test[:\s]/im,
+        /(?:^|\n)Test[:\s]/im,
+        /(?:^|\n)#{1,3}\s*Test\s+Specifications/im,
+        /(?:^|\n)#{1,3}\s*Test\s+Specification/im,
+      ];
+
+      // Find "Implement:" section - handle multiple formats
+      const implPatterns = [
+        /(?:^|\n)#{1,3}\s*Implement[:\s]/im,
+        /(?:^|\n)Implement[:\s]/im,
+        /(?:^|\n)#{1,3}\s*Implementation\s+Notes/im,
+        /(?:^|\n)#{1,3}\s*Implementation\s+Note/im,
+      ];
+
+      let testMatch: RegExpMatchArray | null = null;
+      let implMatch: RegExpMatchArray | null = null;
+
+      // Find test section
+      for (const pattern of testPatterns) {
+        const matches = section.match(pattern);
+        if (matches && matches.length > 0) {
+          testMatch = matches;
+          break;
+        }
+      }
+
+      // Find implementation section
+      for (const pattern of implPatterns) {
+        const matches = section.match(pattern);
+        if (matches && matches.length > 0) {
+          implMatch = matches;
+          break;
+        }
+      }
+
+      // Check order
+      if (implMatch && testMatch) {
+        const testPos = section.indexOf(testMatch[0]);
+        const implPos = section.indexOf(implMatch[0]);
+
+        if (implPos < testPos) {
+          issues.push({
+            severity: 'error',
+            category: 'article_2',
+            message: `${taskId}: Implementation appears BEFORE test specification (Article 2 violation)`,
+          });
+        }
+      }
+    }
+
+    return {
+      canProceed: issues.filter(i => i.severity === 'error').length === 0,
+      issues,
+    };
+  }
+
+  /**
+   * Article 3: Bite-Sized Execution
+   * Validates that tasks are 15-30 minute chunks with verification commands
+   */
+  public validateBiteSizedTasks(
+    artifacts: Record<string, string>
+  ): { canProceed: boolean; issues: Array<{ severity: string; category: string; message: string }> } {
+    const issues: Array<{ severity: string; category: string; message: string }> = [];
+
+    const tasksContent = artifacts['tasks.md'] || '';
+
+    if (!tasksContent || tasksContent.length < 100) {
+      return {
+        canProceed: true,
+        issues: [{
+          severity: 'warning',
+          category: 'article_3',
+          message: 'tasks.md missing or too short - skipping bite-sized validation',
+        }],
+      };
+    }
+
+    // Parse TASK-XXX sections
+    const taskSections = tasksContent.split(/#{1,3}\s+TASK-[A-Z0-9]+(?:-[0-9]+)?:/g);
+
+    let tasksWithoutTimeEstimate = 0;
+    let tasksWithoutVerification = 0;
+
+    for (let i = 1; i < taskSections.length; i++) {
+      const section = taskSections[i];
+      const taskId = `TASK-${i.toString().padStart(3, '0')}`;
+
+      // Check for time estimate (15min, 30 minutes, 1 hour, etc.)
+      const timePatterns = [
+        /Estimate[:\s]*\d+\s*(?:min|minute|hour|hr)s?/i,
+        /Time[:\s]*\d+\s*(?:min|minute|hour|hr)s?/i,
+        /\d+\s*(?:min|minute|hour|hr)s?\s*(?:estimate|time)/i,
+        /Complexity[:\s]*(?:\d+|Small|Medium|Large)/i,
+      ];
+
+      const hasTimeEstimate = timePatterns.some(pattern => pattern.test(section));
+
+      if (!hasTimeEstimate) {
+        tasksWithoutTimeEstimate++;
+      }
+
+      // Check for verification command (npm test, curl -f, etc.)
+      const verificationPatterns = [
+        /npm\s+(?:run\s+)?test/i,
+        /npm\s+(?:run\s+)?build/i,
+        /curl\s+.*-f/i,
+        /verify[:\s]*(?:npm|curl|docker)/i,
+        /Run[:\s]*(?:npm|test|build)/i,
+        /Check[:\s]*(?:status|output|result)/i,
+        /Verification[:\s]*(?:command|step)/i,
+      ];
+
+      const hasVerification = verificationPatterns.some(pattern => pattern.test(section));
+
+      if (!hasVerification) {
+        tasksWithoutVerification++;
+      }
+    }
+
+    const totalTasks = taskSections.length - 1;
+
+    if (tasksWithoutTimeEstimate > 0) {
+      issues.push({
+        severity: tasksWithoutTimeEstimate === totalTasks ? 'error' : 'warning',
+        category: 'article_3',
+        message: `${tasksWithoutTimeEstimate}/${totalTasks} tasks lack time estimate (15-30min expected)`,
+      });
+    }
+
+    if (tasksWithoutVerification > 0) {
+      issues.push({
+        severity: tasksWithoutVerification === totalTasks ? 'error' : 'warning',
+        category: 'article_3',
+        message: `${tasksWithoutVerification}/${totalTasks} tasks lack verification command`,
+      });
+    }
+
+    return {
+      canProceed: issues.filter(i => i.severity === 'error').length === 0,
+      issues,
+    };
+  }
+
+  /**
+   * Article 5: Constitutional Review
+   * Validates final handoff has all requirements met
+   */
+  public validateConstitutionalReview(
+    artifacts: Record<string, string>
+  ): { canProceed: boolean; issues: Array<{ severity: string; category: string; message: string }> } {
+    const issues: Array<{ severity: string; category: string; message: string }> = [];
+
+    const handoffContent = artifacts['HANDOFF.md'] || '';
+    const tasksContent = artifacts['tasks.md'] || '';
+    const architectureContent = artifacts['architecture.md'] || '';
+    const prdContent = artifacts['PRD.md'] || '';
+
+    // Check 1: HANDOFF.md exists
+    if (!handoffContent || handoffContent.length < 200) {
+      return {
+        canProceed: false,
+        issues: [{
+          severity: 'error',
+          category: 'article_5',
+          message: 'HANDOFF.md missing or incomplete - Constitutional Review cannot proceed',
+        }],
+      };
+    }
+
+    // Check 2: Required artifacts are present (all phases completed)
+    const requiredArtifacts = [
+      { name: 'tasks.md', content: tasksContent, minLength: 100 },
+      { name: 'architecture.md', content: architectureContent, minLength: 100 },
+      { name: 'PRD.md', content: prdContent, minLength: 500 },
+    ];
+
+    for (const artifact of requiredArtifacts) {
+      if (!artifact.content || artifact.content.length < artifact.minLength) {
+        issues.push({
+          severity: 'error',
+          category: 'article_5',
+          message: `${artifact.name} missing or incomplete for handoff`,
+        });
+      }
+    }
+
+    // Check 3: No placeholder content in HANDOFF.md
+    const placeholderPatterns = [
+      /TODO:/i,
+      /FIXME:/i,
+      /\[?[Aa]ssumptions?\s*placeholders?\]?/i,
+      /\[?[Tt]o\s+be\s+determined?\]?/i,
+      /lorem\s+ipsum/i,
+      /placeholder/i,
+    ];
+
+    const hasPlaceholders = placeholderPatterns.some(pattern => pattern.test(handoffContent));
+
+    if (hasPlaceholders) {
+      issues.push({
+        severity: 'error',
+        category: 'article_5',
+        message: 'HANDOFF.md contains placeholder content - must be complete for handoff',
+      });
+    }
+
+    // Check 4: HANDOFF.md has required sections
+    const requiredSections = [
+      /Summary/i,
+      /Key\s+Decisions/i,
+      /Next\s+Steps/i,
+      /Known\s+Issues/i,
+    ];
+
+    const missingSections = requiredSections.filter(pattern => !pattern.test(handoffContent));
+
+    if (missingSections.length > 0) {
+      issues.push({
+        severity: 'warning',
+        category: 'article_5',
+        message: `HANDOFF.md missing sections: ${missingSections.map(p => p.source).join(', ')}`,
+      });
+    }
+
+    return {
+      canProceed: issues.filter(i => i.severity === 'error').length === 0,
+      issues,
+    };
+  }
+
+  /**
+   * Main Constitutional Compliance Validator (Task 12 implementation)
+   * Validates all applicable Constitutional Articles based on phase
+   * This is the public version for direct invocation
+   */
+  public validateConstitutionalComplianceArt(
+    artifacts: Record<string, string>,
+    phase: string
+  ): { canProceed: boolean; issues: Array<{ severity: string; category: string; message: string }> } {
+    const issues: Array<{ severity: string; category: string; message: string }> = [];
+
+    // Article 1: Semantic Goal Locking - Check constitution reference
+    const article1 = this.validateSemanticGoalLocking(artifacts);
+    issues.push(...article1.issues);
+
+    // Article 2: Test-First Compliance - Check task order
+    if (artifacts['tasks.md']) {
+      const article2 = this.validateTestFirstComplianceArt2(artifacts);
+      issues.push(...article2.issues);
+    }
+
+    // Article 3: Bite-Sized Execution - Check task structure
+    if (artifacts['tasks.md']) {
+      const article3 = this.validateBiteSizedTasks(artifacts);
+      issues.push(...article3.issues);
+    }
+
+    // Article 5: Constitutional Review - Check handoff completeness
+    if (artifacts['HANDOFF.md'] || phase === 'DONE') {
+      const article5 = this.validateConstitutionalReview(artifacts);
+      issues.push(...article5.issues);
+    }
+
+    return {
+      canProceed: issues.filter(i => i.severity === 'error').length === 0,
+      issues,
     };
   }
 }

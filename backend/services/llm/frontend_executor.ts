@@ -6,6 +6,11 @@ import { MCP_TOOLS_DOC, SHADCN_UI_PATTERNS, formatMCPContext } from './mcp-code-
 // TYPE DEFINITIONS
 // ============================================================================
 
+export interface FrontendSelfReview {
+  passed: boolean;
+  issues: string[];
+}
+
 export interface FrontendConfig {
   // Configuration options for frontend execution
   enableAnimations?: boolean;
@@ -90,6 +95,114 @@ function getComponentMCPPatterns(components: string[]): string {
   }
   
   return patterns.join('\n');
+}
+
+// ============================================================================
+// COMPONENT SELF-REVIEW
+// ============================================================================
+
+/**
+ * Extract colors from design tokens
+ */
+function extractColorsFromTokens(tokens: Record<string, unknown>): string[] {
+  const colors: string[] = [];
+  
+  function traverse(obj: Record<string, unknown>, prefix = '') {
+    for (const [key, value] of Object.entries(obj)) {
+      const newKey = prefix ? `${prefix}.${key}` : key;
+      
+      if (typeof value === 'string' && value.startsWith('oklch')) {
+        colors.push(value.toLowerCase());
+      } else if (typeof value === 'object' && value !== null) {
+        traverse(value as Record<string, unknown>, newKey);
+      }
+    }
+  }
+  
+  traverse(tokens);
+  return colors;
+}
+
+/**
+ * Check if code uses useReducedMotion from framer-motion
+ */
+function usesReducedMotion(code: string): boolean {
+  return /\.useReducedMotion|useReducedMotion/.test(code);
+}
+
+/**
+ * Check if code has animations or transitions
+ */
+function hasAnimations(code: string): boolean {
+  return /animation|transition|keyframe|whileHover|whileTap|whileInView|initial|animate|exit/.test(code);
+}
+
+/**
+ * Self-review check for generated frontend components
+ * Runs BEFORE each component is considered complete
+ */
+export function componentSelfReview(
+  componentName: string,
+  code: string,
+  designTokens: Record<string, string> = {}
+): FrontendSelfReview {
+  const issues: string[] = [];
+  
+  // 1. Check for placeholder code
+  if (/\/\/\s*TODO|\bTODO:|\bplaceholder\b/i.test(code)) {
+    issues.push(`${componentName}: Contains placeholder code (// TODO)`);
+  }
+  
+  // 2. Check for lorem ipsum
+  if (/lorem\s+ipsum/i.test(code)) {
+    issues.push(`${componentName}: Contains lorem ipsum text`);
+  }
+  
+  // 3. Check for console.log
+  if (/console\.(log|debug|info)/.test(code)) {
+    issues.push(`${componentName}: Contains console.log statements`);
+  }
+  
+  // 4. Check for useReducedMotion (accessibility) when animations are present
+  if (hasAnimations(code) && !usesReducedMotion(code)) {
+    issues.push(`${componentName}: Has animations but missing useReducedMotion (accessibility)`);
+  }
+  
+  // 5. Check for shadcn/ui patterns (Button, Card, Input, etc.)
+  if (!/import\s+.*\s+from\s+['"]@\/components\/ui\//.test(code)) {
+    issues.push(`${componentName}: Not using shadcn/ui components`);
+  }
+  
+  // 6. Check for design tokens (colors from design-tokens.json)
+  if (designTokens['design-tokens.json']) {
+    try {
+      const tokens = JSON.parse(designTokens['design-tokens.json']);
+      // Check for hardcoded hex colors not in tokens
+      const colorPattern = /#(?:[0-9a-fA-F]{3}){1,2}\b/g;
+      const hardcodedColors = code.match(colorPattern);
+      
+      if (hardcodedColors) {
+        // Check if colors exist in tokens
+        const tokenColors = extractColorsFromTokens(tokens);
+        const validColors = tokenColors.map(c => c.toLowerCase());
+        
+        const invalidColors = hardcodedColors.filter(c => 
+          !validColors.includes(c.toLowerCase())
+        );
+        
+        if (invalidColors.length > 0) {
+          issues.push(`${componentName}: Hardcoded colors not in design tokens: ${invalidColors.join(', ')}`);
+        }
+      }
+    } catch {
+      // If design tokens parsing fails, skip the color check
+    }
+  }
+  
+  return {
+    passed: issues.length === 0,
+    issues,
+  };
 }
 
 // ============================================================================

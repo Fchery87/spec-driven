@@ -36,6 +36,235 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// ============================================================================
+// STREAMING VALIDATION TYPES AND CLASSES
+// ============================================================================
+
+/**
+ * Configuration for streaming validation patterns
+ */
+export interface StreamingValidationPatterns {
+  /** Regex patterns to detect placeholder content */
+  placeholder: RegExp[];
+  /** Regex patterns to detect AI slop/cookie-cutter content */
+  slop: RegExp[];
+  /** Regex patterns to detect format violations */
+  format: RegExp[];
+}
+
+/**
+ * Configuration for streaming validation
+ */
+export interface StreamingValidationConfig {
+  /** Enable streaming validation */
+  enabled: boolean;
+  /** Abort generation when violations are detected */
+  abortOnViolations: boolean;
+  /** Check interval in milliseconds */
+  checkIntervalMs: number;
+  /** Validation patterns */
+  patterns: StreamingValidationPatterns;
+  /** Phases where streaming validation is enabled */
+  enabledPhases: string[];
+}
+
+/**
+ * Default streaming validation patterns
+ */
+export const DEFAULT_STREAMING_PATTERNS: StreamingValidationPatterns = {
+  placeholder: [
+    /\/\/\s*TODO[:\s]/i,
+    /\/\*\s*TODO[:\s]/i,
+    /placeholder/i,
+    /lorem ipsum/i,
+    /\[?TO BE IMPLEMENTED\]?/i,
+    /\[?WIP\]?/i,
+    /\[?XXX\]?/i,
+    /TBD/i,
+    /FIXME/i,
+    /REVIEW:/i,
+  ],
+  slop: [
+    /purple.*gradient/i,
+    /indigo.*gradient/i,
+    /blob.*background/i,
+    /inter font/i,
+    /beautiful.*gradient/i,
+    /stunning.*design/i,
+    /eye-catching/i,
+    /modern.*look/i,
+    /sleek.*design/i,
+    /visually.*appealing/i,
+    /captivating/i,
+    /breathtaking/i,
+    /exquisite/i,
+    /radiant/i,
+    /ethereal/i,
+  ],
+  format: [
+    /undefined/i,
+    /null\s*[,\n]/,
+    /\[object Object\]/,
+  ],
+};
+
+/**
+ * Error thrown when streaming validation detects violations
+ */
+export class ValidationError extends Error {
+  violations: string[];
+  
+  constructor(message: string, violations: string[] = []) {
+    super(message);
+    this.name = 'ValidationError';
+    this.violations = violations;
+  }
+}
+
+/**
+ * Result of streaming validation check
+ */
+export interface StreamingValidationResult {
+  shouldContinue: boolean;
+  violations: string[];
+}
+
+/**
+ * StreamingValidator monitors LLM output in real-time and can abort on violations
+ */
+export class StreamingValidator {
+  private config: StreamingValidationConfig;
+  private accumulatedContent: string;
+  private violations: string[];
+  private lastCheckIndex: number;
+  
+  constructor(config: StreamingValidationConfig) {
+    this.config = config;
+    this.accumulatedContent = '';
+    this.violations = [];
+    this.lastCheckIndex = 0;
+  }
+  
+  /**
+   * Process a chunk of LLM output and check for violations
+   */
+  onChunk(chunk: string): StreamingValidationResult {
+    this.accumulatedContent += chunk;
+    
+    // Check for violations since last check
+    const newContent = this.accumulatedContent.slice(this.lastCheckIndex);
+    const foundViolations = this.checkPatterns(newContent);
+    
+    if (foundViolations.length > 0) {
+      this.violations.push(...foundViolations);
+    }
+    
+    this.lastCheckIndex = this.accumulatedContent.length;
+    
+    const shouldContinue = !this.config.abortOnViolations || foundViolations.length === 0;
+    
+    return { shouldContinue, violations: foundViolations };
+  }
+  
+  /**
+   * Check content against all patterns
+   */
+  private checkPatterns(content: string): string[] {
+    const violations: string[] = [];
+    
+    // Check placeholder patterns
+    for (const pattern of this.config.patterns.placeholder) {
+      if (pattern.test(content)) {
+        violations.push(`Placeholder pattern detected: ${pattern}`);
+      }
+    }
+    
+    // Check AI slop patterns
+    for (const pattern of this.config.patterns.slop) {
+      if (pattern.test(content)) {
+        violations.push(`AI slop pattern detected: ${pattern}`);
+      }
+    }
+    
+    // Check format patterns
+    for (const pattern of this.config.patterns.format) {
+      if (pattern.test(content)) {
+        violations.push(`Format violation detected: ${pattern}`);
+      }
+    }
+    
+    return violations;
+  }
+  
+  /**
+   * Get all violations detected so far
+   */
+  getViolations(): string[] {
+    return [...this.violations];
+  }
+  
+  /**
+   * Check if validation should abort
+   */
+  shouldAbort(): boolean {
+    return this.config.abortOnViolations && this.violations.length > 0;
+  }
+  
+  /**
+   * Get accumulated content so far
+   */
+  getAccumulatedContent(): string {
+    return this.accumulatedContent;
+  }
+}
+
+/**
+ * Get streaming validation configuration for a specific phase
+ */
+export function getStreamingValidationConfig(
+  phase?: string,
+  llmConfig?: LLMConfigWithOverrides
+): StreamingValidationConfig | null {
+  // Check if streaming validation is enabled in config
+  const enabled = llmConfig?.streaming_validation?.enabled ?? true;
+  
+  if (!enabled) {
+    return null;
+  }
+  
+  const phaseOverrides = llmConfig?.streaming_validation?.phase_overrides ?? {};
+  const globalConfig = llmConfig?.streaming_validation ?? {};
+  
+  // Check if phase is in enabled phases list
+  const enabledPhases = globalConfig.enabled_phases ?? [
+    'SPEC_DESIGN_COMPONENTS',
+    'FRONTEND_BUILD',
+    'SOLUTIONING',
+  ];
+  
+  if (phase && !enabledPhases.includes(phase)) {
+    return null;
+  }
+  
+  const phaseConfig = phaseOverrides[phase as string] ?? {};
+  
+  return {
+    enabled: true,
+    abortOnViolations: phaseConfig.abort_on_violations ?? globalConfig.abort_on_violations ?? true,
+    checkIntervalMs: phaseConfig.check_interval_ms ?? globalConfig.check_interval_ms ?? 100,
+    patterns: {
+      placeholder: globalConfig.patterns?.placeholder?.map(p => new RegExp(p)) ?? DEFAULT_STREAMING_PATTERNS.placeholder,
+      slop: globalConfig.patterns?.slop?.map(p => new RegExp(p)) ?? DEFAULT_STREAMING_PATTERNS.slop,
+      format: globalConfig.patterns?.format?.map(p => new RegExp(p)) ?? DEFAULT_STREAMING_PATTERNS.format,
+    },
+    enabledPhases,
+  };
+}
+
+// ============================================================================
+// GEMINI LIMITER STATE
+// ============================================================================
+
 type GeminiLimiterState = {
   inFlight: number;
   waitQueue: Array<() => void>;
@@ -522,6 +751,110 @@ export class GeminiClient implements LLMProvider {
   ): Promise<LLMResponse> {
     const context = Object.values(artifacts);
     return this.generateCompletion(prompt, context, 3, phase);
+  }
+
+  // ============================================================================
+  // STREAMING METHODS
+  // ============================================================================
+
+  /**
+   * Stream response from Gemini API as an async generator
+   * This enables real-time validation during generation
+   */
+  async *streamResponse(
+    prompt: string,
+    context?: string[]
+  ): AsyncGenerator<string, void, unknown> {
+    const effectiveConfig = this.getEffectiveConfig();
+    const timeoutSeconds = effectiveConfig.timeout_seconds || 120;
+
+    const fullPrompt = this.buildPrompt(prompt, context);
+
+    const requestBody = {
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: fullPrompt }],
+        },
+      ],
+      generationConfig: {
+        temperature: effectiveConfig.temperature,
+        maxOutputTokens: effectiveConfig.max_tokens,
+      },
+    };
+
+    // Add top_p if specified
+    if (effectiveConfig.top_p !== undefined) {
+      (requestBody as any).generationConfig.topP = effectiveConfig.top_p;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutSeconds * 1000);
+
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/models/${effectiveConfig.model}:streamGenerateContent`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': this.config.api_key!,
+          },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await readResponseTextLimited(response);
+        throw new Error(
+          `Gemini streaming API error: ${response.status} ${response.statusText} - ${errorText}`
+        );
+      }
+
+      // Parse streaming response
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body for streaming');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              const chunk = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+              if (chunk) {
+                yield chunk;
+              }
+            } catch {
+              // Skip invalid JSON lines
+            }
+          }
+        }
+      }
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  /**
+   * Abort the current streaming request (for use with streaming validation)
+   */
+  private abortRequest(): void {
+    // Note: In a real implementation, this would track the current AbortController
+    // For now, this is a placeholder that can be extended
+    logger.warn('[StreamingValidation] Request abort triggered');
   }
 
   // ============================================================================
