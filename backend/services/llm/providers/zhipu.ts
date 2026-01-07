@@ -260,6 +260,73 @@ export class ZaiClient implements LLMProvider {
   }
 
   /**
+   * Attempt to repair truncated JSON by closing unclosed brackets/braces
+   */
+  private repairTruncatedJson(json: string): string {
+    // Remove any trailing incomplete string
+    let repaired = json.trim();
+
+    // If ends with incomplete string content, try to close it
+    const lastQuote = repaired.lastIndexOf('"');
+    const lastColon = repaired.lastIndexOf(':');
+    const lastComma = repaired.lastIndexOf(',');
+
+    // Check if we're in the middle of a string value
+    if (lastColon > lastQuote && lastColon > lastComma) {
+      // We're after a colon but haven't started a value, add empty string
+      repaired += '""';
+    }
+
+    // Count brackets and braces
+    let openBraces = 0;
+    let openBrackets = 0;
+    let inString = false;
+    let escapeNext = false;
+
+    for (const char of repaired) {
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+      if (char === '\\') {
+        escapeNext = true;
+        continue;
+      }
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (!inString) {
+        if (char === '{') openBraces++;
+        else if (char === '}') openBraces--;
+        else if (char === '[') openBrackets++;
+        else if (char === ']') openBrackets--;
+      }
+    }
+
+    // If we're in a string, close it
+    if (inString) {
+      repaired += '"';
+    }
+
+    // Remove any trailing comma before closing
+    repaired = repaired.replace(/,\s*$/, '');
+
+    // Close any unclosed brackets/braces
+    // Close brackets first (arrays before objects for proper nesting)
+    while (openBrackets > 0) {
+      repaired += ']';
+      openBrackets--;
+    }
+    while (openBraces > 0) {
+      repaired += '}';
+      openBraces--;
+    }
+
+    return repaired;
+  }
+
+  /**
    * Generate artifacts with structured JSON output
    * Compatible with DEPENDENCIES and STACK_SELECTION phases
    */
@@ -279,8 +346,7 @@ export class ZaiClient implements LLMProvider {
       options,
     });
 
-    // Build enhanced prompt with JSON schema requirement
-    const schema = this.buildArtifactSchema(expectedFiles);
+    // Build enhanced prompt with JSON schema requirement - emphasize completeness
     const enhancedPrompt = `${prompt}
 
 CRITICAL: You MUST respond with ONLY a valid JSON object in this exact format:
@@ -309,17 +375,20 @@ RULES:
 3. Each artifact must have "filename" and "content" fields
 4. Content must be complete and valid for its file type
 5. Do not truncate or abbreviate any content
+6. ENSURE your JSON is complete - properly close all brackets and braces
+7. Keep each artifact content concise but complete
 
 Generate the JSON now:`;
 
-    const retries = options?.retries ?? 2;
+    const maxRetries = options?.retries ?? 3;
     let temperature = this.temperature;
-    let maxTokens = this.maxTokens;
+    // Increase default max_tokens for structured output to avoid truncation
+    let maxTokens = Math.max(this.maxTokens, 16384);
 
     if (phase && this.phaseOverrides[phase]) {
       const override = this.phaseOverrides[phase];
       temperature = override.temperature ?? temperature;
-      maxTokens = override.max_tokens ?? maxTokens;
+      maxTokens = Math.max(override.max_tokens ?? maxTokens, 16384);
     }
 
     if (options?.temperature !== undefined) {
@@ -329,110 +398,220 @@ Generate the JSON now:`;
       maxTokens = options.maxOutputTokens;
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(
-      () => controller.abort(),
-      this.timeoutSeconds * 1000
-    );
-
-    try {
-      const response = await fetch(`${this.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages: [
-            {
-              role: 'system',
-              content:
-                'You are a code generation assistant. Always respond with valid JSON only, no markdown formatting.',
-            },
-            { role: 'user', content: enhancedPrompt },
-          ],
-          max_tokens: maxTokens,
-          temperature,
-          response_format: { type: 'json_object' }, // Z.ai JSON mode
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(
-          `Z.ai API error: ${
-            error.error?.message || error.msg || response.statusText
-          }`
-        );
-      }
-
-      const data = await response.json();
-      const choice = data.choices?.[0];
-      const responseContent =
-        choice?.message?.content || choice?.message?.reasoning_content;
-
-      if (!responseContent) {
-        throw new Error('No content in Z.ai structured output response');
-      }
-
-      // Parse JSON response
-      let parsed: any;
-      try {
-        parsed = JSON.parse(responseContent);
-      } catch (parseError) {
-        throw new Error(
-          `Failed to parse JSON from Z.ai: ${(parseError as Error).message}. ` +
-            `Response: ${responseContent.slice(0, 500)}...`
-        );
-      }
-
-      // Validate structure
-      if (!parsed.artifacts || !Array.isArray(parsed.artifacts)) {
-        throw new Error(
-          `Invalid structure: expected {artifacts: [...]}. Got: ${JSON.stringify(
-            parsed
-          ).slice(0, 200)}`
-        );
-      }
-
-      // Convert to Record<filename, content>
-      const result: Record<string, string> = {};
-      const foundFiles: string[] = [];
-
-      for (const artifact of parsed.artifacts) {
-        if (artifact.filename && typeof artifact.content === 'string') {
-          result[artifact.filename] = artifact.content;
-          foundFiles.push(artifact.filename);
-        }
-      }
-
-      // Check all expected files are present
-      const missing = expectedFiles.filter((f) => !result[f]);
-      if (missing.length > 0) {
-        throw new Error(
-          `Missing required files. Expected: ${expectedFiles.join(', ')}. ` +
-            `Found: ${foundFiles.join(', ')}`
-        );
-      }
-
-      logger.info('[ZaiClient] Successfully generated structured artifacts', {
-        files: foundFiles,
-        phase,
-      });
-
-      return result;
-    } catch (error) {
-      clearTimeout(timeoutId);
-      logger.error(
-        '[ZaiClient] Structured generation failed',
-        error instanceof Error ? error : new Error(String(error)),
-        { expectedFiles, phase }
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        this.timeoutSeconds * 1000
       );
-      throw error;
+
+      try {
+        logger.info(
+          `[ZaiClient] Structured generation attempt ${attempt}/${maxRetries}`,
+          {
+            maxTokens,
+            temperature,
+            phase,
+          }
+        );
+
+        const response = await fetch(`${this.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.apiKey}`,
+          },
+          body: JSON.stringify({
+            model: this.model,
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'You are a code generation assistant. Always respond with valid, complete JSON only. No markdown formatting. Ensure all JSON structures are properly closed.',
+              },
+              { role: 'user', content: enhancedPrompt },
+            ],
+            max_tokens: maxTokens,
+            temperature,
+            response_format: { type: 'json_object' }, // Z.ai JSON mode
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.status === 429) {
+          const backoffMs = Math.pow(2, attempt) * 1000;
+          logger.warn(
+            `[ZaiClient] Rate limited. Waiting ${backoffMs}ms before retry ${
+              attempt + 1
+            }/${maxRetries}...`
+          );
+          await new Promise((resolve) => setTimeout(resolve, backoffMs));
+          continue;
+        }
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(
+            `Z.ai API error: ${
+              error.error?.message || error.msg || response.statusText
+            }`
+          );
+        }
+
+        const data = await response.json();
+        const choice = data.choices?.[0];
+        let responseContent =
+          choice?.message?.content || choice?.message?.reasoning_content;
+
+        if (!responseContent) {
+          throw new Error('No content in Z.ai structured output response');
+        }
+
+        const finishReason = choice?.finish_reason;
+        const wasTruncated = finishReason === 'length';
+
+        if (wasTruncated) {
+          logger.warn(
+            '[ZaiClient] Response was truncated, attempting JSON repair',
+            {
+              finishReason,
+              contentLength: responseContent.length,
+              attempt,
+            }
+          );
+          // Attempt to repair the truncated JSON
+          responseContent = this.repairTruncatedJson(responseContent);
+        }
+
+        // Parse JSON response
+        let parsed: any;
+        try {
+          parsed = JSON.parse(responseContent);
+        } catch (parseError) {
+          // If this was the last attempt, try one more repair strategy
+          if (attempt === maxRetries) {
+            logger.warn('[ZaiClient] Final attempt: aggressive JSON repair');
+            try {
+              // Try aggressive repair
+              responseContent = this.repairTruncatedJson(responseContent);
+              parsed = JSON.parse(responseContent);
+            } catch {
+              throw new Error(
+                `Failed to parse JSON from Z.ai after ${maxRetries} attempts: ${
+                  (parseError as Error).message
+                }. ` +
+                  `Response (first 500 chars): ${responseContent.slice(
+                    0,
+                    500
+                  )}...`
+              );
+            }
+          } else {
+            logger.warn(
+              `[ZaiClient] JSON parse failed on attempt ${attempt}, retrying with higher token limit`,
+              {
+                error: (parseError as Error).message,
+              }
+            );
+            // Increase token limit for next attempt
+            maxTokens = Math.min(maxTokens * 1.5, 32768);
+            await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
+            continue;
+          }
+        }
+
+        // Validate structure
+        if (!parsed.artifacts || !Array.isArray(parsed.artifacts)) {
+          if (attempt < maxRetries) {
+            logger.warn(
+              `[ZaiClient] Invalid structure on attempt ${attempt}, retrying`
+            );
+            await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
+            continue;
+          }
+          throw new Error(
+            `Invalid structure: expected {artifacts: [...]}. Got: ${JSON.stringify(
+              parsed
+            ).slice(0, 200)}`
+          );
+        }
+
+        // Convert to Record<filename, content>
+        const result: Record<string, string> = {};
+        const foundFiles: string[] = [];
+
+        for (const artifact of parsed.artifacts) {
+          if (artifact.filename && typeof artifact.content === 'string') {
+            result[artifact.filename] = artifact.content;
+            foundFiles.push(artifact.filename);
+          }
+        }
+
+        // Check all expected files are present
+        const missing = expectedFiles.filter((f) => !result[f]);
+        if (missing.length > 0) {
+          if (attempt < maxRetries) {
+            logger.warn(
+              `[ZaiClient] Missing files on attempt ${attempt}: ${missing.join(
+                ', '
+              )}, retrying`
+            );
+            await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
+            continue;
+          }
+          throw new Error(
+            `Missing required files. Expected: ${expectedFiles.join(', ')}. ` +
+              `Found: ${foundFiles.join(', ')}`
+          );
+        }
+
+        logger.info('[ZaiClient] Successfully generated structured artifacts', {
+          files: foundFiles,
+          phase,
+          attempt,
+          wasTruncated,
+        });
+
+        return result;
+      } catch (error) {
+        clearTimeout(timeoutId);
+
+        if (error instanceof Error && error.name === 'AbortError') {
+          logger.error(
+            '[ZaiClient] Request timed out',
+            new Error('Request timeout'),
+            {
+              attempt,
+              phase,
+            }
+          );
+          if (attempt < maxRetries) {
+            await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
+            continue;
+          }
+          throw new Error('Request timeout after all retries');
+        }
+
+        if (attempt === maxRetries) {
+          logger.error(
+            '[ZaiClient] Structured generation failed after all retries',
+            error instanceof Error ? error : new Error(String(error)),
+            { expectedFiles, phase, attempt }
+          );
+          throw error;
+        }
+
+        logger.warn(`[ZaiClient] Error on attempt ${attempt}, retrying...`, {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
+      }
     }
+
+    throw new Error(
+      'Failed to generate structured artifacts after all retries'
+    );
   }
 }
