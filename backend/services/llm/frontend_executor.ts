@@ -276,7 +276,7 @@ ${projectBrief}
 ${designTokens.slice(0, 8000)}
 \`\`\`
 
-## Component Inventory (from component-inventory.md):
+## Component Mapping (from component-mapping.md):
 \`\`\`
 ${componentInventory.slice(0, 8000)}
 \`\`\`

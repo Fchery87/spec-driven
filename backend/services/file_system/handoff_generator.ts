@@ -336,7 +336,7 @@ Please review the attached specifications in the order listed above, then:
   - Use ONLY 8pt grid spacing values (8, 16, 24, 32, 48, 64)
   - Follow the 60/30/10 color rule with project-specific colors
   - Use Framer Motion with the defined duration scale for animations
-  - Use shadcn/ui components as specified in component-inventory.md
+  - Use shadcn/ui components as specified in component-mapping.md
   - Implement user journeys exactly as defined in user-flows.md
   - AVOID: purple defaults, gradient blobs, Inter font, excessive border radius
 
@@ -450,7 +450,7 @@ ${artifacts['SPEC/design-system.md'] || 'Design system document not available'}
 
 \`\`\`markdown
 ${
-  artifacts['SPEC/component-inventory.md'] ||
+  artifacts['SPEC/component-mapping.md'] ||
   'Component inventory document not available'
 }
 \`\`\`

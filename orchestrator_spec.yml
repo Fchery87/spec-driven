@@ -384,7 +384,7 @@ phases:
         'journey-maps.md',
         'approved_stack',
       ]
-    produces:
+    outputs:
       [
         'components/ui/button.tsx',
         'components/ui/card.tsx',

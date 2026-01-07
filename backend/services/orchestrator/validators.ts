@@ -2269,7 +2269,7 @@ export class Validators {
         'data-model.md',
         'api-spec.json',
         'design-system.md',
-        'component-inventory.md',
+        'component-mapping.md',
         'user-flows.md',
       ],
     };

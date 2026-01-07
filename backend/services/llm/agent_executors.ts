@@ -537,6 +537,8 @@ async function executeArchitectAgent(
     expectedFiles = [
       'stack.json',
       'stack-analysis.md',
+      'stack-decision.md',
+      'stack-rationale.md',
     ];
     variables = {
       brief: projectBrief,
@@ -1640,5 +1642,42 @@ You MUST include both ---FILE: markers exactly as shown above.`
         issues: results,
       };
     },
+  };
+}
+
+/**
+ * Execute DONE phase - Generate handoff package
+ * Generates: README.md, HANDOFF.md, project.zip
+ */
+export async function getHandoffExecutor(
+  llmClient: LLMProvider,
+  projectId: string,
+  artifacts: Record<string, string>,
+  projectName?: string
+): Promise<Record<string, string>> {
+  logger.info('[DONE] Generating handoff package');
+
+  const { HandoffGenerator } = await import('@/backend/services/file_system/handoff_generator');
+  const handoffGenerator = new HandoffGenerator(projectId, artifacts);
+
+  // Generate README.md
+  const readmeContent = await handoffGenerator.generateReadme();
+
+  // Generate HANDOFF.md
+  const handoffContent = await handoffGenerator.generateHandoff();
+
+  // For project.zip, we'll return a placeholder indicating it should be created by the file system service
+  // The actual ZIP creation happens in the archiver service after artifacts are persisted
+  const zipPlaceholder = 'ZIP file will be created by archiver service after artifacts are persisted';
+
+  logger.info('[DONE] Handoff package generated', {
+    readmeLength: readmeContent?.length || 0,
+    handoffLength: handoffContent?.length || 0,
+  });
+
+  return {
+    'README.md': readmeContent || '',
+    'HANDOFF.md': handoffContent || '',
+    'project.zip': zipPlaceholder,
   };
 }

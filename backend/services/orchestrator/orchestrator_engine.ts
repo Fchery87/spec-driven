@@ -1260,8 +1260,8 @@ export class OrchestratorEngine {
               artifacts['design-tokens.md'] ||
               '',
             componentInventory:
-              artifacts['SPEC_DESIGN_COMPONENTS/component-inventory.md'] ||
-              artifacts['component-inventory.md'] ||
+              artifacts['SPEC_DESIGN_COMPONENTS/component-mapping.md'] ||
+              artifacts['component-mapping.md'] ||
               '',
             stack: stackChoice,
             llmClient,
@@ -1384,12 +1384,15 @@ export class OrchestratorEngine {
           break;
 
         case 'DONE':
-          // Handoff generation happens via separate endpoint
-          return {
-            success: true,
-            artifacts: {},
-            message: 'Final phase - use /generate-handoff endpoint',
-          };
+          // Generate handoff package (README.md, HANDOFF.md, project.zip)
+          const { getHandoffExecutor } = await import('@/backend/services/llm/agent_executors');
+          generatedArtifacts = await getHandoffExecutor(
+            llmClient,
+            projectId,
+            artifacts,
+            projectName
+          );
+          break;
 
         default:
           throw new Error(`No executor for phase: ${currentPhaseName}`);
