@@ -160,7 +160,7 @@ export class CheckerPattern {
         {
           critic: 'skeptical_cto',
           maxRegenerations: 2,
-          escalateOnCritical: true,
+          escalateOnCritical: false,
         },
       ],
       [
