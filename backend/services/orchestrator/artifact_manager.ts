@@ -11,7 +11,7 @@ import { resolve, dirname } from 'path';
 import { createHash } from 'crypto';
 import { Archiver } from '../file_system/archiver';
 import { ProjectStorage } from '../file_system/project_storage';
- 
+
 import { logger } from '@/lib/logger';
 import { listArtifactNamesMerged } from './artifact_access';
 
@@ -85,18 +85,39 @@ export class ArtifactManager {
 
   /**
    * List artifacts for a project phase
+   * Uses unified access layer that checks R2, DB, and filesystem
+   * @param projectSlug - Project slug (NOT the UUID id)
    */
-  async listArtifacts(projectId: string, phase: string): Promise<string[]> {
-    const phasePath = resolve(this.basePath, projectId, 'specs', phase, 'v1');
-
-    if (!existsSync(phasePath)) {
-      return [];
-    }
-
+  async listArtifacts(projectSlug: string, phase: string): Promise<string[]> {
+    // Use the unified artifact access layer that checks R2, DB, and filesystem
     try {
-      return readdirSync(phasePath);
-    } catch {
-      return [];
+      return await listArtifactNamesMerged(projectSlug, phase);
+    } catch (error) {
+      logger.debug(
+        'listArtifacts: Failed to use merged listing, falling back to filesystem',
+        {
+          projectSlug,
+          phase,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+
+      // Fallback to filesystem only
+      const phasePath = resolve(
+        this.basePath,
+        projectSlug,
+        'specs',
+        phase,
+        'v1'
+      );
+      if (!existsSync(phasePath)) {
+        return [];
+      }
+      try {
+        return readdirSync(phasePath);
+      } catch {
+        return [];
+      }
     }
   }
 
@@ -351,7 +372,7 @@ export class ArtifactManager {
   /**
    * Extract frontmatter from markdown content
    */
-   
+
   private extractFrontmatter(content: string): Record<string, any> | null {
     const frontmatterRegex = /^---\n([\s\S]*?)\n---/;
     const match = content.match(frontmatterRegex);
@@ -360,7 +381,7 @@ export class ArtifactManager {
 
     try {
       // Simple YAML parsing - in production use proper YAML parser
-       
+
       const frontmatter: Record<string, any> = {};
       const lines = match[1].split('\n');
 

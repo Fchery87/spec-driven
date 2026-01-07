@@ -2139,7 +2139,8 @@ ${
       return [];
     }
 
-    return await this.artifactManager.listArtifacts(project.id, targetPhase);
+    // Use project.slug (not project.id) because R2 storage paths are based on slug
+    return await this.artifactManager.listArtifacts(project.slug, targetPhase);
   }
 
   /**
@@ -2149,8 +2150,9 @@ ${
     project: Project,
     artifactName: string
   ): Promise<string> {
+    // Use project.slug (not project.id) because R2 storage paths are based on slug
     return asString(
-      await this.artifactManager.getArtifactContent(project.id, artifactName)
+      await this.artifactManager.getArtifactContent(project.slug, artifactName)
     );
   }
 
