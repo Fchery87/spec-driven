@@ -172,7 +172,7 @@ export class CheckerPattern {
         {
           critic: 'security_auditor',
           maxRegenerations: 1,
-          escalateOnCritical: true,
+          escalateOnCritical: false,
         },
       ],
       [
