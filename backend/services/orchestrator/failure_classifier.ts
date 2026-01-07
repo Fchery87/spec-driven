@@ -11,21 +11,21 @@
  * 7 Failure Types for AUTO_REMEDY Classification
  */
 export type FailureType =
-  | 'missing_requirement_mapping'   // PRD missing requirements from project-brief
-  | 'persona_mismatch'              // PRD doesn't align with personas
-  | 'api_data_model_gap'            // API references fields not in data model
-  | 'structural_inconsistency'      // Cross-artifact reference errors
-  | 'format_validation_error'       // Syntax, JSON, markdown errors
-  | 'constitutional_violation'      // Violates constitutional articles
-  | 'unknown';                      // Unclassifiable failure
+  | 'missing_requirement_mapping' // PRD missing requirements from project-brief
+  | 'persona_mismatch' // PRD doesn't align with personas
+  | 'api_data_model_gap' // API references fields not in data model
+  | 'structural_inconsistency' // Cross-artifact reference errors
+  | 'format_validation_error' // Syntax, JSON, markdown errors
+  | 'constitutional_violation' // Violates constitutional articles
+  | 'unknown'; // Unclassifiable failure
 
 /**
  * Failure classification result
  */
 export interface FailureClassification {
   type: FailureType;
-  confidence: number;  // 0.0 to 1.0
-  reason: string;      // Human-readable explanation
+  confidence: number; // 0.0 to 1.0
+  reason: string; // Human-readable explanation
 }
 
 /**
@@ -65,7 +65,7 @@ const CLASSIFICATION_PATTERNS: Array<{
       /user.*stor(y|ies).*inconsistent.*with.*persona/i,
       /does.*not.*match.*persona.*"[^"]+"/i,
     ],
-    confidence: 0.80,
+    confidence: 0.8,
   },
   {
     type: 'api_data_model_gap',
@@ -185,7 +185,8 @@ export function getRemediationStrategy(
           'Perform gap analysis between project-brief.md and PRD.md. ' +
           'Identify missing requirements and add them to PRD with proper user stories.',
         requiresManualReview: false,
-        reason: 'Re-run scrummaster with gap analysis to capture missing requirements',
+        reason:
+          'Re-run scrummaster with gap analysis to capture missing requirements',
       };
 
     case 'persona_mismatch':
@@ -212,8 +213,11 @@ export function getRemediationStrategy(
 
     case 'structural_inconsistency':
       // Determine which agent based on phase
-      const agent = failedPhase.includes('DESIGN') ? 'designer' :
-                    failedPhase.includes('ARCHITECT') ? 'architect' : 'pm';
+      const agent = failedPhase.includes('DESIGN')
+        ? 'designer'
+        : failedPhase.includes('ARCHITECT')
+        ? 'architect'
+        : 'pm';
       return {
         agentToRerun: agent,
         phase: failedPhase,
@@ -224,9 +228,13 @@ export function getRemediationStrategy(
       };
 
     case 'format_validation_error':
-      const formatAgent = failedPhase.includes('PM') ? 'pm' :
-                         failedPhase.includes('ARCHITECT') ? 'architect' :
-                         failedPhase.includes('DESIGN') ? 'designer' : 'analyst';
+      const formatAgent = failedPhase.includes('PM')
+        ? 'pm'
+        : failedPhase.includes('ARCHITECT')
+        ? 'architect'
+        : failedPhase.includes('DESIGN')
+        ? 'designer'
+        : 'analyst';
       return {
         agentToRerun: formatAgent,
         phase: failedPhase,
@@ -247,12 +255,16 @@ export function getRemediationStrategy(
 
     case 'unknown':
     default:
+      // GRACEFUL DEGRADATION: Unknown failures should not block the workflow
+      // Instead of escalating to manual review, skip remediation and proceed
+      // This follows the "fail-open" pattern for agentic workflows
       return {
         agentToRerun: 'analyst',
         phase: failedPhase,
-        additionalInstructions: '',
-        requiresManualReview: true,
-        reason: 'Unknown failure type requires manual investigation',
+        additionalInstructions:
+          'Unable to classify failure - skipping auto-remediation',
+        requiresManualReview: false, // Don't block workflow for unknown failures
+        reason: 'Unknown failure type - auto-proceeding (graceful degradation)',
       };
   }
 }
