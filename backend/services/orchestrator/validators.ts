@@ -2285,9 +2285,9 @@ export class Validators {
   /**
    * PHASE 1 (ANALYSIS) - validateAnalysisQuality
    * Validates the ANALYSIS phase quality checklist:
-   * - 3-5 distinct personas exist in user-personas.md
-   * - 5+ guiding principles in guiding-principles.md
-   * - All 4 required files exist
+   * - 3-5 distinct personas exist in personas.md
+   * - Constitution quality checks
+   * - All 4 required files exist (constitution.md, project-brief.md, project-classification.json, personas.md)
    * - Personas are specific (not generic like "developer", "user")
    */
   public validateAnalysisQuality(
@@ -2295,12 +2295,12 @@ export class Validators {
   ): { canProceed: boolean; issues: Array<{ severity: string; category: string; message: string }> } {
     const issues: Array<{ severity: string; category: string; message: string }> = [];
 
-    // Check 1: File presence
+    // Check 1: File presence - must match orchestrator_spec.yml ANALYSIS outputs
     const requiredFiles = [
+      'constitution.md',
+      'project-brief.md',
       'project-classification.json',
-      'guiding-principles.md',
-      'user-personas.md',
-      'user-journeys.md',
+      'personas.md',
     ];
 
     for (const file of requiredFiles) {
@@ -2314,15 +2314,15 @@ export class Validators {
     }
 
     // Check 2: Persona count (3-5 distinct personas)
-    const personasContent = artifacts['user-personas.md'] || '';
+    const personasContent = artifacts['personas.md'] || '';
     if (personasContent) {
       // Extract persona names from markdown headers
       const personaMatches = personasContent.match(/^##?\s+(?:Persona\s*:?\s*)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gm) || [];
       // Also try YAML frontmatter if present
       const frontmatterPersonas = personasContent.match(/^-?\s*name:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gim) || [];
-      
+
       const totalPersonas = new Set([...personaMatches.map(p => p.replace(/^##?\s+(?:Persona\s*:?\s*)?/i, '')), ...frontmatterPersonas.map(p => p.replace(/^-?\s*name:\s*/i, ''))]);
-      
+
       if (totalPersonas.size < 3) {
         issues.push({
           severity: 'error',
@@ -2340,7 +2340,7 @@ export class Validators {
 
     // Check 3: Persona specificity (not generic)
     const genericPersonas = ['developer', 'user', 'admin', 'customer', 'visitor', 'guest', 'member'];
-    const personaContent = artifacts['user-personas.md'] || '';
+    const personaContent = artifacts['personas.md'] || '';
     for (const generic of genericPersonas) {
       // Check if a persona is named exactly "User", "Developer", etc. without specific modifiers
       const genericHeaderRegex = new RegExp(`^##?\\s+${generic}$`, 'im');
@@ -2353,9 +2353,9 @@ export class Validators {
       }
     }
 
-    // Check 4: Guiding principles count (5+)
-    const principlesContent = artifacts['guiding-principles.md'] || '';
-    if (principlesContent) {
+    // Check 4: Constitution principles (now in constitution.md instead of guiding-principles.md)
+    const constitutionContent = artifacts['constitution.md'] || '';
+    if (constitutionContent) {
       // Count principles by looking for numbered lists, bullet points with headers, or section headers
       const principlePatterns = [
         /\d+\.\s+\*\*[^*]+\*\*/g,  // 1. **Principle Name**
@@ -2365,7 +2365,7 @@ export class Validators {
       
       let totalPrinciples = 0;
       for (const pattern of principlePatterns) {
-        const matches = principlesContent.match(pattern) || [];
+        const matches = constitutionContent.match(pattern) || [];
         totalPrinciples = Math.max(totalPrinciples, matches.length);
       }
       
@@ -2435,8 +2435,8 @@ export class Validators {
       const uniqueReqs = [...new Set(reqMatches)];
       
       // Extract persona names from PRD or personas file
-      const personaNames = artifacts['user-personas.md'] 
-        ? this.extractPersonaNames(artifacts['user-personas.md'])
+      const personaNames = artifacts['personas.md']
+        ? this.extractPersonaNames(artifacts['personas.md'])
         : [];
       
       // Common persona patterns to look for in PRD
@@ -3393,9 +3393,9 @@ export class Validators {
     // Minimum length standards per artifact type
     const minLengths: Record<string, number> = {
       'project-classification.json': 500,
-      'guiding-principles.md': 1000,
-      'user-personas.md': 1500,
-      'user-journeys.md': 2000,
+      'constitution.md': 1000,
+      'project-brief.md': 1500,
+      'personas.md': 1500,
       'stack.json': 500,
       'stack-analysis.md': 1500,
       'PRD.md': 3000,
@@ -3441,7 +3441,7 @@ export class Validators {
     const issues: Array<{ severity: string; category: string; message: string }> = [];
 
     const prdContent = artifacts['PRD.md'] || '';
-    const personasContent = artifacts['user-personas.md'] || '';
+    const personasContent = artifacts['personas.md'] || '';
 
     if (!prdContent) {
       return {

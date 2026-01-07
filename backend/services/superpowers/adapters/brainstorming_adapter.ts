@@ -20,18 +20,24 @@ export class BrainstormingAdapter extends SkillAdapter {
     context: SkillContext
   ): Promise<SkillResult> {
     const startTime = Date.now();
-    
-    const { valid, errors } = this.validateInput(input, ['topic', 'constraints']);
+
+    // Only validate 'topic' as required - 'constraints' is optional
+    const { valid, errors } = this.validateInput(input, ['topic']);
     if (!valid) {
       return this.createErrorResult(errors, Date.now() - startTime);
     }
-    
+
+    // Provide default value for constraints if not present
+    if (!input.constraints || input.constraints === '') {
+      input.constraints = 'No specific constraints provided - use best judgment for project scope and scale';
+    }
+
     const prompt = this.buildBrainstormingPrompt(input);
-    
+
     // In a real implementation, this would call an LLM
     // For now, we'll simulate the response
     const generatedIdeas = this.simulateBrainstorming(input);
-    
+
     return this.createSuccessResult(
       {
         ideas: generatedIdeas.ideas,

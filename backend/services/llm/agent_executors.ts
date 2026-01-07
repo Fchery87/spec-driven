@@ -426,11 +426,12 @@ async function executeAnalystAgent(
   });
 
   // Use structured output for reliable JSON artifact generation
+  // Must match orchestrator_spec.yml ANALYSIS phase outputs
   const expectedFiles = [
+    'constitution.md',
+    'project-brief.md',
     'project-classification.json',
-    'guiding-principles.md',
-    'user-personas.md',
-    'user-journeys.md',
+    'personas.md',
   ];
 
   // Type assertion to access GeminiClient's structured output method
