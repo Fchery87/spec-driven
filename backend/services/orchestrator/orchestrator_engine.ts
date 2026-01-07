@@ -870,15 +870,35 @@ export class OrchestratorEngine {
         // Get latest validation result
         const validationResult = await this.validatePhaseCompletion(project);
 
-        // If validation is passing, no need for AUTO_REMEDY
-        if (validationResult.status === 'pass') {
+        // If validation is passing or only has warnings (no failures), no need for AUTO_REMEDY
+        // AUTO_REMEDY only handles actual errors that need to be fixed
+        if (
+          validationResult.status === 'pass' ||
+          validationResult.status === 'warn'
+        ) {
           logger.info(
-            '[AUTO_REMEDY] Validation passing - no remediation needed'
+            `[AUTO_REMEDY] Validation status: ${validationResult.status} - no remediation needed`
           );
           return {
             success: true,
             artifacts: {},
-            message: 'AUTO_REMEDY phase - validation passed, no action needed',
+            message: `AUTO_REMEDY phase - validation ${
+              validationResult.status === 'pass'
+                ? 'passed'
+                : 'has warnings only'
+            }, no action needed`,
+          };
+        }
+
+        // Also skip if there are no actual errors (even if status is 'fail')
+        if (!validationResult.errors || validationResult.errors.length === 0) {
+          logger.info(
+            '[AUTO_REMEDY] No validation errors to remediate - skipping'
+          );
+          return {
+            success: true,
+            artifacts: {},
+            message: 'AUTO_REMEDY phase - no errors to remediate',
           };
         }
 
