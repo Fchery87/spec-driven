@@ -13,6 +13,7 @@ import type {
   ClarificationMode,
   ClarificationState,
 } from '@/types/orchestrator';
+import { asString } from '@/backend/lib/artifact_utils';
 
 export const runtime = 'nodejs';
 
@@ -243,7 +244,7 @@ async function extractClarificationQuestions(
 
   for (const artifact of artifacts) {
     try {
-      const content = await readArtifact(slug, 'ANALYSIS', artifact);
+      const content = asString(await readArtifact(slug, 'ANALYSIS', artifact));
       let match;
       let index = 0;
 
@@ -302,34 +303,37 @@ async function updateArtifactsWithResolutions(
       const markerRegex = /\[NEEDS CLARIFICATION:\s*[^\]]+\]/g;
       let markerIndex = 0;
 
-      const replaced = content.replace(markerRegex, (fullMatch) => {
-        const question = questionsForArtifact[markerIndex];
-        markerIndex += 1;
+      const replaced = asString(content).replace(
+        markerRegex,
+        (fullMatch: string) => {
+          const question = questionsForArtifact[markerIndex];
+          markerIndex += 1;
 
-        if (!question) {
+          if (!question) {
+            return skipped
+              ? '[AI ASSUMED: Standard industry practice will be followed - Skipped by user]'
+              : fullMatch;
+          }
+
+          if (!question.resolved) {
+            return skipped
+              ? '[AI ASSUMED: Standard industry practice will be followed - Skipped by user]'
+              : fullMatch;
+          }
+
+          if (question.resolvedBy === 'user' && question.userAnswer) {
+            return `[RESOLVED: ${question.userAnswer}]`;
+          }
+
+          if (question.aiAssumed) {
+            return `[AI ASSUMED: ${question.aiAssumed.assumption} - ${question.aiAssumed.rationale}]`;
+          }
+
           return skipped
             ? '[AI ASSUMED: Standard industry practice will be followed - Skipped by user]'
-            : fullMatch;
+            : '[AI ASSUMED: Standard practice will be followed - Auto-resolved]';
         }
-
-        if (!question.resolved) {
-          return skipped
-            ? '[AI ASSUMED: Standard industry practice will be followed - Skipped by user]'
-            : fullMatch;
-        }
-
-        if (question.resolvedBy === 'user' && question.userAnswer) {
-          return `[RESOLVED: ${question.userAnswer}]`;
-        }
-
-        if (question.aiAssumed) {
-          return `[AI ASSUMED: ${question.aiAssumed.assumption} - ${question.aiAssumed.rationale}]`;
-        }
-
-        return skipped
-          ? '[AI ASSUMED: Standard industry practice will be followed - Skipped by user]'
-          : '[AI ASSUMED: Standard practice will be followed - Auto-resolved]';
-      });
+      );
 
       if (replaced !== content) {
         content = replaced;

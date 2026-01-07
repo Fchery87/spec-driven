@@ -9,6 +9,7 @@ import {
   SHADCN_UI_PATTERNS,
   formatMCPContext,
 } from './mcp-code-lookup';
+import { asString } from '@/backend/lib/artifact_utils';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -196,7 +197,7 @@ export function componentSelfReview(
   // 6. Check for design tokens (colors from design-tokens.json)
   if (designTokens['design-tokens.json']) {
     try {
-      const tokens = JSON.parse(designTokens['design-tokens.json']);
+      const tokens = JSON.parse(asString(designTokens['design-tokens.json']));
       // Check for hardcoded hex colors not in tokens
       const colorPattern = /#(?:[0-9a-fA-F]{3}){1,2}\b/g;
       const hardcodedColors = code.match(colorPattern);
@@ -458,7 +459,9 @@ Generate the frontend components now. Each component must have:
       };
     },
 
-    validateArtifacts(artifacts: Record<string, string | Buffer>): ValidationResult {
+    validateArtifacts(
+      artifacts: Record<string, string | Buffer>
+    ): ValidationResult {
       const results: ValidationIssue[] = [];
       const allContent = Object.values(artifacts).join('\n').toLowerCase();
 

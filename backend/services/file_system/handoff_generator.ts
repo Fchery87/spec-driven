@@ -4,6 +4,7 @@ import { listArtifacts } from '@/app/api/lib/project-utils';
 import { logger } from '@/lib/logger';
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
+import { asString } from '@/backend/lib/artifact_utils';
 
 /**
  * Generate HANDOFF.md and README.md for LLM-based code generation
@@ -12,7 +13,10 @@ export class HandoffGenerator {
   private projectId: string;
   private artifacts: Record<string, string | Buffer>;
 
-  constructor(projectId: string, artifacts: Record<string, string | Buffer> = {}) {
+  constructor(
+    projectId: string,
+    artifacts: Record<string, string | Buffer> = {}
+  ) {
     this.projectId = projectId;
     this.artifacts = artifacts;
   }
@@ -32,14 +36,16 @@ export class HandoffGenerator {
     const description = projectMetadata?.description || '';
 
     // Extract key info from artifacts
-    const projectBrief =
+    const projectBrief = asString(
       activeArtifacts['ANALYSIS/project-brief.md'] ||
-      activeArtifacts['project-brief.md'] ||
-      '';
-    const architecture =
+        activeArtifacts['project-brief.md'] ||
+        ''
+    );
+    const architecture = asString(
       activeArtifacts['SOLUTIONING/architecture.md'] ||
-      activeArtifacts['architecture.md'] ||
-      '';
+        activeArtifacts['architecture.md'] ||
+        ''
+    );
 
     // Try to extract executive summary from project brief
     let executiveSummary = '';

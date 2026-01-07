@@ -65,6 +65,7 @@ import { regenerationRuns, artifactVersions } from '@/backend/lib/schema';
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { RegenerationOptions, RegenerationResult } from '@/types/orchestrator';
+import { asString, asStringRecord } from '@/backend/lib/artifact_utils';
 
 export class OrchestratorEngine {
   private spec: OrchestratorSpec;
@@ -276,7 +277,7 @@ export class OrchestratorEngine {
         .from(settings)
         .where(like(settings.key, 'llm_%'));
 
-      const result: Record<string, string | Buffer> = {};
+      const result: Record<string, string> = {};
       llmSettings.forEach((s: { key: string; value: string }) => {
         result[s.key] = s.value;
       });
@@ -329,7 +330,7 @@ export class OrchestratorEngine {
    * Map input values from context based on mapping configuration
    */
   private mapSkillInputs(
-    inputMapping: Record<string, string | Buffer>,
+    inputMapping: Record<string, string>,
     context: Record<string, unknown>
   ): Record<string, unknown> {
     const mapped: Record<string, unknown> = {};
@@ -609,7 +610,7 @@ export class OrchestratorEngine {
     try {
       const result = await this.checkerPattern.executeCheck(
         phase,
-        artifacts,
+        asStringRecord(artifacts),
         context
       );
 
@@ -997,7 +998,7 @@ export class OrchestratorEngine {
             const { runInlineValidation } = await import('./inline_validation');
             const inlineResult = await runInlineValidation({
               phase: currentPhaseName,
-              artifacts: generatedArtifacts,
+              artifacts: asStringRecord(generatedArtifacts),
             });
 
             if (!inlineResult.canProceed) {
@@ -1032,8 +1033,8 @@ export class OrchestratorEngine {
           );
 
           logger.debug('[SPEC_PM] PRD generation complete', {
-            prdLength: pmArtifacts['PRD.md']?.length || 0,
-            hasContent: !!pmArtifacts['PRD.md']?.trim(),
+            prdLength: asString(pmArtifacts['PRD.md'] || '').length || 0,
+            hasContent: !!asString(pmArtifacts['PRD.md'] || '').trim(),
           });
 
           generatedArtifacts = pmArtifacts;
@@ -1062,10 +1063,16 @@ export class OrchestratorEngine {
           );
 
           logger.debug('[SPEC_ARCHITECT] Architect generation complete', {
-            dataModelLength: archSpecArtifacts['data-model.md']?.length || 0,
-            apiSpecLength: archSpecArtifacts['api-spec.json']?.length || 0,
-            hasDataModel: !!archSpecArtifacts['data-model.md']?.trim(),
-            hasApiSpec: !!archSpecArtifacts['api-spec.json']?.trim(),
+            dataModelLength:
+              asString(archSpecArtifacts['data-model.md'] || '').length || 0,
+            apiSpecLength:
+              asString(archSpecArtifacts['api-spec.json'] || '').length || 0,
+            hasDataModel: !!asString(
+              archSpecArtifacts['data-model.md'] || ''
+            ).trim(),
+            hasApiSpec: !!asString(
+              archSpecArtifacts['api-spec.json'] || ''
+            ).trim(),
           });
 
           generatedArtifacts = archSpecArtifacts;
@@ -1128,7 +1135,7 @@ export class OrchestratorEngine {
             const { runInlineValidation } = await import('./inline_validation');
             const inlineResult = await runInlineValidation({
               phase: currentPhaseName,
-              artifacts: generatedArtifacts,
+              artifacts: asStringRecord(generatedArtifacts),
             });
 
             if (!inlineResult.canProceed) {
@@ -1182,8 +1189,9 @@ export class OrchestratorEngine {
           for (const [filename, content] of Object.entries(
             generatedArtifacts
           )) {
+            const contentStr = asString(content);
             // Apply auto-fix for common AI slop patterns (e.g., Inter font -> DM Sans)
-            const fixResult = autoFixAntiAISlop(content);
+            const fixResult = autoFixAntiAISlop(contentStr);
             if (fixResult.fixed) {
               logger.info('[SPEC_DESIGN_TOKENS] Auto-fixed AI slop patterns', {
                 artifact: filename,
@@ -1196,7 +1204,7 @@ export class OrchestratorEngine {
             // Now validate the (potentially fixed) content
             const slopResult = validateAntiAISlop(
               filename,
-              fixResult.fixed ? fixResult.content : content
+              fixResult.fixed ? fixResult.content : contentStr
             );
             if (slopResult.status === 'fail') {
               logger.error(
@@ -1249,8 +1257,9 @@ export class OrchestratorEngine {
           for (const [filename, content] of Object.entries(
             generatedArtifacts
           )) {
+            const contentStr = asString(content);
             // Apply auto-fix for common AI slop patterns (e.g., Inter font -> DM Sans)
-            const fixResult = autoFixAntiAISlop(content);
+            const fixResult = autoFixAntiAISlop(contentStr);
             if (fixResult.fixed) {
               logger.info(
                 '[SPEC_DESIGN_COMPONENTS] Auto-fixed AI slop patterns',
@@ -1266,7 +1275,7 @@ export class OrchestratorEngine {
             // Now validate the (potentially fixed) content
             const slopResult = validateAntiAISlop(
               filename,
-              fixResult.fixed ? fixResult.content : content
+              fixResult.fixed ? fixResult.content : contentStr
             );
             if (slopResult.status === 'fail') {
               logger.error(
@@ -1326,7 +1335,7 @@ export class OrchestratorEngine {
           for (const [filename, content] of Object.entries(
             generatedArtifacts
           )) {
-            const slopResult = validateAntiAISlop(filename, content);
+            const slopResult = validateAntiAISlop(filename, asString(content));
             if (slopResult.status === 'fail') {
               logger.error('[FRONTEND_BUILD] Anti-AI-slop validation failed', {
                 artifact: filename,
@@ -1413,7 +1422,7 @@ export class OrchestratorEngine {
               // Call the appropriate executor based on the suggested agent
               switch (agentType) {
                 case 'analyst':
-                  remediedArtifacts = await getAnalysisExecutor(
+                  remediedArtifacts = await getAnalystExecutor(
                     llmClient,
                     projectId,
                     artifacts,
@@ -1433,7 +1442,7 @@ export class OrchestratorEngine {
                     llmClient,
                     projectId,
                     artifacts,
-                    phaseToRerun,
+                    phaseToRerun as 'SPEC' | 'SPEC_ARCHITECT' | 'SOLUTIONING',
                     stackChoice,
                     projectName
                   );
@@ -1456,7 +1465,7 @@ export class OrchestratorEngine {
                   );
                   break;
                 case 'design':
-                  remediedArtifacts = await getDesignerExecutor(
+                  remediedArtifacts = await getDesignExecutor(
                     llmClient,
                     projectId,
                     artifacts,
@@ -1506,7 +1515,7 @@ ${autoRemedyResult.remediation?.additionalInstructions || 'N/A'}
                   reRunError instanceof Error
                     ? reRunError.message
                     : String(reRunError),
-              });
+              } as any);
               generatedArtifacts = {
                 'auto-remedy-report.md': `
 # AUTO-REMEDY REPORT
@@ -1695,7 +1704,7 @@ Reason: ${autoRemedyResult.reason}
           const snapshotResult = await rollbackService.createSnapshot({
             projectId,
             phaseName: currentPhaseName,
-            artifacts: normalizedArtifacts,
+            artifacts: asStringRecord(normalizedArtifacts),
             metadata: {
               agent: agentType,
               durationMs,
@@ -1911,21 +1920,25 @@ Reason: ${autoRemedyResult.reason}
     };
   }
 
-  public resolveStackSelectionMetadata(artifacts: Record<string, string | Buffer>): {
+  public resolveStackSelectionMetadata(
+    artifacts: Record<string, string | Buffer>
+  ): {
     projectType?: string;
     scaleTier?: string;
     recommendedStack?: string;
     workflowVersion: number;
   } {
-    const classificationRaw =
-      artifacts['ANALYSIS/project-classification.json'] || '';
+    const classificationRaw = asString(
+      artifacts['ANALYSIS/project-classification.json'] || ''
+    );
     const classification = parseProjectClassification(classificationRaw);
-    const brief = artifacts['ANALYSIS/project-brief.md'] || '';
+    const brief = asString(artifacts['ANALYSIS/project-brief.md'] || '');
     const defaults = deriveIntelligentDefaultStack(classification, brief);
-    const stackAnalysis =
+    const stackAnalysis = asString(
       artifacts['STACK_SELECTION/stack-analysis.md'] ||
-      artifacts['stack-analysis.md'] ||
-      '';
+        artifacts['stack-analysis.md'] ||
+        ''
+    );
 
     const parsed = this.parseStackAnalysis(stackAnalysis);
     const recommendedStack = parsed.primary || defaults.stack;
@@ -2112,9 +2125,8 @@ ${
     project: Project,
     artifactName: string
   ): Promise<string> {
-    return await this.artifactManager.getArtifactContent(
-      project.id,
-      artifactName
+    return asString(
+      await this.artifactManager.getArtifactContent(project.id, artifactName)
     );
   }
 
@@ -3286,7 +3298,7 @@ ${
     const snapshotResult = await rollbackService.createSnapshot({
       projectId,
       phaseName: group.name,
-      artifacts: allArtifacts,
+      artifacts: asStringRecord(allArtifacts),
       metadata: {
         parallelGroup: group.name,
         phasesExecuted: group.phases,

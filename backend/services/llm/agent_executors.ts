@@ -12,6 +12,7 @@ import {
   detectFeaturesFromPRD,
   formatDependencyPresetForPrompt,
 } from '@/backend/config/dependency-presets';
+import { asString } from '@/backend/lib/artifact_utils';
 
 // ============================================================================
 // TYPE DEFINITIONS FOR AGENT EXECUTORS
@@ -29,7 +30,9 @@ export interface AgentExecutor {
   generateArtifacts: (
     context: Record<string, unknown>
   ) => Promise<ArtifactGenerationResult>;
-  validateArtifacts?: (artifacts: Record<string, string | Buffer>) => ValidationResult;
+  validateArtifacts?: (
+    artifacts: Record<string, string | Buffer>
+  ) => ValidationResult;
 }
 
 export interface ArtifactGenerationResult {
@@ -768,7 +771,7 @@ Generate the complete architecture.md now:`;
     // If parsing failed, use raw response
     if (
       !artifacts['architecture.md'] ||
-      artifacts['architecture.md'].trim().length < 500
+      asString(artifacts['architecture.md']).trim().length < 500
     ) {
       logger.warn(
         '[SOLUTIONING] architecture.md parsing failed, using raw response'
@@ -978,7 +981,9 @@ export async function getAnalystExecutor(
   projectName?: string
 ): Promise<Record<string, string | Buffer>> {
   const configLoader = new ConfigLoader();
-  const projectIdea = artifacts['project_idea'] || 'Project for analysis';
+  const projectIdea = asString(
+    artifacts['project_idea'] || 'Project for analysis'
+  );
   return executeAnalystAgent(llmClient, configLoader, projectIdea, projectName);
 }
 
@@ -991,8 +996,8 @@ export async function getPMExecutor(
   projectName?: string
 ): Promise<Record<string, string | Buffer>> {
   const configLoader = new ConfigLoader();
-  const brief = artifacts['ANALYSIS/project-brief.md'] || '';
-  const personas = artifacts['ANALYSIS/personas.md'] || '';
+  const brief = asString(artifacts['ANALYSIS/project-brief.md'] || '');
+  const personas = asString(artifacts['ANALYSIS/personas.md'] || '');
   return executePMAgent(llmClient, configLoader, brief, personas, projectName);
 }
 
@@ -1005,11 +1010,13 @@ export async function getArchitectExecutor(
   projectName?: string
 ): Promise<Record<string, string | Buffer>> {
   const configLoader = new ConfigLoader();
-  const brief = artifacts['ANALYSIS/project-brief.md'] || '';
-  const personas = artifacts['ANALYSIS/personas.md'] || '';
-  const constitution = artifacts['ANALYSIS/constitution.md'] || '';
+  const brief = asString(artifacts['ANALYSIS/project-brief.md'] || '');
+  const personas = asString(artifacts['ANALYSIS/personas.md'] || '');
+  const constitution = asString(artifacts['ANALYSIS/constitution.md'] || '');
   // Support both SPEC_PM and SPEC paths for PRD
-  const prd = artifacts['SPEC_PM/PRD.md'] || artifacts['SPEC/PRD.md'] || '';
+  const prd = asString(
+    artifacts['SPEC_PM/PRD.md'] || artifacts['SPEC/PRD.md'] || ''
+  );
   return executeArchitectAgent(
     llmClient,
     configLoader,
@@ -1031,11 +1038,12 @@ export async function getStackSelectionExecutor(
   projectName?: string
 ): Promise<Record<string, string | Buffer>> {
   const configLoader = new ConfigLoader();
-  const brief = artifacts['ANALYSIS/project-brief.md'] || '';
-  const personas = artifacts['ANALYSIS/personas.md'] || '';
-  const constitution = artifacts['ANALYSIS/constitution.md'] || '';
-  const classificationRaw =
-    artifacts['ANALYSIS/project-classification.json'] || '';
+  const brief = asString(artifacts['ANALYSIS/project-brief.md'] || '');
+  const personas = asString(artifacts['ANALYSIS/personas.md'] || '');
+  const constitution = asString(artifacts['ANALYSIS/constitution.md'] || '');
+  const classificationRaw = asString(
+    artifacts['ANALYSIS/project-classification.json'] || ''
+  );
   const classification = parseProjectClassification(classificationRaw);
   const defaultStack = deriveIntelligentDefaultStack(classification, brief);
   return executeArchitectAgent(
@@ -1061,9 +1069,9 @@ export async function getScruMasterExecutor(
   projectName?: string
 ): Promise<Record<string, string | Buffer>> {
   const configLoader = new ConfigLoader();
-  const prd = artifacts['SPEC/PRD.md'] || '';
-  const dataModel = artifacts['SPEC/data-model.md'] || '';
-  const apiSpec = artifacts['SPEC/api-spec.json'] || '';
+  const prd = asString(artifacts['SPEC/PRD.md'] || '');
+  const dataModel = asString(artifacts['SPEC/data-model.md'] || '');
+  const apiSpec = asString(artifacts['SPEC/api-spec.json'] || '');
   return executeScrumMasterAgent(
     llmClient,
     configLoader,
@@ -1082,7 +1090,7 @@ export async function getDevOpsExecutor(
   projectName?: string
 ): Promise<Record<string, string | Buffer>> {
   const configLoader = new ConfigLoader();
-  const prd = artifacts['SPEC/PRD.md'] || '';
+  const prd = asString(artifacts['SPEC/PRD.md'] || '');
   return executeDevOpsAgent(
     llmClient,
     configLoader,
@@ -1389,9 +1397,9 @@ export async function getDesignExecutor(
   artifacts: Record<string, string | Buffer>,
   projectName?: string
 ): Promise<Record<string, string | Buffer>> {
-  const brief = artifacts['ANALYSIS/project-brief.md'] || '';
-  const prd = artifacts['SPEC/PRD.md'] || '';
-  const personas = artifacts['ANALYSIS/personas.md'] || '';
+  const brief = asString(artifacts['ANALYSIS/project-brief.md'] || '');
+  const prd = asString(artifacts['SPEC/PRD.md'] || '');
+  const personas = asString(artifacts['ANALYSIS/personas.md'] || '');
   return executeDesignAgent(llmClient, brief, prd, personas, projectName);
 }
 
@@ -1637,7 +1645,9 @@ You MUST include both ---FILE: markers exactly as shown above.`
       };
     },
 
-    validateArtifacts(artifacts: Record<string, string | Buffer>): ValidationResult {
+    validateArtifacts(
+      artifacts: Record<string, string | Buffer>
+    ): ValidationResult {
       const results: ValidationIssue[] = [];
 
       for (const [artifactName, content] of Object.entries(artifacts)) {
@@ -1657,7 +1667,8 @@ You MUST include both ---FILE: markers exactly as shown above.`
         ];
 
         forbiddenPatterns.forEach((pattern) => {
-          if (content.toLowerCase().includes(pattern)) {
+          const contentStr = asString(content);
+          if (contentStr.toLowerCase().includes(pattern)) {
             results.push({
               severity: 'error',
               artifactId: artifactName,
@@ -1667,7 +1678,8 @@ You MUST include both ---FILE: markers exactly as shown above.`
         });
 
         requiredPatterns.forEach((pattern) => {
-          if (!content.toLowerCase().includes(pattern)) {
+          const contentStr = asString(content);
+          if (!contentStr.toLowerCase().includes(pattern)) {
             results.push({
               severity: 'warning',
               artifactId: artifactName,
@@ -1702,7 +1714,9 @@ export async function getHandoffExecutor(
   );
 
   // Extract stack choice from artifacts for project metadata
-  const stackDecision = artifacts['STACK_SELECTION/stack-decision.md'] || '';
+  const stackDecision = asString(
+    artifacts['STACK_SELECTION/stack-decision.md'] || ''
+  );
   const stackMatch = stackDecision.match(
     /##? Approved Stack.*?\n([\s\S]*?)(?=\n##|\n#|$)/i
   );
