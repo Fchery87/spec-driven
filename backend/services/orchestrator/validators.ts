@@ -1,5 +1,5 @@
 import { Validator, ValidationResult, Project } from '@/types/orchestrator';
- 
+
 import { existsSync, readFileSync, statSync, readdirSync } from 'fs';
 import { resolve, extname } from 'path';
 import { execSync } from 'child_process';
@@ -24,7 +24,9 @@ export class Validators {
   private async ensureArtifactCache(project: Project): Promise<void> {
     if (this.artifactCache && this.artifactCacheProjectId === project.id)
       return;
-    this.artifactCache = await buildArtifactCacheForProject(project.id);
+    // IMPORTANT: R2 storage paths use project.slug, not project.id (UUID)
+    // buildArtifactCacheForProject expects the slug to construct correct R2 paths
+    this.artifactCache = await buildArtifactCacheForProject(project.slug);
     this.artifactCacheProjectId = project.id;
   }
 
@@ -573,7 +575,7 @@ export class Validators {
 
   private validateConstitutionalCompliance(
     project: Project,
-     
+
     articles: Record<string, any>
   ): ValidationResult {
     const checks: Record<string, boolean> = {};
@@ -897,7 +899,7 @@ export class Validators {
   private validateFrontmatter(project: Project): ValidationResult {
     const checks: Record<string, boolean> = {};
     const errors: string[] = [];
-     
+
     const warnings: string[] = [];
 
     const requiredFields = ['title', 'owner', 'version', 'date', 'status'];
@@ -1077,13 +1079,12 @@ export class Validators {
   private validateDatabaseField(
     project: Project,
     field: string,
-     
+
     expectedValue: any
   ): ValidationResult {
     const checks: Record<string, boolean> = {};
     const errors: string[] = [];
 
-     
     const actualValue = (project as any)[field];
     checks[field] = actualValue === expectedValue;
 
@@ -1170,7 +1171,6 @@ export class Validators {
           encoding: 'utf8',
           stdio: ['pipe', 'pipe', 'pipe'],
         });
-         
       } catch (error: any) {
         // npm audit exits with non-zero code when vulnerabilities are found
         // The output is still in error.stdout
@@ -1191,7 +1191,6 @@ export class Validators {
         const vulnerablePackages: string[] = [];
 
         for (const [pkgName, vulnData] of Object.entries(vulnerabilities)) {
-           
           const vuln = vulnData as any;
           if (vuln.severity === 'critical') {
             criticalCount++;
@@ -1219,7 +1218,6 @@ export class Validators {
               ]
             : undefined,
         };
-         
       } catch (parseError) {
         // If JSON parsing fails, fallback to string parsing
         if (auditOutput.includes('CRITICAL') || auditOutput.includes('high')) {
@@ -1276,7 +1274,6 @@ export class Validators {
           encoding: 'utf8',
           stdio: ['pipe', 'pipe', 'pipe'],
         });
-         
       } catch (error: any) {
         // pip-audit may exit with non-zero code when vulnerabilities are found
         auditOutput = error.stdout || '';
@@ -1324,7 +1321,6 @@ export class Validators {
               ? [`Found ${vulnerabilities.length} LOW/MODERATE vulnerabilities`]
               : undefined,
         };
-         
       } catch (parseError) {
         // If JSON parsing fails, fallback to string parsing
         if (
@@ -3143,7 +3139,6 @@ export class Validators {
     return files;
   }
 
-   
   private extractFrontmatter(content: string): Record<string, any> | null {
     const frontmatterRegex = /^---\n([\s\S]*?)\n---/;
     const match = content.match(frontmatterRegex);
@@ -3152,7 +3147,7 @@ export class Validators {
 
     try {
       // Simple YAML parsing - in production use proper YAML parser
-       
+
       const frontmatter: Record<string, any> = {};
       const lines = match[1].split('\n');
 
@@ -3170,7 +3165,7 @@ export class Validators {
   }
 
   // Public test-facing methods for unit testing
-   
+
   public validatePresence(
     artifacts: Record<string, string>,
     validator: any
@@ -3241,7 +3236,6 @@ export class Validators {
     };
   }
 
-   
   public validateContentCoverage(
     artifacts: Record<string, string>,
     validator: any
