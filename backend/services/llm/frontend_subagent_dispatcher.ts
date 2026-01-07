@@ -98,13 +98,14 @@ export class FrontendSubagentDispatcher {
       // Run self-review
       const selfReview = componentSelfReview(spec.name, code, this.designTokens);
       if (!selfReview.passed) {
-        return {
+        const failResult: SubagentResult = {
           componentName: spec.name,
           success: false,
           code: '',
           errors: selfReview.issues,
           durationMs: Date.now() - startTime,
         };
+        return failResult;
       }
 
       this.existingComponents.set(spec.name, code);
@@ -114,29 +115,33 @@ export class FrontendSubagentDispatcher {
         durationMs: Date.now() - startTime,
       });
 
-      return {
+      const successResult: SubagentResult = {
         componentName: spec.name,
         success: true,
         code,
         errors: [],
         durationMs: Date.now() - startTime,
       };
-    } catch (error) {
+
+      return successResult;
+    } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
 
-      logger.error('[FrontendSubagentDispatcher] Component generation failed', {
+      logger.error('[FrontendSubagentDispatcher] Component generation failed', undefined, {
         componentName: spec.name,
-        error: errorMessage,
+        errorMessage,
         durationMs: Date.now() - startTime,
       });
 
-      return {
+      const result: SubagentResult = {
         componentName: spec.name,
         success: false,
         code: '',
         errors: [errorMessage],
         durationMs: Date.now() - startTime,
       };
+
+      return result;
     }
   }
 

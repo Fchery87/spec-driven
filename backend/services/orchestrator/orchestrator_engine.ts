@@ -404,15 +404,22 @@ export class OrchestratorEngine {
         executed: true,
         result: result.output,
       };
-    } catch (error) {
+    } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      logger.error(`[Superpowers] Skill execution error for phase: ${phase}`, {
-        error: message,
+      logger.error(`[Superpowers] Skill execution error for phase: ${phase}`, undefined, {
+        errorMessage: message,
       });
-      return {
+
+      const result: {
+        executed: boolean;
+        result?: Record<string, unknown>;
+        error?: string;
+      } = {
         executed: true,
         error: message,
       };
+
+      return result;
     }
   }
 

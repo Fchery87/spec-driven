@@ -2,7 +2,7 @@
 
 Quick reference for using the Spec-Driven platform features.
 
-**Version 3.1** - Updated with AI-driven Stack Selection, Streamlined Dependencies, and Intelligent Defaults.
+**Version 3.5** - Updated with Superpowers Skill Invocation Framework, Anti-AI-Slop Validation, and Enhanced Frontend Build.
 
 ---
 
@@ -129,6 +129,75 @@ Five governing principles enforced across ALL generated specifications:
 
 **Mandate:** Prefer real databases over mocks in tests.
 **Enforcement:** Test configuration in `tasks.md` specifies real service usage.
+
+---
+
+## Superpowers Skill Invocation Framework
+
+The platform includes a **Superpowers Skill Invocation Framework** that automatically invokes specialized skills during specific phases to enhance productivity and quality.
+
+### Available Skills
+
+| Skill | Phases | Purpose |
+|-------|--------|---------|
+| **Brainstorming** | ANALYSIS, STACK_SELECTION | Generates creative ideas and recommendations before generation |
+| **Writing Plans** | SOLUTIONING, SPEC_PM, SPEC_ARCHITECT, DEPENDENCIES | Creates structured plans and documentation |
+| **Systematic Debugging** | VALIDATE, AUTO_REMEDY | Provides structured debugging for issue resolution |
+| **Verification** | VALIDATE, DONE | Performs comprehensive verification before completion |
+| **Subagent-Driven Development** | FRONTEND_BUILD, SOLUTIONING | Manages parallel subagent execution for complex tasks |
+| **Finishing Branch** | DONE | Handles branch finalization and cleanup |
+
+### How It Works
+
+Skills are automatically invoked based on phase configuration in `orchestrator_spec.yml`:
+
+```yaml
+ANALYSIS:
+  superpowers_integration:
+    skill: "brainstorming"
+    trigger: "pre_generation"
+    input_mapping:
+      topic: "$project_description"
+      constraints: "$scale_tier"
+    output_mapping:
+      refined_requirements: "ideas"
+      recommendations: "recommendations"
+```
+
+### Skill Execution Flow
+
+1. **Pre-generation trigger**: Skills like Brainstorming run before phase generation to prepare context
+2. **Post-generation trigger**: Verification skills run after generation to validate outputs
+3. **On-demand trigger**: Debugging and finishing skills can be invoked when needed
+
+### Example: Brainstorming in ANALYSIS
+
+When entering the ANALYSIS phase with Superpowers enabled:
+
+1. The framework extracts project context (description, scale tier, constitution)
+2. Brainstorming skill generates 5-7 ideas with pros/cons
+3. Ideas are mapped to context and available to the analyst agent
+4. Results influence requirement generation
+
+### API Access
+
+```typescript
+import { SuperpowersExecutor } from '@/backend/services/superpowers/skill_executor';
+
+// Execute a skill manually
+const executor = new SuperpowersExecutor();
+const result = await executor.executeSkill(
+  'brainstorming',
+  'ANALYSIS',
+  { topic: 'E-commerce platform', constraints: 'MVP, 3 months' },
+  'project-123',
+  'My Project'
+);
+
+// Get available skills for a phase
+const skills = executor.getAvailableSkills('SOLUTIONING');
+// Returns: ['writing_plans', 'verification_before_completion']
+```
 
 ---
 
@@ -740,4 +809,4 @@ As you integrate these utilities into more routes:
 
 ---
 
-**Last Updated:** December 10, 2025
+**Last Updated:** January 6, 2026

@@ -15,6 +15,7 @@ import {
 
 const createMockLLMClient = (response: { content: string }) => ({
   generateCompletion: vi.fn().mockResolvedValue(response),
+  testConnection: vi.fn().mockResolvedValue(true),
 });
 
 const validComponentCode = `
