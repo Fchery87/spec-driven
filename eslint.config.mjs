@@ -4,7 +4,7 @@ import pluginReactConfig from 'eslint-plugin-react/configs/recommended.js';
 import globals from 'globals';
 import nextPlugin from 'eslint-config-next';
 
-export default [
+const eslintConfig = [
   {
     ignores: [
       '**/node_modules/**',
@@ -17,3 +17,5 @@ export default [
   },
   ...nextPlugin,
 ];
+
+export default eslintConfig;

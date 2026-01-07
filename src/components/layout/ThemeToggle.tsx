@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { Moon, Sun } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -13,20 +13,21 @@ const STORAGE_KEY = "spec-driven-theme"
 export function ThemeToggle({ className }: { className?: string }) {
   const [theme, setTheme] = useState<Theme>("light")
 
-  useEffect(() => {
-    const stored = (typeof window !== "undefined" && (localStorage.getItem(STORAGE_KEY) as Theme | null)) || null
-    const initial = stored === "dark" ? "dark" : "light"
-    applyTheme(initial)
-  }, [])
-
-  const applyTheme = (next: Theme) => {
+  // Define applyTheme before the useEffect that uses it
+  const applyTheme = useCallback((next: Theme) => {
     setTheme(next)
     if (typeof window !== "undefined") {
       const root = window.document.documentElement
       root.classList.toggle("dark", next === "dark")
       localStorage.setItem(STORAGE_KEY, next)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    const stored = (typeof window !== "undefined" && (localStorage.getItem(STORAGE_KEY) as Theme | null)) || null
+    const initial = stored === "dark" ? "dark" : "light"
+    applyTheme(initial)
+  }, [applyTheme])
 
   const toggle = () => {
     applyTheme(theme === "dark" ? "light" : "dark")
@@ -44,4 +45,3 @@ export function ThemeToggle({ className }: { className?: string }) {
     </Button>
   )
 }
-
