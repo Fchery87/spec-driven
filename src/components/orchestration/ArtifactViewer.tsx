@@ -67,6 +67,41 @@ export function ArtifactViewer({
     return text
   }, [isJSON])
 
+  // Normalize mermaid diagram syntax to fix common LLM-generated issues
+  const normalizeMermaidDiagram = (code: string): string => {
+    let normalized = code
+
+    // Fix bidirectional arrows: <--> is not supported, convert to two separate arrows or use ---
+    // Replace <--> with --- (for now, simplest fix)
+    normalized = normalized.replace(/<-->/g, '---')
+
+    // Fix <-> which is also problematic in some versions
+    normalized = normalized.replace(/<->/g, '---')
+
+    // Fix subgraph labels with problematic characters - ensure proper quoting
+    // e.g., subgraph Client["Client Layer (Vercel)"] is fine, but sometimes parsing fails
+    // Make sure subgraph labels are properly quoted
+    normalized = normalized.replace(
+      /subgraph\s+(\w+)\["([^"]+)"\]/g,
+      'subgraph $1[$2]'
+    )
+
+    // Fix arrow labels with special characters - ensure they're quoted
+    // e.g., -->|HTTPS/WSS| should work, but sometimes causes issues
+
+    // Remove any HTML-like tags that might be in the diagram
+    normalized = normalized.replace(/<[^>]+>/g, (match) => {
+      // Keep arrow syntax like --> and <--
+      if (match.match(/^<-+>?$/) || match.match(/^-+>$/)) {
+        return match
+      }
+      // Remove other HTML-like tags
+      return ''
+    })
+
+    return normalized
+  }
+
   // Extract and render mermaid diagrams from markdown
   const renderMermaidDiagrams = useCallback(async (text: string) => {
     if (!isMarkdown) return null
@@ -100,7 +135,9 @@ export function ArtifactViewer({
       }
 
       // Render mermaid diagram
-      const diagramCode = match[1].trim()
+      const rawDiagramCode = match[1].trim()
+      // Normalize the diagram to fix common LLM-generated syntax issues
+      const diagramCode = normalizeMermaidDiagram(rawDiagramCode)
       const diagramId = `mermaid-${diagramIndex++}`
       
       try {
