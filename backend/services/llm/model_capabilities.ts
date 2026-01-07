@@ -163,12 +163,20 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapability> = {
   },
 
   // ===== Z.AI (GLM) MODELS =====
+  'glm-4.7': {
+    id: 'glm-4.7',
+    provider: 'zai',
+    maxOutputTokens: 131072,
+    maxInputTokens: 128000,
+    description:
+      'GLM-4.7 - latest flagship model with 128K output, superior coding and agentic capabilities',
+  },
   'glm-4.6': {
     id: 'glm-4.6',
     provider: 'zai',
-    maxOutputTokens: 4096,
+    maxOutputTokens: 131072,
     maxInputTokens: 128000,
-    description: 'GLM-4.6 - latest flagship model',
+    description: 'GLM-4.6 - flagship model with 128K output',
   },
   'glm-4-plus': {
     id: 'glm-4-plus',

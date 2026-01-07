@@ -174,13 +174,23 @@ export const MODEL_PARAMETER_PRESETS: Record<string, ModelPreset> = {
   // ============================================================================
   // Z.AI GLM MODELS (Temperature: 0-2.0)
   // ============================================================================
+  'glm-4.7': {
+    provider: 'zai',
+    temperature: 0.7,
+    timeout: 240,
+    topP: 0.95,
+    recommendedUseCase:
+      'Latest flagship, superior coding and agentic capabilities (128K output)',
+    maxOutputTokens: 131072,
+  },
+
   'glm-4.6': {
     provider: 'zai',
     temperature: 0.7,
-    timeout: 180,
+    timeout: 240,
     topP: 0.95,
-    recommendedUseCase: 'Latest flagship model',
-    maxOutputTokens: 4096,
+    recommendedUseCase: 'Flagship model with 128K output',
+    maxOutputTokens: 131072,
   },
 
   'glm-4-plus': {

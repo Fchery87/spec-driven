@@ -125,7 +125,8 @@ const PROVIDER_MODELS: Record<ProviderType, { id: string; name: string; descript
     { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', description: 'Most powerful' },
   ],
   zai: [
-    { id: 'glm-4.6', name: 'GLM-4.6', description: 'Latest flagship model' },
+    { id: 'glm-4.7', name: 'GLM-4.7', description: 'Latest flagship, superior coding (128K output)' },
+    { id: 'glm-4.6', name: 'GLM-4.6', description: 'Flagship model (128K output)' },
     { id: 'glm-4-plus', name: 'GLM-4 Plus', description: 'High performance model' },
     { id: 'glm-4-air', name: 'GLM-4 Air', description: 'Balanced performance' },
     { id: 'glm-4-flash', name: 'GLM-4 Flash', description: 'Most economical' },

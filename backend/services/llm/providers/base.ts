@@ -89,7 +89,16 @@ export const PROVIDER_MODELS: Record<
     },
   ],
   zai: [
-    { id: 'glm-4.6', name: 'GLM-4.6', description: 'Latest flagship model' },
+    {
+      id: 'glm-4.7',
+      name: 'GLM-4.7',
+      description: 'Latest flagship, superior coding (128K output)',
+    },
+    {
+      id: 'glm-4.6',
+      name: 'GLM-4.6',
+      description: 'Flagship model (128K output)',
+    },
     {
       id: 'glm-4-plus',
       name: 'GLM-4 Plus',
