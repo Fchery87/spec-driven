@@ -260,6 +260,46 @@ export class ZaiClient implements LLMProvider {
   }
 
   /**
+   * Match a potentially truncated filename to an expected filename
+   * Handles cases like "dependencies." -> "dependencies.json"
+   */
+  private matchFilename(
+    actualFilename: string,
+    expectedFiles: string[]
+  ): string | null {
+    // Exact match first
+    if (expectedFiles.includes(actualFilename)) {
+      return actualFilename;
+    }
+
+    // Normalize the actual filename
+    const normalized = actualFilename.trim();
+
+    // Try to match truncated filenames
+    for (const expected of expectedFiles) {
+      // Check if actual is a prefix of expected (truncated)
+      if (expected.startsWith(normalized.replace(/\.$/, ''))) {
+        logger.warn(
+          `[ZaiClient] Matched truncated filename "${actualFilename}" to "${expected}"`
+        );
+        return expected;
+      }
+
+      // Check if basenames match (ignoring extension issues)
+      const actualBase = normalized.replace(/\.[^.]*$/, '').toLowerCase();
+      const expectedBase = expected.replace(/\.[^.]*$/, '').toLowerCase();
+      if (actualBase === expectedBase) {
+        logger.warn(
+          `[ZaiClient] Matched filename by base "${actualFilename}" to "${expected}"`
+        );
+        return expected;
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Attempt to repair truncated JSON by closing unclosed brackets/braces
    */
   private repairTruncatedJson(json: string): string {
@@ -346,7 +386,8 @@ export class ZaiClient implements LLMProvider {
       options,
     });
 
-    // Build enhanced prompt with JSON schema requirement - emphasize completeness
+    // Build enhanced prompt with JSON schema requirement - emphasize completeness and EXACT filenames
+    const fileListWithQuotes = expectedFiles.map((f) => `"${f}"`).join(', ');
     const enhancedPrompt = `${prompt}
 
 CRITICAL: You MUST respond with ONLY a valid JSON object in this exact format:
@@ -355,28 +396,30 @@ CRITICAL: You MUST respond with ONLY a valid JSON object in this exact format:
     {
       "filename": "${expectedFiles[0]}",
       "content": "... complete file content ..."
-    }${
-      expectedFiles.length > 1
-        ? `,
+    }${expectedFiles
+      .slice(1)
+      .map(
+        (f) => `,
     {
-      "filename": "${expectedFiles[1]}",
+      "filename": "${f}",
       "content": "... complete file content ..."
     }`
-        : ''
-    }
+      )
+      .join('')}
   ]
 }
 
-Required files: ${expectedFiles.join(', ')}
+EXACT REQUIRED FILENAMES (use these EXACTLY, including full extension): ${fileListWithQuotes}
 
 RULES:
 1. Output ONLY valid JSON, no markdown code blocks
 2. Include ALL ${expectedFiles.length} files in the artifacts array
-3. Each artifact must have "filename" and "content" fields
-4. Content must be complete and valid for its file type
-5. Do not truncate or abbreviate any content
-6. ENSURE your JSON is complete - properly close all brackets and braces
-7. Keep each artifact content concise but complete
+3. Use the EXACT filenames listed above - do NOT truncate or modify them
+4. Each artifact must have "filename" and "content" fields
+5. Content must be complete and valid for its file type
+6. Do not truncate or abbreviate any content
+7. ENSURE your JSON is complete - properly close all brackets and braces
+8. Filename "${expectedFiles[0]}" must be spelled exactly as shown
 
 Generate the JSON now:`;
 
@@ -538,15 +581,36 @@ Generate the JSON now:`;
           );
         }
 
-        // Convert to Record<filename, content>
+        // Convert to Record<filename, content> with fuzzy filename matching
         const result: Record<string, string> = {};
         const foundFiles: string[] = [];
+        const normalizedFiles: string[] = [];
 
         for (const artifact of parsed.artifacts) {
           if (artifact.filename && typeof artifact.content === 'string') {
-            result[artifact.filename] = artifact.content;
-            foundFiles.push(artifact.filename);
+            // Try to match the filename to an expected file
+            const matchedFilename = this.matchFilename(
+              artifact.filename,
+              expectedFiles
+            );
+            if (matchedFilename) {
+              result[matchedFilename] = artifact.content;
+              foundFiles.push(matchedFilename);
+              normalizedFiles.push(
+                artifact.filename !== matchedFilename
+                  ? `${artifact.filename} -> ${matchedFilename}`
+                  : matchedFilename
+              );
+            } else {
+              // Keep the original for error reporting
+              result[artifact.filename] = artifact.content;
+              foundFiles.push(artifact.filename);
+            }
           }
+        }
+
+        if (normalizedFiles.some((f) => f.includes(' -> '))) {
+          logger.info('[ZaiClient] Normalized filenames', { normalizedFiles });
         }
 
         // Check all expected files are present
