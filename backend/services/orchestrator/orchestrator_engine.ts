@@ -4,9 +4,7 @@ import {
   Phase,
   OrchestratorSpec,
   ValidationResult,
-   
   OrchestrationState,
-   
   PhaseHistory,
   ArtifactChange,
   ImpactLevel,
@@ -228,10 +226,10 @@ export class OrchestratorEngine {
       temperature: resolvedParams.temperature, // Use resolved parameters
       timeout_seconds: resolvedParams.timeout, // Use resolved parameters
       api_key: process.env.GEMINI_API_KEY,
-       
+
       phase_overrides: enhancedPhaseOverrides,
     };
-     
+
     this.llmClient = new GeminiClient(llmConfig as any);
 
     // Initialize Checker Pattern for dual-LLM adversarial review
@@ -319,7 +317,6 @@ export class OrchestratorEngine {
     const phaseSpec = this.spec.phases[phase];
     if (!phaseSpec) return null;
 
-     
     const integration = (phaseSpec as any).superpowers_integration;
     if (!integration) return null;
 
@@ -493,7 +490,7 @@ export class OrchestratorEngine {
   /**
    * Check if project can advance to next phase
    */
-   
+
   canAdvanceToPhase(project: Project, targetPhase?: string): boolean {
     const currentPhase = this.spec.phases[project.current_phase];
     if (!currentPhase) return false;
@@ -855,8 +852,35 @@ export class OrchestratorEngine {
       if (currentPhaseName === 'AUTO_REMEDY') {
         logger.info('[AUTO_REMEDY] Executing auto-remediation workflow');
 
+        // Check if there are any completed phases to remediate
+        if (
+          !project.phases_completed ||
+          project.phases_completed.length === 0
+        ) {
+          logger.info(
+            '[AUTO_REMEDY] No completed phases to remediate - skipping'
+          );
+          return {
+            success: true,
+            artifacts: {},
+            message: 'AUTO_REMEDY skipped - no completed phases to remediate',
+          };
+        }
+
         // Get latest validation result
         const validationResult = await this.validatePhaseCompletion(project);
+
+        // If validation is passing, no need for AUTO_REMEDY
+        if (validationResult.status === 'pass') {
+          logger.info(
+            '[AUTO_REMEDY] Validation passing - no remediation needed'
+          );
+          return {
+            success: true,
+            artifacts: {},
+            message: 'AUTO_REMEDY phase - validation passed, no action needed',
+          };
+        }
 
         // Import Phase 1 modules
         const { determinePhaseOutcome } = await import('./phase_outcomes');
@@ -926,7 +950,7 @@ export class OrchestratorEngine {
       }
 
       // Use cached validators (initialized in constructor)
-       
+
       const validators = this.validators;
       const artifactManager = new ArtifactManager();
 
@@ -950,7 +974,7 @@ export class OrchestratorEngine {
         timeout_seconds:
           dbSettings.timeout || (spec.llm_config.timeout_seconds as number),
         api_key: apiKey,
-         
+
         phase_overrides: (spec.llm_config as any).phase_overrides || {},
       };
 
@@ -992,7 +1016,7 @@ export class OrchestratorEngine {
           );
 
           // Phase 1: Inline validation for ANALYSIS
-           
+
           if ((currentPhase as any).inline_validation?.enabled) {
             logger.info('[ANALYSIS] Running inline validation');
             const { runInlineValidation } = await import('./inline_validation');
@@ -1129,7 +1153,7 @@ export class OrchestratorEngine {
           );
 
           // Phase 1: Inline validation for STACK_SELECTION
-           
+
           if ((currentPhase as any).inline_validation?.enabled) {
             logger.info('[STACK_SELECTION] Running inline validation');
             const { runInlineValidation } = await import('./inline_validation');
