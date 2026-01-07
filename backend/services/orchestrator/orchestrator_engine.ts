@@ -119,7 +119,7 @@ export class OrchestratorEngine {
       this.approvalGateService = new ApprovalGateService();
       this.gitService = new Map();
       this.rollbackService = new Map();
-      
+
       logger.info(
         '[OrchestratorEngine] ApprovalGateService, GitService, and RollbackService initialized'
       );
@@ -232,11 +232,11 @@ export class OrchestratorEngine {
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     this.llmClient = new GeminiClient(llmConfig as any);
-    
+
     // Initialize Checker Pattern for dual-LLM adversarial review
     // This runs critic personas (Skeptical CTO, QA Lead, Security Auditor, A11y Specialist)
     this.checkerPattern = new CheckerPattern(this.llmClient);
-    
+
     // Configure which phases use the checker pattern
     this.checkerEnabledPhases = new Set([
       'STACK_SELECTION',
@@ -244,11 +244,11 @@ export class OrchestratorEngine {
       'SPEC_ARCHITECT',
       'FRONTEND_BUILD',
     ]);
-    
+
     logger.info('[OrchestratorEngine] CheckerPattern initialized', {
       checkerEnabledPhases: Array.from(this.checkerEnabledPhases),
     });
-    
+
     // Initialize Superpowers Executor for skill invocation framework
     this.superpowersExecutor = new SuperpowersExecutor();
     logger.info('[OrchestratorEngine] SuperpowersExecutor initialized', {
@@ -276,7 +276,7 @@ export class OrchestratorEngine {
         .from(settings)
         .where(like(settings.key, 'llm_%'));
 
-      const result: Record<string, string> = {};
+      const result: Record<string, string | Buffer> = {};
       llmSettings.forEach((s: { key: string; value: string }) => {
         result[s.key] = s.value;
       });
@@ -312,14 +312,16 @@ export class OrchestratorEngine {
   /**
    * Check if a phase has Superpowers integration configured
    */
-  private getSuperpowersIntegration(phase: string): SuperpowersIntegrationConfig | null {
+  private getSuperpowersIntegration(
+    phase: string
+  ): SuperpowersIntegrationConfig | null {
     const phaseSpec = this.spec.phases[phase];
     if (!phaseSpec) return null;
-    
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const integration = (phaseSpec as any).superpowers_integration;
     if (!integration) return null;
-    
+
     return integration as SuperpowersIntegrationConfig;
   }
 
@@ -327,11 +329,11 @@ export class OrchestratorEngine {
    * Map input values from context based on mapping configuration
    */
   private mapSkillInputs(
-    inputMapping: Record<string, string>,
+    inputMapping: Record<string, string | Buffer>,
     context: Record<string, unknown>
   ): Record<string, unknown> {
     const mapped: Record<string, unknown> = {};
-    
+
     for (const [targetField, sourcePath] of Object.entries(inputMapping)) {
       // Handle variable substitution (e.g., $project_description)
       if (sourcePath.startsWith('$')) {
@@ -341,7 +343,7 @@ export class OrchestratorEngine {
         mapped[targetField] = context[sourcePath];
       }
     }
-    
+
     return mapped;
   }
 
@@ -360,7 +362,7 @@ export class OrchestratorEngine {
     error?: string;
   }> {
     const integration = this.getSuperpowersIntegration(phase);
-    
+
     if (!integration) {
       return { executed: false };
     }
@@ -386,19 +388,25 @@ export class OrchestratorEngine {
       );
 
       if (!result.success) {
-        logger.warn(`[Superpowers] Skill execution failed for phase: ${phase}`, {
-          errors: result.errors,
-        });
+        logger.warn(
+          `[Superpowers] Skill execution failed for phase: ${phase}`,
+          {
+            errors: result.errors,
+          }
+        );
         return {
           executed: true,
           error: `Skill execution failed: ${result.errors.join(', ')}`,
         };
       }
 
-      logger.info(`[Superpowers] Skill executed successfully for phase: ${phase}`, {
-        skill: integration.skill,
-        durationMs: result.durationMs,
-      });
+      logger.info(
+        `[Superpowers] Skill executed successfully for phase: ${phase}`,
+        {
+          skill: integration.skill,
+          durationMs: result.durationMs,
+        }
+      );
 
       return {
         executed: true,
@@ -406,9 +414,13 @@ export class OrchestratorEngine {
       };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      logger.error(`[Superpowers] Skill execution error for phase: ${phase}`, undefined, {
-        errorMessage: message,
-      });
+      logger.error(
+        `[Superpowers] Skill execution error for phase: ${phase}`,
+        undefined,
+        {
+          errorMessage: message,
+        }
+      );
 
       const result: {
         executed: boolean;
@@ -568,17 +580,21 @@ export class OrchestratorEngine {
    */
   private async runCheckerPattern(
     phase: string,
-    artifacts: Record<string, string>,
+    artifacts: Record<string, string | Buffer>,
     projectId: string,
     projectName: string
   ): Promise<{
-    artifacts: Record<string, string>;
+    artifacts: Record<string, string | Buffer>;
     message: string;
     escalated: boolean;
   }> {
     // Skip if checker not enabled for this phase
     if (!this.checkerEnabledPhases.has(phase)) {
-      return { artifacts, message: 'Checker not enabled for this phase', escalated: false };
+      return {
+        artifacts,
+        message: 'Checker not enabled for this phase',
+        escalated: false,
+      };
     }
 
     logger.info(`[CheckerPattern] Running for phase: ${phase}`);
@@ -591,14 +607,19 @@ export class OrchestratorEngine {
     };
 
     try {
-      const result = await this.checkerPattern.executeCheck(phase, artifacts, context);
+      const result = await this.checkerPattern.executeCheck(
+        phase,
+        artifacts,
+        context
+      );
 
       logger.info(`[CheckerPattern] Result for ${phase}: ${result.status}`, {
         confidence: result.confidence,
         issues: result.feedback.length,
-        critical: result.feedback.filter(f => f.severity === 'critical').length,
-        medium: result.feedback.filter(f => f.severity === 'medium').length,
-        low: result.feedback.filter(f => f.severity === 'low').length,
+        critical: result.feedback.filter((f) => f.severity === 'critical')
+          .length,
+        medium: result.feedback.filter((f) => f.severity === 'medium').length,
+        low: result.feedback.filter((f) => f.severity === 'low').length,
       });
 
       // Handle the decision
@@ -621,7 +642,9 @@ export class OrchestratorEngine {
           };
 
         case 'escalate':
-          const criticalCount = result.feedback.filter(f => f.severity === 'critical').length;
+          const criticalCount = result.feedback.filter(
+            (f) => f.severity === 'critical'
+          ).length;
           logger.error(
             `[CheckerPattern] Escalating ${phase} to human review`,
             undefined,
@@ -634,14 +657,21 @@ export class OrchestratorEngine {
           };
 
         default:
-          return { artifacts, message: 'Unknown checker status', escalated: false };
+          return {
+            artifacts,
+            message: 'Unknown checker status',
+            escalated: false,
+          };
       }
     } catch (error) {
       logger.error(`[CheckerPattern] Failed for ${phase}: ${error}`);
       // On checker failure, proceed with original artifacts (fail-open)
       return {
         artifacts,
-        message: `Checker failed (${String(error).slice(0, 100)}), proceeding with artifacts`,
+        message: `Checker failed (${String(error).slice(
+          0,
+          100
+        )}), proceeding with artifacts`,
         escalated: false,
       };
     }
@@ -654,7 +684,10 @@ export class OrchestratorEngine {
     originalPrompt: string,
     feedback: CriticFeedback[]
   ): string {
-    return this.checkerPattern.buildRegenerationPrompt(originalPrompt, feedback);
+    return this.checkerPattern.buildRegenerationPrompt(
+      originalPrompt,
+      feedback
+    );
   }
 
   /**
@@ -662,10 +695,10 @@ export class OrchestratorEngine {
    */
   async runPhaseAgent(
     project: Project,
-    artifacts: Record<string, string> = {}
+    artifacts: Record<string, string | Buffer> = {}
   ): Promise<{
     success: boolean;
-    artifacts: Record<string, string>;
+    artifacts: Record<string, string | Buffer>;
     message: string;
   }> {
     // Capture ALL project properties locally FIRST to prevent context loss
@@ -776,30 +809,39 @@ export class OrchestratorEngine {
         artifact_context: artifacts,
         all_artifacts: artifacts,
         all_phase_artifacts: artifacts,
-        quality_checklist: spec.phases[currentPhaseName]?.quality_checklist || [],
+        quality_checklist:
+          spec.phases[currentPhaseName]?.quality_checklist || [],
         phase_name: currentPhaseName,
         component_generation: 'Generate frontend components',
-        component_list: Object.keys(artifacts).filter(k => k.includes('component')),
+        component_list: Object.keys(artifacts).filter((k) =>
+          k.includes('component')
+        ),
         validation_issue: 'Validation failed',
         error_logs: '',
         project_branch: `${project.slug}-${currentPhaseName.toLowerCase()}`,
       };
 
       // Check trigger type from spec configuration
-      const superpowersIntegration = this.getSuperpowersIntegration(currentPhaseName);
-      const shouldExecutePreGeneration = superpowersIntegration?.trigger === 'pre_generation';
-      
+      const superpowersIntegration =
+        this.getSuperpowersIntegration(currentPhaseName);
+      const shouldExecutePreGeneration =
+        superpowersIntegration?.trigger === 'pre_generation';
+
       if (shouldExecutePreGeneration) {
-        logger.info(`[Superpowers] Pre-generation skill execution for phase: ${currentPhaseName}`);
+        logger.info(
+          `[Superpowers] Pre-generation skill execution for phase: ${currentPhaseName}`
+        );
         const skillResult = await this.executeSuperpowersSkill(
           currentPhaseName,
           superpowersContext,
           projectId,
           project.name || 'Untitled Project'
         );
-        
+
         if (skillResult.executed && skillResult.error) {
-          logger.warn(`[Superpowers] Pre-generation skill warning: ${skillResult.error}`);
+          logger.warn(
+            `[Superpowers] Pre-generation skill warning: ${skillResult.error}`
+          );
           // Continue with normal execution - skill warnings are non-blocking
         } else if (skillResult.executed && skillResult.result) {
           logger.info(`[Superpowers] Pre-generation skill completed`, {
@@ -925,7 +967,7 @@ export class OrchestratorEngine {
       // Get project name for template variables
       const projectName = project.name || 'Untitled Project';
 
-      let generatedArtifacts: Record<string, string> = {};
+      let generatedArtifacts: Record<string, string | Buffer> = {};
 
       // Get current phase spec
       const currentPhase = spec.phases[currentPhaseName];
@@ -1004,7 +1046,7 @@ export class OrchestratorEngine {
           );
 
           // Add PRD to artifacts if it exists from SPEC_PM
-          const artifactsWithPRDForArch: Record<string, string> = {
+          const artifactsWithPRDForArch: Record<string, string | Buffer> = {
             ...artifacts,
             'SPEC_PM/PRD.md':
               artifacts['SPEC_PM/PRD.md'] || artifacts['SPEC/PRD.md'] || '',
@@ -1051,7 +1093,7 @@ export class OrchestratorEngine {
           const scrumArtifacts = await getScruMasterExecutor(
             llmClient,
             projectId,
-            artifacts,
+            { ...artifacts, ...archArtifacts },
             projectName
           );
 
@@ -1352,15 +1394,143 @@ export class OrchestratorEngine {
             classificationType: autoRemedyResult.classification?.type,
           });
 
-          // AUTO_REMEDY doesn't generate new artifacts but may trigger phase retry
-          // If canProceed is true, the validation failure was resolved
-          // If requiresManualReview is true, human intervention is needed
+          // If canProceed is true and an agent is suggested for re-run, execute it
+          if (
+            autoRemedyResult.canProceed &&
+            autoRemedyResult.remediation?.agentToRerun
+          ) {
+            const phaseToRerun =
+              autoRemedyResult.remediation.phase || 'ANALYSIS';
+            const agentType = autoRemedyResult.remediation.agentToRerun;
+
+            logger.info(
+              `[AUTO_REMEDY] Executing remediation agent: ${agentType} for phase: ${phaseToRerun}`
+            );
+
+            let remediedArtifacts: Record<string, string | Buffer> = {};
+
+            try {
+              // Call the appropriate executor based on the suggested agent
+              switch (agentType) {
+                case 'analyst':
+                  remediedArtifacts = await getAnalysisExecutor(
+                    llmClient,
+                    projectId,
+                    artifacts,
+                    projectName
+                  );
+                  break;
+                case 'pm':
+                  remediedArtifacts = await getPMExecutor(
+                    llmClient,
+                    projectId,
+                    artifacts,
+                    projectName
+                  );
+                  break;
+                case 'architect':
+                  remediedArtifacts = await getArchitectExecutor(
+                    llmClient,
+                    projectId,
+                    artifacts,
+                    phaseToRerun,
+                    stackChoice,
+                    projectName
+                  );
+                  break;
+                case 'scrum':
+                  remediedArtifacts = await getScruMasterExecutor(
+                    llmClient,
+                    projectId,
+                    artifacts,
+                    projectName
+                  );
+                  break;
+                case 'devops':
+                  remediedArtifacts = await getDevOpsExecutor(
+                    llmClient,
+                    projectId,
+                    artifacts,
+                    stackChoice,
+                    projectName
+                  );
+                  break;
+                case 'design':
+                  remediedArtifacts = await getDesignerExecutor(
+                    llmClient,
+                    projectId,
+                    artifacts,
+                    projectName
+                  );
+                  break;
+                case 'frontend':
+                  const frontendExecutor = getFrontendExecutor();
+                  const frontendResult =
+                    await frontendExecutor.generateArtifacts({
+                      phase: phaseToRerun,
+                      projectName,
+                      projectBrief: project.description || '',
+                      designTokens: artifacts['design-tokens.json'] || '',
+                      componentInventory:
+                        artifacts['component-inventory.md'] || '',
+                      stack: stackChoice,
+                      llmClient,
+                    });
+                  remediedArtifacts = frontendResult.artifacts;
+                  break;
+                default:
+                  logger.warn(
+                    `[AUTO_REMEDY] No executor found for agent: ${agentType}`
+                  );
+              }
+
+              // Merge fixed artifacts with the report
+              generatedArtifacts = {
+                ...remediedArtifacts,
+                'auto-remedy-report.md': `
+# AUTO-REMEDY REPORT
+Status: Success
+Classification: ${autoRemedyResult.classification?.type}
+Agent Rerun: ${agentType}
+Phase: ${phaseToRerun}
+Timestamp: ${new Date().toISOString()}
+
+## Remediation Details
+${autoRemedyResult.remediation?.additionalInstructions || 'N/A'}
+`,
+              };
+            } catch (reRunError) {
+              logger.error('[AUTO_REMEDY] Agent re-run failed', {
+                agentType,
+                error:
+                  reRunError instanceof Error
+                    ? reRunError.message
+                    : String(reRunError),
+              });
+              generatedArtifacts = {
+                'auto-remedy-report.md': `
+# AUTO-REMEDY REPORT
+Status: Failed
+Error: ${reRunError instanceof Error ? reRunError.message : String(reRunError)}
+`,
+              };
+            }
+          } else {
+            // No re-run needed or safeguards failed
+            generatedArtifacts = {
+              'auto-remedy-report.md': `
+# AUTO-REMEDY REPORT
+Status: Skipped
+Reason: ${autoRemedyResult.reason}
+`,
+            };
+          }
+          // If canProceed is true and an agent is suggested for re-run, execute it
           if (autoRemedyResult.requiresManualReview) {
             throw new Error(
               `AUTO_REMEDY requires manual review: ${autoRemedyResult.reason}`
             );
           }
-
           generatedArtifacts = {
             'auto-remedy-report.md': `# AUTO_REMEDY Report
 
@@ -1385,7 +1555,9 @@ export class OrchestratorEngine {
 
         case 'DONE':
           // Generate handoff package (README.md, HANDOFF.md, project.zip)
-          const { getHandoffExecutor } = await import('@/backend/services/llm/agent_executors');
+          const { getHandoffExecutor } = await import(
+            '@/backend/services/llm/agent_executors'
+          );
           generatedArtifacts = await getHandoffExecutor(
             llmClient,
             projectId,
@@ -1405,7 +1577,7 @@ export class OrchestratorEngine {
         artifactKeys: Object.keys(generatedArtifacts),
       });
 
-      const normalizedArtifacts: Record<string, string> = {};
+      const normalizedArtifacts: Record<string, string | Buffer> = {};
       for (const [filename, content] of Object.entries(generatedArtifacts)) {
         logger.debug('[OrchestratorEngine] Saving artifact to local storage', {
           phase: currentPhaseName,
@@ -1456,10 +1628,13 @@ export class OrchestratorEngine {
 
       // Handle escalation - throw error if checker escalated to human review
       if (checkerResult.escalated) {
-        logger.error('[OrchestratorEngine] Checker pattern escalated to human review', {
-          phase: currentPhaseName,
-          message: checkerResult.message,
-        } as any);
+        logger.error(
+          '[OrchestratorEngine] Checker pattern escalated to human review',
+          {
+            phase: currentPhaseName,
+            message: checkerResult.message,
+          } as any
+        );
         const err: any = new Error(
           `[CHECKER ESCALATION] ${currentPhaseName}: ${checkerResult.message}`
         );
@@ -1471,8 +1646,13 @@ export class OrchestratorEngine {
       }
 
       // Log checker feedback for debugging
-      if (checkerResult.message.includes('issues found') || checkerResult.message.includes('minor suggestions')) {
-        logger.info(`[CheckerPattern] ${currentPhaseName}: ${checkerResult.message}`);
+      if (
+        checkerResult.message.includes('issues found') ||
+        checkerResult.message.includes('minor suggestions')
+      ) {
+        logger.info(
+          `[CheckerPattern] ${currentPhaseName}: ${checkerResult.message}`
+        );
       }
 
       // Create Git commit after successful artifact generation
@@ -1594,7 +1774,7 @@ export class OrchestratorEngine {
       alternative1?: number;
       alternative2?: number;
     };
-    decisionMatrix?: Array<Record<string, string>>;
+    decisionMatrix?: Array<Record<string, string | Buffer>>;
   } {
     if (!content) {
       return {};
@@ -1651,7 +1831,7 @@ export class OrchestratorEngine {
       alternative1?: number;
       alternative2?: number;
     } = {};
-    const decisionMatrix: Array<Record<string, string>> = [];
+    const decisionMatrix: Array<Record<string, string | Buffer>> = [];
     let currentSection: 'primary' | 'alternative1' | 'alternative2' | null =
       null;
     let inDecisionMatrix = false;
@@ -1712,7 +1892,7 @@ export class OrchestratorEngine {
         }
 
         if (row.length === matrixHeaders.length) {
-          const entry: Record<string, string> = {};
+          const entry: Record<string, string | Buffer> = {};
           matrixHeaders.forEach((header, index) => {
             entry[header] = row[index] ?? '';
           });
@@ -1731,7 +1911,7 @@ export class OrchestratorEngine {
     };
   }
 
-  public resolveStackSelectionMetadata(artifacts: Record<string, string>): {
+  public resolveStackSelectionMetadata(artifacts: Record<string, string | Buffer>): {
     projectType?: string;
     scaleTier?: string;
     recommendedStack?: string;
@@ -1760,7 +1940,7 @@ export class OrchestratorEngine {
 
   private async generateValidationArtifacts(
     project: Project
-  ): Promise<Record<string, string>> {
+  ): Promise<Record<string, string | Buffer>> {
     const currentDate = new Date().toISOString().split('T')[0];
     const validatorNames =
       (this.spec.phases['VALIDATE']?.validators as string[]) || [];
@@ -1772,10 +1952,17 @@ export class OrchestratorEngine {
     const phasesToReport = [
       'ANALYSIS',
       'STACK_SELECTION',
-      'SPEC',
+      'SPEC_PM',
+      'SPEC_ARCHITECT',
+      'SPEC_DESIGN_TOKENS',
+      'SPEC_DESIGN_COMPONENTS',
+      'FRONTEND_BUILD',
       'DEPENDENCIES',
       'SOLUTIONING',
       'VALIDATE',
+      'AUTO_REMEDY',
+      'DONE',
+      'SPEC', // Legacy fallback
     ] as const;
     const coverageRows: Array<{
       phase: string;
@@ -2952,7 +3139,7 @@ ${
   async executeParallelGroup(
     projectId: string,
     group: ParallelGroup,
-    artifacts: Record<string, string> = {}
+    artifacts: Record<string, string | Buffer> = {}
   ): Promise<PhaseExecutionResult[]> {
     logger.info('[OrchestratorEngine] Executing parallel group', {
       projectId,
@@ -3080,7 +3267,7 @@ ${
     }
 
     // Collect all artifacts from successful phases
-    const allArtifacts: Record<string, string> = {};
+    const allArtifacts: Record<string, string | Buffer> = {};
     for (const result of results) {
       if (result.success) {
         Object.assign(allArtifacts, result.artifacts);
@@ -3258,7 +3445,7 @@ ${
           );
 
           // Collect artifacts from successful phases
-          const allArtifacts: Record<string, string> = {};
+          const allArtifacts: Record<string, string | Buffer> = {};
           for (const result of results) {
             if (result.success) {
               Object.assign(allArtifacts, result.artifacts);

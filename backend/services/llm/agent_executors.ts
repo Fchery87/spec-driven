@@ -29,12 +29,12 @@ export interface AgentExecutor {
   generateArtifacts: (
     context: Record<string, unknown>
   ) => Promise<ArtifactGenerationResult>;
-  validateArtifacts?: (artifacts: Record<string, string>) => ValidationResult;
+  validateArtifacts?: (artifacts: Record<string, string | Buffer>) => ValidationResult;
 }
 
 export interface ArtifactGenerationResult {
   success: boolean;
-  artifacts: Record<string, string>;
+  artifacts: Record<string, string | Buffer>;
   metadata?: Record<string, unknown>;
 }
 
@@ -84,7 +84,7 @@ function buildPrompt(template: string, variables: Record<string, any>): string {
 /**
  * Extract reasoning block from LLM response content.
  * Looks for content wrapped in <reasoning>...</reasoning> tags.
- * 
+ *
  * @param content - The raw LLM response content
  * @returns The extracted reasoning text, or null if not found
  */
@@ -96,7 +96,7 @@ export function extractReasoning(content: string): string | null {
 /**
  * Extract reasoning and artifacts from a response that contains both.
  * The reasoning should be in a <reasoning> block, and artifacts follow.
- * 
+ *
  * @param content - The raw LLM response content
  * @returns Object containing reasoning (if present) and the cleaned content for artifact parsing
  */
@@ -113,12 +113,12 @@ export function extractReasoningAndClean(
   content: string
 ): ReasoningExtractionResult {
   const reasoning = extractReasoning(content);
-  
+
   // Remove the reasoning block from content to get clean artifact content
   const cleanedContent = reasoning
     ? content.replace(/<reasoning>[\s\S]*?<\/reasoning>\s*/i, '').trim()
     : content;
-  
+
   return {
     reasoning,
     cleanedContent,
@@ -131,14 +131,14 @@ export function extractReasoningAndClean(
 
 interface ParseResult {
   success: boolean;
-  artifacts: Record<string, string>;
+  artifacts: Record<string, string | Buffer>;
   parseMethod: 'structured' | 'markdown_strict' | 'failed';
   errors: string[];
 }
 
 /**
  * Parse artifacts with fail-fast behavior.
- * 
+ *
  * OLD (PROBLEMATIC): 6-layer fallback chain with silent degradation
  * - Attempt 1: Markdown code blocks with filename markers
  * - Attempt 2: JSON extraction
@@ -146,7 +146,7 @@ interface ParseResult {
  * - ...
  * - Attempt 5: DEGRADE - dump everything into first file ← BAD
  * - Attempt 6: SILENT FAILURE - empty strings ← WORSE
- * 
+ *
  * NEW (ROBUST):
  * - PRIMARY: Structured output detection (JSON array with filename/content)
  * - FALLBACK: Strict markdown parsing (NO degradation!)
@@ -156,13 +156,13 @@ function parseArtifacts(
   content: string,
   expectedFiles: string[],
   options: { allowMarkdownFallback?: boolean } = { allowMarkdownFallback: true }
-): Record<string, string> {
+): Record<string, string | Buffer> {
   const result = parseArtifactsInternal(content, expectedFiles, options);
-  
+
   if (result.success) {
     return result.artifacts;
   }
-  
+
   // For backward compatibility, return partial results but log warning
   // This maintains existing behavior while adding new validation path
   logger.warn('[ParseArtifacts] Parse failed, returning partial results', {
@@ -170,7 +170,7 @@ function parseArtifacts(
     foundFiles: Object.keys(result.artifacts),
     errors: result.errors,
   });
-  
+
   return result.artifacts;
 }
 
@@ -220,8 +220,8 @@ function parseArtifactsInternal(
 
   result.errors.push(
     `Parse failed. Expected files: ${expectedFiles.join(', ')}. ` +
-    `Found files: ${Object.keys(result.artifacts).join(', ') || 'none'}. ` +
-    `Parse method attempted: ${result.parseMethod}`
+      `Found files: ${Object.keys(result.artifacts).join(', ') || 'none'}. ` +
+      `Parse method attempted: ${result.parseMethod}`
   );
 
   return result;
@@ -231,7 +231,9 @@ function parseArtifactsInternal(
  * Extract artifacts from structured JSON array format.
  * Looks for: [{"filename": "...", "content": "..."}]
  */
-function extractStructuredArtifacts(content: string): Record<string, string> | null {
+function extractStructuredArtifacts(
+  content: string
+): Record<string, string | Buffer> | null {
   // Try to find JSON array pattern
   const arrayMatch = content.match(/\[\s*\{\s*"filename"/);
   if (!arrayMatch) return null;
@@ -256,9 +258,10 @@ function extractStructuredArtifacts(content: string): Record<string, string> | n
     if (endIndex === -1) return null;
 
     const jsonContent = content.slice(startIndex, endIndex);
-    const artifacts: Array<{ filename: string; content: string }> = JSON.parse(jsonContent);
+    const artifacts: Array<{ filename: string; content: string }> =
+      JSON.parse(jsonContent);
 
-    const result: Record<string, string> = {};
+    const result: Record<string, string | Buffer> = {};
     for (const artifact of artifacts) {
       if (artifact.filename && typeof artifact.content === 'string') {
         result[artifact.filename] = artifact.content;
@@ -278,11 +281,11 @@ function extractStructuredArtifacts(content: string): Record<string, string> | n
 function parseMarkdownBlocksStrict(
   content: string,
   expectedFiles: string[]
-): Record<string, string> | null {
+): Record<string, string | Buffer> | null {
   const fileRegex =
     /```(?:(\w+)[ \t]*)?\n?filename:\s*([^\n]+)\n([\s\S]*?)```/g;
 
-  const artifacts: Record<string, string> = {};
+  const artifacts: Record<string, string | Buffer> = {};
   let match;
 
   while ((match = fileRegex.exec(content)) !== null) {
@@ -296,7 +299,7 @@ function parseMarkdownBlocksStrict(
   }
 
   // Return null if not ALL files found (strict!)
-  const allFound = expectedFiles.every(f => artifacts[f]);
+  const allFound = expectedFiles.every((f) => artifacts[f]);
   return allFound ? artifacts : null;
 }
 
@@ -304,10 +307,10 @@ function parseMarkdownBlocksStrict(
  * Validate all expected files are present
  */
 function validateAllFilesPresent(
-  artifacts: Record<string, string>,
+  artifacts: Record<string, string | Buffer>,
   expectedFiles: string[]
 ): boolean {
-  return expectedFiles.every(f => artifacts[f] && artifacts[f].length > 0);
+  return expectedFiles.every((f) => artifacts[f] && artifacts[f].length > 0);
 }
 
 /**
@@ -321,7 +324,7 @@ export async function parseArtifactsWithValidation(
   originalPrompt: string,
   phase: string,
   maxRetries: number = 2
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   const parseResult = parseArtifactsInternal(content, expectedFiles);
 
   if (parseResult.success) {
@@ -330,7 +333,12 @@ export async function parseArtifactsWithValidation(
 
   // Retry with enhanced prompt
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    const enhancedPrompt = buildRetryPrompt(originalPrompt, expectedFiles, parseResult.errors, attempt);
+    const enhancedPrompt = buildRetryPrompt(
+      originalPrompt,
+      expectedFiles,
+      parseResult.errors,
+      attempt
+    );
 
     try {
       const response = await llmClient.generateCompletion(
@@ -340,7 +348,10 @@ export async function parseArtifactsWithValidation(
         phase
       );
 
-      const retryResult = parseArtifactsInternal(response.content, expectedFiles);
+      const retryResult = parseArtifactsInternal(
+        response.content,
+        expectedFiles
+      );
 
       if (retryResult.success) {
         logger.info(`[ParseArtifacts] Retry ${attempt} succeeded`, {
@@ -360,9 +371,9 @@ export async function parseArtifactsWithValidation(
   // Final failure - don't degrade, throw clear error!
   throw new Error(
     `Artifact parsing failed after ${maxRetries} retries for phase ${phase}. ` +
-    `Expected files: ${expectedFiles.join(', ')}. ` +
-    `Errors: ${parseResult.errors.join('; ')}. ` +
-    `Use structured output (JSON array with filename/content) to fix.`
+      `Expected files: ${expectedFiles.join(', ')}. ` +
+      `Errors: ${parseResult.errors.join('; ')}. ` +
+      `Use structured output (JSON array with filename/content) to fix.`
   );
 }
 
@@ -388,7 +399,10 @@ You MUST output a JSON array with this EXACT format:
 \`\`\`json
 [
   {"filename": "${expectedFiles[0]}", "content": "..."}
-  ${expectedFiles.slice(1).map(f => `, {"filename": "${f}", "content": "..."}`).join('')}
+  ${expectedFiles
+    .slice(1)
+    .map((f) => `, {"filename": "${f}", "content": "..."}`)
+    .join('')}
 ]
 \`\`\`
 
@@ -416,7 +430,7 @@ async function executeAnalystAgent(
   configLoader: ConfigLoader,
   projectIdea: string,
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   logger.info('[ANALYSIS] Executing Analyst Agent');
 
   const agentConfig = configLoader.getSection('agents').analyst;
@@ -441,8 +455,12 @@ async function executeAnalystAgent(
         prompt: string,
         expectedFiles: string[],
         phase?: string,
-        options?: { temperature?: number; maxOutputTokens?: number; retries?: number }
-      ) => Promise<Record<string, string>>;
+        options?: {
+          temperature?: number;
+          maxOutputTokens?: number;
+          retries?: number;
+        }
+      ) => Promise<Record<string, string | Buffer>>;
     }
   ).generateStructuredArtifacts(prompt, expectedFiles, 'ANALYSIS', {
     temperature: 0.3,
@@ -466,7 +484,7 @@ async function executePMAgent(
   projectBrief: string,
   personas: string,
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   logger.info('[SPEC] Executing PM Agent for PRD generation');
 
   const agentConfig = configLoader.getSection('agents').pm;
@@ -517,7 +535,7 @@ async function executeArchitectAgent(
   projectClassification?: string,
   defaultStack?: string,
   defaultStackReason?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   logger.info(`[${phase}] Executing Architect Agent`, {
     briefLength: projectBrief?.length || 0,
     personasLength: personas?.length || 0,
@@ -563,8 +581,12 @@ async function executeArchitectAgent(
           prompt: string,
           expectedFiles: string[],
           phase?: string,
-          options?: { temperature?: number; maxOutputTokens?: number; retries?: number }
-        ) => Promise<Record<string, string>>;
+          options?: {
+            temperature?: number;
+            maxOutputTokens?: number;
+            retries?: number;
+          }
+        ) => Promise<Record<string, string | Buffer>>;
       }
     ).generateStructuredArtifacts(prompt, expectedFiles, 'STACK_SELECTION', {
       temperature: 0.3,
@@ -578,7 +600,11 @@ async function executeArchitectAgent(
     return structuredArtifacts;
   } else if (phase === 'SPEC' || phase === 'SPEC_ARCHITECT') {
     // SPEC and SPEC_ARCHITECT both generate data-model.md, api-spec.json, architecture-decisions.md
-    expectedFiles = ['data-model.md', 'api-spec.json', 'architecture-decisions.md'];
+    expectedFiles = [
+      'data-model.md',
+      'api-spec.json',
+      'architecture-decisions.md',
+    ];
     variables = {
       brief: projectBrief,
       personas,
@@ -598,8 +624,12 @@ async function executeArchitectAgent(
           prompt: string,
           expectedFiles: string[],
           phase?: string,
-          options?: { temperature?: number; maxOutputTokens?: number; retries?: number }
-        ) => Promise<Record<string, string>>;
+          options?: {
+            temperature?: number;
+            maxOutputTokens?: number;
+            retries?: number;
+          }
+        ) => Promise<Record<string, string | Buffer>>;
       }
     ).generateStructuredArtifacts(prompt, expectedFiles, 'SPEC', {
       temperature: 0.3,
@@ -630,7 +660,7 @@ async function executeArchitectAgent(
 
     // Dedicated architecture prompt - much shorter than the full template
     // Get stack template details for consistency
-    const stackTemplates: Record<string, string> = {
+    const stackTemplates: Record<string, string | Buffer> = {
       nextjs_fullstack_expo: 'Next.js 14 + TypeScript + Expo for mobile',
       nextjs_web_only: 'Next.js 14 + TypeScript (web only, no mobile)',
       nextjs_web_app: 'Next.js 14 + TypeScript (web application)',
@@ -770,7 +800,7 @@ async function executeScrumMasterAgent(
   dataModel: string,
   apiSpec: string,
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   logger.info(
     '[SOLUTIONING] Executing Scrum Master Agent (single comprehensive prompt)'
   );
@@ -881,7 +911,7 @@ async function executeDevOpsAgent(
   prd: string,
   stackChoice: string = 'nextjs_web_app',
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   logger.info('[DEPENDENCIES] Executing DevOps Agent');
 
   const agentConfig = configLoader.getSection('agents').devops;
@@ -908,10 +938,7 @@ async function executeDevOpsAgent(
   });
 
   // Use structured output for reliable JSON artifact generation
-  const expectedFiles = [
-    'dependencies.json',
-    'deployment-config.md',
-  ];
+  const expectedFiles = ['dependencies.json', 'DEPENDENCIES.md'];
 
   const structuredArtifacts = await (
     llmClient as unknown as {
@@ -919,8 +946,12 @@ async function executeDevOpsAgent(
         prompt: string,
         expectedFiles: string[],
         phase?: string,
-        options?: { temperature?: number; maxOutputTokens?: number; retries?: number }
-      ) => Promise<Record<string, string>>;
+        options?: {
+          temperature?: number;
+          maxOutputTokens?: number;
+          retries?: number;
+        }
+      ) => Promise<Record<string, string | Buffer>>;
     }
   ).generateStructuredArtifacts(prompt, expectedFiles, 'DEPENDENCIES', {
     temperature: 0.3,
@@ -943,9 +974,9 @@ async function executeDevOpsAgent(
 export async function getAnalystExecutor(
   llmClient: LLMProvider,
   projectId: string,
-  artifacts: Record<string, string>,
+  artifacts: Record<string, string | Buffer>,
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   const configLoader = new ConfigLoader();
   const projectIdea = artifacts['project_idea'] || 'Project for analysis';
   return executeAnalystAgent(llmClient, configLoader, projectIdea, projectName);
@@ -954,11 +985,11 @@ export async function getAnalystExecutor(
 export async function getPMExecutor(
   llmClient: LLMProvider,
   projectId: string,
-  artifacts: Record<string, string>,
+  artifacts: Record<string, string | Buffer>,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   stackChoice?: string,
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   const configLoader = new ConfigLoader();
   const brief = artifacts['ANALYSIS/project-brief.md'] || '';
   const personas = artifacts['ANALYSIS/personas.md'] || '';
@@ -968,11 +999,11 @@ export async function getPMExecutor(
 export async function getArchitectExecutor(
   llmClient: LLMProvider,
   projectId: string,
-  artifacts: Record<string, string>,
+  artifacts: Record<string, string | Buffer>,
   phase: 'SPEC' | 'SPEC_ARCHITECT' | 'SOLUTIONING' = 'SOLUTIONING',
   stackChoice?: string,
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   const configLoader = new ConfigLoader();
   const brief = artifacts['ANALYSIS/project-brief.md'] || '';
   const personas = artifacts['ANALYSIS/personas.md'] || '';
@@ -996,9 +1027,9 @@ export async function getStackSelectionExecutor(
   llmClient: LLMProvider,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   projectId: string,
-  artifacts: Record<string, string>,
+  artifacts: Record<string, string | Buffer>,
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   const configLoader = new ConfigLoader();
   const brief = artifacts['ANALYSIS/project-brief.md'] || '';
   const personas = artifacts['ANALYSIS/personas.md'] || '';
@@ -1026,9 +1057,9 @@ export async function getStackSelectionExecutor(
 export async function getScruMasterExecutor(
   llmClient: LLMProvider,
   projectId: string,
-  artifacts: Record<string, string>,
+  artifacts: Record<string, string | Buffer>,
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   const configLoader = new ConfigLoader();
   const prd = artifacts['SPEC/PRD.md'] || '';
   const dataModel = artifacts['SPEC/data-model.md'] || '';
@@ -1046,10 +1077,10 @@ export async function getScruMasterExecutor(
 export async function getDevOpsExecutor(
   llmClient: LLMProvider,
   projectId: string,
-  artifacts: Record<string, string>,
+  artifacts: Record<string, string | Buffer>,
   stackChoice?: string,
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   const configLoader = new ConfigLoader();
   const prd = artifacts['SPEC/PRD.md'] || '';
   return executeDevOpsAgent(
@@ -1076,7 +1107,7 @@ async function executeDesignAgent(
   prd: string,
   personas: string,
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   logger.info('[SPEC] Executing Design Agent', {
     briefLength: projectBrief?.length || 0,
     prdLength: prd?.length || 0,
@@ -1300,7 +1331,7 @@ status: "draft"
       llmClient.generateCompletion(userFlowsPrompt, undefined, 2, 'SPEC'),
     ]);
 
-  const artifacts: Record<string, string> = {};
+  const artifacts: Record<string, string | Buffer> = {};
 
   // Parse design-tokens.md
   const designSystemArtifacts = await parseArtifactsWithValidation(
@@ -1355,9 +1386,9 @@ status: "draft"
 export async function getDesignExecutor(
   llmClient: LLMProvider,
   projectId: string,
-  artifacts: Record<string, string>,
+  artifacts: Record<string, string | Buffer>,
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   const brief = artifacts['ANALYSIS/project-brief.md'] || '';
   const prd = artifacts['SPEC/PRD.md'] || '';
   const personas = artifacts['ANALYSIS/personas.md'] || '';
@@ -1536,7 +1567,7 @@ You MUST include both ---FILE: markers exactly as shown above.`
       );
 
       // Parse artifacts from response
-      const artifacts: Record<string, string> = {};
+      const artifacts: Record<string, string | Buffer> = {};
 
       if (phase === 'SPEC_DESIGN_TOKENS') {
         // Use structured output for reliable single-file generation
@@ -1546,8 +1577,12 @@ You MUST include both ---FILE: markers exactly as shown above.`
               prompt: string,
               expectedFiles: string[],
               phase?: string,
-              options?: { temperature?: number; maxOutputTokens?: number; retries?: number }
-            ) => Promise<Record<string, string>>;
+              options?: {
+                temperature?: number;
+                maxOutputTokens?: number;
+                retries?: number;
+              }
+            ) => Promise<Record<string, string | Buffer>>;
           }
         ).generateStructuredArtifacts(llmPrompt, ['design-tokens.md'], phase, {
           temperature: 0.3,
@@ -1564,8 +1599,12 @@ You MUST include both ---FILE: markers exactly as shown above.`
               prompt: string,
               expectedFiles: string[],
               phase?: string,
-              options?: { temperature?: number; maxOutputTokens?: number; retries?: number }
-            ) => Promise<Record<string, string>>;
+              options?: {
+                temperature?: number;
+                maxOutputTokens?: number;
+                retries?: number;
+              }
+            ) => Promise<Record<string, string | Buffer>>;
           }
         ).generateStructuredArtifacts(
           llmPrompt,
@@ -1574,7 +1613,8 @@ You MUST include both ---FILE: markers exactly as shown above.`
           { temperature: 0.3, maxOutputTokens: 8192, retries: 2 }
         );
 
-        artifacts['component-mapping.md'] = structuredArtifacts['component-mapping.md'];
+        artifacts['component-mapping.md'] =
+          structuredArtifacts['component-mapping.md'];
         artifacts['journey-maps.md'] = structuredArtifacts['journey-maps.md'];
       }
 
@@ -1597,7 +1637,7 @@ You MUST include both ---FILE: markers exactly as shown above.`
       };
     },
 
-    validateArtifacts(artifacts: Record<string, string>): ValidationResult {
+    validateArtifacts(artifacts: Record<string, string | Buffer>): ValidationResult {
       const results: ValidationIssue[] = [];
 
       for (const [artifactName, content] of Object.entries(artifacts)) {
@@ -1652,32 +1692,55 @@ You MUST include both ---FILE: markers exactly as shown above.`
 export async function getHandoffExecutor(
   llmClient: LLMProvider,
   projectId: string,
-  artifacts: Record<string, string>,
+  artifacts: Record<string, string | Buffer>,
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   logger.info('[DONE] Generating handoff package');
 
-  const { HandoffGenerator } = await import('@/backend/services/file_system/handoff_generator');
+  const { HandoffGenerator } = await import(
+    '@/backend/services/file_system/handoff_generator'
+  );
+
+  // Extract stack choice from artifacts for project metadata
+  const stackDecision = artifacts['STACK_SELECTION/stack-decision.md'] || '';
+  const stackMatch = stackDecision.match(
+    /##? Approved Stack.*?\n([\s\S]*?)(?=\n##|\n#|$)/i
+  );
+  const stackChoice = stackMatch
+    ? stackMatch[1].trim().split('\n')[0].replace(/^- /, '')
+    : 'custom';
+
+  const projectMetadata = {
+    name: projectName,
+    stack_choice: stackChoice,
+  };
+
   const handoffGenerator = new HandoffGenerator(projectId, artifacts);
 
   // Generate README.md
-  const readmeContent = await handoffGenerator.generateReadme();
+  const readmeContent = await handoffGenerator.generateReadme(
+    undefined,
+    projectMetadata
+  );
 
   // Generate HANDOFF.md
-  const handoffContent = await handoffGenerator.generateHandoff();
+  const handoffContent = await handoffGenerator.generateHandoff(
+    undefined,
+    projectMetadata
+  );
 
-  // For project.zip, we'll return a placeholder indicating it should be created by the file system service
-  // The actual ZIP creation happens in the archiver service after artifacts are persisted
-  const zipPlaceholder = 'ZIP file will be created by archiver service after artifacts are persisted';
+  // Create actual project.zip
+  const zipBuffer = await handoffGenerator.createZip();
 
   logger.info('[DONE] Handoff package generated', {
     readmeLength: readmeContent?.length || 0,
     handoffLength: handoffContent?.length || 0,
+    zipSize: zipBuffer.length,
   });
 
   return {
     'README.md': readmeContent || '',
     'HANDOFF.md': handoffContent || '',
-    'project.zip': zipPlaceholder,
+    'project.zip': zipBuffer,
   };
 }

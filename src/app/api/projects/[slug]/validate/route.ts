@@ -74,7 +74,7 @@ const validateHandler = withAuth(
       }
 
       // Collect all artifacts for validation
-      const artifacts: Record<string, string> = {};
+      const artifacts: Record<string, string | Buffer> = {};
       const phases = [
         'ANALYSIS',
         'STACK_SELECTION',
@@ -194,7 +194,7 @@ const validateHandler = withAuth(
  * Run all validation checks against artifacts
  */
 async function runValidationChecks(
-  artifacts: Record<string, string>,
+  artifacts: Record<string, string | Buffer>,
   metadata: Record<string, unknown>
 ): Promise<ValidationCheck[]> {
   const checks: ValidationCheck[] = [];
@@ -244,10 +244,10 @@ function determineOverallStatus(
 // Validation Check Implementations
 
 async function checkRequirementToTaskMapping(
-  artifacts: Record<string, string>
+  artifacts: Record<string, string | Buffer>
 ): Promise<ValidationCheck> {
-  const prd = artifacts['SPEC_PM/PRD.md'] || '';
-  const tasks = artifacts['SOLUTIONING/tasks.md'] || '';
+  const prd = artifacts['SPEC_PM/PRD.md']?.toString() || '';
+  const tasks = artifacts['SOLUTIONING/tasks.md']?.toString() || '';
 
   if (!prd || !tasks) {
     return {
@@ -288,10 +288,10 @@ async function checkRequirementToTaskMapping(
 }
 
 async function checkApiToDataModelMapping(
-  artifacts: Record<string, string>
+  artifacts: Record<string, string | Buffer>
 ): Promise<ValidationCheck> {
-  const apiSpec = artifacts['SPEC_ARCHITECT/api-spec.json'] || '';
-  const dataModel = artifacts['SPEC_ARCHITECT/data-model.md'] || '';
+  const apiSpec = artifacts['SPEC_ARCHITECT/api-spec.json']?.toString() || '';
+  const dataModel = artifacts['SPEC_ARCHITECT/data-model.md']?.toString() || '';
 
   if (!apiSpec || !dataModel) {
     return {
@@ -359,10 +359,10 @@ async function checkApiToDataModelMapping(
 }
 
 async function checkPersonaConsistency(
-  artifacts: Record<string, string>
+  artifacts: Record<string, string | Buffer>
 ): Promise<ValidationCheck> {
-  const personas = artifacts['ANALYSIS/personas.md'] || '';
-  const prd = artifacts['SPEC_PM/PRD.md'] || '';
+  const personas = artifacts['ANALYSIS/personas.md']?.toString() || '';
+  const prd = artifacts['SPEC_PM/PRD.md']?.toString() || '';
 
   if (!personas || !prd) {
     return {
@@ -409,11 +409,13 @@ async function checkPersonaConsistency(
 }
 
 async function checkStackConsistency(
-  artifacts: Record<string, string>,
+  artifacts: Record<string, string | Buffer>,
   metadata: Record<string, unknown>
 ): Promise<ValidationCheck> {
-  const stackDecision = artifacts['STACK_SELECTION/stack-decision.md'] || '';
-  const architecture = artifacts['SOLUTIONING/architecture.md'] || '';
+  const stackDecision =
+    artifacts['STACK_SELECTION/stack-decision.md']?.toString() || '';
+  const architecture =
+    artifacts['SOLUTIONING/architecture.md']?.toString() || '';
   const approvedStack = (metadata.stack_choice as string) || '';
 
   if (!stackDecision || !architecture) {
@@ -488,10 +490,10 @@ async function checkStackConsistency(
 }
 
 async function checkEpicTaskConsistency(
-  artifacts: Record<string, string>
+  artifacts: Record<string, string | Buffer>
 ): Promise<ValidationCheck> {
-  const epics = artifacts['SOLUTIONING/epics.md'] || '';
-  const tasks = artifacts['SOLUTIONING/tasks.md'] || '';
+  const epics = artifacts['SOLUTIONING/epics.md']?.toString() || '';
+  const tasks = artifacts['SOLUTIONING/tasks.md']?.toString() || '';
 
   if (!epics || !tasks) {
     return {
@@ -532,7 +534,7 @@ async function checkEpicTaskConsistency(
 }
 
 async function checkUnresolvedClarifications(
-  artifacts: Record<string, string>
+  artifacts: Record<string, string | Buffer>
 ): Promise<ValidationCheck> {
   const unresolvedPattern = /\[NEEDS CLARIFICATION:[^\]]+\]/g;
   const aiAssumedPattern = /\[AI ASSUMED:[^\]]+\]/g;
@@ -546,9 +548,10 @@ async function checkUnresolvedClarifications(
   let resolvedCount = 0;
 
   for (const [path, content] of Object.entries(artifacts)) {
-    const matches = content.match(unresolvedPattern) || [];
-    const assumed = content.match(aiAssumedPattern) || [];
-    const resolved = content.match(resolvedPattern) || [];
+    const textContent = content.toString();
+    const matches = textContent.match(unresolvedPattern) || [];
+    const assumed = textContent.match(aiAssumedPattern) || [];
+    const resolved = textContent.match(resolvedPattern) || [];
     assumedCount += assumed.length;
     resolvedCount += resolved.length;
 
@@ -582,7 +585,7 @@ async function checkUnresolvedClarifications(
 }
 
 async function checkAIAssumptionsDocumented(
-  artifacts: Record<string, string>
+  artifacts: Record<string, string | Buffer>
 ): Promise<ValidationCheck> {
   const assumptionPattern = /\[AI ASSUMED:[^\]]+\]/g;
   const items: {
@@ -592,7 +595,8 @@ async function checkAIAssumptionsDocumented(
   }[] = [];
 
   for (const [path, content] of Object.entries(artifacts)) {
-    const matches = content.match(assumptionPattern) || [];
+    const textContent = content.toString();
+    const matches = textContent.match(assumptionPattern) || [];
     for (const match of matches) {
       items.push({
         item: match.substring(0, 60) + (match.length > 60 ? '...' : ''),
@@ -617,9 +621,10 @@ async function checkAIAssumptionsDocumented(
 }
 
 async function checkDesignSystemCompliance(
-  artifacts: Record<string, string>
+  artifacts: Record<string, string | Buffer>
 ): Promise<ValidationCheck> {
-  const designTokens = artifacts['SPEC_DESIGN_TOKENS/design-tokens.md'] || '';
+  const designTokens =
+    artifacts['SPEC_DESIGN_TOKENS/design-tokens.md']?.toString() || '';
 
   if (!designTokens) {
     return {
@@ -683,9 +688,9 @@ async function checkDesignSystemCompliance(
 }
 
 async function checkTestFirstCompliance(
-  artifacts: Record<string, string>
+  artifacts: Record<string, string | Buffer>
 ): Promise<ValidationCheck> {
-  const tasks = artifacts['SOLUTIONING/tasks.md'] || '';
+  const tasks = artifacts['SOLUTIONING/tasks.md']?.toString() || '';
 
   if (!tasks) {
     return {
@@ -744,10 +749,11 @@ async function checkTestFirstCompliance(
 }
 
 async function checkConstitutionalCompliance(
-  artifacts: Record<string, string>
+  artifacts: Record<string, string | Buffer>
 ): Promise<ValidationCheck> {
-  const architecture = artifacts['SOLUTIONING/architecture.md'] || '';
-  const tasks = artifacts['SOLUTIONING/tasks.md'] || '';
+  const architecture =
+    artifacts['SOLUTIONING/architecture.md']?.toString() || '';
+  const tasks = artifacts['SOLUTIONING/tasks.md']?.toString() || '';
 
   const items: {
     item: string;
@@ -887,7 +893,9 @@ overall_status: ${summary.overallStatus}
   return report;
 }
 
-function generateCoverageMatrix(artifacts: Record<string, string>): string {
+function generateCoverageMatrix(
+  artifacts: Record<string, string | Buffer>
+): string {
   let matrix = `---
 title: Coverage Matrix
 generated_at: ${new Date().toISOString()}

@@ -68,7 +68,7 @@ const executePhaseHandler = withAuth(
       }
 
       // Collect artifacts from previous phases for context
-      const previousArtifacts: Record<string, string> = {};
+      const previousArtifacts: Record<string, string | Buffer> = {};
       const allPhases = [
         'ANALYSIS',
         'STACK_SELECTION',

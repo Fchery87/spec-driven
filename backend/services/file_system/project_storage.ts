@@ -130,7 +130,7 @@ export class ProjectStorage {
     projectSlug: string,
     phase: string,
     artifactName: string,
-    content: string,
+    content: string | Buffer,
     version: number = 1
   ): Promise<string> {
     const artifactPath = this.getArtifactPath(
@@ -146,14 +146,17 @@ export class ProjectStorage {
       mkdirSync(dir, { recursive: true });
     }
 
-    await fsPromises.writeFile(artifactPath, content, 'utf8');
+    await fsPromises.writeFile(artifactPath, content);
 
     // Update metadata
     await this.updateArtifactMetadataAsync(projectSlug, artifactName, {
       phase,
       version,
       file_path: artifactPath,
-      file_size: Buffer.byteLength(content),
+      file_size:
+        typeof content === 'string'
+          ? Buffer.byteLength(content)
+          : content.length,
       content_hash: createHash('sha256').update(content).digest('hex'),
       updated_at: new Date(),
     });
@@ -168,7 +171,7 @@ export class ProjectStorage {
     projectSlug: string,
     phase: string,
     artifactName: string,
-    content: string,
+    content: string | Buffer,
     version: number = 1
   ): string {
     const artifactPath = this.getArtifactPath(
@@ -184,14 +187,17 @@ export class ProjectStorage {
       mkdirSync(dir, { recursive: true });
     }
 
-    writeFileSync(artifactPath, content, 'utf8');
+    writeFileSync(artifactPath, content);
 
     // Update metadata
     this.updateArtifactMetadata(projectSlug, artifactName, {
       phase,
       version,
       file_path: artifactPath,
-      file_size: Buffer.byteLength(content),
+      file_size:
+        typeof content === 'string'
+          ? Buffer.byteLength(content)
+          : content.length,
       content_hash: createHash('sha256').update(content).digest('hex'),
       updated_at: new Date(),
     });

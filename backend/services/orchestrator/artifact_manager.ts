@@ -106,13 +106,16 @@ export class ArtifactManager {
   async getArtifactContent(
     projectId: string,
     artifactName: string
-  ): Promise<string> {
+  ): Promise<string | Buffer> {
     const artifactPath = this.getArtifactPath(projectId, artifactName);
 
     if (!existsSync(artifactPath)) {
       throw new Error(`Artifact not found: ${artifactName}`);
     }
 
+    if (artifactName.endsWith('.zip')) {
+      return readFileSync(artifactPath);
+    }
     return readFileSync(artifactPath, 'utf8');
   }
 
@@ -123,7 +126,7 @@ export class ArtifactManager {
     projectId: string,
     phase: string,
     artifactName: string,
-    content: string
+    content: string | Buffer
   ): Promise<void> {
     const artifactPath = this.getArtifactPath(projectId, artifactName, phase);
 
@@ -147,7 +150,7 @@ export class ArtifactManager {
     }
 
     try {
-      writeFileSync(artifactPath, content, 'utf8');
+      writeFileSync(artifactPath, content);
     } catch (error) {
       // Filesystem write failed - this is expected on Vercel
       // R2 storage is handled separately in the route handler
@@ -169,7 +172,7 @@ export class ArtifactManager {
     projectId: string,
     phase: string,
     artifactName: string,
-    content: string
+    content: string | Buffer
   ): Promise<void> {
     return this.writeArtifact(projectId, phase, artifactName, content);
   }
@@ -339,6 +342,7 @@ export class ArtifactManager {
       // DONE phase
       'README.md': 'DONE',
       'HANDOFF.md': 'DONE',
+      'project.zip': 'DONE',
     };
 
     return artifactPhases[artifactName] || 'UNKNOWN';

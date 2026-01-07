@@ -222,7 +222,11 @@ export interface ArtifactChange {
 }
 
 // Impact Analysis Types
-export type RegenerationStrategy = 'regenerate_all' | 'high_impact_only' | 'manual_review' | 'ignore';
+export type RegenerationStrategy =
+  | 'regenerate_all'
+  | 'high_impact_only'
+  | 'manual_review'
+  | 'ignore';
 
 export interface AffectedArtifact {
   artifactId: string;
@@ -278,7 +282,7 @@ export interface ParallelGroup {
 export interface PhaseExecutionResult {
   phase: string;
   success: boolean;
-  artifacts: Record<string, string>;
+  artifacts: Record<string, string | Buffer>;
   error?: string;
   durationMs: number;
 }

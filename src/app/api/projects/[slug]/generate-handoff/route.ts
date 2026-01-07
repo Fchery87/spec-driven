@@ -37,50 +37,58 @@ export const POST = withAuth(
         return NextResponse.json(
           {
             success: false,
-            error: `Cannot generate handoff in ${metadata.current_phase} phase. Project must be in DONE phase.`
+            error: `Cannot generate handoff in ${metadata.current_phase} phase. Project must be in DONE phase.`,
           },
           { status: 400 }
         );
       }
 
       // Generate HANDOFF.md and README.md
-      const generator = new HandoffGenerator();
+      const generator = new HandoffGenerator(slug);
       const handoffContent = await generator.generateHandoff(slug, metadata);
 
       // Save HANDOFF.md artifact
       await saveArtifact(slug, 'DONE', 'HANDOFF.md', handoffContent);
 
       // Collect artifacts for README generation
-	      const allPhases = [
-          'ANALYSIS',
-          'STACK_SELECTION',
-          'SPEC_PM',
-          'SPEC_ARCHITECT',
-          'SPEC_DESIGN_TOKENS',
-          'SPEC_DESIGN_COMPONENTS',
-          'FRONTEND_BUILD',
-          'DEPENDENCIES',
-          'SOLUTIONING',
-          'VALIDATE'
-        ];
-	      const artifacts: Record<string, string> = {};
-	      for (const phase of allPhases) {
-	        try {
-	          const phaseArtifacts = await listArtifacts(slug, phase);
-	          for (const artifact of phaseArtifacts) {
-	            try {
-	              artifacts[`${phase}/${artifact.name}`] = await readArtifact(slug, phase, artifact.name);
-	            } catch {
-	              artifacts[`${phase}/${artifact.name}`] = '';
-	            }
-	          }
-	        } catch {
-	          // Continue even if some phases don't have artifacts
-	        }
-	      }
+      const allPhases = [
+        'ANALYSIS',
+        'STACK_SELECTION',
+        'SPEC_PM',
+        'SPEC_ARCHITECT',
+        'SPEC_DESIGN_TOKENS',
+        'SPEC_DESIGN_COMPONENTS',
+        'FRONTEND_BUILD',
+        'DEPENDENCIES',
+        'SOLUTIONING',
+        'VALIDATE',
+      ];
+      const artifacts: Record<string, string | Buffer> = {};
+      for (const phase of allPhases) {
+        try {
+          const phaseArtifacts = await listArtifacts(slug, phase);
+          for (const artifact of phaseArtifacts) {
+            try {
+              artifacts[`${phase}/${artifact.name}`] = await readArtifact(
+                slug,
+                phase,
+                artifact.name
+              );
+            } catch {
+              artifacts[`${phase}/${artifact.name}`] = '';
+            }
+          }
+        } catch {
+          // Continue even if some phases don't have artifacts
+        }
+      }
 
       // Generate and save README.md
-      const readmeContent = await generator.generateReadme(slug, metadata, artifacts);
+      const readmeContent = await generator.generateReadme(
+        slug,
+        metadata,
+        artifacts
+      );
       await saveArtifact(slug, 'DONE', 'README.md', readmeContent);
 
       // Log artifacts to database
@@ -88,11 +96,22 @@ export const POST = withAuth(
         const dbService = new ProjectDBService();
         const project = await dbService.getProjectBySlug(slug, session.user.id);
         if (project) {
-          await dbService.saveArtifact(project.id, 'DONE', 'HANDOFF.md', handoffContent);
-          await dbService.saveArtifact(project.id, 'DONE', 'README.md', readmeContent);
+          await dbService.saveArtifact(
+            project.id,
+            'DONE',
+            'HANDOFF.md',
+            handoffContent
+          );
+          await dbService.saveArtifact(
+            project.id,
+            'DONE',
+            'README.md',
+            readmeContent
+          );
         }
       } catch (dbError) {
-        const dbErr = dbError instanceof Error ? dbError : new Error(String(dbError));
+        const dbErr =
+          dbError instanceof Error ? dbError : new Error(String(dbError));
         logger.error('Warning: Failed to log artifacts to database:', dbErr);
         // Don't fail the request if database logging fails
       }
@@ -117,11 +136,22 @@ export const POST = withAuth(
           artifacts_generated: ['HANDOFF.md', 'README.md'],
           size_bytes: {
             handoff: handoffContent.length,
-            readme: readmeContent.length
+            readme: readmeContent.length,
           },
-          phases_included: ['ANALYSIS', 'STACK_SELECTION', 'SPEC_PM', 'SPEC_ARCHITECT', 'SPEC_DESIGN_TOKENS', 'SPEC_DESIGN_COMPONENTS', 'FRONTEND_BUILD', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE'],
-          ready_for_download: true
-        }
+          phases_included: [
+            'ANALYSIS',
+            'STACK_SELECTION',
+            'SPEC_PM',
+            'SPEC_ARCHITECT',
+            'SPEC_DESIGN_TOKENS',
+            'SPEC_DESIGN_COMPONENTS',
+            'FRONTEND_BUILD',
+            'DEPENDENCIES',
+            'SOLUTIONING',
+            'VALIDATE',
+          ],
+          ready_for_download: true,
+        },
       });
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
@@ -129,7 +159,7 @@ export const POST = withAuth(
       return NextResponse.json(
         {
           success: false,
-          error: `Failed to generate handoff: ${err.message}`
+          error: `Failed to generate handoff: ${err.message}`,
         },
         { status: 500 }
       );
