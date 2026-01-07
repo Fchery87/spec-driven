@@ -289,7 +289,7 @@ export class ProjectsService {
   /**
    * Get project phase history
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   async getProjectPhaseHistory(slug: string): Promise<PhaseHistory[]> {
     // This would read from a phase history store
     // For now, return empty array
@@ -322,7 +322,7 @@ export class ProjectsService {
   /**
    * Get project statistics
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   async getProjectStats(slug: string): Promise<any> {
     const stats = this.projectStorage.getProjectStats(slug);
     const project = await this.getProject(slug);

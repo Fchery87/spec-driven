@@ -3,7 +3,7 @@ import { ConfigLoader } from './config_loader';
 
 describe('FRONTEND_BUILD Phase Configuration', () => {
   const configLoader = new ConfigLoader();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const spec = configLoader.loadSpec() as any;
 
   it('should define FRONTEND_BUILD phase', () => {

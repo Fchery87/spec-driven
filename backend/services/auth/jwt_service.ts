@@ -157,7 +157,7 @@ export class JWTService {
     return jwt.sign(payload, this.secret, {
       expiresIn: this.expiresIn,
       algorithm: 'HS256'
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
     } as any);
   }
 

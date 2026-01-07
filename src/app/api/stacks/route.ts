@@ -14,14 +14,14 @@ export async function GET() {
     const spec = configLoader.loadSpec();
 
     // Get stack_templates from the spec (the 12+ templates)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const rawSpec = spec as any;
     const stackTemplates = rawSpec.stack_templates || {};
     const stackSelectionMode = rawSpec.stack_selection_mode || 'hybrid';
 
     // Transform stack_templates into array format for the frontend
     const templates = Object.entries(stackTemplates).map(([id, template]) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const t = template as any;
       return {
         id,

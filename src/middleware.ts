@@ -34,7 +34,7 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
     // 'unsafe-eval' is required by Next.js for certain runtime evaluations
     // including dynamic imports and some server-side features
     // TODO: Investigate Next.js 14+ alternatives to remove 'unsafe-eval'
-    // eslint-disable-next-line @typescript-eslint/naming-convention
+     
     "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
 
     // Styles: allow self + inline (Tailwind CSS requires this)

@@ -1,4 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import {
   LLMConfig,
   LLMResponse,
@@ -521,7 +521,7 @@ export class GeminiClient implements LLMProvider {
       maxOutputTokens = modelMaxTokens;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const generationConfig: Record<string, any> = {
       temperature: effectiveConfig.temperature,
       maxOutputTokens,
@@ -1010,7 +1010,7 @@ export class GeminiClient implements LLMProvider {
   /**
    * Parse Gemini API response
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   private parseResponse(data: any): LLMResponse {
     const candidate = data.candidates?.[0];
 

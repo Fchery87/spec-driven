@@ -1,5 +1,5 @@
 import { ProjectStorage } from './project_storage';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import {
   createReadStream,
   createWriteStream,
@@ -9,13 +9,13 @@ import {
 } from 'fs';
 import { resolve as resolvePath } from 'path';
 import { createHash } from 'crypto';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import { promisify } from 'util';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import { logger } from '@/lib/logger';
 
 // Using require for archiver to avoid TypeScript declaration issues
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+ 
 const archiver = require('archiver');
 
 export interface ZipConfig {
@@ -69,7 +69,7 @@ export class Archiver {
         });
 
         // Handle archive events
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         archive.on('error', (err: any) => {
           reject(new Error(`Failed to create ZIP: ${err.message}`));
         });
@@ -259,7 +259,7 @@ export class Archiver {
     }
 
     // Read key artifacts
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const constitution = this.safeReadFile(
       resolvePath(projectPath, 'constitution.md')
     );
@@ -568,7 +568,7 @@ The entire project is documented. No guessing needed. Good luck! 🎯
    */
   private safeReadFile(filePath: string): string | null {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const { readFileSync } = require('fs');
       return readFileSync(filePath, 'utf8');
     } catch {
@@ -578,7 +578,7 @@ The entire project is documented. No guessing needed. Good luck! 🎯
 
   private fileExists(filePath: string): boolean {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const { existsSync } = require('fs');
       return existsSync(filePath);
     } catch {
@@ -590,7 +590,7 @@ The entire project is documented. No guessing needed. Good luck! 🎯
     filePath: string
   ): Promise<{ size: number; modified: Date }> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const { statSync } = require('fs');
       const stats = statSync(filePath);
       return {
@@ -697,7 +697,7 @@ The entire project is documented. No guessing needed. Good luck! 🎯
     return stackDescriptions[stackChoice] || 'Custom stack configuration';
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   private getProjectType(metadata: any): string {
     // Try to infer project type from brief or metadata
     if (metadata.description) {

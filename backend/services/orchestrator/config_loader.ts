@@ -35,7 +35,7 @@ export class ConfigLoader {
       const fileContent = readFileSync(specPath, 'utf8');
 
       // Parse YAML using js-yaml library
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const parsedYaml = yaml.load(fileContent) as Record<string, any>;
       this.spec = this.normalizeSpec(parsedYaml);
 
@@ -56,7 +56,7 @@ export class ConfigLoader {
   /**
    * Normalize parsed YAML into OrchestratorSpec type
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   private normalizeSpec(parsed: Record<string, any>): OrchestratorSpec {
     // If parsed data exists, use it directly (it's already in the correct format from YAML)
     if (parsed && Object.keys(parsed).length > 0) {
@@ -73,7 +73,7 @@ export class ConfigLoader {
         for (const [phaseName, phase] of Object.entries(spec.phases)) {
           if (phase && typeof phase === 'object') {
             // Auto-populate missing name field with phase key
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             const phaseObj = phase as any;
             if (!phaseObj.name) {
               logger.info(`[ConfigLoader] Auto-populating missing name field for phase: ${phaseName}`);

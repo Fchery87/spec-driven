@@ -9,7 +9,7 @@ import {
   rmSync,
 } from 'fs';
 import { promises as fsPromises } from 'fs';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import { resolve, dirname, basename } from 'path';
 import { createHash } from 'crypto';
 import { logger } from '@/lib/logger';
@@ -363,7 +363,7 @@ export class ProjectStorage {
   /**
    * Get project metadata
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   async getProjectMetadataAsync(projectSlug: string): Promise<any> {
     const metadataPath = resolve(this.basePath, projectSlug, 'metadata.json');
 
@@ -382,7 +382,7 @@ export class ProjectStorage {
   /**
    * Get project metadata (sync - legacy)
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   getProjectMetadata(projectSlug: string): any {
     const metadataPath = resolve(this.basePath, projectSlug, 'metadata.json');
 
@@ -401,7 +401,7 @@ export class ProjectStorage {
   /**
    * Update project metadata (async)
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   async updateProjectMetadataAsync(
     projectSlug: string,
     updates: any
@@ -424,7 +424,7 @@ export class ProjectStorage {
   /**
    * Update project metadata (sync - legacy)
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   updateProjectMetadata(projectSlug: string, updates: any): void {
     const metadataPath = resolve(this.basePath, projectSlug, 'metadata.json');
     const metadata = this.getProjectMetadata(projectSlug) || {};
@@ -441,7 +441,7 @@ export class ProjectStorage {
   /**
    * Update artifact metadata (async)
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   private async updateArtifactMetadataAsync(
     projectSlug: string,
     artifactName: string,
@@ -460,7 +460,7 @@ export class ProjectStorage {
   /**
    * Update artifact metadata (sync - legacy)
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   private updateArtifactMetadata(
     projectSlug: string,
     artifactName: string,
@@ -518,7 +518,7 @@ export class ProjectStorage {
   /**
    * Get project statistics
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   getProjectStats(projectSlug: string): any {
     const projectPath = this.getProjectPath(projectSlug);
 

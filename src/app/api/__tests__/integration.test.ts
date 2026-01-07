@@ -28,7 +28,7 @@ const authMocks = vi.hoisted(() => {
     if (!session) {
       return new Response(JSON.stringify({ success: false, error: 'Unauthorized' }), { status: 401 });
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     return (handler as any)(req, ctx, session);
   });
   return {
@@ -94,26 +94,26 @@ describe('Integration: Auth → Validation → DB Flow', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (getRateLimitKey as any).mockReturnValue('test-key');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (generalLimiter.isAllowed as any).mockResolvedValue(true);
   });
 
   describe('Complete Flow: Create Project → Validate Input → Persist to Database', () => {
     it('should complete full flow from authenticated request to database persistence', async () => {
       // Setup mocks for database operations
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.createProjectWithState as any).mockResolvedValue({
         ...mockProjectData,
         name: 'My New Project',
         slug: 'my-new-project-abc123'
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
+       
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
+       
 
 
       // Step 1: Make authenticated request with valid data
@@ -214,7 +214,7 @@ describe('Integration: Auth → Validation → DB Flow', () => {
     });
 
     it('should handle database errors gracefully after validation passes', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.createProjectWithState as any).mockRejectedValue(
         new Error('Database connection failed')
       );
@@ -240,19 +240,19 @@ describe('Integration: Auth → Validation → DB Flow', () => {
 
   describe('Complete Flow: Approval → Validation → Artifact Persistence', () => {
     it('should complete approval flow with artifact persistence to database', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
+       
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
+       
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.writeArtifact as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.saveArtifact as any).mockResolvedValue(undefined);
 
       const request = new NextRequest(
@@ -338,19 +338,19 @@ describe('Integration: Auth → Validation → DB Flow', () => {
     });
 
     it('should handle database failures gracefully during artifact persistence', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
+       
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
+       
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.writeArtifact as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.saveArtifact as any).mockRejectedValue(
         new Error('Database error')
       );
@@ -385,13 +385,13 @@ describe('Integration: Auth → Validation → DB Flow', () => {
 
   describe('Authentication & Authorization', () => {
     it('should include user ID in logged operations for audit trail', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.createProjectWithState as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
+       
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
+       
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects'), {
@@ -413,13 +413,13 @@ describe('Integration: Auth → Validation → DB Flow', () => {
     });
 
     it('should maintain session information throughout request lifecycle', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.createProjectWithState as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
+       
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
+       
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects'), {
@@ -482,13 +482,13 @@ describe('Integration: Auth → Validation → DB Flow', () => {
   describe('Database Persistence', () => {
     it('should call database service with validated data', async () => {
       const createProjectSpy = vi.spyOn(ProjectDBService.prototype, 'createProjectWithState');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.createProjectWithState as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
+       
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
+       
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects'), {
@@ -513,7 +513,7 @@ describe('Integration: Auth → Validation → DB Flow', () => {
     it('should persist metadata to both filesystem and database', async () => {
       const saveSpy = vi.spyOn(projectUtils, 'saveProjectMetadata');
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.createProjectWithState as any).mockResolvedValue(mockProjectData);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects'), {

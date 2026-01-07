@@ -22,9 +22,9 @@ export const runtime = 'nodejs';
 const executePhaseHandler = withAuth(
   async (
     request: NextRequest,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     context: { params: Promise<{ slug: string }> },
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     session: AuthSession
   ) => {
     try {

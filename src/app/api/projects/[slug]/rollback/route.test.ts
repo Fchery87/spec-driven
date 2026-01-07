@@ -1,4 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { POST as rollback } from '@/app/api/projects/[slug]/rollback/route';
@@ -33,7 +33,7 @@ vi.mock('@/lib/correlation-id', () => ({
 vi.mock('@/app/api/middleware/auth-guard', () => ({
   requireAuth: async () => mockSession,
   withAuth: (handler: unknown) => async (req: unknown, ctx: unknown) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     return (handler as any)(req, ctx, mockSession);
   },
 }));
@@ -52,7 +52,7 @@ const mockGetRollbackPreview = vi.fn();
 
 vi.mock('@/backend/services/rollback/rollback_service', () => ({
   RollbackService: class MockRollbackService {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     constructor(_projectPath: string) {}
     async rollbackToPhase(...args: unknown[]) {
       return mockRollbackToPhase(...args);
@@ -84,11 +84,11 @@ describe('Rollback API Routes', () => {
     vi.clearAllMocks();
     mockRollbackToPhase.mockReset();
     mockGetRollbackPreview.mockReset();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (projectUtils.getProjectMetadata as any).mockResolvedValue(mockProjectData);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (projectUtils.saveProjectMetadata as any).mockResolvedValue(undefined);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
   });
 
@@ -158,7 +158,7 @@ describe('Rollback API Routes', () => {
       expect(data.data.currentPhase).toBe('ANALYSIS');
       expect(data.data.phasesCompleted).toEqual(['STACK_SELECTION', 'SPEC', 'DEPENDENCIES']);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       expect(projectUtils.saveProjectMetadata as any).toHaveBeenCalledWith(
         'test-project-abc12345',
         expect.objectContaining({
@@ -263,7 +263,7 @@ describe('Rollback API Routes', () => {
     });
 
     it('should return error if project not found', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockResolvedValue(null);
 
       const request = new NextRequest('http://localhost:3000/api/projects/test-project-abc12345/rollback/preview?targetPhase=ANALYSIS');

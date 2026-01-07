@@ -4,9 +4,9 @@ import {
   Phase,
   OrchestratorSpec,
   ValidationResult,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   OrchestrationState,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   PhaseHistory,
   ArtifactChange,
   ImpactLevel,
@@ -228,10 +228,10 @@ export class OrchestratorEngine {
       temperature: resolvedParams.temperature, // Use resolved parameters
       timeout_seconds: resolvedParams.timeout, // Use resolved parameters
       api_key: process.env.GEMINI_API_KEY,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       phase_overrides: enhancedPhaseOverrides,
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     this.llmClient = new GeminiClient(llmConfig as any);
 
     // Initialize Checker Pattern for dual-LLM adversarial review
@@ -319,7 +319,7 @@ export class OrchestratorEngine {
     const phaseSpec = this.spec.phases[phase];
     if (!phaseSpec) return null;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const integration = (phaseSpec as any).superpowers_integration;
     if (!integration) return null;
 
@@ -493,7 +493,7 @@ export class OrchestratorEngine {
   /**
    * Check if project can advance to next phase
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   canAdvanceToPhase(project: Project, targetPhase?: string): boolean {
     const currentPhase = this.spec.phases[project.current_phase];
     if (!currentPhase) return false;
@@ -926,7 +926,7 @@ export class OrchestratorEngine {
       }
 
       // Use cached validators (initialized in constructor)
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+       
       const validators = this.validators;
       const artifactManager = new ArtifactManager();
 
@@ -950,7 +950,7 @@ export class OrchestratorEngine {
         timeout_seconds:
           dbSettings.timeout || (spec.llm_config.timeout_seconds as number),
         api_key: apiKey,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         phase_overrides: (spec.llm_config as any).phase_overrides || {},
       };
 
@@ -992,7 +992,7 @@ export class OrchestratorEngine {
           );
 
           // Phase 1: Inline validation for ANALYSIS
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           if ((currentPhase as any).inline_validation?.enabled) {
             logger.info('[ANALYSIS] Running inline validation');
             const { runInlineValidation } = await import('./inline_validation');
@@ -1129,7 +1129,7 @@ export class OrchestratorEngine {
           );
 
           // Phase 1: Inline validation for STACK_SELECTION
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           if ((currentPhase as any).inline_validation?.enabled) {
             logger.info('[STACK_SELECTION] Running inline validation');
             const { runInlineValidation } = await import('./inline_validation');

@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { PasswordService } from './password_service';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import { logger } from '@/lib/logger';
 
 describe('PasswordService', () => {

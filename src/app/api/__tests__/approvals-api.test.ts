@@ -118,7 +118,7 @@ describe('Approval Gates API', () => {
       createdAt: new Date('2025-01-01'),
       updatedAt: new Date('2025-01-01')
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
   ] as any;
 
   beforeEach(() => {
@@ -128,7 +128,7 @@ describe('Approval Gates API', () => {
   describe('GET /api/projects/:slug/approvals', () => {
     it('should return all approval gates for a project', async () => {
       vi.spyOn(ProjectDBService.prototype, 'getProjectBySlug').mockResolvedValue(mockProject);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       vi.spyOn(ApprovalGateService.prototype, 'getProjectGates').mockResolvedValue(mockGates as any);
 
       const request = new NextRequest(

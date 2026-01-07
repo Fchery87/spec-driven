@@ -1,4 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET as getProjects, POST as createProject } from '@/app/api/projects/route';
@@ -42,11 +42,11 @@ vi.mock('@/lib/correlation-id', () => ({
 vi.mock('@/app/api/middleware/auth-guard', () => ({
   requireAuth: async () => mockSession,
   withAuth: (handler: unknown) => async (req: unknown, ctx: unknown) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     return (handler as any)(req, ctx, mockSession);
   },
   withAdminAuth: (handler: unknown) => async (req: unknown, ctx: unknown) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     return (handler as any)(req, ctx, mockSession);
   },
   isAdmin: () => true,
@@ -91,9 +91,9 @@ describe('Projects API Routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Default mock implementations
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (getRateLimitKey as any).mockReturnValue('test-key');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (generalLimiter.isAllowed as any).mockResolvedValue(true);
   });
 
@@ -103,7 +103,7 @@ describe('Projects API Routes', () => {
         projects: [mockProjectData],
         total: 1
       };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.listProjects as any).mockResolvedValue(mockListResult);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects'));
@@ -118,7 +118,7 @@ describe('Projects API Routes', () => {
     });
 
     it('should handle empty project list', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.listProjects as any).mockResolvedValue({
         projects: [],
         total: 0
@@ -135,11 +135,11 @@ describe('Projects API Routes', () => {
     });
 
     it('should return 429 when rate limit exceeded', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (generalLimiter.isAllowed as any).mockResolvedValue(false);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (generalLimiter.getRemainingPoints as any).mockReturnValue(0);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (createRateLimitResponse as any).mockReturnValue(
         new Response(JSON.stringify({ error: 'Rate limit exceeded' }), { status: 429 })
       );
@@ -151,7 +151,7 @@ describe('Projects API Routes', () => {
     });
 
     it('should handle database errors gracefully', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.listProjects as any).mockRejectedValue(
         new Error('Database connection failed')
       );
@@ -166,7 +166,7 @@ describe('Projects API Routes', () => {
     });
 
     it('should include cache control headers', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.listProjects as any).mockResolvedValue({
         projects: [mockProjectData],
         total: 1
@@ -182,11 +182,11 @@ describe('Projects API Routes', () => {
 
   describe('POST /api/projects - Create project', () => {
     it('should create a new project successfully', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.createProject as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectStorage.prototype.createProjectDirectory as any).mockImplementation(() => {});
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects'), {
@@ -224,15 +224,15 @@ describe('Projects API Routes', () => {
     });
 
     it('should generate slug from project name', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.createProject as any).mockResolvedValue({
         ...mockProjectData,
         name: 'My Awesome Project',
         slug: 'my-awesome-project-abc12345'
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectStorage.prototype.createProjectDirectory as any).mockImplementation(() => {});
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects'), {
@@ -254,9 +254,9 @@ describe('Projects API Routes', () => {
 
     it('should save project metadata to filesystem', async () => {
       const saveMetadataSpy = vi.spyOn(projectUtils, 'saveProjectMetadata');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.createProject as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectStorage.prototype.createProjectDirectory as any).mockImplementation(() => {});
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects'), {
@@ -273,7 +273,7 @@ describe('Projects API Routes', () => {
     });
 
     it('should handle database creation errors', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.createProject as any).mockRejectedValue(
         new Error('Database error')
       );
@@ -294,11 +294,11 @@ describe('Projects API Routes', () => {
     });
 
     it('should handle rate limiting', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (generalLimiter.isAllowed as any).mockResolvedValue(false);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (generalLimiter.getRemainingPoints as any).mockReturnValue(0);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (createRateLimitResponse as any).mockReturnValue(
         new Response(JSON.stringify({ error: 'Rate limit exceeded' }), { status: 429 })
       );
@@ -318,7 +318,7 @@ describe('Projects API Routes', () => {
 
   describe('GET /api/projects/[slug] - Get single project', () => {
     it('should return project details successfully', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug'));
@@ -332,7 +332,7 @@ describe('Projects API Routes', () => {
     });
 
     it('should return 404 when project not found', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(null);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/missing-slug'));
@@ -345,7 +345,7 @@ describe('Projects API Routes', () => {
     });
 
     it('should include project stats', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug'));
@@ -360,18 +360,18 @@ describe('Projects API Routes', () => {
 
   describe('PUT /api/projects/[slug] - Update project', () => {
     it('should update project successfully', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+       
       const updatedMetadata = {
         ...mockMetadata,
         current_phase: 'ARCHITECTURE',
         updated_at: new Date().toISOString()
       };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug'), {
@@ -391,7 +391,7 @@ describe('Projects API Routes', () => {
     });
 
     it('should return 404 when updating non-existent project', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(null);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/missing-slug'), {
@@ -411,9 +411,9 @@ describe('Projects API Routes', () => {
 
     it('should persist updates to database', async () => {
       const persistSpy = vi.spyOn(projectUtils, 'persistProjectToDB');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug'), {
@@ -429,10 +429,10 @@ describe('Projects API Routes', () => {
     });
 
     it('should update timestamp', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
       const saveSpy = vi.spyOn(projectUtils, 'saveProjectMetadata');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug'), {
@@ -455,11 +455,11 @@ describe('Projects API Routes', () => {
 
   describe('DELETE /api/projects/[slug] - Delete project', () => {
     it('should delete project successfully', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.deleteProjectFromDB as any).mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.deleteProject as any).mockReturnValue(true);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug'), {
@@ -475,7 +475,7 @@ describe('Projects API Routes', () => {
     });
 
     it('should return 404 when deleting non-existent project', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(null);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/missing-slug'), {
@@ -492,9 +492,9 @@ describe('Projects API Routes', () => {
 
     it('should delete from database', async () => {
       const deleteDBSpy = vi.spyOn(projectUtils, 'deleteProjectFromDB');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.deleteProject as any).mockReturnValue(true);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug'), {
@@ -508,9 +508,9 @@ describe('Projects API Routes', () => {
 
     it('should delete project directory', async () => {
       const deleteSpy = vi.spyOn(projectUtils, 'deleteProject');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.deleteProjectFromDB as any).mockResolvedValue(undefined);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug'), {
@@ -523,11 +523,11 @@ describe('Projects API Routes', () => {
     });
 
     it('should return 500 when filesystem deletion fails', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.deleteProjectFromDB as any).mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.deleteProject as any).mockReturnValue(false);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug'), {
@@ -543,9 +543,9 @@ describe('Projects API Routes', () => {
     });
 
     it('should handle database deletion errors', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.deleteProjectFromDB as any).mockRejectedValue(
         new Error('Database error')
       );
@@ -564,17 +564,17 @@ describe('Projects API Routes', () => {
 
   describe('POST /api/projects/[slug]/approve-stack - Approval Gate', () => {
     it('should approve stack successfully', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.writeArtifact as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.saveArtifact as any).mockResolvedValue(undefined);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug/approve-stack'), {
@@ -613,7 +613,7 @@ describe('Projects API Routes', () => {
     });
 
     it('should return 404 when project not found', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(null);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/missing-slug/approve-stack'), {
@@ -634,13 +634,13 @@ describe('Projects API Routes', () => {
     it('should save artifacts to filesystem and database', async () => {
       const writeArtifactSpy = vi.spyOn(projectUtils, 'writeArtifact');
       const saveArtifactSpy = vi.spyOn(ProjectDBService.prototype, 'saveArtifact');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug/approve-stack'), {
@@ -660,15 +660,15 @@ describe('Projects API Routes', () => {
 
     it('should set stack_approved flag to true', async () => {
       const saveSpy = vi.spyOn(projectUtils, 'saveProjectMetadata');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.writeArtifact as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.saveArtifact as any).mockResolvedValue(undefined);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug/approve-stack'), {
@@ -691,15 +691,15 @@ describe('Projects API Routes', () => {
 
     it('should include approval timestamp', async () => {
       const saveSpy = vi.spyOn(projectUtils, 'saveProjectMetadata');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.writeArtifact as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.saveArtifact as any).mockResolvedValue(undefined);
 
       const request = new NextRequest(new URL('http://localhost:3000/api/projects/test-slug/approve-stack'), {
@@ -720,17 +720,17 @@ describe('Projects API Routes', () => {
     });
 
     it('should handle database artifact logging errors gracefully', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(mockMetadata);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.writeArtifact as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.saveArtifact as any).mockRejectedValue(
         new Error('Database error')
       );
@@ -766,7 +766,7 @@ describe('Projects API Routes', () => {
 
     it('should log errors to logger', async () => {
       const { logger } = await import('@/lib/logger');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.listProjects as any).mockRejectedValue(
         new Error('Test error')
       );

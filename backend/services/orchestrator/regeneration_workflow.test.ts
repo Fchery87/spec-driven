@@ -450,7 +450,7 @@ describe('selectArtifactsForRegeneration', () => {
 
   it('should return all affected artifacts for regenerate_all strategy', () => {
     // Access private method via type casting
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const selectArtifacts = (engine as any).selectArtifactsForRegeneration.bind(engine);
 
     const impactAnalysis = {
@@ -471,7 +471,7 @@ describe('selectArtifactsForRegeneration', () => {
   });
 
   it('should return only HIGH impact artifacts for high_impact_only strategy', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const selectArtifacts = (engine as any).selectArtifactsForRegeneration.bind(engine);
 
     const impactAnalysis = {
@@ -491,7 +491,7 @@ describe('selectArtifactsForRegeneration', () => {
   });
 
   it('should return user-specified artifacts for manual_review strategy', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const selectArtifacts = (engine as any).selectArtifactsForRegeneration.bind(engine);
 
     const impactAnalysis = {
@@ -511,7 +511,7 @@ describe('selectArtifactsForRegeneration', () => {
   });
 
   it('should return empty array for ignore strategy', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const selectArtifacts = (engine as any).selectArtifactsForRegeneration.bind(engine);
 
     const impactAnalysis = {
@@ -526,7 +526,7 @@ describe('selectArtifactsForRegeneration', () => {
   });
 
   it('should return empty array for unknown strategy', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const selectArtifacts = (engine as any).selectArtifactsForRegeneration.bind(engine);
 
     const impactAnalysis = {

@@ -1,4 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import { Project } from '@/types/orchestrator';
 import { listArtifacts } from '@/app/api/lib/project-utils';
 import { logger } from '@/lib/logger';
@@ -162,7 +162,7 @@ This project was generated using the Spec-Driven Platform.
 `;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   async generateHandoff(
     slug?: string,
     projectMetadata?: Record<string, any>

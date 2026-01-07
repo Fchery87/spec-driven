@@ -135,7 +135,7 @@ export function sanitizeMarkdown(content: string): string {
 /**
  * Sanitize JSON objects recursively
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export function sanitizeJSON(obj: any): any {
   if (obj === null || obj === undefined) {
     return obj;
@@ -150,7 +150,7 @@ export function sanitizeJSON(obj: any): any {
       return obj.map(item => sanitizeJSON(item));
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const sanitized: Record<string, any> = Object.create(null);
     for (const [key, value] of Object.entries(obj)) {
       // Skip keys that might be injection vectors
@@ -168,7 +168,7 @@ export function sanitizeJSON(obj: any): any {
 /**
  * Validate and sanitize a complete request
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export function sanitizeRequest(request: Record<string, any>): Record<string, any> {
   return sanitizeJSON(request);
 }

@@ -61,7 +61,7 @@ export interface ValidationResult {
 // PROMPT BUILDING HELPERS
 // ============================================================================
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function buildPrompt(template: string, variables: Record<string, any>): string {
   let prompt = template;
 
@@ -551,7 +551,7 @@ async function executeArchitectAgent(
   const agentConfig = configLoader.getSection('agents').architect;
 
   let expectedFiles: string[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   let variables: Record<string, any> | undefined;
 
   if (phase === 'STACK_SELECTION') {
@@ -991,7 +991,7 @@ export async function getPMExecutor(
   llmClient: LLMProvider,
   projectId: string,
   artifacts: Record<string, string | Buffer>,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   stackChoice?: string,
   projectName?: string
 ): Promise<Record<string, string | Buffer>> {
@@ -1032,7 +1032,7 @@ export async function getArchitectExecutor(
 
 export async function getStackSelectionExecutor(
   llmClient: LLMProvider,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   projectId: string,
   artifacts: Record<string, string | Buffer>,
   projectName?: string

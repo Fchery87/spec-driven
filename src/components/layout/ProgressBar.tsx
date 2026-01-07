@@ -17,7 +17,7 @@ export function ProgressBar() {
       NProgress.start()
       return originalPush(href)
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     ;(router as any).push = newPush
 
     // Start progress when router.replace is called
@@ -26,7 +26,7 @@ export function ProgressBar() {
       NProgress.start()
       return originalReplace(href)
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     ;(router as any).replace = newReplace
 
     // Complete progress after a delay to let animations finish
@@ -38,9 +38,9 @@ export function ProgressBar() {
 
     return () => {
       clearInterval(timer)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       ;(router as any).push = originalPush
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       ;(router as any).replace = originalReplace
     }
   }, [router])

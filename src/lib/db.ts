@@ -220,7 +220,7 @@ export async function getArtifact(
   version: number = 1
 ): Promise<string | null> {
   const artifacts = await dbService.getArtifactsByPhase(projectId, phase);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const artifact = artifacts.find((a: any) => a.filename === filename && a.version === version);
   return artifact?.content || null;
 }
@@ -233,7 +233,7 @@ export async function listArtifacts(
   phase: string
 ): Promise<Array<{ filename: string; version: number; createdAt: Date }>> {
   const artifacts = await dbService.getArtifactsByPhase(projectId, phase);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return artifacts.map((a: any) => ({
     filename: a.filename,
     version: a.version,

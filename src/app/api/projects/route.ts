@@ -33,7 +33,7 @@ const getHandler = withAuth(
       const dbService = new ProjectDBService();
       const result = await dbService.listProjects(0, 20, session.user.id);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const projectDetails = result.projects.map((project: any) => ({
         id: project.id,
         slug: project.slug,
@@ -81,7 +81,7 @@ export const GET = withCorrelationId((request: NextRequest) => getHandler(reques
 const postHandler = withAuth(
   async (
     request: NextRequest,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     _context: any,
     session: AuthSession
   ) => {

@@ -1,5 +1,5 @@
 import { Validator, ValidationResult, Project } from '@/types/orchestrator';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import { existsSync, readFileSync, statSync, readdirSync } from 'fs';
 import { resolve, extname } from 'path';
 import { execSync } from 'child_process';
@@ -573,7 +573,7 @@ export class Validators {
 
   private validateConstitutionalCompliance(
     project: Project,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     articles: Record<string, any>
   ): ValidationResult {
     const checks: Record<string, boolean> = {};
@@ -897,7 +897,7 @@ export class Validators {
   private validateFrontmatter(project: Project): ValidationResult {
     const checks: Record<string, boolean> = {};
     const errors: string[] = [];
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const warnings: string[] = [];
 
     const requiredFields = ['title', 'owner', 'version', 'date', 'status'];
@@ -1077,13 +1077,13 @@ export class Validators {
   private validateDatabaseField(
     project: Project,
     field: string,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     expectedValue: any
   ): ValidationResult {
     const checks: Record<string, boolean> = {};
     const errors: string[] = [];
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const actualValue = (project as any)[field];
     checks[field] = actualValue === expectedValue;
 
@@ -1170,7 +1170,7 @@ export class Validators {
           encoding: 'utf8',
           stdio: ['pipe', 'pipe', 'pipe'],
         });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
       } catch (error: any) {
         // npm audit exits with non-zero code when vulnerabilities are found
         // The output is still in error.stdout
@@ -1191,7 +1191,7 @@ export class Validators {
         const vulnerablePackages: string[] = [];
 
         for (const [pkgName, vulnData] of Object.entries(vulnerabilities)) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           const vuln = vulnData as any;
           if (vuln.severity === 'critical') {
             criticalCount++;
@@ -1219,7 +1219,7 @@ export class Validators {
               ]
             : undefined,
         };
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+         
       } catch (parseError) {
         // If JSON parsing fails, fallback to string parsing
         if (auditOutput.includes('CRITICAL') || auditOutput.includes('high')) {
@@ -1276,7 +1276,7 @@ export class Validators {
           encoding: 'utf8',
           stdio: ['pipe', 'pipe', 'pipe'],
         });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
       } catch (error: any) {
         // pip-audit may exit with non-zero code when vulnerabilities are found
         auditOutput = error.stdout || '';
@@ -1324,7 +1324,7 @@ export class Validators {
               ? [`Found ${vulnerabilities.length} LOW/MODERATE vulnerabilities`]
               : undefined,
         };
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+         
       } catch (parseError) {
         // If JSON parsing fails, fallback to string parsing
         if (
@@ -3143,7 +3143,7 @@ export class Validators {
     return files;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   private extractFrontmatter(content: string): Record<string, any> | null {
     const frontmatterRegex = /^---\n([\s\S]*?)\n---/;
     const match = content.match(frontmatterRegex);
@@ -3152,7 +3152,7 @@ export class Validators {
 
     try {
       // Simple YAML parsing - in production use proper YAML parser
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const frontmatter: Record<string, any> = {};
       const lines = match[1].split('\n');
 
@@ -3170,7 +3170,7 @@ export class Validators {
   }
 
   // Public test-facing methods for unit testing
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   public validatePresence(
     artifacts: Record<string, string>,
     validator: any
@@ -3241,7 +3241,7 @@ export class Validators {
     };
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   public validateContentCoverage(
     artifacts: Record<string, string>,
     validator: any

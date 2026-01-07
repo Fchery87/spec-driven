@@ -1,5 +1,5 @@
 import { pgTable, text, boolean, timestamp, integer, index, uuid } from 'drizzle-orm/pg-core';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import { sql } from 'drizzle-orm';
 import { relations, InferSelectModel } from 'drizzle-orm';
 

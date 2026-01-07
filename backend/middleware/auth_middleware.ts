@@ -66,10 +66,10 @@ export async function authenticateRequest(
  * });
  */
 export function withAuth(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   handler: (request: AuthenticatedRequest, params: any) => Promise<NextResponse>
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return async (request: NextRequest, params: any) => {
     const auth = await authenticateRequest(request);
 
@@ -107,10 +107,10 @@ export function withAuth(
  * Does not fail if token is missing, but validates if present
  */
 export function optionalAuth(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   handler: (request: AuthenticatedRequest, params: any) => Promise<NextResponse>
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return async (request: NextRequest, params: any) => {
     const token = extractToken(request);
 
@@ -148,10 +148,10 @@ export function optionalAuth(
  * Restricts API access to authorized domains
  */
 export function withCORS(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   handler: (request: NextRequest, params: any) => Promise<NextResponse>
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return async (request: NextRequest, params: any) => {
     const origin = request.headers.get('origin') || '';
     const allowedOrigins = (
@@ -237,10 +237,10 @@ export function withRateLimit(
     req.headers.get('x-forwarded-for') || 'unknown'
 ) {
   return (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     handler: (request: NextRequest, params: any) => Promise<NextResponse>
   ) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     return async (request: NextRequest, params: any) => {
       const key = keyFn(request);
       const now = Date.now();

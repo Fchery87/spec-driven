@@ -1,6 +1,6 @@
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import { describe, it, expect, beforeEach } from 'vitest'
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import { logger } from '@/lib/logger';
 
 /**
@@ -12,7 +12,7 @@ describe('OrchestratorEngine', () => {
   describe('Phase Transitions', () => {
     it('should transition from ANALYSIS to STACK_SELECTION when validators pass', () => {
       // Mock project in ANALYSIS phase
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+       
       const project = {
         id: 'test-project',
         slug: 'test',
@@ -104,7 +104,7 @@ describe('OrchestratorEngine', () => {
     })
 
     it('should pass correct artifacts as context to agents', () => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+       
       const phase = 'SPEC'
       const artifacts = {
         'constitution.md': 'content',

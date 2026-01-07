@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import { logger } from '@/lib/logger';
 
 // ============================================================================
@@ -174,7 +174,7 @@ export function validateInput<T>(
       );
 
       // Import here to avoid circular dependency
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const { Errors } = require('./error_handler');
       throw Errors.validationError(
         `Invalid ${context || 'input'}: ${Object.values(details).join(', ')}`,
@@ -188,13 +188,13 @@ export function validateInput<T>(
 /**
  * Safely parse JSON with error handling
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export function safeParseJSON(jsonString: string): Record<string, any> {
   try {
     return JSON.parse(jsonString);
   } catch (error) {
     // Import here to avoid circular dependency
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+     
     const { Errors } = require('./error_handler');
     throw Errors.invalidInput(
       'Invalid JSON format',

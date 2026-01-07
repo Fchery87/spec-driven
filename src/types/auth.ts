@@ -44,14 +44,14 @@ export interface AuthSession {
  * Note: signIn and signOut types are from Better Auth SDK which has
  * complex generic types. We use function signatures that match actual usage.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export interface AuthContextType {
   session: AuthSession | null;
   /** Better Auth signIn function - used as signIn.email() or signIn.social() */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   signIn: any; // Better Auth provides this - complex generic types make strict typing impractical
   /** Better Auth signOut function */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   signOut: any; // Better Auth provides this
   isLoading: boolean;
 }

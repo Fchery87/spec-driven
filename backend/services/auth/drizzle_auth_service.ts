@@ -13,7 +13,7 @@ import { users } from '@/backend/lib/schema';
 import { JWTService, JWTPayload } from './jwt_service';
 import { PasswordService } from './password_service';
 import { z } from 'zod';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import { logger } from '@/lib/logger';
 import { eq } from 'drizzle-orm';
 

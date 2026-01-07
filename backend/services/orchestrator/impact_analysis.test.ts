@@ -22,7 +22,7 @@ describe('analyzeRegenerationImpact', () => {
   describe('Dependency Graph Building', () => {
     it('should build artifact dependency graph from orchestrator spec', () => {
       // Access the private method via type casting for testing
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const dependencies = (engine as any).buildArtifactDependencyGraph();
 
       expect(dependencies).toBeInstanceOf(Map);
@@ -37,7 +37,7 @@ describe('analyzeRegenerationImpact', () => {
     });
 
     it('should map artifacts to phases that depend on them', () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const dependencies = (engine as any).buildArtifactDependencyGraph();
 
       // Find an artifact that has dependents

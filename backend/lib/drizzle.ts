@@ -14,7 +14,7 @@ const isTest =
   Boolean(process.env.VITEST);
 const isLocalDev = !databaseUrl && !isProduction;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let _db: any;
 let _initialized = false;
 
@@ -27,9 +27,9 @@ function initializeDatabase(): typeof _db {
   if (isLocalDev) {
     // Use SQLite for local development
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+       
       const Database = require('better-sqlite3');
-      // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+       
       const { drizzle: drizzleSqlite } = require('drizzle-orm/better-sqlite3');
 
       const sqlite = new Database(':memory:');
@@ -60,9 +60,9 @@ function initializeDatabase(): typeof _db {
       );
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+     
     const { drizzle } = require('drizzle-orm/neon-http');
-    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+     
     const { neon } = require('@neondatabase/serverless');
 
     const sql = neon(databaseUrl, {
