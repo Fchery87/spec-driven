@@ -54,6 +54,12 @@ const CLASSIFICATION_PATTERNS: Array<{
       /not.*(captured|included|specified).*in.*PRD/i,
       /gap.*between.*project-brief.*and.*PRD/i,
       /PRD.*missing.*mentioned.*in.*project-brief/i,
+      // Requirement-to-task mapping failures from VALIDATE phase
+      /no\s+implementing\s+task\s+found/i,
+      /REQ-[A-Z]+-\d+:\s*No\s+implementing\s+task/i,
+      /\d+\/\d+\s+requirements\s+mapped\s+to\s+tasks/i,
+      /requirement\s+to\s+task\s+mapping/i,
+      /requirements\s+(not\s+)?mapped/i,
     ],
     confidence: 0.85,
   },
@@ -180,13 +186,15 @@ export function getRemediationStrategy(
     case 'missing_requirement_mapping':
       return {
         agentToRerun: 'scrummaster',
-        phase: 'SPEC_PM',
+        phase: 'SOLUTIONING', // Fixed: tasks.md is in SOLUTIONING, not SPEC_PM
         additionalInstructions:
-          'Perform gap analysis between project-brief.md and PRD.md. ' +
-          'Identify missing requirements and add them to PRD with proper user stories.',
+          'CRITICAL: Review PRD.md requirements and ensure EVERY REQ-* ID has at least one ' +
+          'implementing task in tasks.md. The validation failed because requirements like ' +
+          'REQ-NOTIF-002, REQ-PAYMENT-002, etc. are missing implementing tasks. ' +
+          'Create explicit task entries for each unmapped requirement.',
         requiresManualReview: false,
         reason:
-          'Re-run scrummaster with gap analysis to capture missing requirements',
+          'Re-run SOLUTIONING to create tasks for all PRD requirements in tasks.md',
       };
 
     case 'persona_mismatch':

@@ -867,31 +867,84 @@ export class OrchestratorEngine {
           };
         }
 
-        // Get latest validation result
-        const validationResult = await this.validatePhaseCompletion(project);
+        // Read the validation-report.md from VALIDATE phase to get actual failures
+        // (NOT validatePhaseCompletion which validates the current AUTO_REMEDY phase)
+        const { readArtifactContent } = await import('./artifact_access');
+        let validationReportContent = '';
+        try {
+          validationReportContent = await readArtifactContent(
+            project.slug,
+            'VALIDATE',
+            'validation-report.md'
+          );
+        } catch (error) {
+          logger.warn('[AUTO_REMEDY] Could not read validation-report.md', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
 
-        // If validation is passing or only has warnings (no failures), no need for AUTO_REMEDY
-        // AUTO_REMEDY only handles actual errors that need to be fixed
-        if (
-          validationResult.status === 'pass' ||
-          validationResult.status === 'warn'
-        ) {
+        // Parse the validation report to extract failures
+        const parseValidationReport = (
+          content: string
+        ): { status: 'pass' | 'warn' | 'fail'; errors: string[] } => {
+          if (!content) {
+            return { status: 'pass', errors: [] };
+          }
+
+          const errors: string[] = [];
+          const overallStatusMatch = content.match(
+            /overall_status:\s*(pass|warn|fail)/i
+          );
+          const status = (overallStatusMatch?.[1]?.toLowerCase() || 'pass') as
+            | 'pass'
+            | 'warn'
+            | 'fail';
+
+          // Extract FAIL items from the report
+          const failRegex =
+            /\|\s*(REQ-[A-Z]+-\d+|[A-Za-z-]+)\s*\|\s*fail\s*\|\s*([^|]+)\|/gi;
+          let match;
+          while ((match = failRegex.exec(content)) !== null) {
+            const itemId = match[1].trim();
+            const message = match[2].trim();
+            errors.push(`${itemId}: ${message}`);
+          }
+
+          // Also check for sections marked with ❌
+          const failedSectionRegex =
+            /####\s*❌\s*([^\n]+)\n[^]*?(?=####|\n## |$)/g;
+          while ((match = failedSectionRegex.exec(content)) !== null) {
+            const sectionName = match[1].trim();
+            if (!errors.some((e) => e.includes(sectionName))) {
+              errors.push(`Section failed: ${sectionName}`);
+            }
+          }
+
+          return { status, errors };
+        };
+
+        const parsedReport = parseValidationReport(validationReportContent);
+        logger.info('[AUTO_REMEDY] Parsed validation report', {
+          status: parsedReport.status,
+          errorCount: parsedReport.errors.length,
+        });
+
+        // If validation passed or only has warnings, no need for AUTO_REMEDY
+        if (parsedReport.status === 'pass' || parsedReport.status === 'warn') {
           logger.info(
-            `[AUTO_REMEDY] Validation status: ${validationResult.status} - no remediation needed`
+            `[AUTO_REMEDY] Validation status: ${parsedReport.status} - no remediation needed`
           );
           return {
             success: true,
             artifacts: {},
             message: `AUTO_REMEDY phase - validation ${
-              validationResult.status === 'pass'
-                ? 'passed'
-                : 'has warnings only'
+              parsedReport.status === 'pass' ? 'passed' : 'has warnings only'
             }, no action needed`,
           };
         }
 
-        // Also skip if there are no actual errors (even if status is 'fail')
-        if (!validationResult.errors || validationResult.errors.length === 0) {
+        // Skip if there are no actual errors
+        if (parsedReport.errors.length === 0) {
           logger.info(
             '[AUTO_REMEDY] No validation errors to remediate - skipping'
           );
@@ -901,6 +954,14 @@ export class OrchestratorEngine {
             message: 'AUTO_REMEDY phase - no errors to remediate',
           };
         }
+
+        // Build validation result for downstream processing
+        const validationResult = {
+          status: parsedReport.status,
+          errors: parsedReport.errors,
+          warnings: [] as string[],
+          checks: {} as Record<string, boolean>,
+        };
 
         // Import Phase 1 modules
         const { determinePhaseOutcome } = await import('./phase_outcomes');
