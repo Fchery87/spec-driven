@@ -1,6 +1,6 @@
 /**
  * Checker Pattern Service
- * 
+ *
  * Dual-LLM adversarial review for quality assurance.
  * - Generator Agent produces artifacts
  * - Critic Agent reviews with adversarial persona
@@ -52,7 +52,12 @@ const CRITIC_PERSONAS: Record<string, CriticPersona> = {
   skeptical_cto: {
     name: 'Skeptical CTO',
     perspective: 'Technical leader who has seen stack decisions go wrong',
-    expertise: ['Cloud architecture', 'Cost optimization', 'Vendor lock-in', 'Scaling patterns'],
+    expertise: [
+      'Cloud architecture',
+      'Cost optimization',
+      'Vendor lock-in',
+      'Scaling patterns',
+    ],
     reviewCriteria: [
       'Hidden cost traps not mentioned',
       'Vendor lock-in risks',
@@ -65,11 +70,16 @@ const CRITIC_PERSONAS: Record<string, CriticPersona> = {
     ],
     severityThreshold: 'medium',
   },
-  
+
   qa_lead: {
     name: 'QA Lead',
     perspective: 'Tester who must verify every requirement is testable',
-    expertise: ['Test design', 'Acceptance criteria', 'Edge cases', 'Risk-based testing'],
+    expertise: [
+      'Test design',
+      'Acceptance criteria',
+      'Edge cases',
+      'Risk-based testing',
+    ],
     reviewCriteria: [
       'Requirements too vague to test',
       'Missing acceptance criteria',
@@ -82,11 +92,17 @@ const CRITIC_PERSONAS: Record<string, CriticPersona> = {
     ],
     severityThreshold: 'low',
   },
-  
+
   security_auditor: {
     name: 'Security Auditor',
     perspective: 'Security professional who assumes worst-case scenarios',
-    expertise: ['OWASP Top 10', 'Authentication', 'Authorization', 'Data protection', 'Penetration testing'],
+    expertise: [
+      'OWASP Top 10',
+      'Authentication',
+      'Authorization',
+      'Data protection',
+      'Penetration testing',
+    ],
     reviewCriteria: [
       'Authentication gaps or weaknesses',
       'Authorization/permission issues',
@@ -101,11 +117,17 @@ const CRITIC_PERSONAS: Record<string, CriticPersona> = {
     ],
     severityThreshold: 'high',
   },
-  
+
   a11y_specialist: {
     name: 'Accessibility Specialist',
     perspective: 'Advocate ensuring inclusive design for all users',
-    expertise: ['WCAG 2.1 AA', 'Screen readers', 'Keyboard navigation', 'Color contrast', 'ARIA'],
+    expertise: [
+      'WCAG 2.1 AA',
+      'Screen readers',
+      'Keyboard navigation',
+      'Color contrast',
+      'ARIA',
+    ],
     reviewCriteria: [
       'Missing useReducedMotion for animations',
       'ARIA attributes absent or incorrect',
@@ -129,17 +151,41 @@ const CRITIC_PERSONAS: Record<string, CriticPersona> = {
 export class CheckerPattern {
   private llmClient: LLMProvider;
   private phaseConfigs: Map<string, PhaseConfig>;
-  
+
   constructor(llmClient: LLMProvider) {
     this.llmClient = llmClient;
     this.phaseConfigs = new Map([
-      ['STACK_SELECTION', { critic: 'skeptical_cto', maxRegenerations: 2, escalateOnCritical: true }],
-      ['SPEC_PM', { critic: 'qa_lead', maxRegenerations: 2, escalateOnCritical: false }],
-      ['SPEC_ARCHITECT', { critic: 'security_auditor', maxRegenerations: 1, escalateOnCritical: true }],
-      ['FRONTEND_BUILD', { critic: 'a11y_specialist', maxRegenerations: 2, escalateOnCritical: false }],
+      [
+        'STACK_SELECTION',
+        {
+          critic: 'skeptical_cto',
+          maxRegenerations: 2,
+          escalateOnCritical: true,
+        },
+      ],
+      [
+        'SPEC_PM',
+        { critic: 'qa_lead', maxRegenerations: 2, escalateOnCritical: false },
+      ],
+      [
+        'SPEC_ARCHITECT',
+        {
+          critic: 'security_auditor',
+          maxRegenerations: 1,
+          escalateOnCritical: true,
+        },
+      ],
+      [
+        'FRONTEND_BUILD',
+        {
+          critic: 'a11y_specialist',
+          maxRegenerations: 2,
+          escalateOnCritical: false,
+        },
+      ],
     ]);
   }
-  
+
   /**
    * Execute checker pattern for a phase
    */
@@ -149,9 +195,11 @@ export class CheckerPattern {
     context: Record<string, unknown>
   ): Promise<CheckerResult> {
     const config = this.phaseConfigs.get(phase);
-    
+
     if (!config) {
-      logger.info(`[CheckerPattern] No critic configured for phase: ${phase}, skipping`);
+      logger.info(
+        `[CheckerPattern] No critic configured for phase: ${phase}, skipping`
+      );
       return {
         status: 'approved',
         artifacts: generatorOutput,
@@ -160,7 +208,7 @@ export class CheckerPattern {
         summary: 'No critic configured for this phase',
       };
     }
-    
+
     const critic = CRITIC_PERSONAS[config.critic];
     if (!critic) {
       logger.error(`[CheckerPattern] Unknown critic: ${config.critic}`);
@@ -172,24 +220,33 @@ export class CheckerPattern {
         summary: 'Unknown critic, skipping review',
       };
     }
-    
-    logger.info(`[CheckerPattern] Running ${critic.name} review for phase: ${phase}`);
-    
+
+    logger.info(
+      `[CheckerPattern] Running ${critic.name} review for phase: ${phase}`
+    );
+
     // Run critic review
     const feedback = await this.criticReview(critic, generatorOutput, context);
-    
-    // Evaluate decision
-    const result = this.evaluateDecision(feedback, generatorOutput);
-    
-    logger.info(`[CheckerPattern] Review complete for ${phase}: ${result.status}`, {
-      confidence: result.confidence,
-      issues: feedback.length,
-      critical: feedback.filter(f => f.severity === 'critical').length,
-    });
-    
+
+    // Evaluate decision (respecting phase config)
+    const result = this.evaluateDecision(
+      feedback,
+      generatorOutput,
+      config.escalateOnCritical
+    );
+
+    logger.info(
+      `[CheckerPattern] Review complete for ${phase}: ${result.status}`,
+      {
+        confidence: result.confidence,
+        issues: feedback.length,
+        critical: feedback.filter((f) => f.severity === 'critical').length,
+      }
+    );
+
     return result;
   }
-  
+
   /**
    * Run critic review
    */
@@ -199,7 +256,7 @@ export class CheckerPattern {
     context: Record<string, unknown>
   ): Promise<CriticFeedback[]> {
     const prompt = this.buildCriticPrompt(critic, generatorOutput, context);
-    
+
     try {
       const response = await this.llmClient.generateCompletion(
         prompt,
@@ -207,14 +264,14 @@ export class CheckerPattern {
         2,
         `CHECKER_${critic.name.replace(/\s+/g, '_').toUpperCase()}`
       );
-      
+
       return this.parseCriticFeedback(response.content);
     } catch (error) {
       logger.error(`[CheckerPattern] Critic review failed: ${error}`);
       return [];
     }
   }
-  
+
   /**
    * Build critic prompt
    */
@@ -227,10 +284,12 @@ export class CheckerPattern {
     const artifactsSummary = Object.entries(generatorOutput)
       .map(([name, content]) => {
         const truncated = content.slice(0, 2000);
-        return `## ${name}\n${truncated}${content.length > 2000 ? '\n...[truncated]' : ''}`;
+        return `## ${name}\n${truncated}${
+          content.length > 2000 ? '\n...[truncated]' : ''
+        }`;
       })
       .join('\n\n---\n\n');
-    
+
     return `# ROLE
 You are a ${critic.name} (${critic.perspective}).
 Your expertise: ${critic.expertise.join(', ')}.
@@ -240,7 +299,7 @@ Review the generated artifacts below and identify quality issues, risks, and con
 Be adversarial - don't accept superficial quality. Challenge assumptions.
 
 # REVIEW CRITERIA (check each carefully)
-${critic.reviewCriteria.map(c => `- ${c}`).join('\n')}
+${critic.reviewCriteria.map((c) => `- ${c}`).join('\n')}
 
 # CONTEXT
 Project: ${context.projectName || 'Unknown'}
@@ -283,7 +342,7 @@ You MUST output a valid JSON object with this structure:
 Now review the artifacts thoroughly and output your JSON review:
 `;
   }
-  
+
   /**
    * Parse critic feedback from response
    */
@@ -295,9 +354,9 @@ Now review the artifacts thoroughly and output your JSON review:
         logger.warn('[CheckerPattern] No JSON found in critic response');
         return [];
       }
-      
+
       const parsedJson = JSON.parse(jsonMatch[0]);
-      
+
       // Type the parsed JSON response
       interface CriticJsonResponse {
         feedback?: Array<{
@@ -309,11 +368,11 @@ Now review the artifacts thoroughly and output your JSON review:
         }>;
       }
       const parsed = parsedJson as CriticJsonResponse;
-      
+
       if (!parsed.feedback || !Array.isArray(parsed.feedback)) {
         return [];
       }
-      
+
       // Validate and normalize feedback items
       const result: CriticFeedback[] = [];
       for (const item of parsed.feedback) {
@@ -329,11 +388,13 @@ Now review the artifacts thoroughly and output your JSON review:
       }
       return result;
     } catch (error) {
-      logger.warn('[CheckerPattern] Failed to parse critic feedback', { error: String(error) });
+      logger.warn('[CheckerPattern] Failed to parse critic feedback', {
+        error: String(error),
+      });
       return [];
     }
   }
-  
+
   /**
    * Normalize severity string
    */
@@ -343,30 +404,42 @@ Now review the artifacts thoroughly and output your JSON review:
     if (normalized === 'medium') return 'medium';
     return 'low';
   }
-  
+
   /**
    * Evaluate decision based on feedback
    */
   private evaluateDecision(
     feedback: CriticFeedback[],
-    artifacts: Record<string, string>
+    artifacts: Record<string, string>,
+    escalateOnCritical: boolean = true
   ): CheckerResult {
-    const criticalCount = feedback.filter(f => f.severity === 'critical').length;
-    const mediumCount = feedback.filter(f => f.severity === 'medium').length;
-    const lowCount = feedback.filter(f => f.severity === 'low').length;
-    
+    const criticalCount = feedback.filter(
+      (f) => f.severity === 'critical'
+    ).length;
+    const mediumCount = feedback.filter((f) => f.severity === 'medium').length;
+    const lowCount = feedback.filter((f) => f.severity === 'low').length;
+
     // Calculate confidence based on issue density
     const totalContent = Object.values(artifacts).join('').length;
     const issueDensity = feedback.length / Math.max(totalContent / 10000, 1);
-    const confidence = Math.max(0.5, 1 - issueDensity * 0.1 - criticalCount * 0.2 - mediumCount * 0.05);
-    
+    const confidence = Math.max(
+      0.5,
+      1 - issueDensity * 0.1 - criticalCount * 0.2 - mediumCount * 0.05
+    );
+
     // Determine status
     let status: 'approved' | 'regenerate' | 'escalate';
     let summary: string;
-    
+
     if (criticalCount > 0) {
-      status = 'escalate';
-      summary = `Found ${criticalCount} critical issue(s) requiring human review`;
+      if (escalateOnCritical) {
+        status = 'escalate';
+        summary = `Found ${criticalCount} critical issue(s) requiring human review`;
+      } else {
+        // Phase configured to regenerate instead of escalate
+        status = 'regenerate';
+        summary = `Found ${criticalCount} critical issue(s) - regeneration triggered (escalation disabled for this phase)`;
+      }
     } else if (mediumCount > 2) {
       status = 'regenerate';
       summary = `Found ${mediumCount} medium issues - regeneration recommended`;
@@ -378,11 +451,12 @@ Now review the artifacts thoroughly and output your JSON review:
       summary = `Found ${lowCount} low issues for improvement`;
     } else {
       status = 'approved';
-      summary = feedback.length === 0 
-        ? 'No issues found - approved' 
-        : `Approved with ${lowCount} minor suggestion(s)`;
+      summary =
+        feedback.length === 0
+          ? 'No issues found - approved'
+          : `Approved with ${lowCount} minor suggestion(s)`;
     }
-    
+
     return {
       status,
       artifacts,
@@ -391,7 +465,7 @@ Now review the artifacts thoroughly and output your JSON review:
       summary,
     };
   }
-  
+
   /**
    * Build regeneration prompt with critic feedback
    */
@@ -406,7 +480,7 @@ Now review the artifacts thoroughly and output your JSON review:
    Fix: ${f.recommendation}`;
       })
       .join('\n\n');
-    
+
     return `
 ${originalPrompt}
 
@@ -428,14 +502,14 @@ ${feedbackList}
 Generate the corrected artifacts:
 `;
   }
-  
+
   /**
    * Configure phase settings
    */
   configurePhase(phase: string, config: PhaseConfig): void {
     this.phaseConfigs.set(phase, config);
   }
-  
+
   /**
    * Get critic for a phase
    */
@@ -444,7 +518,7 @@ Generate the corrected artifacts:
     if (!config) return null;
     return CRITIC_PERSONAS[config.critic] || null;
   }
-  
+
   /**
    * Get all configured phases
    */
@@ -474,7 +548,7 @@ export function createCriticFeedback(
  * Check if feedback has critical issues
  */
 export function hasCriticalIssues(feedback: CriticFeedback[]): boolean {
-  return feedback.some(f => f.severity === 'critical');
+  return feedback.some((f) => f.severity === 'critical');
 }
 
 /**
@@ -484,16 +558,18 @@ export function filterBySeverity(
   feedback: CriticFeedback[],
   severity: 'low' | 'medium' | 'critical'
 ): CriticFeedback[] {
-  return feedback.filter(f => f.severity === severity);
+  return feedback.filter((f) => f.severity === severity);
 }
 
 /**
  * Count feedback by severity
  */
-export function countBySeverity(feedback: CriticFeedback[]): Record<string, number> {
+export function countBySeverity(
+  feedback: CriticFeedback[]
+): Record<string, number> {
   return {
-    critical: feedback.filter(f => f.severity === 'critical').length,
-    medium: feedback.filter(f => f.severity === 'medium').length,
-    low: feedback.filter(f => f.severity === 'low').length,
+    critical: feedback.filter((f) => f.severity === 'critical').length,
+    medium: feedback.filter((f) => f.severity === 'medium').length,
+    low: feedback.filter((f) => f.severity === 'low').length,
   };
 }
