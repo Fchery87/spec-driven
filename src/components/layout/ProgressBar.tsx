@@ -1,49 +1,45 @@
 "use client"
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect, useCallback, useRef } from "react"
+import { usePathname, useSearchParams } from "next/navigation"
 import NProgress from "nprogress"
 import "nprogress/nprogress.css"
 
 NProgress.configure({ showSpinner: false })
 
 export function ProgressBar() {
-  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const isFirstMount = useRef(true)
 
+  // Track route changes and trigger progress
   useEffect(() => {
-    // Start progress when router.push is called
-    const originalPush = router.push
-    const newPush = (href: string) => {
-      NProgress.start()
-      return originalPush(href)
+    if (isFirstMount.current) {
+      isFirstMount.current = false
+      return
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(router as any).push = newPush
+    
+    // Route changed, complete the progress
+    NProgress.done()
+  }, [pathname, searchParams])
 
-    // Start progress when router.replace is called
-    const originalReplace = router.replace
-    const newReplace = (href: string) => {
-      NProgress.start()
-      return originalReplace(href)
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(router as any).replace = newReplace
-
-    // Complete progress after a delay to let animations finish
-    const timer = setInterval(() => {
-      if (document.readyState === "complete") {
-        NProgress.done()
+  // Start progress on link clicks
+  useEffect(() => {
+    const handleClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      const anchor = target.closest('a')
+      
+      if (anchor && anchor.href && !anchor.target && !anchor.download) {
+        const url = new URL(anchor.href, window.location.origin)
+        if (url.origin === window.location.origin && url.pathname !== pathname) {
+          NProgress.start()
+        }
       }
-    }, 100)
-
-    return () => {
-      clearInterval(timer)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(router as any).push = originalPush
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ;(router as any).replace = originalReplace
     }
-  }, [router])
+
+    document.addEventListener("click", handleClick)
+    return () => document.removeEventListener("click", handleClick)
+  }, [pathname])
 
   return null
 }

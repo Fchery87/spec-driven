@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getProjectMetadata, saveProjectMetadata, persistProjectToDB, readArtifact, writeArtifact } from '@/app/api/lib/project-utils';
+import {
+  getProjectMetadata,
+  saveProjectMetadata,
+  persistProjectToDB,
+  readArtifact,
+  writeArtifact,
+} from '@/app/api/lib/project-utils';
 import { logger } from '@/lib/logger';
 import { withAuth, type AuthSession } from '@/app/api/middleware/auth-guard';
-import type { ClarificationQuestion, ClarificationState } from '@/types/orchestrator';
+import type {
+  ClarificationQuestion,
+  ClarificationState,
+} from '@/types/orchestrator';
 import { GeminiClient } from '@/backend/services/llm/llm_client';
 import yaml from 'js-yaml';
 import fs from 'fs';
 import path from 'path';
+import { asString } from '@/backend/lib/artifact_utils';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -45,17 +55,21 @@ const autoResolveHandler = withAuth(
 
       if (metadata.current_phase !== 'ANALYSIS') {
         return NextResponse.json(
-          { success: false, error: 'Auto-resolve only available in ANALYSIS phase' },
+          {
+            success: false,
+            error: 'Auto-resolve only available in ANALYSIS phase',
+          },
           { status: 400 }
         );
       }
 
-      const clarificationState: ClarificationState = metadata.clarification_state || {
-        mode: 'hybrid',
-        questions: [],
-        completed: false,
-        skipped: false
-      };
+      const clarificationState: ClarificationState =
+        metadata.clarification_state || {
+          mode: 'hybrid',
+          questions: [],
+          completed: false,
+          skipped: false,
+        };
 
       if (clarificationState.questions.length === 0) {
         return NextResponse.json({
@@ -63,13 +77,13 @@ const autoResolveHandler = withAuth(
           data: {
             state: clarificationState,
             resolved: [],
-            message: 'No questions to auto-resolve'
-          }
+            message: 'No questions to auto-resolve',
+          },
         });
       }
 
       // Determine which questions to resolve
-      const questionsToResolve = clarificationState.questions.filter(q => {
+      const questionsToResolve = clarificationState.questions.filter((q) => {
         if (q.resolved) return false;
         if (questionIds && questionIds.length > 0) {
           return questionIds.includes(q.id);
@@ -83,8 +97,8 @@ const autoResolveHandler = withAuth(
           data: {
             state: clarificationState,
             resolved: [],
-            message: 'No unresolved questions to process'
-          }
+            message: 'No unresolved questions to process',
+          },
         });
       }
 
@@ -96,22 +110,22 @@ const autoResolveHandler = withAuth(
       );
 
       // Update the questions in state
-      const updatedQuestions = clarificationState.questions.map(q => {
-        const resolved = resolvedQuestions.find(r => r.id === q.id);
+      const updatedQuestions = clarificationState.questions.map((q) => {
+        const resolved = resolvedQuestions.find((r) => r.id === q.id);
         return resolved || q;
       });
 
       const updatedState: ClarificationState = {
         ...clarificationState,
         questions: updatedQuestions,
-        completed: updatedQuestions.every(q => q.resolved)
+        completed: updatedQuestions.every((q) => q.resolved),
       };
 
       // Save updated metadata
       const updated = {
         ...metadata,
         clarification_state: updatedState,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       };
 
       await saveProjectMetadata(slug, updated);
@@ -123,24 +137,27 @@ const autoResolveHandler = withAuth(
       logger.info('Auto-resolved clarification questions', {
         project: slug,
         resolvedCount: resolvedQuestions.length,
-        totalQuestions: updatedQuestions.length
+        totalQuestions: updatedQuestions.length,
       });
 
       return NextResponse.json({
         success: true,
         data: {
           state: updatedState,
-          resolved: resolvedQuestions.map(q => ({
+          resolved: resolvedQuestions.map((q) => ({
             id: q.id,
             question: q.question,
             assumption: q.aiAssumed?.assumption,
-            rationale: q.aiAssumed?.rationale
+            rationale: q.aiAssumed?.rationale,
           })),
-          message: `Auto-resolved ${resolvedQuestions.length} question(s)`
-        }
+          message: `Auto-resolved ${resolvedQuestions.length} question(s)`,
+        },
       });
     } catch (error) {
-      logger.error('Error auto-resolving clarifications', error instanceof Error ? error : new Error(String(error)));
+      logger.error(
+        'Error auto-resolving clarifications',
+        error instanceof Error ? error : new Error(String(error))
+      );
       return NextResponse.json(
         { success: false, error: 'Failed to auto-resolve clarifications' },
         { status: 500 }
@@ -155,15 +172,22 @@ const autoResolveHandler = withAuth(
 function loadLLMConfig() {
   const specPath = path.resolve(process.cwd(), 'orchestrator_spec.yml');
   const specContent = fs.readFileSync(specPath, 'utf-8');
-  const spec = yaml.load(specContent) as { llm_config?: { model?: string; temperature?: number; max_tokens?: number; timeout_seconds?: number } };
-  
+  const spec = yaml.load(specContent) as {
+    llm_config?: {
+      model?: string;
+      temperature?: number;
+      max_tokens?: number;
+      timeout_seconds?: number;
+    };
+  };
+
   return {
     provider: 'gemini',
     model: spec.llm_config?.model || 'gemini-2.5-flash-preview-05-20',
     api_key: process.env.GEMINI_API_KEY || '',
     temperature: spec.llm_config?.temperature || 0.7,
     max_tokens: spec.llm_config?.max_tokens || 8192,
-    timeout_seconds: spec.llm_config?.timeout_seconds || 120
+    timeout_seconds: spec.llm_config?.timeout_seconds || 120,
   };
 }
 
@@ -206,7 +230,7 @@ Guidelines:
     const llmConfig = loadLLMConfig();
     const client = new GeminiClient(llmConfig);
     const response = await client.generateCompletion(prompt);
-    
+
     // Parse the JSON response
     const jsonMatch = response.content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
@@ -223,7 +247,9 @@ Guidelines:
 
     // Map assumptions back to questions
     return questions.map((q, index) => {
-      const assumption = parsed.assumptions.find(a => a.questionIndex === index);
+      const assumption = parsed.assumptions.find(
+        (a) => a.questionIndex === index
+      );
       if (assumption) {
         return {
           ...q,
@@ -231,24 +257,28 @@ Guidelines:
           resolvedBy: 'ai' as const,
           aiAssumed: {
             assumption: assumption.assumption,
-            rationale: assumption.rationale
-          }
+            rationale: assumption.rationale,
+          },
         };
       }
       return q;
     });
   } catch (error) {
-    logger.error('Failed to get AI assumptions', error instanceof Error ? error : new Error(String(error)));
-    
+    logger.error(
+      'Failed to get AI assumptions',
+      error instanceof Error ? error : new Error(String(error))
+    );
+
     // Fallback: mark as resolved with generic assumption
-    return questions.map(q => ({
+    return questions.map((q) => ({
       ...q,
       resolved: true,
       resolvedBy: 'ai' as const,
       aiAssumed: {
         assumption: 'Standard industry practice will be followed',
-        rationale: 'Unable to generate specific assumption; defaulting to common patterns'
-      }
+        rationale:
+          'Unable to generate specific assumption; defaulting to common patterns',
+      },
     }));
   }
 }
@@ -261,7 +291,7 @@ async function updateArtifactsWithResolutions(
   resolvedQuestions: ClarificationQuestion[]
 ): Promise<void> {
   const artifacts = ['constitution.md', 'project-brief.md', 'personas.md'];
-  
+
   for (const artifactName of artifacts) {
     try {
       let content = await readArtifact(slug, 'ANALYSIS', artifactName);
@@ -277,27 +307,37 @@ async function updateArtifactsWithResolutions(
       // Replace only the markers that correspond to the questions being auto-resolved.
       const markerRegex = /\[NEEDS CLARIFICATION:\s*[^\]]+\]/g;
       let markerIndex = 0;
-      const replaced = content.replace(markerRegex, (fullMatch) => {
-        const question = indexToResolvedQuestion.get(markerIndex);
-        markerIndex += 1;
+      const replaced = asString(content).replace(
+        markerRegex,
+        (fullMatch: string) => {
+          const question = indexToResolvedQuestion.get(markerIndex);
+          markerIndex += 1;
 
-        if (!question?.aiAssumed) return fullMatch;
+          if (!question?.aiAssumed) return fullMatch;
 
-        return `[AI ASSUMED: ${question.aiAssumed.assumption} - ${question.aiAssumed.rationale}]`;
-      });
+          return `[AI ASSUMED: ${question.aiAssumed.assumption} - ${question.aiAssumed.rationale}]`;
+        }
+      );
 
       if (replaced !== content) {
         content = replaced;
         modified = true;
       }
-      
+
       if (modified) {
         await writeArtifact(slug, 'ANALYSIS', artifactName, content);
-        logger.debug('Updated artifact with AI assumptions', { slug, artifact: artifactName });
+        logger.debug('Updated artifact with AI assumptions', {
+          slug,
+          artifact: artifactName,
+        });
       }
     } catch (err) {
       // Artifact might not exist, skip
-      logger.debug('Could not update artifact', { slug, artifact: artifactName, error: (err as Error).message });
+      logger.debug('Could not update artifact', {
+        slug,
+        artifact: artifactName,
+        error: (err as Error).message,
+      });
     }
   }
 }

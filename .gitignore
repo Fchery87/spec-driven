@@ -83,6 +83,7 @@ dist-node/
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
+bun.lock
 .pnpm-debug.log
 
 # Testing
@@ -101,6 +102,7 @@ pnpm-lock.yaml
 *.tsbuildinfo
 .cache/
 .eslintcache
+.worktrees/
 
 # ============================================================================
 # IDE & EDITOR

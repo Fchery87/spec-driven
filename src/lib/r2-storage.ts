@@ -64,7 +64,7 @@ function generateR2Key(slug: string, phase: string, name: string): string {
 /**
  * Generate R2 key path for project metadata
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 function generateMetadataKey(slug: string): string {
   return `projects/${slug}/metadata.json`;
 }
@@ -72,7 +72,7 @@ function generateMetadataKey(slug: string): string {
 /**
  * Generate R2 key path for project idea
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 function generateProjectIdeaKey(slug: string): string {
   return `projects/${slug}/project_idea.txt`;
 }

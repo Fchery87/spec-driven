@@ -16,6 +16,7 @@ import {
 import { Slider } from '@/components/ui/slider';
 import { Cpu, Save, RefreshCw, CheckCircle, XCircle, AlertTriangle, Key, Eye, EyeOff, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 
 type ProviderType = 'gemini' | 'openai' | 'anthropic' | 'zai' | 'groq' | 'deepseek';
 
@@ -106,8 +107,8 @@ const PROVIDER_INFO: Record<ProviderType, { name: string; envKey: string; docsUr
 
 const PROVIDER_MODELS: Record<ProviderType, { id: string; name: string; description: string }[]> = {
   gemini: [
-    { id: 'gemini-3.0-flash', name: 'Gemini 3.0 Flash', description: 'Latest, fastest, most efficient' },
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast, efficient for most tasks' },
+    { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash (Preview)', description: 'Latest frontier-class performance' },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Fast and efficient' },
     { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Most capable, higher quality' },
     { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', description: 'Previous generation, stable' },
   ],
@@ -124,7 +125,8 @@ const PROVIDER_MODELS: Record<ProviderType, { id: string; name: string; descript
     { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', description: 'Most powerful' },
   ],
   zai: [
-    { id: 'glm-4.6', name: 'GLM-4.6', description: 'Latest flagship model' },
+    { id: 'glm-4.7', name: 'GLM-4.7', description: 'Latest flagship, superior coding (128K output)' },
+    { id: 'glm-4.6', name: 'GLM-4.6', description: 'Flagship model (128K output)' },
     { id: 'glm-4-plus', name: 'GLM-4 Plus', description: 'High performance model' },
     { id: 'glm-4-air', name: 'GLM-4 Air', description: 'Balanced performance' },
     { id: 'glm-4-flash', name: 'GLM-4 Flash', description: 'Most economical' },
@@ -416,7 +418,8 @@ export default function LLMConfigPage() {
   const currentProviderStatus = providerStatus[currentProvider];
 
   return (
-    <div className="space-y-6">
+    <ErrorBoundary>
+      <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Cpu className="h-6 w-6 text-primary" />
@@ -814,6 +817,7 @@ export default function LLMConfigPage() {
           </div>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }

@@ -58,7 +58,7 @@ export async function acquireLock(options: LockOptions): Promise<LockHandle | nu
       sql`SELECT pg_try_advisory_lock(${id1}::int, ${id2}::int) as success`
     );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     if (!(result.rows[0] as any)?.success) {
       logger.debug('Failed to acquire lock', { lockId, reason: 'already held' });
       return null;
@@ -105,7 +105,7 @@ export async function releaseLock(lockId: string): Promise<boolean> {
       sql`SELECT pg_advisory_unlock(${id1}::int, ${id2}::int) as success`
     );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     if ((result.rows[0] as any)?.success) {
       logger.info('Lock released', { lockId });
       return true;
@@ -135,7 +135,7 @@ export async function isLockHeld(lockId: string): Promise<boolean> {
       AND (classid = ${id1}::int OR classid = ${id2}::int)`
     );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     return BigInt((result.rows[0] as any)?.count || 0) > 0;
   } catch (error) {
     logger.error('Error checking lock status', error instanceof Error ? error : new Error(String(error)), { lockId });
@@ -227,7 +227,7 @@ export async function initializeLocking(): Promise<boolean> {
   try {
     const result = await db.execute(sql`SELECT version()`);
     logger.info('Database initialized for advisory locking', {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       version: (result.rows[0] as any)?.version?.substring(0, 50) || 'unknown',
     });
     return true;

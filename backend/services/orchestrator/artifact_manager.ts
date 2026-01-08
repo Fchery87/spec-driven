@@ -1,10 +1,17 @@
 import { ProjectArtifact, ValidationResult } from '@/types/orchestrator';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'fs';
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  readdirSync,
+  statSync,
+} from 'fs';
 import { resolve, dirname } from 'path';
 import { createHash } from 'crypto';
 import { Archiver } from '../file_system/archiver';
 import { ProjectStorage } from '../file_system/project_storage';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+
 import { logger } from '@/lib/logger';
 import { listArtifactNamesMerged } from './artifact_access';
 
@@ -15,14 +22,20 @@ export class ArtifactManager {
 
   constructor() {
     // Don't create directory on init - ProjectStorage will only try if explicitly configured
-    this.projectStorage = new ProjectStorage({ base_path: this.basePath, create_if_missing: false });
+    this.projectStorage = new ProjectStorage({
+      base_path: this.basePath,
+      create_if_missing: false,
+    });
     this.archiver = new Archiver(this.projectStorage);
   }
 
   /**
    * Validate artifacts exist for a project
    */
-  async validateArtifacts(projectId: string, requiredArtifacts: string[]): Promise<ValidationResult> {
+  async validateArtifacts(
+    projectId: string,
+    requiredArtifacts: string[]
+  ): Promise<ValidationResult> {
     const checks: Record<string, boolean> = {};
     const errors: string[] = [];
 
@@ -43,11 +56,14 @@ export class ArtifactManager {
         const names = await listArtifactNamesMerged(projectId, phase);
         remoteNames = new Set(names);
       } catch (error) {
-        logger.debug('validateArtifacts: remote list failed, using filesystem fallback', {
-          projectId,
-          phase,
-          error: error instanceof Error ? error.message : String(error),
-        });
+        logger.debug(
+          'validateArtifacts: remote list failed, using filesystem fallback',
+          {
+            projectId,
+            phase,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        );
       }
 
       for (const artifact of artifacts) {
@@ -63,37 +79,64 @@ export class ArtifactManager {
     return {
       status: errors.length > 0 ? 'fail' : 'pass',
       checks,
-      errors: errors.length > 0 ? errors : undefined
+      errors: errors.length > 0 ? errors : undefined,
     };
   }
 
   /**
    * List artifacts for a project phase
+   * Uses unified access layer that checks R2, DB, and filesystem
+   * @param projectSlug - Project slug (NOT the UUID id)
    */
-  async listArtifacts(projectId: string, phase: string): Promise<string[]> {
-    const phasePath = resolve(this.basePath, projectId, 'specs', phase, 'v1');
-    
-    if (!existsSync(phasePath)) {
-      return [];
-    }
-
+  async listArtifacts(projectSlug: string, phase: string): Promise<string[]> {
+    // Use the unified artifact access layer that checks R2, DB, and filesystem
     try {
-      return readdirSync(phasePath);
-    } catch {
-      return [];
+      return await listArtifactNamesMerged(projectSlug, phase);
+    } catch (error) {
+      logger.debug(
+        'listArtifacts: Failed to use merged listing, falling back to filesystem',
+        {
+          projectSlug,
+          phase,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+
+      // Fallback to filesystem only
+      const phasePath = resolve(
+        this.basePath,
+        projectSlug,
+        'specs',
+        phase,
+        'v1'
+      );
+      if (!existsSync(phasePath)) {
+        return [];
+      }
+      try {
+        return readdirSync(phasePath);
+      } catch {
+        return [];
+      }
     }
   }
 
   /**
    * Get artifact content
    */
-  async getArtifactContent(projectId: string, artifactName: string): Promise<string> {
+  async getArtifactContent(
+    projectId: string,
+    artifactName: string
+  ): Promise<string | Buffer> {
     const artifactPath = this.getArtifactPath(projectId, artifactName);
-    
+
     if (!existsSync(artifactPath)) {
       throw new Error(`Artifact not found: ${artifactName}`);
     }
 
+    if (artifactName.endsWith('.zip')) {
+      return readFileSync(artifactPath);
+    }
     return readFileSync(artifactPath, 'utf8');
   }
 
@@ -104,7 +147,7 @@ export class ArtifactManager {
     projectId: string,
     phase: string,
     artifactName: string,
-    content: string
+    content: string | Buffer
   ): Promise<void> {
     const artifactPath = this.getArtifactPath(projectId, artifactName, phase);
 
@@ -116,23 +159,29 @@ export class ArtifactManager {
       } catch (error) {
         // On serverless environments like Vercel, the filesystem may be read-only
         // In this case, we skip local write since artifacts are stored in R2
-        logger.debug('Unable to create artifact directory on filesystem, skipping local write', {
-          artifactPath,
-          error: error instanceof Error ? error.message : String(error)
-        });
+        logger.debug(
+          'Unable to create artifact directory on filesystem, skipping local write',
+          {
+            artifactPath,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        );
         return;
       }
     }
 
     try {
-      writeFileSync(artifactPath, content, 'utf8');
+      writeFileSync(artifactPath, content);
     } catch (error) {
       // Filesystem write failed - this is expected on Vercel
       // R2 storage is handled separately in the route handler
-      logger.debug('Unable to write artifact to filesystem, continuing without local copy', {
-        artifactPath,
-        error: error instanceof Error ? error.message : String(error)
-      });
+      logger.debug(
+        'Unable to write artifact to filesystem, continuing without local copy',
+        {
+          artifactPath,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
     }
   }
 
@@ -144,7 +193,7 @@ export class ArtifactManager {
     projectId: string,
     phase: string,
     artifactName: string,
-    content: string
+    content: string | Buffer
   ): Promise<void> {
     return this.writeArtifact(projectId, phase, artifactName, content);
   }
@@ -152,9 +201,12 @@ export class ArtifactManager {
   /**
    * Get artifact metadata
    */
-  async getArtifactMetadata(projectId: string, artifactName: string): Promise<Partial<ProjectArtifact>> {
+  async getArtifactMetadata(
+    projectId: string,
+    artifactName: string
+  ): Promise<Partial<ProjectArtifact>> {
     const artifactPath = this.getArtifactPath(projectId, artifactName);
-    
+
     if (!existsSync(artifactPath)) {
       throw new Error(`Artifact not found: ${artifactName}`);
     }
@@ -162,7 +214,7 @@ export class ArtifactManager {
     const stats = statSync(artifactPath);
     const content = readFileSync(artifactPath, 'utf8');
     const contentHash = createHash('sha256').update(content).digest('hex');
-    
+
     // Extract frontmatter if markdown
     let frontmatter = null;
     if (artifactName.endsWith('.md')) {
@@ -176,7 +228,7 @@ export class ArtifactManager {
       content_hash: contentHash,
       frontmatter: frontmatter || undefined,
       created_at: stats.birthtime,
-      updated_at: stats.mtime
+      updated_at: stats.mtime,
     };
   }
 
@@ -185,7 +237,7 @@ export class ArtifactManager {
    */
   async createProjectDirectory(projectSlug: string): Promise<string> {
     const projectPath = resolve(this.basePath, projectSlug);
-    
+
     if (!existsSync(projectPath)) {
       mkdirSync(projectPath, { recursive: true });
     }
@@ -194,12 +246,20 @@ export class ArtifactManager {
     const subdirs = [
       'specs/ANALYSIS/v1',
       'specs/STACK_SELECTION/v1',
-      'specs/SPEC/v1',
+      'specs/SPEC_PM/v1',
+      'specs/SPEC_ARCHITECT/v1',
+      'specs/SPEC_DESIGN_TOKENS/v1',
+      'specs/SPEC_DESIGN_COMPONENTS/v1',
+      'specs/FRONTEND_BUILD/v1',
       'specs/DEPENDENCIES/v1',
       'specs/SOLUTIONING/v1',
       'specs/VALIDATE/v1',
+      'specs/AUTO_REMEDY/v1',
+      'specs/DONE/v1',
+      // Legacy fallback for existing projects
+      'specs/SPEC/v1',
       '.ai-config',
-      'docs'
+      'docs',
     ];
 
     for (const subdir of subdirs) {
@@ -222,9 +282,12 @@ export class ArtifactManager {
   /**
    * Create phase directory
    */
-  async createPhaseDirectory(projectSlug: string, phase: string): Promise<string> {
+  async createPhaseDirectory(
+    projectSlug: string,
+    phase: string
+  ): Promise<string> {
     const phasePath = resolve(this.basePath, projectSlug, 'specs', phase, 'v1');
-    
+
     if (!existsSync(phasePath)) {
       mkdirSync(phasePath, { recursive: true });
     }
@@ -235,13 +298,24 @@ export class ArtifactManager {
   /**
    * Get artifact file path
    */
-  private getArtifactPath(projectId: string, artifactName: string, phase?: string): string {
+  private getArtifactPath(
+    projectId: string,
+    artifactName: string,
+    phase?: string
+  ): string {
     // If phase not provided, try to infer from artifact name
     if (!phase) {
       phase = this.inferPhaseFromArtifact(artifactName);
     }
-    
-    return resolve(this.basePath, projectId, 'specs', phase, 'v1', artifactName);
+
+    return resolve(
+      this.basePath,
+      projectId,
+      'specs',
+      phase,
+      'v1',
+      artifactName
+    );
   }
 
   /**
@@ -249,28 +323,47 @@ export class ArtifactManager {
    */
   private inferPhaseFromArtifact(artifactName: string): string {
     const artifactPhases: Record<string, string> = {
+      // ANALYSIS phase
       'constitution.md': 'ANALYSIS',
       'project-brief.md': 'ANALYSIS',
       'project-classification.json': 'ANALYSIS',
       'personas.md': 'ANALYSIS',
+      // STACK_SELECTION phase
       'stack-analysis.md': 'STACK_SELECTION',
       'stack-decision.md': 'STACK_SELECTION',
       'stack-rationale.md': 'STACK_SELECTION',
       'stack.json': 'STACK_SELECTION',
-      'PRD.md': 'SPEC',
-      'data-model.md': 'SPEC',
-      'api-spec.json': 'SPEC',
+      // SPEC_PM phase (new 12-phase system)
+      'PRD.md': 'SPEC_PM',
+      // SPEC_ARCHITECT phase (new 12-phase system)
+      'data-model.md': 'SPEC_ARCHITECT',
+      'api-spec.json': 'SPEC_ARCHITECT',
+      // SPEC_DESIGN_TOKENS phase
+      'design-tokens.md': 'SPEC_DESIGN_TOKENS',
+      'design-system.md': 'SPEC_DESIGN_TOKENS',
+      // SPEC_DESIGN_COMPONENTS phase
+      'component-inventory.md': 'SPEC_DESIGN_COMPONENTS',
+      'component-mapping.md': 'SPEC_DESIGN_COMPONENTS',
+      'user-flows.md': 'SPEC_DESIGN_COMPONENTS',
+      'journey-maps.md': 'SPEC_DESIGN_COMPONENTS',
+      // DEPENDENCIES phase
       'DEPENDENCIES.md': 'DEPENDENCIES',
       'dependencies.json': 'DEPENDENCIES',
       'approval.md': 'DEPENDENCIES',
+      // SOLUTIONING phase
       'architecture.md': 'SOLUTIONING',
       'epics.md': 'SOLUTIONING',
       'tasks.md': 'SOLUTIONING',
       'plan.md': 'SOLUTIONING',
+      // VALIDATE phase
       'validation-report.md': 'VALIDATE',
       'coverage-matrix.md': 'VALIDATE',
+      // AUTO_REMEDY phase
+      'remediation-report.md': 'AUTO_REMEDY',
+      // DONE phase
       'README.md': 'DONE',
-      'HANDOFF.md': 'DONE'
+      'HANDOFF.md': 'DONE',
+      'project.zip': 'DONE',
     };
 
     return artifactPhases[artifactName] || 'UNKNOWN';
@@ -279,26 +372,26 @@ export class ArtifactManager {
   /**
    * Extract frontmatter from markdown content
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   private extractFrontmatter(content: string): Record<string, any> | null {
     const frontmatterRegex = /^---\n([\s\S]*?)\n---/;
     const match = content.match(frontmatterRegex);
-    
+
     if (!match) return null;
-    
+
     try {
       // Simple YAML parsing - in production use proper YAML parser
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const frontmatter: Record<string, any> = {};
       const lines = match[1].split('\n');
-      
+
       for (const line of lines) {
         const [key, ...valueParts] = line.split(':');
         if (key && valueParts.length > 0) {
           frontmatter[key.trim()] = valueParts.join(':').trim();
         }
       }
-      
+
       return frontmatter;
     } catch {
       return null;

@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtService, JWTPayload } from '@/backend/services/auth/jwt_service';
 import { logger } from '@/lib/logger';
+import { formatErrorResponse, AppError } from '@/backend/lib/error_handler';
 
 export interface AuthenticatedRequest extends NextRequest {
   user?: JWTPayload;
@@ -29,9 +30,9 @@ export function extractToken(request: NextRequest): string | null {
  * Middleware to authenticate requests
  * Returns null if authenticated, NextResponse with error if not
  */
-export function authenticateRequest(
+export async function authenticateRequest(
   request: NextRequest
-): { user: JWTPayload } | { error: NextResponse } {
+): Promise<{ user: JWTPayload } | { error: NextResponse }> {
   const token = extractToken(request);
 
   if (!token) {
@@ -43,7 +44,7 @@ export function authenticateRequest(
     };
   }
 
-  const payload = jwtService.verifyToken(token);
+  const payload = await jwtService.verifyToken(token);
 
   if (!payload) {
     return {
@@ -65,12 +66,12 @@ export function authenticateRequest(
  * });
  */
 export function withAuth(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   handler: (request: AuthenticatedRequest, params: any) => Promise<NextResponse>
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return async (request: NextRequest, params: any) => {
-    const auth = authenticateRequest(request);
+    const auth = await authenticateRequest(request);
 
     if ('error' in auth) {
       return auth.error;
@@ -84,6 +85,15 @@ export function withAuth(
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       logger.error('Route error:', err);
+      
+      // Preserve AppError details in response
+      if (error instanceof AppError) {
+        return NextResponse.json(
+          formatErrorResponse(error),
+          { status: error.statusCode }
+        );
+      }
+      
       return NextResponse.json(
         { success: false, message: 'Internal server error' },
         { status: 500 }
@@ -97,15 +107,15 @@ export function withAuth(
  * Does not fail if token is missing, but validates if present
  */
 export function optionalAuth(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   handler: (request: AuthenticatedRequest, params: any) => Promise<NextResponse>
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return async (request: NextRequest, params: any) => {
     const token = extractToken(request);
 
     if (token) {
-      const payload = jwtService.verifyToken(token);
+      const payload = await jwtService.verifyToken(token);
       if (payload) {
         (request as AuthenticatedRequest).user = payload;
       }
@@ -116,6 +126,15 @@ export function optionalAuth(
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       logger.error('Route error:', err);
+      
+      // Preserve AppError details in response
+      if (error instanceof AppError) {
+        return NextResponse.json(
+          formatErrorResponse(error),
+          { status: error.statusCode }
+        );
+      }
+      
       return NextResponse.json(
         { success: false, message: 'Internal server error' },
         { status: 500 }
@@ -129,10 +148,10 @@ export function optionalAuth(
  * Restricts API access to authorized domains
  */
 export function withCORS(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   handler: (request: NextRequest, params: any) => Promise<NextResponse>
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return async (request: NextRequest, params: any) => {
     const origin = request.headers.get('origin') || '';
     const allowedOrigins = (
@@ -163,7 +182,53 @@ export function withCORS(
  * Middleware for rate limiting (basic in-memory implementation)
  * For production, use Redis or external rate limiting service
  */
+const MAX_ENTRIES = 1000; // Maximum number of entries to keep in the store
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
+let cleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Clean up old entries to prevent memory leaks
+ */
+function startCleanup() {
+  if (cleanupInterval) return;
+  
+  cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    // Only clean if store is getting large
+    if (rateLimitStore.size < MAX_ENTRIES) return;
+    
+    for (const [key, entry] of rateLimitStore.entries()) {
+      if (now > entry.resetTime) {
+        rateLimitStore.delete(key);
+      }
+    }
+    
+    // If still too many, use LRU eviction
+    if (rateLimitStore.size >= MAX_ENTRIES) {
+      const entriesToDelete = rateLimitStore.size - MAX_ENTRIES + 100;
+      const entries = Array.from(rateLimitStore.entries());
+      // Delete oldest entries
+      for (let i = 0; i < entriesToDelete && entries[i]; i++) {
+        rateLimitStore.delete(entries[i][0]);
+      }
+    }
+  }, 60 * 1000); // Run cleanup every minute
+  
+  // Start cleanup on module load
+  if (typeof window === 'undefined') {
+    startCleanup();
+  }
+}
+
+/**
+ * Stop cleanup interval
+ */
+export function stopRateLimitCleanup(): void {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
+  }
+}
 
 export function withRateLimit(
   maxRequests: number = 100,
@@ -172,10 +237,10 @@ export function withRateLimit(
     req.headers.get('x-forwarded-for') || 'unknown'
 ) {
   return (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     handler: (request: NextRequest, params: any) => Promise<NextResponse>
   ) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     return async (request: NextRequest, params: any) => {
       const key = keyFn(request);
       const now = Date.now();

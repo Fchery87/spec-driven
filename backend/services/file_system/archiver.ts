@@ -1,15 +1,21 @@
 import { ProjectStorage } from './project_storage';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { createReadStream, createWriteStream, existsSync, statSync, readdirSync } from 'fs';
+ 
+import {
+  createReadStream,
+  createWriteStream,
+  existsSync,
+  statSync,
+  readdirSync,
+} from 'fs';
 import { resolve as resolvePath } from 'path';
 import { createHash } from 'crypto';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import { promisify } from 'util';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import { logger } from '@/lib/logger';
 
 // Using require for archiver to avoid TypeScript declaration issues
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+ 
 const archiver = require('archiver');
 
 export interface ZipConfig {
@@ -40,7 +46,10 @@ export class Archiver {
   /**
    * Create project ZIP archive
    */
-  async createProjectZip(projectSlug: string, config?: Partial<ZipConfig>): Promise<Buffer> {
+  async createProjectZip(
+    projectSlug: string,
+    config?: Partial<ZipConfig>
+  ): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       try {
         const zipConfig: ZipConfig = {
@@ -48,7 +57,7 @@ export class Archiver {
           include_ai_config: true,
           include_docs: true,
           compression_level: 6,
-          ...config
+          ...config,
         };
 
         const projectPath = this.projectStorage.getProjectPath(projectSlug);
@@ -56,11 +65,11 @@ export class Archiver {
 
         // Create archive
         const archive = archiver('zip', {
-          zlib: { level: zipConfig.compression_level }
+          zlib: { level: zipConfig.compression_level },
         });
 
         // Handle archive events
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         archive.on('error', (err: any) => {
           reject(new Error(`Failed to create ZIP: ${err.message}`));
         });
@@ -124,11 +133,14 @@ export class Archiver {
   /**
    * Generate ZIP manifest
    */
-  private async generateZipManifest(projectSlug: string, config: ZipConfig): Promise<ZipManifest> {
+  private async generateZipManifest(
+    projectSlug: string,
+    config: ZipConfig
+  ): Promise<ZipManifest> {
     const manifest: ZipManifest = {
       files: [],
       total_size: 0,
-      created_at: new Date()
+      created_at: new Date(),
     };
 
     const projectPath = this.projectStorage.getProjectPath(projectSlug);
@@ -136,10 +148,10 @@ export class Archiver {
     // Add root files
     const rootFiles = [
       'constitution.md',
-      'project-brief.md', 
+      'project-brief.md',
       'personas.md',
       'README.md',
-      'HANDOFF.md'
+      'HANDOFF.md',
     ];
 
     for (const file of rootFiles) {
@@ -150,14 +162,29 @@ export class Archiver {
           path: file,
           size: stats.size,
           hash: await this.calculateFileHash(filePath),
-          modified: stats.modified
+          modified: stats.modified,
         });
         manifest.total_size += stats.size;
       }
     }
 
-    // Add specs directory
-    const phases = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE'];
+    // Add specs directory (12-phase system)
+    const phases = [
+      'ANALYSIS',
+      'STACK_SELECTION',
+      'SPEC_PM',
+      'SPEC_ARCHITECT',
+      'SPEC_DESIGN_TOKENS',
+      'SPEC_DESIGN_COMPONENTS',
+      'FRONTEND_BUILD',
+      'DEPENDENCIES',
+      'SOLUTIONING',
+      'VALIDATE',
+      'AUTO_REMEDY',
+      'DONE',
+      // Legacy fallback for existing projects
+      'SPEC',
+    ];
     for (const phase of phases) {
       const artifacts = this.projectStorage.listArtifacts(projectSlug, phase);
       for (const artifact of artifacts) {
@@ -166,7 +193,7 @@ export class Archiver {
           path: relativePath,
           size: artifact.size,
           hash: artifact.hash,
-          modified: artifact.modified_at
+          modified: artifact.modified_at,
         });
         manifest.total_size += artifact.size;
       }
@@ -180,7 +207,7 @@ export class Archiver {
         '.ai-config/architect_prompt.md',
         '.ai-config/scrummaster_prompt.md',
         '.ai-config/devops_prompt.md',
-        '.ai-config/validators.yml'
+        '.ai-config/validators.yml',
       ];
 
       for (const file of aiConfigFiles) {
@@ -191,7 +218,7 @@ export class Archiver {
             path: file,
             size: stats.size,
             hash: await this.calculateFileHash(filePath),
-            modified: stats.modified
+            modified: stats.modified,
           });
           manifest.total_size += stats.size;
         }
@@ -200,10 +227,7 @@ export class Archiver {
 
     // Add docs directory if requested
     if (config.include_docs) {
-      const docFiles = [
-        'docs/security-baseline.md',
-        'docs/DEPS_NOTES.md'
-      ];
+      const docFiles = ['docs/security-baseline.md', 'docs/DEPS_NOTES.md'];
 
       for (const file of docFiles) {
         const filePath = resolvePath(projectPath, file);
@@ -213,7 +237,7 @@ export class Archiver {
             path: file,
             size: stats.size,
             hash: await this.calculateFileHash(filePath),
-            modified: stats.modified
+            modified: stats.modified,
           });
           manifest.total_size += stats.size;
         }
@@ -235,10 +259,20 @@ export class Archiver {
     }
 
     // Read key artifacts
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const constitution = this.safeReadFile(resolvePath(projectPath, 'constitution.md'));
-    const brief = this.safeReadFile(resolvePath(projectPath, 'project-brief.md'));
-    const prd = this.safeReadFile(this.projectStorage.getArtifactPath(projectSlug, 'SPEC', 'PRD.md'));
+     
+    const constitution = this.safeReadFile(
+      resolvePath(projectPath, 'constitution.md')
+    );
+    const brief = this.safeReadFile(
+      resolvePath(projectPath, 'project-brief.md')
+    );
+    const prd =
+      this.safeReadFile(
+        this.projectStorage.getArtifactPath(projectSlug, 'SPEC_PM', 'PRD.md')
+      ) ||
+      this.safeReadFile(
+        this.projectStorage.getArtifactPath(projectSlug, 'SPEC', 'PRD.md')
+      ); // Legacy fallback
 
     const handoffContent = `# Handoff: ${metadata.name || projectSlug}
 
@@ -534,7 +568,7 @@ The entire project is documented. No guessing needed. Good luck! 🎯
    */
   private safeReadFile(filePath: string): string | null {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const { readFileSync } = require('fs');
       return readFileSync(filePath, 'utf8');
     } catch {
@@ -544,7 +578,7 @@ The entire project is documented. No guessing needed. Good luck! 🎯
 
   private fileExists(filePath: string): boolean {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const { existsSync } = require('fs');
       return existsSync(filePath);
     } catch {
@@ -552,14 +586,16 @@ The entire project is documented. No guessing needed. Good luck! 🎯
     }
   }
 
-  private async getFileStats(filePath: string): Promise<{ size: number; modified: Date }> {
+  private async getFileStats(
+    filePath: string
+  ): Promise<{ size: number; modified: Date }> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const { statSync } = require('fs');
       const stats = statSync(filePath);
       return {
         size: stats.size,
-        modified: stats.mtime
+        modified: stats.mtime,
       };
     } catch {
       return { size: 0, modified: new Date() };
@@ -577,50 +613,53 @@ The entire project is documented. No guessing needed. Good luck! 🎯
 
   private extractDescription(brief: string | null): string {
     if (!brief) return 'No description available';
-    
+
     // Extract first paragraph or few lines
     const lines = brief.split('\n');
-    const firstParagraph = lines.find(line => line.trim().length > 0);
+    const firstParagraph = lines.find((line) => line.trim().length > 0);
     return firstParagraph || 'No description available';
   }
 
   private extractMVPRequirements(prd: string | null): string {
     if (!prd) return '- No PRD available';
-    
+
     // Look for MVP section or requirements
     const mvpMatch = prd.match(/##? MVP.*?\n([\s\S]*?)(?=\n##|\n#|$)/i);
     if (mvpMatch) {
       return mvpMatch[1].trim();
     }
-    
+
     // Look for Phase 1 or requirements
     const reqMatches = prd.match(/REQ-\w+-\d+/g) || [];
     if (reqMatches.length > 0) {
-      return reqMatches.slice(0, 5).map(req => `- ${req}`).join('\n');
+      return reqMatches
+        .slice(0, 5)
+        .map((req) => `- ${req}`)
+        .join('\n');
     }
-    
+
     return '- No MVP requirements clearly defined';
   }
 
   private getStackDescription(stackChoice: string | null | undefined): string {
     if (!stackChoice) return 'No stack selected';
-    
+
     const stackDescriptions: Record<string, string> = {
-      'web_application': `
+      web_application: `
 **Pattern:** Monolithic Full-Stack
 **Examples:** Next.js + Drizzle, Django, React, Tanstack Start
 **Backend:** Integrated API layer
 **Database:** PostgreSQL/SQLite with ORM
 **Deployment:** Single deployment target (Vercel, Railway)`,
-      
-      'mobile_application': `
+
+      mobile_application: `
 **Pattern:** Mobile-First with API Backend
 **Examples:** React Native + Expo, Flutter + Firebase
 **Backend:** Dedicated API service
 **Features:** Push notifications, offline support, device access
 **Deployment:** App stores + cloud API`,
-      
-      'api_first_platform': `
+
+      api_first_platform: `
 **Pattern:** Headless/Multi-Client Architecture
 **Examples:** Node.js/Go/Rust API, GraphQL federation
 **Clients:** Separate web, mobile, third-party integrations
@@ -628,63 +667,76 @@ The entire project is documented. No guessing needed. Good luck! 🎯
 **Deployment:** Independent service scaling`,
 
       // Legacy support
-      'nextjs_only_expo': `
+      nextjs_only_expo: `
 **Frontend:** Next.js 14 with App Router
 **Mobile:** Expo with React Native  
 **Backend:** Next.js API routes / tRPC
 **Database:** PostgreSQL with Prisma
 **Deployment:** Vercel`,
-      
-      'hybrid_nextjs_fastapi_expo': `
+
+      hybrid_nextjs_fastapi_expo: `
 **Frontend:** Next.js 14
 **Mobile:** Expo with React Native
 **Backend:** FastAPI (Python)
 **Database:** PostgreSQL with SQLAlchemy
 **Deployment:** Separate infra`,
 
-      'monolithic_fullstack': `
+      monolithic_fullstack: `
 **Pattern:** Monolithic Full-Stack
 **Backend:** Integrated API layer
 **Database:** PostgreSQL/SQLite with ORM
 **Deployment:** Single deployment target`,
 
-      'decoupled_services': `
+      decoupled_services: `
 **Pattern:** Decoupled Services
 **Backend:** Separate API service
 **Database:** PostgreSQL with independent scaling
-**Deployment:** Multiple deployment targets`
+**Deployment:** Multiple deployment targets`,
     };
-    
+
     return stackDescriptions[stackChoice] || 'Custom stack configuration';
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   private getProjectType(metadata: any): string {
     // Try to infer project type from brief or metadata
     if (metadata.description) {
       const desc = metadata.description.toLowerCase();
       if (desc.includes('mobile') || desc.includes('app')) return 'mobile app';
-      if (desc.includes('dashboard') || desc.includes('admin')) return 'dashboard';
+      if (desc.includes('dashboard') || desc.includes('admin'))
+        return 'dashboard';
       if (desc.includes('api') || desc.includes('backend')) return 'API';
-      if (desc.includes('saas') || desc.includes('platform')) return 'SaaS platform';
+      if (desc.includes('saas') || desc.includes('platform'))
+        return 'SaaS platform';
     }
     return 'web application';
   }
 
   private getStackConstraint(stackChoice: string | null | undefined): string {
-    if (!stackChoice) return 'No stack selected - choose appropriate technologies';
-    
+    if (!stackChoice)
+      return 'No stack selected - choose appropriate technologies';
+
     const stackConstraints: Record<string, string> = {
-      'web_application': 'Next.js/Django/React, TypeScript/Python, PostgreSQL/SQLite, Drizzle/Prisma ORM',
-      'mobile_application': 'React Native + Expo / Flutter, TypeScript/Dart, Firebase/Supabase, Push notifications',
-      'api_first_platform': 'Node.js/Go/Rust API, GraphQL/REST, PostgreSQL, Independent client apps',
+      web_application:
+        'Next.js/Django/React, TypeScript/Python, PostgreSQL/SQLite, Drizzle/Prisma ORM',
+      mobile_application:
+        'React Native + Expo / Flutter, TypeScript/Dart, Firebase/Supabase, Push notifications',
+      api_first_platform:
+        'Node.js/Go/Rust API, GraphQL/REST, PostgreSQL, Independent client apps',
       // Legacy support
-      'nextjs_only_expo': 'Next.js 14 (App Router), React 18, TypeScript, Expo, Prisma, PostgreSQL',
-      'hybrid_nextjs_fastapi_expo': 'Next.js 14, FastAPI (Python), React 18, TypeScript, Expo, SQLAlchemy, PostgreSQL',
-      'monolithic_fullstack': 'Full-stack framework, TypeScript, PostgreSQL, Integrated API',
-      'decoupled_services': 'Separate frontend/backend, Independent scaling, API contracts'
+      nextjs_only_expo:
+        'Next.js 14 (App Router), React 18, TypeScript, Expo, Prisma, PostgreSQL',
+      hybrid_nextjs_fastapi_expo:
+        'Next.js 14, FastAPI (Python), React 18, TypeScript, Expo, SQLAlchemy, PostgreSQL',
+      monolithic_fullstack:
+        'Full-stack framework, TypeScript, PostgreSQL, Integrated API',
+      decoupled_services:
+        'Separate frontend/backend, Independent scaling, API contracts',
     };
-    
-    return stackConstraints[stackChoice] || 'Custom stack - follow project specifications';
+
+    return (
+      stackConstraints[stackChoice] ||
+      'Custom stack - follow project specifications'
+    );
   }
 }

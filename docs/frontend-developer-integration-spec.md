@@ -1,0 +1,489 @@
+# Frontend-Developer Skill Integration Spec
+
+> **Status**: Draft | **Date**: 2026-01-06 | **Target**: orchestrator_spec.yml, frontend_executor.ts
+> **Purpose**: Fill Phase 7 (FRONTEND_BUILD) with expert React/Next.js implementation using frontend-developer.md principles
+
+---
+
+## Executive Summary
+
+Integrate `frontend-developer` skill principles into the frontend build phase to address:
+- **Subagent Dispatch pattern** from immutable-moseying-lagoon.md (fresh context per component)
+- **Self-Review Checklist** before completion
+- **Context pollution** from generating 13 components in single LLM session
+- **Production-ready code** (no TODO placeholders, proper TypeScript, accessibility)
+
+---
+
+## Changes Required
+
+### 1. Add Frontend Executor with Subagent Dispatch
+
+**Location**: `backend/services/llm/frontend_executor.ts` (new or enhance existing)
+
+```typescript
+/**
+ * Frontend Build Executor with Subagent Dispatch Pattern
+ * 
+ * Each component generated in ISOLATED LLM session to prevent context pollution.
+ * Fresh context = no accumulated artifacts, no "forgotten" requirements.
+ */
+
+interface ComponentSpec {
+  id: string;                    // COMP-001
+  name: string;                  // "Button"
+  prd_requirements: string[];    // ["REQ-UI-001"]
+  persona: string;               // "Alex - the indie full-stack developer"
+  states: ComponentStates;       // normal, loading, error, empty
+  interactions: string[];        // ["hover", "focus", "active", "disabled"]
+  responsive: string;            // Breakpoint behavior
+  journey_refs: string[];        // ["Journey 1", "Journey 3"]
+}
+
+interface ComponentStates {
+  normal: string;
+  loading: string;
+  error: string;
+  empty: string;
+}
+
+export async function executeFrontendBuild(
+  llmClient: LLMProvider,
+  componentMapping: string,    // From component-mapping.md
+  journeyMaps: string,         // From journey-maps.md
+  designTokens: string,        // From design-tokens.md
+  approvedStack: string
+): Promise<Record<string, string>> {
+  // Parse component specifications from design artifacts
+  const components = parseComponentSpecs(componentMapping);
+  
+  // Generate each component in ISOLATED LLM session
+  const artifacts: Record<string, string> = {};
+  
+  for (const component of components) {
+    const componentArtifacts = await generateComponentInIsolation(
+      llmClient,
+      component,
+      designTokens,
+      approvedStack
+    );
+    Object.assign(artifacts, componentArtifacts);
+  }
+  
+  return artifacts;
+}
+
+/**
+ * Generate ONE component in fresh LLM context (NO context pollution!)
+ */
+async function generateComponentInIsolation(
+  llmClient: LLMProvider,
+  component: ComponentSpec,
+  designTokens: string,
+  approvedStack: string
+): Promise<Record<string, string>> {
+  const prompt = buildComponentPrompt(component, designTokens, approvedStack);
+  
+  const response = await llmClient.generateCompletion(
+    prompt,
+    undefined,
+    2,  // Fewer retries - isolation means less failure
+    'FRONTEND_BUILD'
+  );
+  
+  return parseFrontendArtifacts(response.content, component.name);
+}
+
+/**
+ * Component Prompt Template (from frontend-developer.md principles)
+ */
+function buildComponentPrompt(
+  component: ComponentSpec,
+  designTokens: string,
+  approvedStack: string
+): string {
+  return `
+# ROLE
+You are a ${'frontend-developer.md'} expert building production-grade React components.
+Your code must be production-ready - NO placeholders, NO TODO comments.
+
+# COMPONENT TO BUILD
+## ID: ${component.id}
+## Name: ${component.name}
+## PRD Requirements: ${component.prd_requirements.join(', ')}
+## Persona: ${component.persona} (must be satisfied)
+## States Required:
+  - Normal: ${component.states.normal}
+  - Loading: ${component.states.loading}
+  - Error: ${component.states.error}
+  - Empty: ${component.states.empty}
+## Interactions: ${component.interactions.join(', ')}
+## Responsive: ${component.responsive}
+
+# DESIGN TOKENS (from Phase 5)
+${designTokens}
+
+# APPROVED STACK: ${approvedStack}
+
+# =============================================================================
+# SELF-REVIEW CHECKLIST (Complete BEFORE reporting done)
+# =============================================================================
+- [ ] Component uses design tokens from Phase 5 (colors, typography, spacing)
+- [ ] Follows shadcn/ui pattern (using existing UI components)
+- [ ] Includes useReducedMotion accessibility (CSS media query)
+- [ ] NO console.log, NO debugger, NO TODO comments
+- [ ] Proper TypeScript types (export interfaces, no any)
+- [ ] Loading state handles suspense properly
+- [ ] Error boundary catches and displays errors
+- [ ] Empty state shown when no data
+- [ ] Keyboard navigation works (Tab, Enter, Escape)
+- [ ] ARIA attributes correct for component type
+- [ ] Component path follows approved stack structure
+
+# OUTPUT FORMAT
+Generate component file in this EXACT format:
+
+\`\`\`typescript filename: ${getComponentPath(component.name)}
+// Generated by frontend-developer skill
+// Persona: ${component.persona}
+// PRD Requirements: ${component.prd_requirements.join(', ')}
+
+'use client';
+
+import * as React from 'react';
+import { motion, HTMLMotionProps } from 'framer-motion';
+// Use existing shadcn/ui components
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+// Design tokens
+import { colors, motion as motionTokens } from '@/lib/design-tokens';
+
+// [Production-ready code - NO placeholders]
+\`\`\`
+
+# QUALITY GATES
+1. File must be syntactically valid TypeScript
+2. NO placeholder comments like "// TODO: Implement"
+3. NO "lorem ipsum" text
+4. All imports must be valid paths
+5. Must compile without TypeScript errors
+
+Generate ${component.name} now with complete, production-ready code.
+`;
+}
+```
+
+---
+
+### 2. Update orchestrator_spec.yml - Frontend Build Phase
+
+**Location**: `phases.FRONTEND_BUILD` (~line 350)
+
+```yaml
+FRONTEND_BUILD:
+  name: 'FRONTEND_BUILD'
+  description: 'Generate React components with subagent dispatch (one component per LLM session)'
+  owner: 'frontend_developer'
+  duration_minutes: 60
+  inputs: ['design-tokens.md', 'component-mapping.md', 'journey-maps.md', 'approved_stack']
+  outputs:
+    [
+      'components/ui/button.tsx',
+      'components/ui/input.tsx',
+      'lib/motion.ts',
+      # ... all 13 component files
+    ]
+  depends_on: ['SPEC_DESIGN_COMPONENTS', 'STACK_SELECTION']
+  next_phase: 'DEPENDENCIES'
+  validators:
+    [
+      'presence',
+      'typescript_compile',
+      'anti_generic_code',
+      'no_console_log',
+      'accessibility_check',
+    ]
+  requires_stack: true
+  priority: 3
+  
+  # NEW: Subagent Dispatch Configuration
+  subagent_dispatch:
+    enabled: true
+    isolation: 'per_component'  # Each component = fresh LLM session
+    max_parallel: 3             # Generate 3 components concurrently
+    retry_on_failure: 2
+    
+  quality_checklist:
+    - 'All components generated (no missing files)'
+    - 'Components reference design tokens from Phase 5'
+    - 'shadcn/ui pattern followed'
+    - 'useReducedMotion accessibility included'
+    - 'NO console.log, TODO, or placeholder code'
+    - 'Proper TypeScript types (no any)'
+    - 'Loading/error/empty states all implemented'
+    - 'Keyboard navigation and ARIA attributes correct'
+```
+
+---
+
+### 3. Add Frontend Developer Agent
+
+**Location**: `orchestrator_spec.yml` (after designer agent)
+
+```yaml
+  frontend_developer:
+    role: 'Frontend Developer'
+    perspective: 'Senior React Engineer'
+    responsibilities:
+      - 'Build production-ready React components with TypeScript'
+      - 'Follow shadcn/ui patterns and design tokens'
+      - 'Implement accessibility (useReducedMotion, ARIA, keyboard nav)'
+      - 'Generate complete code - NO placeholders, NO TODO comments'
+      - 'Use subagent dispatch for isolation per component'
+    prompt_template: |
+      # ROLE
+      You are a ${'frontend-developer.md'} expert building production-ready React components.
+      
+      # CORE PRINCIPLES (from frontend-developer.md)
+      
+      ## React 19 + Next.js 15 Patterns
+      - Use Server Actions for mutations where appropriate
+      - Use useActionState for form state management
+      - Use useOptimistic for immediate UI feedback
+      - Implement Suspense boundaries for loading states
+      
+      ## Component Architecture
+      - Follow atomic design principles
+      - Props interfaces with TypeScript (export for consumers)
+      - Forward refs for DOM components
+      - React.memo for expensive renders
+      
+      ## Accessibility (WCAG 2.1 AA)
+      - useReducedMotion for animations
+      - Proper ARIA attributes
+      - Keyboard navigation (Tab, Enter, Space, Escape)
+      - Focus management for modals/dialogs
+      
+      ## Performance
+      - Dynamic imports for large components
+      - Image optimization with next/image
+      - Proper code splitting
+      
+      ## Testing Readiness
+      - Component structured for React Testing Library
+      - Data-testid attributes on key elements
+      - Clear component boundaries
+      
+      # PROJECT CONTEXT
+      Design Tokens:
+      ${designTokens}
+      
+      Approved Stack:
+      ${approvedStack}
+      
+      Component Specification:
+      ${componentSpec}
+      
+      # OUTPUT FORMAT
+      Generate component file in this EXACT format:
+      
+      \`\`\`typescript filename: ${path}
+      // Generated by frontend-developer skill
+      // Persona: ${persona}
+      // PRD Requirements: ${prdRequirements}
+      
+      'use client';
+      
+      import * as React from 'react';
+      import { motion } from 'framer-motion';
+      import { cn } from '@/lib/utils';
+      import { colors, typography, motion as motionTokens } from '@/lib/design-tokens';
+      
+      // [Complete, production-ready code]
+      \`\`\`
+      
+      # QUALITY GATES
+      - [ ] Valid TypeScript (compiles without errors)
+      - [ ] NO console.log, debugger, or TODO comments
+      - [ ] useReducedMotion accessibility included
+      - [ ] Proper TypeScript interfaces (no any)
+      - [ ] Loading, error, and empty states handled
+      - [ ] Keyboard navigation works
+      - [ ] ARIA attributes correct
+      
+      Generate the component now.
+```
+
+---
+
+### 4. Add Validators for Frontend Quality
+
+**Location**: `backend/services/orchestrator/validators.ts`
+
+```typescript
+/**
+ * Validate no console.log or debugger statements
+ */
+async function validateNoConsoleLogs(project: Project): Promise<ValidationResult> {
+  const result: ValidationResult = { status: 'pass', checks: {}, errors: [], warnings: [] };
+  
+  const componentFiles = await getArtifactFiles(project.id, 'components/**/*.tsx');
+  
+  for (const file of componentFiles) {
+    const content = await getArtifact(project.id, file);
+    
+    const issues = [
+      ...content.matchAll(/console\.(log|debug|info|warn|error)\s*\(/g),
+      ...content.matchAll(/debugger/g),
+    ];
+    
+    if (issues.length > 0) {
+      result.status = 'fail';
+      result.errors.push(`${file}: Contains ${issues.length} console/debugger statements`);
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Validate accessibility patterns
+ */
+async function validateAccessibility(project: Project): Promise<ValidationResult> {
+  const result: ValidationResult = { status: 'pass', checks: {}, errors: [], warnings: [] };
+  
+  const componentFiles = await getArtifactFiles(project.id, 'components/**/*.tsx');
+  
+  for (const file of componentFiles) {
+    const content = await getArtifact(project.id, file);
+    
+    // Check for useReducedMotion
+    if (!content.includes('prefers-reduced-motion')) {
+      result.warnings.push(`${file}: Missing useReducedMotion accessibility`);
+    }
+    
+    // Check for aria-* on interactive elements
+    const hasInteractive = /<(button|a|input|select|textarea)/.test(content);
+    const hasAria = /aria-/.test(content);
+    if (hasInteractive && !hasAria) {
+      result.warnings.push(`${file}: Interactive elements may lack ARIA attributes`);
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Validate no placeholder code
+ */
+async function validateNoPlaceholders(project: Project): Promise<ValidationResult> {
+  const result: ValidationResult = { status: 'pass', checks: {}, errors: [], warnings: [] };
+  
+  const componentFiles = await getArtifactFiles(project.id, 'components/**/*.tsx');
+  
+  const placeholderPatterns = [
+    /TODO[:\s]/i,
+    /FIXME[:\s]/i,
+    /placeholder/i,
+    /lorem ipsum/i,
+    /\/\/\s*.*implement/i,
+    /\/\/\s*.*todo/i,
+  ];
+  
+  for (const file of componentFiles) {
+    const content = await getArtifact(project.id, file);
+    
+    for (const pattern of placeholderPatterns) {
+      const matches = content.match(pattern);
+      if (matches) {
+        result.status = 'fail';
+        result.errors.push(`${file}: Contains placeholder: "${matches[0]}"`);
+      }
+    }
+  }
+  
+  return result;
+}
+```
+
+---
+
+## Subagent Dispatch Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ FRONTEND_BUILD Phase                                            │
+├─────────────────────────────────────────────────────────────────┤
+│  component-mapping.md + journey-maps.md + design-tokens.md     │
+│                         ↓                                       │
+│              ┌────────────────────┐                            │
+│              │ Component Parser   │                            │
+│              │ (extracts 13 specs)│                            │
+│              └────────────────────┘                            │
+│                         ↓                                       │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐           │
+│  │ Session │  │ Session │  │ Session │  │ Session │  ...      │
+│  │   1     │  │   2     │  │   3     │  │   4     │           │
+│  │Button   │  │  Input  │  │  Card   │  │ Modal   │           │
+│  └─────────┘  └─────────┘  └─────────┘  └─────────┘           │
+│       ↓            ↓            ↓            ↓                  │
+│  ┌──────────────────────────────────────────────────────┐      │
+│  │              Artifact Assembler                       │      │
+│  │  (combines isolated outputs into final build)        │      │
+│  └──────────────────────────────────────────────────────┘      │
+│                         ↓                                       │
+│              Final Component Files + lib/motion.ts             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Benefits:**
+- Each component gets FULL design tokens + component spec
+- No accumulated context from other components
+- Isolation = no "forgotten" requirements
+- Failed component doesn't block others (parallel execution)
+
+---
+
+## Expected Impact
+
+| Metric | Current | After Change |
+|--------|---------|--------------|
+| Placeholder code | ~25% | <5% |
+| Accessibility compliance | Unknown | 95%+ |
+| Context pollution | Severe | Eliminated |
+| Console.log artifacts | Common | None |
+| TypeScript errors | Occasional | Rare |
+
+---
+
+## Implementation Effort
+
+| Task | Hours |
+|------|-------|
+| Create frontend_executor.ts with subagent dispatch | 6-8h |
+| Add frontend_developer agent to orchestrator_spec.yml | 1-2h |
+| Add accessibility, no-placeholder validators | 3-4h |
+| Update FRONTEND_BUILD phase config | 1h |
+| Test with sample project | 2-3h |
+| **Total** | **13-18h** |
+
+---
+
+## Files Modified/Created
+
+| File | Action |
+|------|--------|
+| `backend/services/llm/frontend_executor.ts` | Create/update with subagent dispatch |
+| `backend/services/orchestrator/validators.ts` | Add 3 new validators |
+| `orchestrator_spec.yml` | Add frontend_developer agent, update FRONTEND_BUILD |
+
+---
+
+## Success Criteria
+
+- [ ] Each component generated in isolated LLM session
+- [ ] No console.log, TODO, or placeholder code in output
+- [ ] useReducedMotion accessibility in all animated components
+- [ ] All components follow shadcn/ui pattern
+- [ ] TypeScript compiles without errors
+- [ ] Journey maps match generated components (traced via COMP-XXX IDs)

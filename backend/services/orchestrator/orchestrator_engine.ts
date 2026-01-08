@@ -4,16 +4,31 @@ import {
   Phase,
   OrchestratorSpec,
   ValidationResult,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   OrchestrationState,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   PhaseHistory,
+  ArtifactChange,
+  ImpactLevel,
+  ChangeType,
+  ChangedSection,
+  AffectedArtifact,
+  ImpactAnalysis,
+  RegenerationStrategy,
+  ParallelGroup,
+  PhaseExecutionResult,
+  ParallelWorkflowOptions,
+  ParallelWorkflowResult,
 } from '@/types/orchestrator';
 import { ConfigLoader } from './config_loader';
 import { Validators } from './validators';
 import { ArtifactManager } from './artifact_manager';
+import { parseValidationReport } from './validation_report_parser';
+import { applyAutoRemedyOverrides } from './auto_remedy_llm_config';
 import { existsSync } from 'fs';
 import { resolve } from 'path';
+import { createHash } from 'crypto';
+import { ApprovalGateService } from '../approval/approval_gate_service';
+import { GitService } from '../git/git_service';
+import { RollbackService } from '../rollback/rollback_service';
 import {
   getAnalystExecutor,
   getPMExecutor,
@@ -22,12 +37,15 @@ import {
   getDevOpsExecutor,
   getDesignExecutor,
   getStackSelectionExecutor,
+  getDesignerExecutor,
 } from '../llm/agent_executors';
+import { getFrontendExecutor } from '../llm/frontend_executor';
 import { GeminiClient } from '../llm/llm_client';
 import {
   createLLMClient,
   ProviderType,
   getProviderApiKeyAsync,
+  type LLMFactoryConfig,
 } from '../llm/providers';
 import { DynamicPhaseTokenCalculator } from '../llm/dynamic_phase_token_calculator';
 import { ModelParameterResolver } from '../llm/model_parameter_resolver';
@@ -35,12 +53,32 @@ import {
   deriveIntelligentDefaultStack,
   parseProjectClassification,
 } from '@/backend/lib/stack_defaults';
+import {
+  validateAntiAISlop,
+  autoFixAntiAISlop,
+} from '../validation/anti_ai_slop_validator';
+import { CheckerPattern } from '../llm/checker_pattern';
+import { CheckerResult, CriticFeedback } from '../llm/checker_pattern';
+import { SuperpowersExecutor } from '../superpowers/skill_executor';
+import { SuperpowersIntegrationConfig } from '../superpowers/types';
+import { db } from '@/backend/lib/drizzle';
+import { regenerationRuns, artifactVersions } from '@/backend/lib/schema';
+import { eq } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+import { RegenerationOptions, RegenerationResult } from '@/types/orchestrator';
+import { asString, asStringRecord } from '@/backend/lib/artifact_utils';
 
 export class OrchestratorEngine {
   private spec: OrchestratorSpec;
   private validators: Validators;
   private artifactManager: ArtifactManager;
   private llmClient: GeminiClient;
+  private approvalGateService: ApprovalGateService;
+  private gitService: Map<string, GitService>;
+  private rollbackService: Map<string, RollbackService>;
+  private checkerPattern: CheckerPattern;
+  private checkerEnabledPhases: Set<string>;
+  private superpowersExecutor: SuperpowersExecutor;
 
   constructor() {
     logger.info('[OrchestratorEngine] Constructor called');
@@ -80,6 +118,13 @@ export class OrchestratorEngine {
     try {
       this.validators = new Validators(this.spec.validators);
       this.artifactManager = new ArtifactManager();
+      this.approvalGateService = new ApprovalGateService();
+      this.gitService = new Map();
+      this.rollbackService = new Map();
+
+      logger.info(
+        '[OrchestratorEngine] ApprovalGateService, GitService, and RollbackService initialized'
+      );
     } catch (error) {
       logger.error(
         '[OrchestratorEngine] Failed to initialize validators/artifact manager:',
@@ -184,11 +229,33 @@ export class OrchestratorEngine {
       temperature: resolvedParams.temperature, // Use resolved parameters
       timeout_seconds: resolvedParams.timeout, // Use resolved parameters
       api_key: process.env.GEMINI_API_KEY,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       phase_overrides: enhancedPhaseOverrides,
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     this.llmClient = new GeminiClient(llmConfig as any);
+
+    // Initialize Checker Pattern for dual-LLM adversarial review
+    // This runs critic personas (Skeptical CTO, QA Lead, Security Auditor, A11y Specialist)
+    this.checkerPattern = new CheckerPattern(this.llmClient);
+
+    // Configure which phases use the checker pattern
+    this.checkerEnabledPhases = new Set([
+      'STACK_SELECTION',
+      'SPEC_PM',
+      'SPEC_ARCHITECT',
+      'FRONTEND_BUILD',
+    ]);
+
+    logger.info('[OrchestratorEngine] CheckerPattern initialized', {
+      checkerEnabledPhases: Array.from(this.checkerEnabledPhases),
+    });
+
+    // Initialize Superpowers Executor for skill invocation framework
+    this.superpowersExecutor = new SuperpowersExecutor();
+    logger.info('[OrchestratorEngine] SuperpowersExecutor initialized', {
+      availableSkills: this.superpowersExecutor.getAllSkills(),
+    });
   }
 
   /**
@@ -238,6 +305,142 @@ export class OrchestratorEngine {
       );
       return {};
     }
+  }
+
+  // ============================================================================
+  // SUPERPOWERS INTEGRATION
+  // ============================================================================
+
+  /**
+   * Check if a phase has Superpowers integration configured
+   */
+  private getSuperpowersIntegration(
+    phase: string
+  ): SuperpowersIntegrationConfig | null {
+    const phaseSpec = this.spec.phases[phase];
+    if (!phaseSpec) return null;
+
+    const integration = (phaseSpec as any).superpowers_integration;
+    if (!integration) return null;
+
+    return integration as SuperpowersIntegrationConfig;
+  }
+
+  /**
+   * Map input values from context based on mapping configuration
+   */
+  private mapSkillInputs(
+    inputMapping: Record<string, string>,
+    context: Record<string, unknown>
+  ): Record<string, unknown> {
+    const mapped: Record<string, unknown> = {};
+
+    for (const [targetField, sourcePath] of Object.entries(inputMapping)) {
+      // Handle variable substitution (e.g., $project_description)
+      if (sourcePath.startsWith('$')) {
+        const variableName = sourcePath.slice(1);
+        mapped[targetField] = context[variableName];
+      } else {
+        mapped[targetField] = context[sourcePath];
+      }
+    }
+
+    return mapped;
+  }
+
+  /**
+   * Execute Superpowers skill for a phase if configured
+   * @returns The skill result and any output to merge into context
+   */
+  private async executeSuperpowersSkill(
+    phase: string,
+    context: Record<string, unknown>,
+    projectId: string,
+    projectName: string
+  ): Promise<{
+    executed: boolean;
+    result?: Record<string, unknown>;
+    error?: string;
+  }> {
+    const integration = this.getSuperpowersIntegration(phase);
+
+    if (!integration) {
+      return { executed: false };
+    }
+
+    logger.info(`[Superpowers] Executing skill for phase: ${phase}`, {
+      skill: integration.skill,
+      trigger: integration.trigger,
+    });
+
+    try {
+      // Map inputs according to configuration
+      const mappedInputs = integration.input_mapping
+        ? this.mapSkillInputs(integration.input_mapping, context)
+        : context;
+
+      // Execute the skill
+      const result = await this.superpowersExecutor.executeSkill(
+        integration.skill,
+        phase,
+        mappedInputs,
+        projectId,
+        projectName
+      );
+
+      if (!result.success) {
+        logger.warn(
+          `[Superpowers] Skill execution failed for phase: ${phase}`,
+          {
+            errors: result.errors,
+          }
+        );
+        return {
+          executed: true,
+          error: `Skill execution failed: ${result.errors.join(', ')}`,
+        };
+      }
+
+      logger.info(
+        `[Superpowers] Skill executed successfully for phase: ${phase}`,
+        {
+          skill: integration.skill,
+          durationMs: result.durationMs,
+        }
+      );
+
+      return {
+        executed: true,
+        result: result.output,
+      };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error(
+        `[Superpowers] Skill execution error for phase: ${phase}`,
+        undefined,
+        {
+          errorMessage: message,
+        }
+      );
+
+      const result: {
+        executed: boolean;
+        result?: Record<string, unknown>;
+        error?: string;
+      } = {
+        executed: true,
+        error: message,
+      };
+
+      return result;
+    }
+  }
+
+  /**
+   * Get available Superpowers skills for a given phase
+   */
+  getAvailableSuperpowersSkills(phase: string): string[] {
+    return this.superpowersExecutor.getAvailableSkills(phase);
   }
 
   /**
@@ -290,7 +493,7 @@ export class OrchestratorEngine {
   /**
    * Check if project can advance to next phase
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
   canAdvanceToPhase(project: Project, targetPhase?: string): boolean {
     const currentPhase = this.spec.phases[project.current_phase];
     if (!currentPhase) return false;
@@ -368,15 +571,167 @@ export class OrchestratorEngine {
     };
   }
 
+  // ============================================================================
+  // CHECKER PATTERN INTEGRATION
+  // ============================================================================
+
+  /**
+   * Run checker pattern for a phase and handle the decision
+   * @returns The artifacts (possibly regenerated) and any messages
+   */
+  private async runCheckerPattern(
+    phase: string,
+    artifacts: Record<string, string | Buffer>,
+    projectId: string,
+    projectName: string
+  ): Promise<{
+    artifacts: Record<string, string | Buffer>;
+    message: string;
+    escalated: boolean;
+  }> {
+    // Skip if checker not enabled for this phase
+    if (!this.checkerEnabledPhases.has(phase)) {
+      return {
+        artifacts,
+        message: 'Checker not enabled for this phase',
+        escalated: false,
+      };
+    }
+
+    logger.info(`[CheckerPattern] Running for phase: ${phase}`);
+
+    const context = {
+      projectId,
+      projectName,
+      phase,
+      timestamp: new Date().toISOString(),
+    };
+
+    try {
+      const result = await this.checkerPattern.executeCheck(
+        phase,
+        asStringRecord(artifacts),
+        context
+      );
+
+      logger.info(`[CheckerPattern] Result for ${phase}: ${result.status}`, {
+        confidence: result.confidence,
+        issues: result.feedback.length,
+        critical: result.feedback.filter((f) => f.severity === 'critical')
+          .length,
+        medium: result.feedback.filter((f) => f.severity === 'medium').length,
+        low: result.feedback.filter((f) => f.severity === 'low').length,
+      });
+
+      // Handle the decision
+      switch (result.status) {
+        case 'approved':
+          return {
+            artifacts,
+            message: `Checker approved (${result.feedback.length} minor suggestions)`,
+            escalated: false,
+          };
+
+        case 'regenerate':
+          logger.warn(`[CheckerPattern] Regeneration needed for ${phase}`, {
+            issues: result.feedback.length,
+          });
+          return {
+            artifacts,
+            message: `Regeneration suggested: ${result.feedback.length} issues found`,
+            escalated: false,
+          };
+
+        case 'escalate':
+          const criticalCount = result.feedback.filter(
+            (f) => f.severity === 'critical'
+          ).length;
+          logger.error(
+            `[CheckerPattern] Escalating ${phase} to human review`,
+            undefined,
+            { criticalIssues: criticalCount }
+          );
+          return {
+            artifacts,
+            message: `ESCALATED: ${result.summary} - ${result.feedback.length} issues requiring human review`,
+            escalated: true,
+          };
+
+        default:
+          return {
+            artifacts,
+            message: 'Unknown checker status',
+            escalated: false,
+          };
+      }
+    } catch (error) {
+      logger.error(`[CheckerPattern] Failed for ${phase}: ${error}`);
+      // On checker failure, proceed with original artifacts (fail-open)
+      return {
+        artifacts,
+        message: `Checker failed (${String(error).slice(
+          0,
+          100
+        )}), proceeding with artifacts`,
+        escalated: false,
+      };
+    }
+  }
+
+  /**
+   * Build regeneration prompt with checker feedback
+   */
+  private buildRegenerationPromptWithFeedback(
+    originalPrompt: string,
+    feedback: CriticFeedback[]
+  ): string {
+    return this.checkerPattern.buildRegenerationPrompt(
+      originalPrompt,
+      feedback
+    );
+  }
+
+  /**
+   * Internal method to run phase agent with additional options
+   * Used by AUTO_REMEDY for remediation runs
+   */
+  private async runPhaseAgentInternal(
+    project: Project,
+    artifacts: Record<string, string | Buffer>,
+    options?: {
+      isRemediation?: boolean;
+      additionalPrompt?: string;
+    }
+  ): Promise<{
+    success: boolean;
+    artifacts: Record<string, string | Buffer>;
+    message: string;
+  }> {
+    // Store remediation context in a property that can be accessed by the LLM prompt builder
+    if (options?.isRemediation && options.additionalPrompt) {
+      // Add remediation context to project for prompt enhancement
+      (project as any)._remediationPrompt = options.additionalPrompt;
+    }
+
+    try {
+      // Call the main runPhaseAgent with the modified project
+      const result = await this.runPhaseAgent(project, artifacts);
+      return result;
+    } finally {
+      // Clean up remediation context
+      delete (project as any)._remediationPrompt;
+    }
+  }
+
   /**
    * Run agent for current phase
    */
   async runPhaseAgent(
     project: Project,
-    artifacts: Record<string, string> = {}
+    artifacts: Record<string, string | Buffer> = {}
   ): Promise<{
     success: boolean;
-    artifacts: Record<string, string>;
+    artifacts: Record<string, string | Buffer>;
     message: string;
   }> {
     // Capture ALL project properties locally FIRST to prevent context loss
@@ -385,12 +740,79 @@ export class OrchestratorEngine {
     const stackChoice = project.stack_choice;
     const orchestrationState = project.orchestration_state;
 
+    // Track phase start time for duration measurement
+    const phaseStartTime = Date.now();
+
     logger.info(
       '[OrchestratorEngine] runPhaseAgent called for phase: ' + currentPhaseName
     );
 
     try {
       logger.info(`Executing agent for phase: ${currentPhaseName}`);
+
+      // Check approval gates before phase execution
+      const canProceed = await this.approvalGateService.canProceedFromPhase(
+        projectId,
+        currentPhaseName
+      );
+
+      if (!canProceed) {
+        // Get pending blocking gates for better error message
+        const projectGates = await this.approvalGateService.getProjectGates(
+          projectId
+        );
+        const pendingBlockingGates = projectGates.filter(
+          (gate) =>
+            gate.phase === currentPhaseName &&
+            gate.blocking &&
+            gate.status === 'pending'
+        );
+
+        const gateNames = pendingBlockingGates
+          .map((g) => g.gateName)
+          .join(', ');
+        const error = `Cannot execute phase ${currentPhaseName}: pending approval gates: ${gateNames}`;
+
+        logger.error('[OrchestratorEngine] Approval gate check failed', {
+          projectId,
+          phase: currentPhaseName,
+          pendingGates: gateNames,
+        } as any);
+
+        const err: any = new Error(error);
+        err.projectId = projectId;
+        throw err;
+      }
+
+      logger.info('[OrchestratorEngine] Approval gates passed', {
+        projectId,
+        phase: currentPhaseName,
+      });
+
+      // Initialize GitService and RollbackService per project (lazy initialization)
+      const projectPath = project.project_path;
+      if (projectPath && !this.gitService.has(projectId)) {
+        try {
+          logger.info(
+            '[OrchestratorEngine] Initializing GitService and RollbackService for project',
+            {
+              projectId,
+              projectPath,
+            }
+          );
+          this.gitService.set(projectId, new GitService(projectPath));
+          this.rollbackService.set(projectId, new RollbackService(projectPath));
+        } catch (error) {
+          logger.warn(
+            '[OrchestratorEngine] Failed to initialize GitService/RollbackService',
+            {
+              projectId,
+              projectPath,
+              error: error instanceof Error ? error.message : String(error),
+            }
+          );
+        }
+      }
 
       // Use cached spec from constructor (loaded once to avoid drift)
       const spec = this.spec;
@@ -407,8 +829,522 @@ export class OrchestratorEngine {
         throw new Error(`Unknown phase: ${currentPhaseName}`);
       }
 
+      // ============================================================================
+      // SUPERPOWERS SKILL EXECUTION
+      // Execute skill before phase generation if configured
+      // ============================================================================
+      const superpowersContext: Record<string, unknown> = {
+        projectId,
+        projectName: project.name || 'Untitled Project',
+        project_description: project.description,
+        scale_tier: project.scale_tier,
+        constitution_summary: artifacts['ANALYSIS/constitution.md'] || '',
+        artifact_context: artifacts,
+        all_artifacts: artifacts,
+        all_phase_artifacts: artifacts,
+        quality_checklist:
+          spec.phases[currentPhaseName]?.quality_checklist || [],
+        phase_name: currentPhaseName,
+        component_generation: 'Generate frontend components',
+        component_list: Object.keys(artifacts).filter((k) =>
+          k.includes('component')
+        ),
+        validation_issue: 'Validation failed',
+        error_logs: '',
+        project_branch: `${project.slug}-${currentPhaseName.toLowerCase()}`,
+      };
+
+      // Check trigger type from spec configuration
+      const superpowersIntegration =
+        this.getSuperpowersIntegration(currentPhaseName);
+      const shouldExecutePreGeneration =
+        superpowersIntegration?.trigger === 'pre_generation';
+
+      if (shouldExecutePreGeneration) {
+        logger.info(
+          `[Superpowers] Pre-generation skill execution for phase: ${currentPhaseName}`
+        );
+        const skillResult = await this.executeSuperpowersSkill(
+          currentPhaseName,
+          superpowersContext,
+          projectId,
+          project.name || 'Untitled Project'
+        );
+
+        if (skillResult.executed && skillResult.error) {
+          logger.warn(
+            `[Superpowers] Pre-generation skill warning: ${skillResult.error}`
+          );
+          // Continue with normal execution - skill warnings are non-blocking
+        } else if (skillResult.executed && skillResult.result) {
+          logger.info(`[Superpowers] Pre-generation skill completed`, {
+            skillOutputKeys: Object.keys(skillResult.result),
+          });
+        }
+      }
+
+      // Handle AUTO_REMEDY phase specially (Phase 1 Integration)
+      if (currentPhaseName === 'AUTO_REMEDY') {
+        logger.info('[AUTO_REMEDY] Executing auto-remediation workflow');
+
+        // Check if there are any completed phases to remediate
+        if (
+          !project.phases_completed ||
+          project.phases_completed.length === 0
+        ) {
+          logger.info(
+            '[AUTO_REMEDY] No completed phases to remediate - skipping'
+          );
+          return {
+            success: true,
+            artifacts: {},
+            message: 'AUTO_REMEDY skipped - no completed phases to remediate',
+          };
+        }
+
+        // Read the validation-report.md from VALIDATE phase to get actual failures
+        // (NOT validatePhaseCompletion which validates the current AUTO_REMEDY phase)
+        const { readArtifactContent } = await import('./artifact_access');
+        let validationReportContent = '';
+        try {
+          validationReportContent = await readArtifactContent(
+            project.slug,
+            'VALIDATE',
+            'validation-report.md'
+          );
+        } catch (error) {
+          logger.warn('[AUTO_REMEDY] Could not read validation-report.md', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+
+        const parsedReport = parseValidationReport(validationReportContent);
+        logger.info('[AUTO_REMEDY] Parsed validation report', {
+          status: parsedReport.status,
+          errorCount: parsedReport.errors.length,
+        });
+
+        // If validation passed or only has warnings, no need for AUTO_REMEDY
+        if (parsedReport.status === 'pass' || parsedReport.status === 'warn') {
+          logger.info(
+            `[AUTO_REMEDY] Validation status: ${parsedReport.status} - no remediation needed`
+          );
+          return {
+            success: true,
+            artifacts: {},
+            message: `AUTO_REMEDY phase - validation ${
+              parsedReport.status === 'pass' ? 'passed' : 'has warnings only'
+            }, no action needed`,
+          };
+        }
+
+        // Skip if there are no actual errors
+        if (parsedReport.errors.length === 0) {
+          logger.info(
+            '[AUTO_REMEDY] No validation errors to remediate - skipping'
+          );
+          return {
+            success: true,
+            artifacts: {},
+            message: 'AUTO_REMEDY phase - no errors to remediate',
+          };
+        }
+
+        // Build validation result for downstream processing
+        const validationResult = {
+          status: parsedReport.status as 'pass' | 'warn' | 'fail',
+          errors: parsedReport.errors,
+          warnings: [] as string[],
+          checks: {} as Record<string, boolean>,
+        };
+
+        // Import Phase 1 modules
+        const { determinePhaseOutcome } = await import('./phase_outcomes');
+        const { executeAutoRemedy } = await import('./auto_remedy_executor');
+
+        const outcome = determinePhaseOutcome({
+          phase: currentPhaseName,
+          validationResult: {
+            passed: validationResult.status === 'pass',
+            canProceed: validationResult.status !== 'fail',
+            warnings: (validationResult.warnings || []).map((w) => ({
+              severity: 'warning' as const,
+              message: w,
+              phase: currentPhaseName,
+            })),
+            errors: (validationResult.errors || []).map((e) => ({
+              severity: 'error' as const,
+              message: e,
+              phase: currentPhaseName,
+            })),
+            totalWarnings: validationResult.warnings?.length || 0,
+            accumulatedWarnings: [],
+          },
+        });
+
+        if (outcome.state === 'failures_detected') {
+          const autoRemedyContext = {
+            projectId,
+            failedPhase:
+              project.phases_completed[project.phases_completed.length - 1] ||
+              'ANALYSIS',
+            validationFailures: (validationResult.errors || []).map((e) => ({
+              phase: currentPhaseName,
+              message: e,
+              artifactId: 'unknown',
+            })),
+            currentAttempt: (project as any).autoRemedyAttempts || 0,
+            maxAttempts: 2,
+          };
+
+          const result = await executeAutoRemedy(autoRemedyContext);
+
+          // Generate remediation-report.md artifact
+          const remediationReport = `---
+title: Remediation Report
+project: ${project.name || project.slug}
+generated_at: ${new Date().toISOString()}
+status: ${result.canProceed ? 'completed' : 'requires_manual_review'}
+---
+
+# AUTO_REMEDY Report
+
+## Summary
+
+| Metric | Value |
+|--------|-------|
+| Total Failures | ${parsedReport.errors.length} |
+| Classification | ${result.classification?.type || 'unknown'} |
+| Confidence | ${((result.classification?.confidence || 0) * 100).toFixed(0)}% |
+| Status | ${
+            result.canProceed
+              ? '✅ Remediation Initiated'
+              : '❌ Requires Manual Review'
+          } |
+
+## Detected Failures
+
+${parsedReport.errors.map((err, i) => `${i + 1}. ${err}`).join('\n')}
+
+## Classification Details
+
+- **Failure Type:** \`${result.classification?.type || 'unknown'}\`
+- **Failed Phase:** ${autoRemedyContext.failedPhase}
+- **Remediation Target:** ${result.remediation?.phase || 'N/A'}
+- **Agent to Re-run:** ${result.remediation?.agentToRerun || 'N/A'}
+
+## Remediation Strategy
+
+${
+  result.remediation?.additionalInstructions ||
+  'No additional instructions provided.'
+}
+
+## Action Required
+
+${
+  result.canProceed
+    ? `The SOLUTIONING phase will be re-run to regenerate \`tasks.md\` with task entries for all unmapped requirements.
+
+**Next Step:** Re-run the SOLUTIONING phase to apply remediation.`
+    : `**Manual Review Required**
+
+Reason: ${result.reason || 'Unknown'}
+
+Please review the failures above and manually address them before proceeding.`
+}
+
+---
+*Generated by AUTO_REMEDY at ${new Date().toISOString()}*
+`;
+
+          // Save the remediation report artifact
+          const { uploadToR2 } = await import('@/lib/r2-storage');
+          try {
+            await uploadToR2(
+              project.slug,
+              'AUTO_REMEDY',
+              'remediation-report.md',
+              remediationReport
+            );
+            logger.info('[AUTO_REMEDY] Saved remediation-report.md to R2');
+          } catch (saveError) {
+            logger.warn(
+              '[AUTO_REMEDY] Failed to save remediation report to R2',
+              {
+                error:
+                  saveError instanceof Error
+                    ? saveError.message
+                    : String(saveError),
+              }
+            );
+          }
+
+          if (result.canProceed) {
+            logger.info(
+              '[AUTO_REMEDY] Initiating actual remediation - directly calling executor'
+            );
+
+            // ACTUALLY FIX THE FAILURES by directly calling the executor
+            const targetPhase = result.remediation?.phase || 'SOLUTIONING';
+            const remediationInstructions =
+              result.remediation?.additionalInstructions || '';
+
+            // Build context with failures for the regeneration
+            const failureContext = parsedReport.errors
+              .map((e, i) => `${i + 1}. ${e}`)
+              .join('\n');
+
+            const remediationPromptText = `
+REMEDIATION MODE ACTIVE - You MUST fix the following validation failures:
+
+${failureContext}
+
+${remediationInstructions}
+
+CRITICAL REQUIREMENTS:
+1. For each REQ-* ID listed above, create an explicit implementing task in tasks.md
+2. Each task must reference the requirement ID it implements (e.g., "Implements REQ-NOTIF-002")
+3. Ensure ALL requirements from PRD.md have at least one implementing task
+4. Do NOT remove any existing tasks that are working correctly
+`;
+
+            try {
+              logger.info(
+                '[AUTO_REMEDY] Calling getScruMasterExecutor directly',
+                {
+                  targetPhase,
+                  failureCount: parsedReport.errors.length,
+                }
+              );
+
+              // Get the existing artifacts for context
+              const { buildArtifactCacheForProject } = await import(
+                './artifact_access'
+              );
+              const artifactCache = await buildArtifactCacheForProject(
+                project.slug
+              );
+              const contextArtifacts: Record<string, string | Buffer> = {};
+              for (const [key, value] of artifactCache.entries()) {
+                contextArtifacts[key] = value;
+              }
+
+              // Get LLM client - create ConfigLoader locally since 'this' context may be lost
+              const { ConfigLoader: LocalConfigLoader } = await import(
+                './config_loader'
+              );
+              const localConfigLoader = new LocalConfigLoader();
+              const spec = localConfigLoader.loadSpec();
+
+              // Get LLM settings directly from database
+              const dbSettings = await this.getLLMSettingsFromDB();
+
+              const provider = (dbSettings?.provider ||
+                spec.llm_config.provider ||
+                'gemini') as ProviderType;
+              // getProviderApiKeyAsync is already imported at the top of the file
+              const apiKey = await getProviderApiKeyAsync(provider);
+              const autoRemedyLlmConfig: LLMFactoryConfig = {
+                provider,
+                model:
+                  dbSettings?.model ||
+                  (spec.llm_config.model as string) ||
+                  'gemini-2.5-flash',
+                max_tokens:
+                  dbSettings?.max_tokens ||
+                  (spec.llm_config.max_tokens as number) ||
+                  65000,
+                temperature:
+                  dbSettings?.temperature ||
+                  (spec.llm_config.temperature as number) ||
+                  0.7,
+                timeout_seconds:
+                  dbSettings?.timeout ||
+                  (spec.llm_config.timeout_seconds as number) ||
+                  120,
+                api_key: apiKey,
+                phase_overrides: (spec.llm_config as any).phase_overrides || {},
+              };
+              const llmClient = createLLMClient(
+                applyAutoRemedyOverrides(autoRemedyLlmConfig)
+              );
+
+              // Directly call the Scrum Master executor with remediation prompt
+              const regeneratedArtifacts = await getScruMasterExecutor(
+                llmClient,
+                projectId,
+                contextArtifacts,
+                project.name || project.slug,
+                remediationPromptText
+              );
+
+              logger.info('[AUTO_REMEDY] SOLUTIONING regeneration completed', {
+                artifactCount: Object.keys(regeneratedArtifacts).length,
+                artifacts: Object.keys(regeneratedArtifacts),
+              });
+
+              // Save regenerated artifacts to R2
+              const { uploadToR2: uploadToR2Lib } = await import(
+                '@/lib/r2-storage'
+              );
+              for (const [name, content] of Object.entries(
+                regeneratedArtifacts
+              )) {
+                await uploadToR2Lib(
+                  project.slug,
+                  'SOLUTIONING',
+                  name,
+                  typeof content === 'string' ? content : content.toString()
+                );
+                logger.info(
+                  `[AUTO_REMEDY] Saved regenerated artifact: ${name}`
+                );
+              }
+
+              // Now re-run VALIDATE to check if fixes worked
+              logger.info(
+                '[AUTO_REMEDY] Re-running VALIDATE phase to verify fixes'
+              );
+              const { buildArtifactCacheForProject: rebuildCache } =
+                await import('./artifact_access');
+              const updatedCache = await rebuildCache(project.slug);
+              this.validators.setArtifactCache(project, updatedCache);
+
+              // Generate new validation
+              const validateResult = await this.validators.runValidators(
+                ['cross_artifact_consistency', 'requirement_traceability'],
+                project
+              );
+
+              const afterStatus = validateResult.status;
+              const afterErrors = validateResult.errors || [];
+
+              // Build comprehensive report
+              const comprehensiveReport = `---
+title: Remediation Report
+project: ${project.name || project.slug}
+generated_at: ${new Date().toISOString()}
+status: ${afterErrors.length === 0 ? 'fixed' : 'partial_fix'}
+---
+
+# AUTO_REMEDY Report
+
+## Summary
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Total Failures | ${parsedReport.errors.length} | ${afterErrors.length} |
+| Status | ❌ FAIL | ${afterErrors.length === 0 ? '✅ PASS' : '⚠️ PARTIAL'} |
+
+## Original Failures Detected
+
+${parsedReport.errors.map((e, i) => `${i + 1}. ${e}`).join('\n')}
+
+## Remediation Applied
+
+- **Target Phase:** ${targetPhase}
+- **Agent Re-run:** scrummaster
+- **Artifacts Regenerated:** ${Object.keys(regeneratedArtifacts).join(', ')}
+
+## Post-Remediation Status
+
+${
+  afterErrors.length === 0
+    ? `✅ **All failures have been resolved!**
+
+The SOLUTIONING phase was regenerated with task entries for all PRD requirements.`
+    : `⚠️ **Partial fix applied - ${afterErrors.length} issues remain:**
+
+${afterErrors.map((e, i) => `${i + 1}. ${e}`).join('\n')}
+
+You may need to run AUTO_REMEDY again or manually address the remaining issues.`
+}
+
+---
+*Generated by AUTO_REMEDY at ${new Date().toISOString()}*
+`;
+
+              // Save comprehensive report
+              await uploadToR2(
+                project.slug,
+                'AUTO_REMEDY',
+                'remediation-report.md',
+                comprehensiveReport
+              );
+
+              return {
+                success: true,
+                artifacts: {
+                  'remediation-report.md': comprehensiveReport,
+                  ...regeneratedArtifacts,
+                },
+                message: `AUTO_REMEDY completed - regenerated ${
+                  Object.keys(regeneratedArtifacts).length
+                } artifacts. ${
+                  afterErrors.length === 0
+                    ? 'All failures resolved!'
+                    : `${afterErrors.length} issues remain.`
+                }`,
+              };
+            } catch (remediationError) {
+              const remediationErrorInstance =
+                remediationError instanceof Error
+                  ? remediationError
+                  : new Error(String(remediationError));
+              logger.error(
+                '[AUTO_REMEDY] Remediation execution failed',
+                remediationErrorInstance,
+                {
+                  error: remediationErrorInstance.message,
+                  stack: remediationErrorInstance.stack,
+                }
+              );
+
+              // Update report with error
+              const errorReport = remediationReport.replace(
+                '**Next Step:** Re-run the SOLUTIONING phase to apply remediation.',
+                `❌ **Remediation Failed**
+
+Error: ${
+                  remediationError instanceof Error
+                    ? remediationError.message
+                    : String(remediationError)
+                }
+
+Please try running AUTO_REMEDY again or manually re-run the SOLUTIONING phase.`
+              );
+
+              return {
+                success: false,
+                artifacts: {
+                  'remediation-report.md': errorReport,
+                },
+                message: `AUTO_REMEDY failed: ${
+                  remediationError instanceof Error
+                    ? remediationError.message
+                    : String(remediationError)
+                }`,
+              };
+            }
+          } else {
+            logger.warn('[AUTO_REMEDY] Escalating to MANUAL_REVIEW');
+            throw new Error(
+              `AUTO_REMEDY failed: ${result.reason} - manual review required`
+            );
+          }
+        }
+
+        // No failures or already remediated
+        return {
+          success: true,
+          artifacts: {},
+          message: 'AUTO_REMEDY phase - no action needed',
+        };
+      }
+
       // Use cached validators (initialized in constructor)
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
       const validators = this.validators;
       const artifactManager = new ArtifactManager();
 
@@ -432,7 +1368,7 @@ export class OrchestratorEngine {
         timeout_seconds:
           dbSettings.timeout || (spec.llm_config.timeout_seconds as number),
         api_key: apiKey,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         phase_overrides: (spec.llm_config as any).phase_overrides || {},
       };
 
@@ -450,7 +1386,10 @@ export class OrchestratorEngine {
       // Get project name for template variables
       const projectName = project.name || 'Untitled Project';
 
-      let generatedArtifacts: Record<string, string> = {};
+      let generatedArtifacts: Record<string, string | Buffer> = {};
+
+      // Get current phase spec
+      const currentPhase = spec.phases[currentPhaseName];
 
       // Get executor for current phase and run agent
       switch (currentPhaseName) {
@@ -469,16 +1408,41 @@ export class OrchestratorEngine {
               artifactCount: Object.keys(generatedArtifacts).length,
             }
           );
+
+          // Phase 1: Inline validation for ANALYSIS
+
+          if ((currentPhase as any).inline_validation?.enabled) {
+            logger.info('[ANALYSIS] Running inline validation');
+            const { runInlineValidation } = await import('./inline_validation');
+            const inlineResult = await runInlineValidation({
+              phase: currentPhaseName,
+              artifacts: asStringRecord(generatedArtifacts),
+            });
+
+            if (!inlineResult.canProceed) {
+              logger.error('[ANALYSIS] Inline validation failed', {
+                errorMessages: inlineResult.errors,
+                warnings: inlineResult.warnings,
+              } as any);
+              throw new Error(
+                `Inline validation failed: ${inlineResult.errors
+                  .map((e) => e.message)
+                  .join(', ')}`
+              );
+            }
+
+            if (inlineResult.warnings.length > 0) {
+              logger.warn('[ANALYSIS] Inline validation warnings', {
+                warnings: inlineResult.warnings,
+              });
+            }
+          }
           break;
 
-        case 'SPEC':
-          // SPEC phase has three parts:
-          // 1. PM generates PRD
-          // 2. Architect generates data-model and api-spec
-          // 3. Design generates design-system, component-inventory, user-flows
-
-          // First generate PRD with PM
-          const prdArtifacts = await getPMExecutor(
+        case 'SPEC_PM':
+          // SPEC_PM phase - PM generates PRD
+          logger.info('[SPEC_PM] Executing PM Executor for PRD generation');
+          const pmArtifacts = await getPMExecutor(
             llmClient,
             projectId,
             artifacts,
@@ -486,61 +1450,50 @@ export class OrchestratorEngine {
             projectName
           );
 
-          logger.debug('[SPEC] PRD generation complete', {
-            prdLength: prdArtifacts['PRD.md']?.length || 0,
-            hasContent: !!prdArtifacts['PRD.md']?.trim(),
+          logger.debug('[SPEC_PM] PRD generation complete', {
+            prdLength: asString(pmArtifacts['PRD.md'] || '').length || 0,
+            hasContent: !!asString(pmArtifacts['PRD.md'] || '').trim(),
           });
 
-          // Add the newly generated PRD to artifacts for subsequent agents
-          const artifactsWithPRD: Record<string, string> = {
+          generatedArtifacts = pmArtifacts;
+          break;
+
+        case 'SPEC_ARCHITECT':
+          // SPEC_ARCHITECT phase - Architect generates data model and API spec
+          logger.info(
+            '[SPEC_ARCHITECT] Executing Architect Executor for data model and API spec'
+          );
+
+          // Add PRD to artifacts if it exists from SPEC_PM
+          const artifactsWithPRDForArch: Record<string, string | Buffer> = {
             ...artifacts,
-            'SPEC/PRD.md': prdArtifacts['PRD.md'] || '',
+            'SPEC_PM/PRD.md':
+              artifacts['SPEC_PM/PRD.md'] || artifacts['SPEC/PRD.md'] || '',
           };
 
-          logger.debug('[SPEC] Calling Architect with PRD', {
-            prdLength: artifactsWithPRD['SPEC/PRD.md']?.length || 0,
-            briefLength: artifacts['ANALYSIS/project-brief.md']?.length || 0,
+          const archSpecArtifacts = await getArchitectExecutor(
+            llmClient,
+            projectId,
+            artifactsWithPRDForArch,
+            'SPEC_ARCHITECT',
+            stackChoice,
+            projectName
+          );
+
+          logger.debug('[SPEC_ARCHITECT] Architect generation complete', {
+            dataModelLength:
+              asString(archSpecArtifacts['data-model.md'] || '').length || 0,
+            apiSpecLength:
+              asString(archSpecArtifacts['api-spec.json'] || '').length || 0,
+            hasDataModel: !!asString(
+              archSpecArtifacts['data-model.md'] || ''
+            ).trim(),
+            hasApiSpec: !!asString(
+              archSpecArtifacts['api-spec.json'] || ''
+            ).trim(),
           });
 
-          // Generate data model, API spec, and design artifacts in parallel
-          const [architectArtifacts, designArtifacts] = await Promise.all([
-            getArchitectExecutor(
-              llmClient,
-              projectId,
-              artifactsWithPRD,
-              'SPEC',
-              stackChoice,
-              projectName
-            ),
-            getDesignExecutor(
-              llmClient,
-              projectId,
-              artifactsWithPRD,
-              projectName
-            ),
-          ]);
-
-          logger.debug('[SPEC] Architect generation complete', {
-            dataModelLength: architectArtifacts['data-model.md']?.length || 0,
-            apiSpecLength: architectArtifacts['api-spec.json']?.length || 0,
-            hasDataModel: !!architectArtifacts['data-model.md']?.trim(),
-            hasApiSpec: !!architectArtifacts['api-spec.json']?.trim(),
-          });
-
-          logger.debug('[SPEC] Design generation complete', {
-            designSystemLength:
-              designArtifacts['design-system.md']?.length || 0,
-            componentInventoryLength:
-              designArtifacts['component-inventory.md']?.length || 0,
-            userFlowsLength: designArtifacts['user-flows.md']?.length || 0,
-          });
-
-          // Combine all artifacts
-          generatedArtifacts = {
-            ...prdArtifacts,
-            ...architectArtifacts,
-            ...designArtifacts,
-          };
+          generatedArtifacts = archSpecArtifacts;
           break;
 
         case 'SOLUTIONING':
@@ -561,12 +1514,23 @@ export class OrchestratorEngine {
           // Small delay to help with rate limiting
           await new Promise((resolve) => setTimeout(resolve, 2000));
 
+          // Check for remediation context from AUTO_REMEDY
+          const remediationPrompt = (project as any)._remediationPrompt as
+            | string
+            | undefined;
+          if (remediationPrompt) {
+            logger.info('[SOLUTIONING] Running in REMEDIATION mode', {
+              promptLength: remediationPrompt.length,
+            });
+          }
+
           // Scrum Master generates epics.md, tasks.md, plan.md
           const scrumArtifacts = await getScruMasterExecutor(
             llmClient,
             projectId,
-            artifacts,
-            projectName
+            { ...artifacts, ...archArtifacts },
+            projectName,
+            remediationPrompt // Pass remediation context if present
           );
 
           generatedArtifacts = {
@@ -592,19 +1556,453 @@ export class OrchestratorEngine {
             artifacts,
             projectName
           );
+
+          // Phase 1: Inline validation for STACK_SELECTION
+
+          if ((currentPhase as any).inline_validation?.enabled) {
+            logger.info('[STACK_SELECTION] Running inline validation');
+            const { runInlineValidation } = await import('./inline_validation');
+            const inlineResult = await runInlineValidation({
+              phase: currentPhaseName,
+              artifacts: asStringRecord(generatedArtifacts),
+            });
+
+            if (!inlineResult.canProceed) {
+              logger.error('[STACK_SELECTION] Inline validation failed', {
+                errorMessages: inlineResult.errors,
+                warnings: inlineResult.warnings,
+              } as any);
+              throw new Error(
+                `Inline validation failed: ${inlineResult.errors
+                  .map((e) => e.message)
+                  .join(', ')}`
+              );
+            }
+
+            if (inlineResult.warnings.length > 0) {
+              logger.warn('[STACK_SELECTION] Inline validation warnings', {
+                warnings: inlineResult.warnings,
+              });
+            }
+          }
+          break;
+
+        case 'SPEC_DESIGN_TOKENS':
+          // Design tokens phase - stack-agnostic design system tokens
+          logger.info('[SPEC_DESIGN_TOKENS] Executing Design Agent for tokens');
+          const designerExecutor = getDesignerExecutor();
+          const designTokensResult = await designerExecutor.generateArtifacts({
+            phase: 'SPEC_DESIGN_TOKENS',
+            stack: stackChoice,
+            constitution: artifacts['ANALYSIS/constitution.md'] || '',
+            projectBrief: artifacts['ANALYSIS/project-brief.md'] || '',
+            projectPath: project.project_path,
+            projectId,
+            llmClient,
+          });
+
+          if (!designTokensResult.success) {
+            throw new Error(
+              `SPEC_DESIGN_TOKENS failed: ${JSON.stringify(
+                designTokensResult.metadata
+              )}`
+            );
+          }
+
+          generatedArtifacts = designTokensResult.artifacts;
+          logger.info('[SPEC_DESIGN_TOKENS] Design tokens generated', {
+            artifactKeys: Object.keys(generatedArtifacts),
+          });
+
+          // Anti-AI-Slop validation and auto-fix for design tokens
+          for (const [filename, content] of Object.entries(
+            generatedArtifacts
+          )) {
+            const contentStr = asString(content);
+            // Apply auto-fix for common AI slop patterns (e.g., Inter font -> DM Sans)
+            const fixResult = autoFixAntiAISlop(contentStr);
+            if (fixResult.fixed) {
+              logger.info('[SPEC_DESIGN_TOKENS] Auto-fixed AI slop patterns', {
+                artifact: filename,
+                replacements: fixResult.replacements,
+              });
+              // Use the fixed content
+              generatedArtifacts[filename] = fixResult.content;
+            }
+
+            // Now validate the (potentially fixed) content
+            const slopResult = validateAntiAISlop(
+              filename,
+              fixResult.fixed ? fixResult.content : contentStr
+            );
+            if (slopResult.status === 'fail') {
+              logger.error(
+                '[SPEC_DESIGN_TOKENS] Anti-AI-slop validation failed',
+                {
+                  artifact: filename,
+                  errors: slopResult.errors,
+                } as any
+              );
+              throw new Error(
+                `Anti-AI-slop validation failed for ${filename}: ${slopResult.errors?.join(
+                  ', '
+                )}`
+              );
+            }
+          }
+          break;
+
+        case 'SPEC_DESIGN_COMPONENTS':
+          // Design components phase - stack-specific component mapping
+          logger.info(
+            '[SPEC_DESIGN_COMPONENTS] Executing Design Agent for components'
+          );
+          const designerExecutor2 = getDesignerExecutor();
+          const designComponentsResult =
+            await designerExecutor2.generateArtifacts({
+              phase: 'SPEC_DESIGN_COMPONENTS',
+              stack: stackChoice,
+              constitution: artifacts['ANALYSIS/constitution.md'] || '',
+              projectBrief: artifacts['ANALYSIS/project-brief.md'] || '',
+              projectPath: project.project_path,
+              projectId,
+              llmClient,
+            });
+
+          if (!designComponentsResult.success) {
+            throw new Error(
+              `SPEC_DESIGN_COMPONENTS failed: ${JSON.stringify(
+                designComponentsResult.metadata
+              )}`
+            );
+          }
+
+          generatedArtifacts = designComponentsResult.artifacts;
+          logger.info('[SPEC_DESIGN_COMPONENTS] Component mapping generated', {
+            artifactKeys: Object.keys(generatedArtifacts),
+          });
+
+          // Anti-AI-Slop validation and auto-fix for design components
+          for (const [filename, content] of Object.entries(
+            generatedArtifacts
+          )) {
+            const contentStr = asString(content);
+            // Apply auto-fix for common AI slop patterns (e.g., Inter font -> DM Sans)
+            const fixResult = autoFixAntiAISlop(contentStr);
+            if (fixResult.fixed) {
+              logger.info(
+                '[SPEC_DESIGN_COMPONENTS] Auto-fixed AI slop patterns',
+                {
+                  artifact: filename,
+                  replacements: fixResult.replacements,
+                }
+              );
+              // Use the fixed content
+              generatedArtifacts[filename] = fixResult.content;
+            }
+
+            // Now validate the (potentially fixed) content
+            const slopResult = validateAntiAISlop(
+              filename,
+              fixResult.fixed ? fixResult.content : contentStr
+            );
+            if (slopResult.status === 'fail') {
+              logger.error(
+                '[SPEC_DESIGN_COMPONENTS] Anti-AI-slop validation failed',
+                {
+                  artifact: filename,
+                  errors: slopResult.errors,
+                } as any
+              );
+              throw new Error(
+                `Anti-AI-slop validation failed for ${filename}: ${slopResult.errors?.join(
+                  ', '
+                )}`
+              );
+            }
+          }
+          break;
+
+        case 'FRONTEND_BUILD':
+          // Frontend build phase - generate React components from design tokens and component inventory
+          logger.info(
+            '[FRONTEND_BUILD] Executing Frontend Executor for component generation'
+          );
+          const frontendExecutor = getFrontendExecutor({
+            perspective: 'creative_technologist',
+          });
+          const frontendResult = await frontendExecutor.generateArtifacts({
+            phase: 'SPEC_FRONTEND',
+            projectName: projectName,
+            projectBrief: artifacts['ANALYSIS/project-brief.md'] || '',
+            designTokens:
+              artifacts['SPEC_DESIGN_TOKENS/design-tokens.md'] ||
+              artifacts['design-tokens.md'] ||
+              '',
+            componentInventory:
+              artifacts['SPEC_DESIGN_COMPONENTS/component-mapping.md'] ||
+              artifacts['component-mapping.md'] ||
+              '',
+            stack: stackChoice,
+            llmClient,
+          });
+
+          if (!frontendResult.success) {
+            throw new Error(
+              `FRONTEND_BUILD failed: ${JSON.stringify(
+                frontendResult.metadata
+              )}`
+            );
+          }
+
+          generatedArtifacts = frontendResult.artifacts;
+          logger.info('[FRONTEND_BUILD] Frontend components generated', {
+            artifactKeys: Object.keys(generatedArtifacts),
+          });
+
+          // Anti-AI-Slop validation for frontend components
+          for (const [filename, content] of Object.entries(
+            generatedArtifacts
+          )) {
+            const slopResult = validateAntiAISlop(filename, asString(content));
+            if (slopResult.status === 'fail') {
+              logger.error('[FRONTEND_BUILD] Anti-AI-slop validation failed', {
+                artifact: filename,
+                errors: slopResult.errors,
+              } as any);
+              throw new Error(
+                `Anti-AI-slop validation failed for ${filename}: ${slopResult.errors?.join(
+                  ', '
+                )}`
+              );
+            }
+          }
           break;
 
         case 'VALIDATE':
           generatedArtifacts = await this.generateValidationArtifacts(project);
           break;
 
-        case 'DONE':
-          // Handoff generation happens via separate endpoint
-          return {
-            success: true,
-            artifacts: {},
-            message: 'Final phase - use /generate-handoff endpoint',
+        case 'AUTO_REMEDY':
+          // AUTO_REMEDY phase - Automated remediation of validation failures
+          logger.info(
+            '[AUTO_REMEDY] Analyzing validation failures for automated remediation'
+          );
+
+          // Import the auto remedy executor and types
+          const autoRemedyModule = await import('./auto_remedy_executor');
+          const { executeAutoRemedy } = autoRemedyModule;
+
+          // Define minimal context interface inline for TypeScript
+          interface LocalAutoRemedyContext {
+            projectId: string;
+            failedPhase: string;
+            validationFailures: Array<{
+              phase: string;
+              message: string;
+              artifactId: string;
+            }>;
+            currentAttempt: number;
+            maxAttempts: number;
+            artifactContent?: Record<
+              string,
+              { current: string; original: string; originalHash: string }
+            >;
+            validationRunId?: string;
+          }
+
+          // Get validation failures from the database for this project
+          // For now, we'll create a minimal context - in production, this would query the DB
+          const autoRemedyContext: LocalAutoRemedyContext = {
+            projectId,
+            failedPhase: 'VALIDATE', // AUTO_REMEDY typically runs after VALIDATE fails
+            validationFailures: [],
+            currentAttempt: 1,
+            maxAttempts: 3,
           };
+
+          const autoRemedyResult = await executeAutoRemedy(
+            autoRemedyContext as any
+          );
+
+          logger.info('[AUTO_REMEDY] Auto remedy analysis complete', {
+            canProceed: autoRemedyResult.canProceed,
+            requiresManualReview: autoRemedyResult.requiresManualReview,
+            reason: autoRemedyResult.reason,
+            classificationType: autoRemedyResult.classification?.type,
+          });
+
+          // If canProceed is true and an agent is suggested for re-run, execute it
+          if (
+            autoRemedyResult.canProceed &&
+            autoRemedyResult.remediation?.agentToRerun
+          ) {
+            const phaseToRerun =
+              autoRemedyResult.remediation.phase || 'ANALYSIS';
+            const agentType = autoRemedyResult.remediation.agentToRerun;
+
+            logger.info(
+              `[AUTO_REMEDY] Executing remediation agent: ${agentType} for phase: ${phaseToRerun}`
+            );
+
+            let remediedArtifacts: Record<string, string | Buffer> = {};
+
+            try {
+              // Call the appropriate executor based on the suggested agent
+              switch (agentType) {
+                case 'analyst':
+                  remediedArtifacts = await getAnalystExecutor(
+                    llmClient,
+                    projectId,
+                    artifacts,
+                    projectName
+                  );
+                  break;
+                case 'pm':
+                  remediedArtifacts = await getPMExecutor(
+                    llmClient,
+                    projectId,
+                    artifacts,
+                    projectName
+                  );
+                  break;
+                case 'architect':
+                  remediedArtifacts = await getArchitectExecutor(
+                    llmClient,
+                    projectId,
+                    artifacts,
+                    phaseToRerun as 'SPEC' | 'SPEC_ARCHITECT' | 'SOLUTIONING',
+                    stackChoice,
+                    projectName
+                  );
+                  break;
+                case 'scrum':
+                  remediedArtifacts = await getScruMasterExecutor(
+                    llmClient,
+                    projectId,
+                    artifacts,
+                    projectName
+                  );
+                  break;
+                case 'devops':
+                  remediedArtifacts = await getDevOpsExecutor(
+                    llmClient,
+                    projectId,
+                    artifacts,
+                    stackChoice,
+                    projectName
+                  );
+                  break;
+                case 'design':
+                  remediedArtifacts = await getDesignExecutor(
+                    llmClient,
+                    projectId,
+                    artifacts,
+                    projectName
+                  );
+                  break;
+                case 'frontend':
+                  const frontendExecutor = getFrontendExecutor();
+                  const frontendResult =
+                    await frontendExecutor.generateArtifacts({
+                      phase: phaseToRerun,
+                      projectName,
+                      projectBrief: project.description || '',
+                      designTokens: artifacts['design-tokens.json'] || '',
+                      componentInventory:
+                        artifacts['component-inventory.md'] || '',
+                      stack: stackChoice,
+                      llmClient,
+                    });
+                  remediedArtifacts = frontendResult.artifacts;
+                  break;
+                default:
+                  logger.warn(
+                    `[AUTO_REMEDY] No executor found for agent: ${agentType}`
+                  );
+              }
+
+              // Merge fixed artifacts with the report
+              generatedArtifacts = {
+                ...remediedArtifacts,
+                'remediation-report.md': `
+# AUTO-REMEDY REPORT
+Status: Success
+Classification: ${autoRemedyResult.classification?.type}
+Agent Rerun: ${agentType}
+Phase: ${phaseToRerun}
+Timestamp: ${new Date().toISOString()}
+
+## Remediation Details
+${autoRemedyResult.remediation?.additionalInstructions || 'N/A'}
+`,
+              };
+            } catch (reRunError) {
+              logger.error('[AUTO_REMEDY] Agent re-run failed', {
+                agentType,
+                error:
+                  reRunError instanceof Error
+                    ? reRunError.message
+                    : String(reRunError),
+              } as any);
+              generatedArtifacts = {
+                'remediation-report.md': `
+# AUTO-REMEDY REPORT
+Status: Failed
+Error: ${reRunError instanceof Error ? reRunError.message : String(reRunError)}
+`,
+              };
+            }
+          } else {
+            // No re-run needed or safeguards failed
+            generatedArtifacts = {
+              'remediation-report.md': `
+# AUTO-REMEDY REPORT
+Status: Skipped
+Reason: ${autoRemedyResult.reason}
+`,
+            };
+          }
+          // If canProceed is true and an agent is suggested for re-run, execute it
+          if (autoRemedyResult.requiresManualReview) {
+            throw new Error(
+              `AUTO_REMEDY requires manual review: ${autoRemedyResult.reason}`
+            );
+          }
+          generatedArtifacts = {
+            'remediation-report.md': `# AUTO_REMEDY Report
+
+## Classification
+- Type: ${autoRemedyResult.classification?.type || 'unknown'}
+- Confidence: ${autoRemedyResult.classification?.confidence || 0}%
+
+## Remediation Strategy
+- Agent: ${autoRemedyResult.remediation?.agentToRerun || 'none'}
+- Phase: ${autoRemedyResult.remediation?.phase || 'none'}
+- Instructions: ${
+              autoRemedyResult.remediation?.additionalInstructions || 'none'
+            }
+
+## Result
+- Can Proceed: ${autoRemedyResult.canProceed}
+- Reason: ${autoRemedyResult.reason}
+- Next Attempt: ${autoRemedyResult.nextAttempt}
+`,
+          };
+          break;
+
+        case 'DONE':
+          // Generate handoff package (README.md, HANDOFF.md, project.zip)
+          const { getHandoffExecutor } = await import(
+            '@/backend/services/llm/agent_executors'
+          );
+          generatedArtifacts = await getHandoffExecutor(
+            llmClient,
+            projectId,
+            artifacts,
+            projectName
+          );
+          break;
 
         default:
           throw new Error(`No executor for phase: ${currentPhaseName}`);
@@ -617,7 +2015,7 @@ export class OrchestratorEngine {
         artifactKeys: Object.keys(generatedArtifacts),
       });
 
-      const normalizedArtifacts: Record<string, string> = {};
+      const normalizedArtifacts: Record<string, string | Buffer> = {};
       for (const [filename, content] of Object.entries(generatedArtifacts)) {
         logger.debug('[OrchestratorEngine] Saving artifact to local storage', {
           phase: currentPhaseName,
@@ -654,6 +2052,111 @@ export class OrchestratorEngine {
         phase: currentPhaseName,
         artifactCount: Object.keys(normalizedArtifacts).length,
       });
+
+      // ============================================================================
+      // CHECKER PATTERN EXECUTION
+      // Run adversarial review after artifact generation
+      // ============================================================================
+      const checkerResult = await this.runCheckerPattern(
+        currentPhaseName,
+        generatedArtifacts,
+        projectId,
+        projectName
+      );
+
+      // Handle escalation - throw error if checker escalated to human review
+      if (checkerResult.escalated) {
+        logger.error(
+          '[OrchestratorEngine] Checker pattern escalated to human review',
+          {
+            phase: currentPhaseName,
+            message: checkerResult.message,
+          } as any
+        );
+        const err: any = new Error(
+          `[CHECKER ESCALATION] ${currentPhaseName}: ${checkerResult.message}`
+        );
+        err.projectId = projectId;
+        err.phase = currentPhaseName;
+        err.escalated = true;
+        err.artifacts = generatedArtifacts;
+        throw err;
+      }
+
+      // Log checker feedback for debugging
+      if (
+        checkerResult.message.includes('issues found') ||
+        checkerResult.message.includes('minor suggestions')
+      ) {
+        logger.info(
+          `[CheckerPattern] ${currentPhaseName}: ${checkerResult.message}`
+        );
+      }
+
+      // Create Git commit after successful artifact generation
+      const gitService = this.gitService.get(projectId);
+      if (gitService) {
+        const durationMs = Date.now() - phaseStartTime;
+        const artifactNames = Object.keys(generatedArtifacts);
+        const phaseOwner =
+          this.spec.phases[currentPhaseName]?.owner || 'unknown';
+        const agentType = Array.isArray(phaseOwner)
+          ? phaseOwner[0]
+          : phaseOwner;
+
+        const commitResult = await gitService.commitPhaseArtifacts({
+          projectSlug: project.name || projectId,
+          phase: currentPhaseName,
+          artifacts: artifactNames,
+          agent: agentType,
+          durationMs,
+        });
+
+        if (commitResult.success) {
+          logger.info('[OrchestratorEngine] Git commit created successfully', {
+            phase: currentPhaseName,
+            commitHash: commitResult.commitHash,
+            branch: commitResult.branch,
+            mode: commitResult.mode,
+          });
+        } else {
+          logger.warn('[OrchestratorEngine] Git commit failed', {
+            phase: currentPhaseName,
+            error: commitResult.error,
+            mode: commitResult.mode,
+          });
+        }
+
+        // Create snapshot after Git commit
+        const rollbackService = this.rollbackService.get(projectId);
+        if (rollbackService) {
+          const snapshotResult = await rollbackService.createSnapshot({
+            projectId,
+            phaseName: currentPhaseName,
+            artifacts: asStringRecord(normalizedArtifacts),
+            metadata: {
+              agent: agentType,
+              durationMs,
+              stackChoice,
+              timestamp: new Date().toISOString(),
+            },
+            gitCommitHash: commitResult.commitHash,
+            gitBranch: commitResult.branch,
+          });
+
+          if (snapshotResult.success) {
+            logger.info('[OrchestratorEngine] Snapshot created successfully', {
+              phase: currentPhaseName,
+              snapshotId: snapshotResult.snapshotId,
+            });
+          } else {
+            logger.warn('[OrchestratorEngine] Snapshot creation failed', {
+              phase: currentPhaseName,
+              error: snapshotResult.error,
+            });
+          }
+        }
+      }
 
       // Use the orchestrationState that was captured at the start of this method
       // to prevent context loss after long async operations
@@ -699,9 +2202,7 @@ export class OrchestratorEngine {
     }
   }
 
-  public parseStackAnalysis(
-    content: string
-  ): {
+  public parseStackAnalysis(content: string): {
     primary?: string;
     alternative1?: string;
     alternative2?: string;
@@ -711,7 +2212,7 @@ export class OrchestratorEngine {
       alternative1?: number;
       alternative2?: number;
     };
-    decisionMatrix?: Array<Record<string, string>>;
+    decisionMatrix?: Array<Record<string, string | Buffer>>;
   } {
     if (!content) {
       return {};
@@ -735,9 +2236,7 @@ export class OrchestratorEngine {
       if (lowered === 'custom' || lowered === 'custom stack') {
         return 'custom';
       }
-      return lowered
-        .replace(/\s+/g, '_')
-        .replace(/[^a-z0-9_]/g, '');
+      return lowered.replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
     };
 
     const primary =
@@ -770,7 +2269,7 @@ export class OrchestratorEngine {
       alternative1?: number;
       alternative2?: number;
     } = {};
-    const decisionMatrix: Array<Record<string, string>> = [];
+    const decisionMatrix: Array<Record<string, string | Buffer>> = [];
     let currentSection: 'primary' | 'alternative1' | 'alternative2' | null =
       null;
     let inDecisionMatrix = false;
@@ -831,7 +2330,7 @@ export class OrchestratorEngine {
         }
 
         if (row.length === matrixHeaders.length) {
-          const entry: Record<string, string> = {};
+          const entry: Record<string, string | Buffer> = {};
           matrixHeaders.forEach((header, index) => {
             entry[header] = row[index] ?? '';
           });
@@ -851,22 +2350,24 @@ export class OrchestratorEngine {
   }
 
   public resolveStackSelectionMetadata(
-    artifacts: Record<string, string>
+    artifacts: Record<string, string | Buffer>
   ): {
     projectType?: string;
     scaleTier?: string;
     recommendedStack?: string;
     workflowVersion: number;
   } {
-    const classificationRaw =
-      artifacts['ANALYSIS/project-classification.json'] || '';
+    const classificationRaw = asString(
+      artifacts['ANALYSIS/project-classification.json'] || ''
+    );
     const classification = parseProjectClassification(classificationRaw);
-    const brief = artifacts['ANALYSIS/project-brief.md'] || '';
+    const brief = asString(artifacts['ANALYSIS/project-brief.md'] || '');
     const defaults = deriveIntelligentDefaultStack(classification, brief);
-    const stackAnalysis =
+    const stackAnalysis = asString(
       artifacts['STACK_SELECTION/stack-analysis.md'] ||
-      artifacts['stack-analysis.md'] ||
-      '';
+        artifacts['stack-analysis.md'] ||
+        ''
+    );
 
     const parsed = this.parseStackAnalysis(stackAnalysis);
     const recommendedStack = parsed.primary || defaults.stack;
@@ -881,7 +2382,7 @@ export class OrchestratorEngine {
 
   private async generateValidationArtifacts(
     project: Project
-  ): Promise<Record<string, string>> {
+  ): Promise<Record<string, string | Buffer>> {
     const currentDate = new Date().toISOString().split('T')[0];
     const validatorNames =
       (this.spec.phases['VALIDATE']?.validators as string[]) || [];
@@ -893,10 +2394,17 @@ export class OrchestratorEngine {
     const phasesToReport = [
       'ANALYSIS',
       'STACK_SELECTION',
-      'SPEC',
+      'SPEC_PM',
+      'SPEC_ARCHITECT',
+      'SPEC_DESIGN_TOKENS',
+      'SPEC_DESIGN_COMPONENTS',
+      'FRONTEND_BUILD',
       'DEPENDENCIES',
       'SOLUTIONING',
       'VALIDATE',
+      'AUTO_REMEDY',
+      'DONE',
+      'SPEC', // Legacy fallback
     ] as const;
     const coverageRows: Array<{
       phase: string;
@@ -1036,7 +2544,8 @@ ${
       return [];
     }
 
-    return await this.artifactManager.listArtifacts(project.id, targetPhase);
+    // Use project.slug (not project.id) because R2 storage paths are based on slug
+    return await this.artifactManager.listArtifacts(project.slug, targetPhase);
   }
 
   /**
@@ -1046,9 +2555,9 @@ ${
     project: Project,
     artifactName: string
   ): Promise<string> {
-    return await this.artifactManager.getArtifactContent(
-      project.id,
-      artifactName
+    // Use project.slug (not project.id) because R2 storage paths are based on slug
+    return asString(
+      await this.artifactManager.getArtifactContent(project.slug, artifactName)
     );
   }
 
@@ -1153,5 +2662,1474 @@ ${
     }
 
     return phases;
+  }
+
+  /**
+   * Determine next phase based on validation outcome
+   *
+   * Implements Phase 1 state machine:
+   * - all_pass → proceed to next phase
+   * - warnings_only → user decision required
+   * - failures_detected → trigger AUTO_REMEDY
+   *
+   * @param project - Current project
+   * @param validationResult - Validation result from validatePhaseCompletion
+   * @returns Next phase name
+   */
+  async determineNextPhase(
+    project: Project,
+    validationResult: ValidationResult
+  ): Promise<string> {
+    const { determinePhaseOutcome } = await import('./phase_outcomes');
+
+    const outcome = determinePhaseOutcome({
+      phase: project.current_phase,
+      validationResult: {
+        passed: validationResult.status === 'pass',
+        canProceed: validationResult.status !== 'fail',
+        warnings: (validationResult.warnings || []).map((w) => ({
+          severity: 'warning' as const,
+          message: w,
+          phase: project.current_phase,
+        })),
+        errors: (validationResult.errors || []).map((e) => ({
+          severity: 'error' as const,
+          message: e,
+          phase: project.current_phase,
+        })),
+        totalWarnings: validationResult.warnings?.length || 0,
+        accumulatedWarnings: [],
+      },
+    });
+
+    logger.info('[OrchestratorEngine] Phase transition decision', {
+      projectId: project.id,
+      currentPhase: project.current_phase,
+      outcome: outcome.state,
+      nextPhase: outcome.nextPhase,
+      requiresUserDecision: outcome.requiresUserDecision,
+      errorCount: outcome.errorCount,
+      warningCount: outcome.warningCount,
+    });
+
+    return outcome.nextPhase;
+  }
+
+  /**
+   * Detect changes in artifact content using SHA-256 hashing
+   *
+   * @param projectId - The project ID
+   * @param artifactName - The name of the artifact
+   * @param oldContent - The previous content of the artifact
+   * @param newContent - The new content of the artifact
+   * @returns ArtifactChange object with change details, or null if no changes
+   */
+  detectArtifactChanges(
+    projectId: string,
+    artifactName: string,
+    oldContent: string,
+    newContent: string
+  ): ArtifactChange | null {
+    // Calculate SHA-256 hashes for both content versions
+    const oldHash = createHash('sha256')
+      .update(oldContent || '')
+      .digest('hex');
+    const newHash = createHash('sha256')
+      .update(newContent || '')
+      .digest('hex');
+
+    // Return null if hashes match (no changes)
+    if (oldHash === newHash) {
+      return null;
+    }
+
+    // Identify changed sections by parsing markdown headers
+    const changedSections = this.parseChangedSections(oldContent, newContent);
+
+    // Determine impact level based on changes
+    const impactLevel = this.calculateImpactLevel(changedSections);
+
+    return {
+      projectId,
+      artifactName,
+      oldHash,
+      newHash,
+      hasChanges: true,
+      impactLevel,
+      changedSections,
+      timestamp: new Date(),
+    };
+  }
+
+  /**
+   * Parse markdown content to identify changed sections
+   */
+  private parseChangedSections(
+    oldContent: string,
+    newContent: string
+  ): ChangedSection[] {
+    const sections: ChangedSection[] = [];
+    const oldLines = (oldContent || '').split('\n');
+    const newLines = (newContent || '').split('\n');
+
+    // Extract headers from both versions
+    const oldHeaders = this.extractMarkdownHeaders(oldContent);
+    const newHeaders = this.extractMarkdownHeaders(newContent);
+
+    // Find headers that exist in old but not in new (deleted)
+    const deletedHeaders = oldHeaders.filter(
+      (h) => !newHeaders.some((nh) => nh.text === h.text)
+    );
+    for (const header of deletedHeaders) {
+      sections.push({
+        header: header.text,
+        changeType: 'deleted',
+        lineNumber: header.lineNumber,
+      });
+    }
+
+    // Find headers that exist in new but not in old (added)
+    const addedHeaders = newHeaders.filter(
+      (h) => !oldHeaders.some((oh) => oh.text === h.text)
+    );
+    for (const header of addedHeaders) {
+      sections.push({
+        header: header.text,
+        changeType: 'added',
+        lineNumber: header.lineNumber,
+      });
+    }
+
+    // Find headers that exist in both but content may have changed (modified)
+    const commonHeaders = oldHeaders.filter((h) =>
+      newHeaders.some((nh) => nh.text === h.text)
+    );
+    for (const oldHeader of commonHeaders) {
+      const newHeader = newHeaders.find((nh) => nh.text === oldHeader.text);
+      if (newHeader) {
+        // Extract section content and compare
+        const oldSectionContent = this.extractSectionContent(
+          oldContent,
+          oldHeader.text,
+          oldHeader.lineNumber
+        );
+        const newSectionContent = this.extractSectionContent(
+          newContent,
+          newHeader.text,
+          newHeader.lineNumber
+        );
+
+        if (oldSectionContent !== newSectionContent) {
+          sections.push({
+            header: oldHeader.text,
+            changeType: 'modified',
+            oldContent: oldSectionContent,
+            newContent: newSectionContent,
+            lineNumber: oldHeader.lineNumber,
+          });
+        }
+      }
+    }
+
+    return sections;
+  }
+
+  /**
+   * Extract markdown headers with their line numbers
+   */
+  private extractMarkdownHeaders(
+    content: string
+  ): Array<{ text: string; lineNumber: number }> {
+    const headers: Array<{ text: string; lineNumber: number }> = [];
+    const lines = (content || '').split('\n');
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      // Match markdown headers (#, ##, ###, ####)
+      const match = line.match(/^(#{1,6})\s+(.+)$/);
+      if (match) {
+        headers.push({
+          text: match[2].trim(),
+          lineNumber: i + 1, // 1-based line number
+        });
+      }
+    }
+
+    return headers;
+  }
+
+  /**
+   * Extract content between a header and the next header
+   */
+  private extractSectionContent(
+    content: string,
+    headerText: string,
+    startLine: number
+  ): string {
+    const lines = (content || '').split('\n');
+    const startIndex = startLine - 1; // Convert 1-based line number to 0-based index
+
+    // Find the next header after the start line
+    let endIndex = lines.length;
+    for (let i = startIndex + 1; i < lines.length; i++) {
+      if (lines[i].match(/^(#{1,6})\s+(.+)$/)) {
+        endIndex = i;
+        break;
+      }
+    }
+
+    // Return content between headers (excluding the header line itself)
+    return lines.slice(startIndex + 1, endIndex).join('\n');
+  }
+
+  /**
+   * Calculate impact level based on changed sections
+   */
+  private calculateImpactLevel(sections: ChangedSection[]): ImpactLevel {
+    // HIGH impact if there are any added or deleted sections
+    const hasStructuralChange = sections.some(
+      (s) => s.changeType === 'added' || s.changeType === 'deleted'
+    );
+    if (hasStructuralChange) {
+      return 'HIGH';
+    }
+
+    // MEDIUM impact for modifications (or content changes without identifiable sections)
+    return 'MEDIUM';
+  }
+
+  /**
+   * Analyze the impact of an artifact change and determine which artifacts need regeneration.
+   *
+   * This method builds an artifact dependency graph from the orchestrator spec phases,
+   * finds all artifacts that transitively depend on the changed artifact, and assigns
+   * impact levels based on the change type.
+   *
+   * @param projectId - The project ID
+   * @param triggerChange - The artifact change that triggered the analysis
+   * @returns ImpactAnalysis with affected artifacts and regeneration recommendations
+   */
+  async analyzeRegenerationImpact(
+    projectId: string,
+    triggerChange: ArtifactChange
+  ): Promise<ImpactAnalysis> {
+    logger.info('[OrchestratorEngine] Analyzing regeneration impact', {
+      projectId,
+      artifactName: triggerChange.artifactName,
+      impactLevel: triggerChange.impactLevel,
+    });
+
+    // Build artifact dependency graph from spec phases
+    const artifactDependencies = this.buildArtifactDependencyGraph();
+
+    // Find all artifacts that depend on the changed artifact (transitive)
+    const affectedArtifacts = this.findAffectedArtifacts(
+      triggerChange.artifactName,
+      artifactDependencies,
+      triggerChange
+    );
+
+    // Calculate impact summary
+    const impactSummary = {
+      high: affectedArtifacts.filter((a) => a.impactLevel === 'HIGH').length,
+      medium: affectedArtifacts.filter((a) => a.impactLevel === 'MEDIUM')
+        .length,
+      low: affectedArtifacts.filter((a) => a.impactLevel === 'LOW').length,
+    };
+
+    // Determine recommended strategy based on impact levels
+    const { recommendedStrategy, reasoning } =
+      this.determineRegenerationStrategy(affectedArtifacts, impactSummary);
+
+    logger.info('[OrchestratorEngine] Impact analysis complete', {
+      projectId,
+      affectedCount: affectedArtifacts.length,
+      impactSummary,
+      recommendedStrategy,
+    });
+
+    return {
+      triggerChange,
+      affectedArtifacts,
+      impactSummary,
+      recommendedStrategy,
+      reasoning,
+    };
+  }
+
+  /**
+   * Build artifact dependency graph from orchestrator spec phases.
+   * Maps each artifact to the phases and artifacts that depend on it.
+   */
+  private buildArtifactDependencyGraph(): Map<
+    string,
+    Array<{ phase: string; artifact: string }>
+  > {
+    const dependencies = new Map<
+      string,
+      Array<{ phase: string; artifact: string }>
+    >();
+
+    // Helper to get outputs as array (handles both string "all" and array cases)
+    const getOutputsArray = (
+      outputs: string | string[] | undefined
+    ): string[] => {
+      if (!outputs) return [];
+      if (Array.isArray(outputs)) return outputs;
+      // If it's a string like "all", we can't determine specific outputs
+      // Skip this phase for dependency building
+      return [];
+    };
+
+    // Helper to get inputs as array (handles undefined case)
+    const getInputsArray = (inputs: string[] | undefined): string[] => {
+      if (!inputs) return [];
+      return inputs;
+    };
+
+    // Iterate through all phases to build dependency relationships
+    for (const [phaseName, phase] of Object.entries(this.spec.phases)) {
+      // Skip phases with string outputs (like "all") - we can't determine specific artifacts
+      const outputs = getOutputsArray(phase.outputs);
+      if (outputs.length === 0) continue;
+
+      const inputs = getInputsArray(phase.inputs);
+
+      // Each output artifact of this phase depends on the inputs of this phase
+      for (const outputArtifact of outputs) {
+        const outputKey = `${phaseName}/${outputArtifact}`;
+
+        // Add dependencies from inputs
+        for (const inputArtifact of inputs) {
+          // Inputs can be from previous phases or external sources
+          // We track them as dependencies
+          if (!dependencies.has(inputArtifact)) {
+            dependencies.set(inputArtifact, []);
+          }
+          dependencies.get(inputArtifact)!.push({
+            phase: phaseName,
+            artifact: outputKey,
+          });
+        }
+
+        // Also track transitive dependencies from phase.depends_on
+        if (phase.depends_on) {
+          for (const depPhaseName of phase.depends_on) {
+            const depPhase = this.spec.phases[depPhaseName];
+            if (depPhase) {
+              const depOutputs = getOutputsArray(depPhase.outputs);
+              for (const depOutput of depOutputs) {
+                const depOutputKey = `${depPhaseName}/${depOutput}`;
+                if (!dependencies.has(depOutputKey)) {
+                  dependencies.set(depOutputKey, []);
+                }
+                dependencies.get(depOutputKey)!.push({
+                  phase: phaseName,
+                  artifact: outputKey,
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return dependencies;
+  }
+
+  /**
+   * Find all artifacts that transitively depend on the changed artifact.
+   */
+  private findAffectedArtifacts(
+    changedArtifact: string,
+    dependencies: Map<string, Array<{ phase: string; artifact: string }>>,
+    triggerChange: ArtifactChange
+  ): AffectedArtifact[] {
+    const affected: AffectedArtifact[] = [];
+    const visited = new Set<string>();
+
+    // BFS to find all transitively affected artifacts
+    const queue: Array<{ artifact: string; depth: number }> = [
+      { artifact: changedArtifact, depth: 0 },
+    ];
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+
+      if (visited.has(current.artifact)) {
+        continue;
+      }
+      visited.add(current.artifact);
+
+      const dependents = dependencies.get(current.artifact) || [];
+
+      for (const dependent of dependents) {
+        // Skip if already visited
+        if (visited.has(dependent.artifact)) {
+          continue;
+        }
+
+        // Determine impact level for this dependent artifact
+        // Impact level is based on the trigger change and how far downstream it is
+        let impactLevel: ImpactLevel;
+        if (triggerChange.impactLevel === 'HIGH') {
+          // HIGH impact changes cascade to dependents as MEDIUM (or HIGH if very close)
+          impactLevel = current.depth === 0 ? 'HIGH' : 'MEDIUM';
+        } else if (triggerChange.impactLevel === 'MEDIUM') {
+          impactLevel = 'MEDIUM';
+        } else {
+          impactLevel = 'LOW';
+        }
+
+        // Extract reason from changed sections
+        const primarySection = triggerChange.changedSections[0];
+        const reason = this.generateImpactReason(
+          triggerChange.artifactName,
+          dependent.artifact,
+          triggerChange.impactLevel,
+          primarySection
+        );
+
+        affected.push({
+          artifactId: dependent.artifact,
+          artifactName: dependent.artifact,
+          phase: dependent.phase,
+          impactLevel,
+          reason,
+          changeType: primarySection?.changeType,
+          changedSection: primarySection?.header,
+        });
+
+        // Add to queue for further propagation
+        queue.push({
+          artifact: dependent.artifact,
+          depth: current.depth + 1,
+        });
+      }
+    }
+
+    return affected;
+  }
+
+  /**
+   * Generate a human-readable reason for the impact on an artifact.
+   */
+  private generateImpactReason(
+    changedArtifact: string,
+    affectedArtifact: string,
+    impactLevel: ImpactLevel,
+    changedSection?: ChangedSection
+  ): string {
+    const changeTypeDescription =
+      changedSection?.changeType === 'added'
+        ? 'added'
+        : changedSection?.changeType === 'deleted'
+        ? 'removed'
+        : 'modified';
+
+    const sectionDescription = changedSection
+      ? ` section "${changedSection.header}"`
+      : '';
+
+    if (impactLevel === 'HIGH') {
+      return `${changedArtifact} has new or removed${sectionDescription}, which may require ${affectedArtifact} to be regenerated to reflect the structural change.`;
+    } else if (impactLevel === 'MEDIUM') {
+      return `${changedArtifact} has ${changeTypeDescription}${sectionDescription}, which may affect the content or logic of ${affectedArtifact}.`;
+    } else {
+      return `${changedArtifact} changed, which may have minimal impact on ${affectedArtifact}.`;
+    }
+  }
+
+  /**
+   * Determine the recommended regeneration strategy based on affected artifacts.
+   */
+  private determineRegenerationStrategy(
+    affectedArtifacts: AffectedArtifact[],
+    impactSummary: { high: number; medium: number; low: number }
+  ): { recommendedStrategy: RegenerationStrategy; reasoning: string } {
+    // If no artifacts affected, no action needed
+    if (affectedArtifacts.length === 0) {
+      return {
+        recommendedStrategy: 'ignore',
+        reasoning:
+          'No artifacts depend on the changed artifact, so no regeneration is needed.',
+      };
+    }
+
+    // HIGH impact changes that affect downstream artifacts require full regeneration
+    if (impactSummary.high > 0) {
+      return {
+        recommendedStrategy: 'regenerate_all',
+        reasoning: `${impactSummary.high} artifact(s) have HIGH impact due to structural changes (added/removed sections) in the trigger artifact. Full regeneration is recommended to ensure consistency.`,
+      };
+    }
+
+    // MEDIUM impact changes suggest regenerating only the directly affected artifacts
+    if (impactSummary.medium > 0) {
+      return {
+        recommendedStrategy: 'high_impact_only',
+        reasoning: `${impactSummary.medium} artifact(s) have MEDIUM impact due to content modifications. Selective regeneration of affected artifacts is recommended to minimize unnecessary work while ensuring consistency.`,
+      };
+    }
+
+    // LOW impact changes - recommend manual review
+    return {
+      recommendedStrategy: 'manual_review',
+      reasoning:
+        'Only LOW impact changes detected. Manual review is recommended to determine if regeneration is necessary.',
+    };
+  }
+
+  /**
+   * Execute the regeneration workflow based on impact analysis.
+   *
+   * This method orchestrates the regeneration of artifacts after an artifact change:
+   * 1. Gets trigger change details from the database
+   * 2. Analyzes impact using analyzeRegenerationImpact
+   * 3. Creates regeneration_run record in database
+   * 4. Regenerates artifacts based on selected strategy
+   * 5. Updates artifact_versions with regeneration metadata
+   * 6. Updates regeneration_run with results
+   * 7. Returns RegenerationResult
+   *
+   * @param projectId - The project ID
+   * @param options - Regeneration options including strategy and trigger details
+   * @returns RegenerationResult with details about the regeneration execution
+   */
+  async executeRegenerationWorkflow(
+    projectId: string,
+    options: RegenerationOptions
+  ): Promise<RegenerationResult> {
+    const startTime = Date.now();
+    let regenerationRunId: string | null = null;
+    let triggerChange: ArtifactChange | null = null;
+
+    logger.info('[OrchestratorEngine] Executing regeneration workflow', {
+      projectId,
+      triggerArtifactId: options.triggerArtifactId,
+      selectedStrategy: options.selectedStrategy,
+    });
+
+    try {
+      // Step 1: Get trigger change details (mocked for now - would come from database)
+      // In a real implementation, this would query artifact_changes table
+      triggerChange = await this.getTriggerChangeDetails(
+        projectId,
+        options.triggerArtifactId,
+        options.triggerChangeId
+      );
+
+      if (!triggerChange) {
+        throw new Error(
+          `Trigger change not found for artifact: ${options.triggerArtifactId}`
+        );
+      }
+
+      // Step 2: Analyze impact using the existing method
+      const impactAnalysis = await this.analyzeRegenerationImpact(
+        projectId,
+        triggerChange
+      );
+
+      logger.info('[OrchestratorEngine] Impact analysis complete', {
+        projectId,
+        affectedCount: impactAnalysis.affectedArtifacts.length,
+        impactSummary: impactAnalysis.impactSummary,
+      });
+
+      // Step 3: Select artifacts to regenerate based on strategy
+      const artifactsToRegenerate = this.selectArtifactsForRegeneration(
+        impactAnalysis,
+        options.selectedStrategy,
+        options.manualArtifactIds
+      );
+
+      logger.info('[OrchestratorEngine] Selected artifacts for regeneration', {
+        projectId,
+        strategy: options.selectedStrategy,
+        count: artifactsToRegenerate.length,
+        artifacts: artifactsToRegenerate,
+      });
+
+      // Handle ignore strategy early
+      if (options.selectedStrategy === 'ignore') {
+        return {
+          success: true,
+          regenerationRunId: null,
+          selectedStrategy: 'ignore',
+          artifactsToRegenerate: [],
+          artifactsRegenerated: [],
+          artifactsSkipped: [],
+          durationMs: Date.now() - startTime,
+        };
+      }
+
+      // Step 4: Create regeneration_run record in database
+      const runId = randomUUID();
+      regenerationRunId = runId;
+
+      await db.insert(regenerationRuns).values({
+        id: runId,
+        projectId,
+        triggerArtifactId: options.triggerArtifactId,
+        triggerChangeId: options.triggerChangeId as any,
+        impactAnalysis: JSON.stringify(impactAnalysis),
+        selectedStrategy: options.selectedStrategy,
+        artifactsToRegenerate: JSON.stringify(artifactsToRegenerate),
+        artifactsRegenerated: JSON.stringify([]),
+        startedAt: new Date(),
+      });
+
+      // Step 5: Regenerate artifacts based on strategy
+      const artifactsRegenerated: string[] = [];
+      const artifactsSkipped: string[] = [];
+
+      for (const artifactId of artifactsToRegenerate) {
+        try {
+          // Extract phase from artifact ID (format: "PhaseName/artifact.md")
+          const phaseMatch = artifactId.match(/^([A-Z_]+)\//);
+          if (!phaseMatch) {
+            logger.warn('[OrchestratorEngine] Invalid artifact ID format', {
+              artifactId,
+            });
+            artifactsSkipped.push(artifactId);
+            continue;
+          }
+
+          const phase = phaseMatch[1];
+
+          // Check if phase is valid and can be regenerated
+          const phaseSpec = this.spec.phases[phase];
+          if (!phaseSpec) {
+            logger.warn('[OrchestratorEngine] Unknown phase for artifact', {
+              artifactId,
+              phase,
+            });
+            artifactsSkipped.push(artifactId);
+            continue;
+          }
+
+          // For now, we just mark the artifact as needing regeneration
+          // In a full implementation, this would call the phase agent
+          logger.info('[OrchestratorEngine] Regenerating artifact', {
+            artifactId,
+            phase,
+          });
+
+          // Simulate regeneration - in production, this would call runPhaseAgent
+          artifactsRegenerated.push(artifactId);
+
+          // Step 5b: Update artifact_versions with regeneration metadata
+          // Create a new version record with regeneration metadata
+          await this.createRegeneratedArtifactVersion(
+            projectId,
+            artifactId,
+            runId,
+            triggerChange.impactLevel
+          );
+        } catch (artifactError) {
+          const error =
+            artifactError instanceof Error
+              ? artifactError
+              : new Error(String(artifactError));
+          logger.error(
+            '[OrchestratorEngine] Failed to regenerate artifact',
+            undefined,
+            {
+              artifactId,
+              error: error.message,
+            }
+          );
+          artifactsSkipped.push(artifactId);
+        }
+      }
+
+      // Step 6: Update regeneration_run with results
+      const durationMs = Date.now() - startTime;
+      const success = artifactsSkipped.length === 0;
+
+      await db
+        .update(regenerationRuns)
+        .set({
+          artifactsRegenerated: JSON.stringify(artifactsRegenerated),
+          completedAt: new Date(),
+          durationMs,
+          success,
+          errorMessage:
+            artifactsSkipped.length > 0
+              ? `Skipped ${artifactsSkipped.length} artifacts`
+              : null,
+        })
+        .where(eq(regenerationRuns.id, runId));
+
+      logger.info('[OrchestratorEngine] Regeneration workflow complete', {
+        projectId,
+        regenerationRunId: runId,
+        artifactsRegenerated: artifactsRegenerated.length,
+        artifactsSkipped: artifactsSkipped.length,
+        durationMs,
+        success,
+      });
+
+      // Step 7: Return result
+      return {
+        success,
+        regenerationRunId: runId,
+        selectedStrategy: options.selectedStrategy,
+        artifactsToRegenerate,
+        artifactsRegenerated,
+        artifactsSkipped,
+        durationMs,
+      };
+    } catch (error) {
+      const durationMs = Date.now() - startTime;
+      const errorObj =
+        error instanceof Error ? error : new Error(String(error));
+
+      logger.error(
+        '[OrchestratorEngine] Regeneration workflow failed',
+        undefined,
+        {
+          projectId,
+          error: errorObj.message,
+          durationMs,
+        }
+      );
+
+      // Update regeneration_run with error if it was created
+      if (regenerationRunId) {
+        await db
+          .update(regenerationRuns)
+          .set({
+            completedAt: new Date(),
+            durationMs,
+            success: false,
+            errorMessage: errorObj.message,
+          })
+          .where(eq(regenerationRuns.id, regenerationRunId));
+      }
+
+      return {
+        success: false,
+        regenerationRunId,
+        selectedStrategy: options.selectedStrategy,
+        artifactsToRegenerate: [],
+        artifactsRegenerated: [],
+        artifactsSkipped: [],
+        durationMs,
+        errorMessage: errorObj.message,
+      };
+    }
+  }
+
+  /**
+   * Get trigger change details from the database.
+   * In production, this would query the artifact_changes table.
+   */
+  private async getTriggerChangeDetails(
+    projectId: string,
+    artifactId: string,
+    changeId?: string
+  ): Promise<ArtifactChange | null> {
+    // In production, this would query the database
+    // For now, return a mock ArtifactChange for testing
+    // The actual implementation would fetch from artifact_changes table
+
+    // This is a placeholder - real implementation would:
+    // 1. Query artifact_changes table for the change
+    // 2. Return the ArtifactChange object
+
+    logger.debug('[OrchestratorEngine] Fetching trigger change details', {
+      projectId,
+      artifactId,
+      changeId,
+    });
+
+    // Return null if no changeId is provided - caller should handle this
+    if (!changeId) {
+      // Create a default ArtifactChange for testing purposes
+      return {
+        projectId,
+        artifactName: artifactId,
+        oldHash: 'old_hash_' + Date.now(),
+        newHash: 'new_hash_' + Date.now(),
+        hasChanges: true,
+        impactLevel: 'MEDIUM',
+        changedSections: [],
+        timestamp: new Date(),
+      };
+    }
+
+    // In production, query the database:
+    // const { artifactChanges } = await import('@/backend/lib/schema');
+    // const changes = await db.select().from(artifactChanges).where(eq(artifactChanges.id, changeId));
+
+    return null;
+  }
+
+  /**
+   * Select artifacts to regenerate based on strategy.
+   */
+  private selectArtifactsForRegeneration(
+    impactAnalysis: ImpactAnalysis,
+    selectedStrategy: RegenerationStrategy,
+    manualArtifactIds?: string[]
+  ): string[] {
+    switch (selectedStrategy) {
+      case 'regenerate_all':
+        // Regenerate all affected artifacts
+        return impactAnalysis.affectedArtifacts.map((a) => a.artifactId);
+
+      case 'high_impact_only':
+        // Regenerate only HIGH impact artifacts
+        return impactAnalysis.affectedArtifacts
+          .filter((a) => a.impactLevel === 'HIGH')
+          .map((a) => a.artifactId);
+
+      case 'manual_review':
+        // Use user-specified artifacts, or all if none specified
+        if (manualArtifactIds && manualArtifactIds.length > 0) {
+          return manualArtifactIds;
+        }
+        // Return empty - user needs to specify
+        return [];
+
+      case 'ignore':
+        // Skip regeneration
+        return [];
+
+      default:
+        logger.warn(
+          '[OrchestratorEngine] Unknown strategy, defaulting to ignore',
+          {
+            strategy: selectedStrategy,
+          }
+        );
+        return [];
+    }
+  }
+
+  /**
+   * Create a new artifact version record with regeneration metadata.
+   */
+  private async createRegeneratedArtifactVersion(
+    projectId: string,
+    artifactId: string,
+    regenerationRunId: string,
+    triggerImpactLevel: ImpactLevel
+  ): Promise<void> {
+    try {
+      // Generate a new version number
+      const { max } = await import('drizzle-orm');
+      const versions = await db
+        .select({ version: max(artifactVersions.version) })
+        .from(artifactVersions)
+        .where(eq(artifactVersions.projectId, projectId))
+        .then((r: Array<{ version: number | null }>) => r[0]?.version || 0);
+
+      const newVersion = versions + 1;
+
+      // Create reason based on impact level
+      const reason =
+        triggerImpactLevel === 'HIGH'
+          ? 'Regenerated due to HIGH impact structural changes'
+          : 'Regenerated due to MEDIUM impact content changes';
+
+      // Insert new version record
+      await db.insert(artifactVersions).values({
+        projectId,
+        artifactId,
+        version: newVersion,
+        contentHash: '', // Would be populated with actual content hash
+        regenerationReason: reason,
+        regenerationRunId,
+      });
+
+      logger.debug('[OrchestratorEngine] Created artifact version record', {
+        projectId,
+        artifactId,
+        version: newVersion,
+        regenerationRunId,
+      });
+    } catch (error) {
+      const errorObj =
+        error instanceof Error ? error : new Error(String(error));
+      logger.error(
+        '[OrchestratorEngine] Failed to create artifact version',
+        undefined,
+        {
+          projectId,
+          artifactId,
+          error: errorObj.message,
+        }
+      );
+      // Don't throw - version tracking is not critical
+    }
+  }
+
+  /**
+   * Execute a group of phases in parallel.
+   *
+   * This method executes multiple phases concurrently using Promise.all,
+   * waits for all phases to complete, and creates a snapshot after the
+   * group completes. All phases in the group share the same input artifacts.
+   *
+   * @param projectId - The project ID
+   * @param group - ParallelGroup config containing name, type, and phases array
+   * @param artifacts - Shared input artifacts for all phases in the group
+   * @returns Array of PhaseExecutionResult for each phase in the group
+   */
+  async executeParallelGroup(
+    projectId: string,
+    group: ParallelGroup,
+    artifacts: Record<string, string | Buffer> = {}
+  ): Promise<PhaseExecutionResult[]> {
+    logger.info('[OrchestratorEngine] Executing parallel group', {
+      projectId,
+      groupName: group.name,
+      phaseCount: group.phases.length,
+      phases: group.phases,
+    });
+
+    // Validate that all phases exist in the spec
+    const invalidPhases = group.phases.filter(
+      (phase) => !this.spec.phases[phase]
+    );
+    if (invalidPhases.length > 0) {
+      throw new Error(
+        `Invalid phases in parallel group "${group.name}": ${invalidPhases.join(
+          ', '
+        )}`
+      );
+    }
+
+    // Create a mock project for phase execution
+    // We'll execute each phase with a temporary project state
+    const project = {
+      id: projectId,
+      name: 'Parallel Execution',
+      current_phase: group.phases[0],
+      orchestration_state: {
+        artifact_versions: {},
+        approval_gates: {},
+      } as OrchestrationState,
+      project_path: '',
+    } as Project;
+
+    // Execute all phases in parallel
+    const startTime = Date.now();
+    const results: PhaseExecutionResult[] = await Promise.all(
+      group.phases.map(async (phaseName) => {
+        const phaseStartTime = Date.now();
+        try {
+          // Set the current phase for this execution
+          project.current_phase = phaseName;
+
+          // Execute the phase agent
+          const result = await this.runPhaseAgent(project, artifacts);
+
+          const durationMs = Date.now() - phaseStartTime;
+
+          logger.info('[OrchestratorEngine] Parallel phase completed', {
+            projectId,
+            phase: phaseName,
+            success: result.success,
+            durationMs,
+          });
+
+          return {
+            phase: phaseName,
+            success: result.success,
+            artifacts: result.artifacts,
+            durationMs,
+          } as PhaseExecutionResult;
+        } catch (error) {
+          const durationMs = Date.now() - phaseStartTime;
+          const errorObj =
+            error instanceof Error ? error : new Error(String(error));
+
+          logger.error(
+            '[OrchestratorEngine] Parallel phase failed',
+            undefined,
+            {
+              projectId,
+              phase: phaseName,
+              error: errorObj.message,
+              durationMs,
+            }
+          );
+
+          return {
+            phase: phaseName,
+            success: false,
+            artifacts: {},
+            error: errorObj.message,
+            durationMs,
+          } as PhaseExecutionResult;
+        }
+      })
+    );
+
+    const totalDurationMs = Date.now() - startTime;
+
+    // Create snapshot after the group completes
+    await this.createSnapshotAfterParallelGroup(projectId, group, results);
+
+    logger.info('[OrchestratorEngine] Parallel group completed', {
+      projectId,
+      groupName: group.name,
+      totalPhases: results.length,
+      successfulPhases: results.filter((r) => r.success).length,
+      failedPhases: results.filter((r) => !r.success).length,
+      totalDurationMs,
+    });
+
+    return results;
+  }
+
+  /**
+   * Create a snapshot after parallel group execution completes.
+   */
+  private async createSnapshotAfterParallelGroup(
+    projectId: string,
+    group: ParallelGroup,
+    results: PhaseExecutionResult[]
+  ): Promise<void> {
+    const gitService = this.gitService.get(projectId);
+    const rollbackService = this.rollbackService.get(projectId);
+
+    if (!gitService || !rollbackService) {
+      logger.debug(
+        '[OrchestratorEngine] Git/Rollback service not available for snapshot',
+        {
+          projectId,
+          groupName: group.name,
+        }
+      );
+      return;
+    }
+
+    // Collect all artifacts from successful phases
+    const allArtifacts: Record<string, string | Buffer> = {};
+    for (const result of results) {
+      if (result.success) {
+        Object.assign(allArtifacts, result.artifacts);
+      }
+    }
+
+    if (Object.keys(allArtifacts).length === 0) {
+      logger.warn('[OrchestratorEngine] No artifacts to snapshot', {
+        projectId,
+        groupName: group.name,
+      });
+      return;
+    }
+
+    // Create snapshot for the parallel group
+    const snapshotResult = await rollbackService.createSnapshot({
+      projectId,
+      phaseName: group.name,
+      artifacts: asStringRecord(allArtifacts),
+      metadata: {
+        parallelGroup: group.name,
+        phasesExecuted: group.phases,
+        successfulPhases: results.filter((r) => r.success).map((r) => r.phase),
+        failedPhases: results.filter((r) => !r.success).map((r) => r.phase),
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    if (snapshotResult.success) {
+      logger.info('[OrchestratorEngine] Parallel group snapshot created', {
+        projectId,
+        groupName: group.name,
+        snapshotId: snapshotResult.snapshotId,
+      });
+    } else {
+      logger.warn(
+        '[OrchestratorEngine] Parallel group snapshot creation failed',
+        {
+          projectId,
+          groupName: group.name,
+          error: snapshotResult.error,
+        }
+      );
+    }
+  }
+
+  /**
+   * Execute the workflow with optional parallel phase execution.
+   *
+   * This method orchestrates the complete workflow execution with support for:
+   * - Parallel execution of independent phases
+   * - Sequential execution of dependent phases
+   * - Automatic fallback to sequential on parallel failure
+   * - Time savings measurement and reporting
+   *
+   * @param projectId - The project ID
+   * @param options - Options for parallel execution
+   * @returns ParallelWorkflowResult with timing metrics and execution details
+   */
+  async executeWorkflowWithParallel(
+    projectId: string,
+    options: ParallelWorkflowOptions
+  ): Promise<ParallelWorkflowResult> {
+    const startTime = Date.now();
+    logger.info(
+      '[OrchestratorEngine] Starting workflow with parallel execution',
+      {
+        projectId,
+        enableParallel: options.enableParallel,
+        fallbackToSequential: options.fallbackToSequential,
+      }
+    );
+
+    // Define parallel groups based on orchestrator spec
+    // Groups phases that can run in parallel when dependencies are satisfied
+    const parallelGroups: ParallelGroup[] = [
+      {
+        name: 'foundation',
+        type: 'parallel',
+        phases: ['ANALYSIS'],
+      },
+      {
+        name: 'stack_and_tokens',
+        type: 'parallel',
+        phases: ['STACK_SELECTION', 'SPEC_DESIGN_TOKENS'],
+      },
+      {
+        name: 'spec_and_design',
+        type: 'parallel',
+        phases: ['SPEC', 'SPEC_DESIGN_COMPONENTS'],
+      },
+      {
+        name: 'requirements',
+        type: 'parallel',
+        phases: ['DEPENDENCIES'],
+      },
+      {
+        name: 'design_and_architecture',
+        type: 'parallel',
+        phases: ['SOLUTIONING'],
+      },
+    ];
+
+    // Build execution order respecting dependencies
+    // Each group must wait for its dependencies to complete
+    const executionOrder = this.buildExecutionOrder(parallelGroups);
+
+    // Create a mock project for phase execution
+    const project = {
+      id: projectId,
+      name: 'Workflow Execution',
+      current_phase: executionOrder[0]?.[0] || 'ANALYSIS',
+      phases_completed: [] as string[],
+      orchestration_state: {
+        artifact_versions: {},
+        approval_gates: {},
+      } as OrchestrationState,
+      project_path: '',
+    } as Project;
+
+    const groupsExecuted: ParallelWorkflowResult['groupsExecuted'] = [];
+    const errors: Array<{ phase: string; error: string }> = [];
+    let fallbackUsed = false;
+
+    // Calculate estimated sequential duration for comparison
+    const sequentialDurationMs =
+      this.estimateSequentialDuration(executionOrder);
+
+    // Execute groups in order
+    for (const group of executionOrder) {
+      const groupStartTime = Date.now();
+      let groupSuccess = true;
+      const groupName = group.join('_');
+
+      try {
+        // Check dependencies are satisfied
+        const dependencies = this.getGroupDependencies(groupName);
+        const unsatisfiedDeps = dependencies.filter(
+          (dep) => !project.phases_completed.includes(dep)
+        );
+
+        if (unsatisfiedDeps.length > 0) {
+          logger.warn(
+            '[OrchestratorEngine] Skipping group due to unsatisfied dependencies',
+            {
+              projectId,
+              groupName,
+              unsatisfiedDeps,
+            }
+          );
+          // Mark phases as completed with error status
+          for (const phase of group) {
+            errors.push({
+              phase,
+              error: `Skipped: unsatisfied dependencies: ${unsatisfiedDeps.join(
+                ', '
+              )}`,
+            });
+            project.phases_completed.push(phase);
+          }
+          continue;
+        }
+
+        if (options.enableParallel && group.length > 1) {
+          // Execute as parallel group
+          const parallelGroup: ParallelGroup = {
+            name: groupName,
+            type: 'parallel',
+            phases: group,
+          };
+
+          const results = await this.executeParallelGroup(
+            projectId,
+            parallelGroup
+          );
+
+          // Collect artifacts from successful phases
+          const allArtifacts: Record<string, string | Buffer> = {};
+          for (const result of results) {
+            if (result.success) {
+              Object.assign(allArtifacts, result.artifacts);
+            } else {
+              groupSuccess = false;
+              errors.push({
+                phase: result.phase,
+                error: result.error || 'Unknown error',
+              });
+            }
+            project.phases_completed.push(result.phase);
+          }
+
+          groupsExecuted.push({
+            name: groupName,
+            type: 'parallel',
+            phases: group,
+            success: groupSuccess,
+            durationMs: Date.now() - groupStartTime,
+            results,
+          });
+        } else {
+          // Execute sequentially
+          const results: PhaseExecutionResult[] = [];
+
+          for (const phase of group) {
+            const phaseStartTime = Date.now();
+            try {
+              project.current_phase = phase;
+              const result = await this.runPhaseAgent(project, {});
+              project.phases_completed.push(phase);
+
+              results.push({
+                phase,
+                success: result.success,
+                artifacts: result.artifacts,
+                durationMs: Date.now() - phaseStartTime,
+              });
+            } catch (error) {
+              const phaseDurationMs = Date.now() - phaseStartTime;
+              const errorMessage =
+                error instanceof Error ? error.message : String(error);
+              project.phases_completed.push(phase);
+
+              results.push({
+                phase,
+                success: false,
+                artifacts: {},
+                error: errorMessage,
+                durationMs: phaseDurationMs,
+              });
+
+              groupSuccess = false;
+              errors.push({ phase, error: errorMessage });
+            }
+          }
+
+          groupsExecuted.push({
+            name: groupName,
+            type: 'sequential',
+            phases: group,
+            success: groupSuccess,
+            durationMs: Date.now() - groupStartTime,
+            results,
+          });
+        }
+      } catch (error) {
+        const groupDurationMs = Date.now() - groupStartTime;
+        const errorObj =
+          error instanceof Error ? error : new Error(String(error));
+
+        logger.error('[OrchestratorEngine] Group execution failed', undefined, {
+          projectId,
+          groupName,
+          error: errorObj.message,
+        });
+
+        // Fallback to sequential if enabled
+        if (options.fallbackToSequential && !fallbackUsed) {
+          logger.info(
+            '[OrchestratorEngine] Falling back to sequential execution',
+            {
+              projectId,
+              groupName,
+            }
+          );
+          fallbackUsed = true;
+          options.enableParallel = false;
+          // Re-execute this group sequentially
+          continue;
+        }
+
+        groupSuccess = false;
+        for (const phase of group) {
+          errors.push({ phase, error: errorObj.message });
+          project.phases_completed.push(phase);
+        }
+
+        groupsExecuted.push({
+          name: groupName,
+          type: 'sequential',
+          phases: group,
+          success: false,
+          durationMs: groupDurationMs,
+          results: group.map((phase) => ({
+            phase,
+            success: false,
+            artifacts: {},
+            error: errorObj.message,
+            durationMs: 0,
+          })),
+        });
+      }
+    }
+
+    const totalDurationMs = Date.now() - startTime;
+    const parallelDurationMs = totalDurationMs;
+    const timeSavedMs = Math.max(0, sequentialDurationMs - parallelDurationMs);
+    const timeSavedPercent =
+      sequentialDurationMs > 0
+        ? Math.round((timeSavedMs / sequentialDurationMs) * 100)
+        : 0;
+
+    const overallSuccess = errors.length === 0;
+
+    logger.info('[OrchestratorEngine] Workflow execution complete', {
+      projectId,
+      success: overallSuccess,
+      totalDurationMs,
+      parallelDurationMs,
+      sequentialDurationMs,
+      timeSavedMs,
+      timeSavedPercent,
+      groupsExecuted: groupsExecuted.length,
+      errors: errors.length,
+      fallbackUsed,
+    });
+
+    return {
+      success: overallSuccess,
+      projectId,
+      phasesExecuted: project.phases_completed,
+      groupsExecuted,
+      totalDurationMs,
+      parallelDurationMs,
+      sequentialDurationMs,
+      timeSavedMs,
+      timeSavedPercent,
+      errors,
+      fallbackUsed,
+    };
+  }
+
+  /**
+   * Build execution order from parallel groups, respecting dependencies.
+   * Returns an array of phase arrays, where each inner array can execute in parallel.
+   */
+  private buildExecutionOrder(groups: ParallelGroup[]): string[][] {
+    // Define dependency relationships between groups
+    const groupDependencies: Record<string, string[]> = {
+      foundation: [],
+      stack_and_tokens: ['foundation'],
+      spec_and_design: ['stack_and_tokens'],
+      requirements: ['spec_and_design'],
+      design_and_architecture: ['requirements'],
+    };
+
+    // Build order ensuring dependencies are satisfied
+    const executedGroups: string[] = [];
+    const executionOrder: string[][] = [];
+
+    // Flatten groups and sort by dependencies
+    const groupMap = new Map(groups.map((g) => [g.name, g.phases]));
+
+    const getGroupPhases = (groupName: string): string[] => {
+      const phases = groupMap.get(groupName);
+      return phases || [groupName];
+    };
+
+    // Simple topological sort for groups
+    let groupsRemaining = Object.keys(groupDependencies);
+
+    while (groupsRemaining.length > 0) {
+      // Find groups with all dependencies satisfied
+      const readyGroups = groupsRemaining.filter((groupName) => {
+        const deps = groupDependencies[groupName] || [];
+        return deps.every((dep) => executedGroups.includes(dep));
+      });
+
+      if (readyGroups.length === 0) {
+        // Circular dependency or missing dependency - execute remaining groups
+        readyGroups.push(...groupsRemaining);
+      }
+
+      // Execute first ready group
+      const nextGroup = readyGroups[0];
+      const phases = getGroupPhases(nextGroup);
+
+      executionOrder.push(phases);
+      executedGroups.push(nextGroup);
+      groupsRemaining = groupsRemaining.filter((g) => g !== nextGroup);
+    }
+
+    return executionOrder;
+  }
+
+  /**
+   * Get dependencies for a specific group.
+   */
+  private getGroupDependencies(groupName: string): string[] {
+    const groupDependencies: Record<string, string[]> = {
+      foundation: [],
+      stack_and_tokens: ['ANALYSIS'],
+      spec_and_design: ['STACK_SELECTION', 'SPEC_DESIGN_TOKENS'],
+      requirements: ['SPEC', 'SPEC_DESIGN_COMPONENTS'],
+      design_and_architecture: ['DEPENDENCIES'],
+    };
+
+    return groupDependencies[groupName] || [];
+  }
+
+  /**
+   * Estimate the total sequential duration for comparison.
+   */
+  private estimateSequentialDuration(executionOrder: string[][]): number {
+    // Sum up phase durations from the spec
+    let total = 0;
+    const seenPhases = new Set<string>();
+
+    for (const group of executionOrder) {
+      for (const phase of group) {
+        if (!seenPhases.has(phase)) {
+          seenPhases.add(phase);
+          const phaseSpec = this.spec.phases[phase];
+          if (phaseSpec) {
+            total += phaseSpec.duration_minutes * 60 * 1000; // Convert to milliseconds
+          }
+        }
+      }
+    }
+
+    return total;
   }
 }

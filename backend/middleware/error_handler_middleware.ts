@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import { AppError, formatErrorResponse, getStatusCode } from '@/backend/lib/error_handler';
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '@/lib/logger';
@@ -62,10 +62,10 @@ export function withErrorHandler(
  * });
  */
 export function withErrorHandlerParams(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   handler: (request: NextRequest, params: any) => Promise<NextResponse>
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return async (request: NextRequest, params: any) => {
     const requestId = generateRequestId();
 
@@ -118,14 +118,14 @@ function handleError(error: unknown, requestId: string): NextResponse {
  * Lightweight error handler for POST/PUT requests
  * Validates JSON body can be parsed
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export async function safeParseJson(request: NextRequest): Promise<any> {
   try {
     return await request.json();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   } catch (error) {
     throw new AppError(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       'INVALID_INPUT' as any,
       'Invalid JSON in request body',
       400
@@ -149,7 +149,7 @@ export function getSecurityHeaders(): Record<string, string> {
  * Create a safe response with security headers
  */
 export function createSafeResponse(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   data: any,
   status: number = 200,
   headers?: Record<string, string>

@@ -30,7 +30,11 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
     // Default: only allow same-origin resources
     "default-src 'self'",
 
-    // Scripts: allow self + inline (Next.js requires this)
+    // Scripts: allow self + inline (Next.js requires this for dynamic imports)
+    // 'unsafe-eval' is required by Next.js for certain runtime evaluations
+    // including dynamic imports and some server-side features
+    // TODO: Investigate Next.js 14+ alternatives to remove 'unsafe-eval'
+     
     "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
 
     // Styles: allow self + inline (Tailwind CSS requires this)
@@ -81,11 +85,6 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
   // X-Content-Type-Options - Prevent MIME-sniffing
   // ============================================================================
   response.headers.set('X-Content-Type-Options', 'nosniff')
-
-  // ============================================================================
-  // X-XSS-Protection - XSS protection for older browsers
-  // ============================================================================
-  response.headers.set('X-XSS-Protection', '1; mode=block')
 
   // ============================================================================
   // Referrer-Policy - Control referrer information

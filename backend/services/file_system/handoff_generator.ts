@@ -1,30 +1,51 @@
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import { Project } from '@/types/orchestrator';
 import { listArtifacts } from '@/app/api/lib/project-utils';
 import { logger } from '@/lib/logger';
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
+import { asString } from '@/backend/lib/artifact_utils';
 
 /**
  * Generate HANDOFF.md and README.md for LLM-based code generation
  */
 export class HandoffGenerator {
+  private projectId: string;
+  private artifacts: Record<string, string | Buffer>;
+
+  constructor(
+    projectId: string,
+    artifacts: Record<string, string | Buffer> = {}
+  ) {
+    this.projectId = projectId;
+    this.artifacts = artifacts;
+  }
+
   /**
    * Generate README.md - a quick-start guide for the project
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async generateReadme(
-    slug: string,
-    projectMetadata: Record<string, any>,
-    artifacts: Record<string, string>
+    slug?: string,
+    projectMetadata?: Record<string, any>,
+    providedArtifacts?: Record<string, string | Buffer>
   ): Promise<string> {
-    const stackChoice = projectMetadata.stack_choice || 'custom';
-    const name = projectMetadata.name || 'Unnamed Project';
-    const description = projectMetadata.description || '';
+    const activeSlug = slug || this.projectId || 'unknown';
+    const activeArtifacts = providedArtifacts || this.artifacts;
+    const stackChoice = projectMetadata?.stack_choice || 'custom';
+    const name = projectMetadata?.name || 'Unnamed Project';
+    const description = projectMetadata?.description || '';
 
     // Extract key info from artifacts
-    const projectBrief = artifacts['ANALYSIS/project-brief.md'] || '';
-    const architecture = artifacts['SOLUTIONING/architecture.md'] || '';
+    const projectBrief = asString(
+      activeArtifacts['ANALYSIS/project-brief.md'] ||
+        activeArtifacts['project-brief.md'] ||
+        ''
+    );
+    const architecture = asString(
+      activeArtifacts['SOLUTIONING/architecture.md'] ||
+        activeArtifacts['architecture.md'] ||
+        ''
+    );
 
     // Try to extract executive summary from project brief
     let executiveSummary = '';
@@ -42,7 +63,7 @@ export class HandoffGenerator {
     }
 
     // Extract tech stack info
-    const stackDescriptions: Record<string, string> = {
+    const stackDescriptions: Record<string, string | Buffer> = {
       web_application: 'Web Application (Monolithic Full-Stack)',
       mobile_application: 'Mobile Application (Cross-Platform Native)',
       api_first_platform: 'API-First Platform (Headless/Multi-Client)',
@@ -111,12 +132,12 @@ ${slug}/
 | [stack-analysis.md](./specs/STACK_SELECTION/stack-analysis.md) | Stack recommendation summary |
 | [stack-decision.md](./specs/STACK_SELECTION/stack-decision.md) | Approved technology stack selection |
 | [stack.json](./specs/STACK_SELECTION/stack.json) | Machine-readable stack contract |
-| [PRD.md](./specs/SPEC/PRD.md) | Product Requirements Document |
+| [PRD.md](./specs/SPEC_PM/PRD.md) | Product Requirements Document |
 | [DEPENDENCIES.md](./specs/DEPENDENCIES/DEPENDENCIES.md) | Dependency rationale and grouping |
 | [dependencies.json](./specs/DEPENDENCIES/dependencies.json) | Machine-readable dependencies contract |
-| [design-system.md](./specs/SPEC/design-system.md) | Design tokens and UI guidelines |
-| [component-inventory.md](./specs/SPEC/component-inventory.md) | UI component specifications |
-| [user-flows.md](./specs/SPEC/user-flows.md) | User journey definitions |
+| [design-tokens.md](./specs/SPEC_DESIGN_TOKENS/design-tokens.md) | Design tokens and UI guidelines |
+| [component-mapping.md](./specs/SPEC_DESIGN_COMPONENTS/component-mapping.md) | UI component specifications |
+| [journey-maps.md](./specs/SPEC_DESIGN_COMPONENTS/journey-maps.md) | User journey definitions |
 | [architecture.md](./specs/SOLUTIONING/architecture.md) | System architecture |
 | [tasks.md](./specs/SOLUTIONING/tasks.md) | Implementation tasks (test-first, with [P] parallelism markers) |
 | [validation-report.md](./specs/VALIDATE/validation-report.md) | Cross-artifact consistency check results |
@@ -141,33 +162,42 @@ This project was generated using the Spec-Driven Platform.
 `;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   async generateHandoff(
-    slug: string,
-    projectMetadata: Record<string, any>
+    slug?: string,
+    projectMetadata?: Record<string, any>
   ): Promise<string> {
-    const stackChoice = projectMetadata.stack_choice || 'custom';
-    const name = projectMetadata.name || 'Unnamed Project';
+    const activeSlug = slug || this.projectId || 'unknown';
+    const stackChoice = projectMetadata?.stack_choice || 'custom';
+    const name = projectMetadata?.name || 'Unnamed Project';
 
-    // Collect artifacts from all completed phases (7-phase workflow v3.0)
+    // Collect artifacts from all completed phases (12-phase workflow v4.0)
     const allPhases = [
       'ANALYSIS',
       'STACK_SELECTION',
-      'SPEC',
+      'SPEC_PM',
+      'SPEC_ARCHITECT',
+      'SPEC_DESIGN_TOKENS',
+      'SPEC_DESIGN_COMPONENTS',
+      'FRONTEND_BUILD',
       'DEPENDENCIES',
       'SOLUTIONING',
       'VALIDATE',
+      'AUTO_REMEDY',
+      'DONE',
+      // Legacy fallback for existing projects
+      'SPEC',
     ];
-    const artifacts: Record<string, string> = {};
+    const artifacts: Record<string, string | Buffer> = {};
 
     for (const phase of allPhases) {
-      const phaseArtifacts = await listArtifacts(slug, phase);
+      const phaseArtifacts = await listArtifacts(activeSlug, phase);
       for (const artifact of phaseArtifacts) {
         try {
           const artifactPath = resolve(
             process.cwd(),
             'projects',
-            slug,
+            activeSlug,
             'specs',
             phase,
             'v1',
@@ -236,28 +266,34 @@ This document should be read in the following order for best understanding:
 6. **stack-rationale.md** - Why this stack was selected, alternatives considered
 7. **stack.json** - Canonical machine-readable stack contract
 
-### Phase 3: Specifications (SPEC)
-6. **PRD.md** - Product requirements and features
-7. **data-model.md** - Database schema and data structures
-8. **api-spec.json** - API endpoints and contracts
-9. **design-system.md** - Colors, typography, spacing, motion tokens (follow fire-your-design-team.md principles)
-10. **component-inventory.md** - UI components mapped to shadcn/ui
-11. **user-flows.md** - Key user journeys and interactions
+### Phase 3: Product Requirements (SPEC_PM)
+8. **PRD.md** - Product requirements and features
 
-### Phase 4: Dependencies (DEPENDENCIES)
-12. **DEPENDENCIES.md** - Dependency rationale (human-readable)
-13. **dependencies.json** - Canonical machine-readable dependencies contract
+### Phase 4: Technical Architecture (SPEC_ARCHITECT)
+9. **data-model.md** - Database schema and data structures
+10. **api-spec.json** - API endpoints and contracts
 
-### Phase 5: Implementation Plan (SOLUTIONING)
-13. **architecture.md** - System architecture and design patterns
-14. **epics.md** - Feature epics and logical groupings
-15. **tasks.md** - Detailed implementation tasks with dependencies and parallelism markers
+### Phase 5: Design Tokens (SPEC_DESIGN_TOKENS)
+11. **design-tokens.md** - Colors, typography, spacing, motion tokens (fire-your-design-team.md principles)
+
+### Phase 6: Component Design (SPEC_DESIGN_COMPONENTS)
+12. **component-mapping.md** - UI components mapped to shadcn/ui
+13. **journey-maps.md** - Key user journeys and interactions
+
+### Phase 7: Dependencies (DEPENDENCIES)
+14. **DEPENDENCIES.md** - Dependency rationale (human-readable)
+15. **dependencies.json** - Canonical machine-readable dependencies contract
+
+### Phase 8: Implementation Plan (SOLUTIONING)
+16. **architecture.md** - System architecture and design patterns
+17. **epics.md** - Feature epics and logical groupings
+18. **tasks.md** - Detailed implementation tasks with dependencies and parallelism markers
 
 > **Note:** Tasks marked with \`[P]\` can be executed in parallel.
 
-### Phase 6: Validation (VALIDATE)
-16. **validation-report.md** - Cross-artifact consistency check results
-17. **coverage-matrix.md** - Artifact coverage by phase
+### Phase 9: Validation (VALIDATE)
+19. **validation-report.md** - Cross-artifact consistency check results
+20. **coverage-matrix.md** - Artifact coverage by phase
 
 ---
 
@@ -322,7 +358,7 @@ Please review the attached specifications in the order listed above, then:
   - Use ONLY 8pt grid spacing values (8, 16, 24, 32, 48, 64)
   - Follow the 60/30/10 color rule with project-specific colors
   - Use Framer Motion with the defined duration scale for animations
-  - Use shadcn/ui components as specified in component-inventory.md
+  - Use shadcn/ui components as specified in component-mapping.md
   - Implement user journeys exactly as defined in user-flows.md
   - AVOID: purple defaults, gradient blobs, Inter font, excessive border radius
 
@@ -436,7 +472,7 @@ ${artifacts['SPEC/design-system.md'] || 'Design system document not available'}
 
 \`\`\`markdown
 ${
-  artifacts['SPEC/component-inventory.md'] ||
+  artifacts['SPEC/component-mapping.md'] ||
   'Component inventory document not available'
 }
 \`\`\`
@@ -536,5 +572,44 @@ Generated by **Spec-Driven Platform** - Transform ideas into production-ready pr
 `;
 
     return handoff;
+  }
+
+  /**
+   * Create a ZIP file of all artifacts
+   */
+  async createZip(): Promise<Buffer> {
+    const archiver = await import('archiver');
+
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      const archive = archiver.default('zip', {
+        zlib: { level: 9 },
+      });
+
+      archive.on('data', (chunk: Buffer) => {
+        chunks.push(chunk);
+      });
+
+      archive.on('end', () => {
+        const zipBuffer = Buffer.concat(chunks);
+        logger.info(
+          `[HandoffGenerator] ZIP Buffer created: ${zipBuffer.length} bytes`
+        );
+        resolve(zipBuffer);
+      });
+
+      archive.on('error', (err) => {
+        logger.error(`[HandoffGenerator] ZIP error: ${err.message}`);
+        reject(err);
+      });
+
+      // Add artifacts from memory
+      for (const [name, content] of Object.entries(this.artifacts)) {
+        // Use phase-prefixed names as they likely came from the orchestrator
+        archive.append(content, { name });
+      }
+
+      archive.finalize();
+    });
   }
 }

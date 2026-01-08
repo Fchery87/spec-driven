@@ -3,27 +3,37 @@ import crypto from 'crypto';
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const TAG_LENGTH = 16;
-const SALT_LENGTH = 32;
+const KEY_LENGTH = 32;
 
-function getEncryptionKey(): Buffer {
-  const key = process.env.ENCRYPTION_KEY;
-  
-  if (!key) {
-    throw new Error('ENCRYPTION_KEY environment variable is required for secure storage');
-  }
-  
-  // If key is already 32 bytes (64 hex chars), use it directly
-  if (key.length === 64 && /^[0-9a-fA-F]+$/.test(key)) {
-    return Buffer.from(key, 'hex');
-  }
-  
-  // Otherwise, derive a key from the provided string
-  const salt = Buffer.alloc(SALT_LENGTH, 'spec-driven-salt');
-  return crypto.pbkdf2Sync(key, salt, 100000, 32, 'sha256');
+// ============================================================================
+// ENCRYPTION KEY DERIVATION
+// Uses random salt per encryption operation to prevent rainbow table attacks
+// ============================================================================
+
+/**
+ * Derive encryption key from the master key using PBKDF2
+ * Uses random salt generated for each encryption operation
+ */
+function deriveKey(masterKey: string, salt: Buffer): Buffer {
+  return crypto.pbkdf2Sync(masterKey, salt, 100000, KEY_LENGTH, 'sha256');
+}
+
+/**
+ * Generate a random salt for key derivation
+ */
+function generateSalt(): Buffer {
+  return crypto.randomBytes(32);
 }
 
 export function encrypt(plaintext: string): string {
-  const key = getEncryptionKey();
+  const masterKey = process.env.ENCRYPTION_KEY;
+  
+  if (!masterKey) {
+    throw new Error('ENCRYPTION_KEY environment variable is required for secure storage');
+  }
+  
+  const salt = generateSalt();
+  const key = deriveKey(masterKey, salt);
   const iv = crypto.randomBytes(IV_LENGTH);
   
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
@@ -33,21 +43,29 @@ export function encrypt(plaintext: string): string {
   
   const tag = cipher.getAuthTag();
   
-  // Format: iv:tag:encrypted
-  return `${iv.toString('hex')}:${tag.toString('hex')}:${encrypted}`;
+  // Format: salt:iv:tag:encrypted
+  // Salt is included to allow decryption while still providing unique salts per operation
+  return `${salt.toString('hex')}:${iv.toString('hex')}:${tag.toString('hex')}:${encrypted}`;
 }
 
 export function decrypt(ciphertext: string): string {
-  const key = getEncryptionKey();
+  const masterKey = process.env.ENCRYPTION_KEY;
+  
+  if (!masterKey) {
+    throw new Error('ENCRYPTION_KEY environment variable is required for secure storage');
+  }
   
   const parts = ciphertext.split(':');
-  if (parts.length !== 3) {
+  if (parts.length !== 4) {
     throw new Error('Invalid encrypted data format');
   }
   
-  const [ivHex, tagHex, encrypted] = parts;
+  const [saltHex, ivHex, tagHex, encrypted] = parts;
+  const salt = Buffer.from(saltHex, 'hex');
   const iv = Buffer.from(ivHex, 'hex');
   const tag = Buffer.from(tagHex, 'hex');
+  
+  const key = deriveKey(masterKey, salt);
   
   const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
   decipher.setAuthTag(tag);

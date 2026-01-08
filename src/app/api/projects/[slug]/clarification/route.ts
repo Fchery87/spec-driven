@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getProjectMetadata, saveProjectMetadata, persistProjectToDB, readArtifact, writeArtifact } from '@/app/api/lib/project-utils';
+import {
+  getProjectMetadata,
+  saveProjectMetadata,
+  persistProjectToDB,
+  readArtifact,
+  writeArtifact,
+} from '@/app/api/lib/project-utils';
 import { logger } from '@/lib/logger';
 import { withAuth, type AuthSession } from '@/app/api/middleware/auth-guard';
-import type { ClarificationQuestion, ClarificationMode, ClarificationState } from '@/types/orchestrator';
+import type {
+  ClarificationQuestion,
+  ClarificationMode,
+  ClarificationState,
+} from '@/types/orchestrator';
+import { asString } from '@/backend/lib/artifact_utils';
 
 export const runtime = 'nodejs';
 
@@ -41,28 +52,51 @@ const getClarificationHandler = withAuth(
           data: {
             enabled: false,
             phase: metadata.current_phase,
-            message: 'Clarification is only available in ANALYSIS phase'
-          }
+            message: 'Clarification is only available in ANALYSIS phase',
+          },
         });
       }
 
       // Get existing clarification state or initialize
-      const clarificationState: ClarificationState = metadata.clarification_state || {
-        mode: 'hybrid',
-        questions: [],
-        completed: false,
-        skipped: false
-      };
+      let clarificationState: ClarificationState =
+        metadata.clarification_state || {
+          mode: 'hybrid',
+          questions: [],
+          completed: false,
+          skipped: false,
+        };
 
       // If no questions yet, try to extract from ANALYSIS artifacts
-      if (clarificationState.questions.length === 0 && !clarificationState.completed && !clarificationState.skipped) {
+      let needsPersist = false;
+      if (
+        clarificationState.questions.length === 0 &&
+        !clarificationState.completed &&
+        !clarificationState.skipped
+      ) {
         try {
           const questions = await extractClarificationQuestions(slug);
-          clarificationState.questions = questions;
+          if (questions.length > 0) {
+            clarificationState = {
+              ...clarificationState,
+              questions,
+            };
+            needsPersist = true;
+          }
         } catch {
           // No artifacts yet or no questions found
           logger.debug('No clarification questions found', { slug });
         }
+      }
+
+      // Persist the clarification state so auto-resolve can access it
+      if (needsPersist) {
+        const updated = {
+          ...metadata,
+          clarification_state: clarificationState,
+          updated_at: new Date().toISOString(),
+        };
+        await saveProjectMetadata(slug, updated);
+        await persistProjectToDB(slug, updated);
       }
 
       return NextResponse.json({
@@ -70,11 +104,14 @@ const getClarificationHandler = withAuth(
         data: {
           enabled: true,
           phase: metadata.current_phase,
-          state: clarificationState
-        }
+          state: clarificationState,
+        },
       });
     } catch (error) {
-      logger.error('Error getting clarification state', error instanceof Error ? error : new Error(String(error)));
+      logger.error(
+        'Error getting clarification state',
+        error instanceof Error ? error : new Error(String(error))
+      );
       return NextResponse.json(
         { success: false, error: 'Failed to get clarification state' },
         { status: 500 }
@@ -97,7 +134,11 @@ const submitClarificationHandler = withAuth(
     try {
       const { slug } = await context.params;
       const body = await request.json();
-      const { questions, mode, skip = false } = body as {
+      const {
+        questions,
+        mode,
+        skip = false,
+      } = body as {
         questions?: ClarificationQuestion[];
         mode?: ClarificationMode;
         skip?: boolean;
@@ -121,7 +162,10 @@ const submitClarificationHandler = withAuth(
 
       if (metadata.current_phase !== 'ANALYSIS') {
         return NextResponse.json(
-          { success: false, error: 'Clarification can only be submitted in ANALYSIS phase' },
+          {
+            success: false,
+            error: 'Clarification can only be submitted in ANALYSIS phase',
+          },
           { status: 400 }
         );
       }
@@ -131,43 +175,54 @@ const submitClarificationHandler = withAuth(
         mode: mode || metadata.clarification_state?.mode || 'hybrid',
         questions: questions || metadata.clarification_state?.questions || [],
         completed: !skip,
-        skipped: skip
+        skipped: skip,
       };
 
       // Save updated metadata
       const updated = {
         ...metadata,
         clarification_state: clarificationState,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       };
 
       await saveProjectMetadata(slug, updated);
       await persistProjectToDB(slug, updated);
 
       // Update artifacts to replace [NEEDS CLARIFICATION] markers
-      if (skip || clarificationState.questions.some(q => q.resolved)) {
-        await updateArtifactsWithResolutions(slug, clarificationState.questions, skip);
+      if (skip || clarificationState.questions.some((q) => q.resolved)) {
+        await updateArtifactsWithResolutions(
+          slug,
+          clarificationState.questions,
+          skip
+        );
       }
 
       logger.info('Clarification submitted', {
         project: slug,
         mode: clarificationState.mode,
-        answeredCount: clarificationState.questions.filter(q => q.resolvedBy === 'user').length,
-        aiResolvedCount: clarificationState.questions.filter(q => q.resolvedBy === 'ai').length,
-        skipped: skip
+        answeredCount: clarificationState.questions.filter(
+          (q) => q.resolvedBy === 'user'
+        ).length,
+        aiResolvedCount: clarificationState.questions.filter(
+          (q) => q.resolvedBy === 'ai'
+        ).length,
+        skipped: skip,
       });
 
       return NextResponse.json({
         success: true,
         data: {
           state: clarificationState,
-          message: skip 
+          message: skip
             ? 'Clarification skipped - AI will make reasonable assumptions'
-            : 'Clarification answers submitted successfully'
-        }
+            : 'Clarification answers submitted successfully',
+        },
       });
     } catch (error) {
-      logger.error('Error submitting clarification', error instanceof Error ? error : new Error(String(error)));
+      logger.error(
+        'Error submitting clarification',
+        error instanceof Error ? error : new Error(String(error))
+      );
       return NextResponse.json(
         { success: false, error: 'Failed to submit clarification' },
         { status: 500 }
@@ -180,20 +235,22 @@ const submitClarificationHandler = withAuth(
  * Extract clarification questions from ANALYSIS phase artifacts
  * Looks for [NEEDS CLARIFICATION: question] markers
  */
-async function extractClarificationQuestions(slug: string): Promise<ClarificationQuestion[]> {
+async function extractClarificationQuestions(
+  slug: string
+): Promise<ClarificationQuestion[]> {
   const questions: ClarificationQuestion[] = [];
   const artifacts = ['constitution.md', 'project-brief.md', 'personas.md'];
   const clarificationPattern = /\[NEEDS CLARIFICATION:\s*([^\]]+)\]/gi;
 
   for (const artifact of artifacts) {
     try {
-      const content = await readArtifact(slug, 'ANALYSIS', artifact);
+      const content = asString(await readArtifact(slug, 'ANALYSIS', artifact));
       let match;
       let index = 0;
 
       while ((match = clarificationPattern.exec(content)) !== null) {
         const questionText = match[1].trim();
-        
+
         // Determine category based on source artifact
         let category = 'General';
         if (artifact === 'constitution.md') category = 'Principles';
@@ -206,7 +263,7 @@ async function extractClarificationQuestions(slug: string): Promise<Clarificatio
           question: questionText,
           context: `Found in ${artifact}`,
           resolved: false,
-          resolvedBy: null
+          resolvedBy: null,
         });
         index++;
       }
@@ -228,7 +285,7 @@ async function updateArtifactsWithResolutions(
   skipped: boolean
 ): Promise<void> {
   const artifacts = ['constitution.md', 'project-brief.md', 'personas.md'];
-  
+
   for (const artifactName of artifacts) {
     try {
       let content = await readArtifact(slug, 'ANALYSIS', artifactName);
@@ -236,7 +293,7 @@ async function updateArtifactsWithResolutions(
 
       // Replace markers by stable (artifactName + index) rather than brittle substring matching.
       const questionsForArtifact = questions
-        .filter(q => q.id.startsWith(`${artifactName}-`))
+        .filter((q) => q.id.startsWith(`${artifactName}-`))
         .sort((a, b) => {
           const ai = Number.parseInt(a.id.split('-').pop() || '0', 10);
           const bi = Number.parseInt(b.id.split('-').pop() || '0', 10);
@@ -246,43 +303,49 @@ async function updateArtifactsWithResolutions(
       const markerRegex = /\[NEEDS CLARIFICATION:\s*[^\]]+\]/g;
       let markerIndex = 0;
 
-      const replaced = content.replace(markerRegex, (fullMatch) => {
-        const question = questionsForArtifact[markerIndex];
-        markerIndex += 1;
+      const replaced = asString(content).replace(
+        markerRegex,
+        (fullMatch: string) => {
+          const question = questionsForArtifact[markerIndex];
+          markerIndex += 1;
 
-        if (!question) {
+          if (!question) {
+            return skipped
+              ? '[AI ASSUMED: Standard industry practice will be followed - Skipped by user]'
+              : fullMatch;
+          }
+
+          if (!question.resolved) {
+            return skipped
+              ? '[AI ASSUMED: Standard industry practice will be followed - Skipped by user]'
+              : fullMatch;
+          }
+
+          if (question.resolvedBy === 'user' && question.userAnswer) {
+            return `[RESOLVED: ${question.userAnswer}]`;
+          }
+
+          if (question.aiAssumed) {
+            return `[AI ASSUMED: ${question.aiAssumed.assumption} - ${question.aiAssumed.rationale}]`;
+          }
+
           return skipped
             ? '[AI ASSUMED: Standard industry practice will be followed - Skipped by user]'
-            : fullMatch;
+            : '[AI ASSUMED: Standard practice will be followed - Auto-resolved]';
         }
-
-        if (!question.resolved) {
-          return skipped
-            ? '[AI ASSUMED: Standard industry practice will be followed - Skipped by user]'
-            : fullMatch;
-        }
-
-        if (question.resolvedBy === 'user' && question.userAnswer) {
-          return `[RESOLVED: ${question.userAnswer}]`;
-        }
-
-        if (question.aiAssumed) {
-          return `[AI ASSUMED: ${question.aiAssumed.assumption} - ${question.aiAssumed.rationale}]`;
-        }
-
-        return skipped
-          ? '[AI ASSUMED: Standard industry practice will be followed - Skipped by user]'
-          : '[AI ASSUMED: Standard practice will be followed - Auto-resolved]';
-      });
+      );
 
       if (replaced !== content) {
         content = replaced;
         modified = true;
       }
-      
+
       if (modified) {
         await writeArtifact(slug, 'ANALYSIS', artifactName, content);
-        logger.debug('Updated artifact with clarification resolutions', { slug, artifact: artifactName });
+        logger.debug('Updated artifact with clarification resolutions', {
+          slug,
+          artifact: artifactName,
+        });
       }
     } catch {
       // Artifact might not exist, skip

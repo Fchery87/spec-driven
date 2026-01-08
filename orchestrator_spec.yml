@@ -1,6 +1,6 @@
 # Spec-Driven Orchestrator Configuration
-# Version: 3.0
-# Date: 2025-12-10
+# Version: 3.5
+# Date: 2026-01-03
 # Updated: Added Hybrid Clarification, VALIDATE phase, Constitutional Articles,
 #          Uncertainty Markers, Test-First Requirements, Task Parallelism, Quality Checklists
 
@@ -10,101 +10,179 @@
 # =============================================================================
 constitutional_articles:
   article_1_library_first:
-    name: "Library-First Principle"
-    mandate: "Every feature begins as a reusable module with clear boundaries"
-    enforcement: "architecture.md must show modular boundaries for each feature"
-    rationale: "Modularity enables testing, reuse, and maintainability"
-    
+    name: 'Library-First Principle'
+    mandate: 'Every feature begins as a reusable module with clear boundaries'
+    enforcement: 'architecture.md must show modular boundaries for each feature'
+    rationale: 'Modularity enables testing, reuse, and maintainability'
+
   article_2_test_first:
-    name: "Test-First Imperative"
-    mandate: "No implementation code before tests are specified"
-    enforcement: "tasks.md must list test specifications BEFORE implementation notes"
-    rationale: "Tests define behavior; implementation fulfills that behavior"
-    
+    name: 'Test-First Imperative'
+    mandate: 'No implementation code before tests are specified'
+    enforcement: 'tasks.md must list test specifications BEFORE implementation notes'
+    rationale: 'Tests define behavior; implementation fulfills that behavior'
+
   article_3_simplicity:
-    name: "Simplicity Gate"
-    mandate: "Maximum 3 projects/services for MVP; justify additional complexity"
-    enforcement: "architecture.md must include complexity tracking section"
-    rationale: "Start simple, add complexity only when proven necessary"
-    
+    name: 'Simplicity Gate'
+    mandate: 'Maximum 3 projects/services for MVP; justify additional complexity'
+    enforcement: 'architecture.md must include complexity tracking section'
+    rationale: 'Start simple, add complexity only when proven necessary'
+
   article_4_anti_abstraction:
-    name: "Anti-Abstraction"
-    mandate: "Use framework directly; no unnecessary wrappers or abstractions"
-    enforcement: "DEPENDENCIES.md must justify each abstraction layer"
-    rationale: "Abstractions add maintenance cost; use only when essential"
-    
+    name: 'Anti-Abstraction'
+    mandate: 'Use framework directly; no unnecessary wrappers or abstractions'
+    enforcement: 'DEPENDENCIES.md must justify each abstraction layer'
+    rationale: 'Abstractions add maintenance cost; use only when essential'
+
   article_5_integration_first:
-    name: "Integration-First Testing"
-    mandate: "Prefer real databases over mocks; test in realistic environments"
-    enforcement: "Test configuration in tasks.md must specify real service usage"
-    rationale: "Mocks hide real integration issues; real tests find real bugs"
+    name: 'Integration-First Testing'
+    mandate: 'Prefer real databases over mocks; test in realistic environments'
+    enforcement: 'Test configuration in tasks.md must specify real service usage'
+    rationale: 'Mocks hide real integration issues; real tests find real bugs'
+
+# =============================================================================
+# APPROVAL GATES (Human-in-the-Loop Control Points)
+# =============================================================================
+approval_gates:
+  stack_approved:
+    phase: STACK_SELECTION
+    stakeholder: 'Technical Lead / CTO'
+    blocking: true
+    reason: 'Technology decisions impact all downstream work'
+
+  prd_approved:
+    phase: SPEC_PM
+    stakeholder: 'Product Owner / PM'
+    blocking: false
+    workflow_track_override: 'blocking in enterprise mode only'
+    reason: 'Requirements must align with business goals'
+
+  architecture_approved:
+    phase: SPEC_ARCHITECT
+    stakeholder: 'Technical Lead / Architect'
+    blocking: false
+    auto_approve_threshold: 95 # constitutional score
+    reason: 'Architectural decisions should be reviewed before implementation'
+
+  handoff_acknowledged:
+    phase: DONE
+    stakeholder: 'Development Team'
+    blocking: false
+    reason: 'Team confirms understanding of handoff package'
 
 # =============================================================================
 # WORKFLOW TRACKS (Scale-Adaptive - Inspired by BMAD Method)
 # =============================================================================
 workflow_tracks:
   quick_flow:
-    name: "Quick Flow"
-    description: "Fast path for bug fixes, small features, and hotfixes"
-    use_for: ["Bug fixes", "Small features", "Hotfixes", "Simple CRUD"]
-    phases: ["ANALYSIS_LITE", "SOLUTIONING_LITE", "DONE"]
-    time_to_start: "< 5 minutes"
-    outputs: ["tech-spec.md", "tasks.md", "HANDOFF.md"]
+    name: 'Quick Flow'
+    description: 'Fast path for bug fixes, small features, and hotfixes'
+    use_for: ['Bug fixes', 'Small features', 'Hotfixes', 'Simple CRUD']
+    phases: ['ANALYSIS_LITE', 'SOLUTIONING_LITE', 'DONE']
+    time_to_start: '< 5 minutes'
+    outputs: ['tech-spec.md', 'tasks.md', 'HANDOFF.md']
     skip_gates: true
-    
+
   standard:
-    name: "Standard Flow"
-    description: "Full workflow for products, platforms, and new features"
-    use_for: ["Products", "Platforms", "New features", "MVPs"]
-    phases: ["ANALYSIS", "STACK_SELECTION", "SPEC", "DEPENDENCIES", "SOLUTIONING", "VALIDATE", "DONE"]
-    time_to_start: "< 30 minutes"
-    outputs: "all"
+    name: 'Standard Flow'
+    description: 'Full workflow for products, platforms, and new features'
+    use_for: ['Products', 'Platforms', 'New features', 'MVPs']
+    phases:
+      [
+        'ANALYSIS',
+        'STACK_SELECTION',
+        'SPEC_PM',
+        'SPEC_ARCHITECT',
+        'SPEC_DESIGN_TOKENS',
+        'SPEC_DESIGN_COMPONENTS',
+        'FRONTEND_BUILD',
+        'DEPENDENCIES',
+        'SOLUTIONING',
+        'VALIDATE',
+        'AUTO_REMEDY',
+        'DONE',
+      ]
+    time_to_start: '< 30 minutes'
+    outputs: 'all'
     default: true
-    
+
   enterprise:
-    name: "Enterprise Flow"
-    description: "Extended workflow with compliance and security gates"
-    use_for: ["Compliance-heavy projects", "Large scale", "Multi-team", "Regulated industries"]
-    phases: ["ANALYSIS", "STACK_SELECTION", "SPEC", "SECURITY_REVIEW", "DEPENDENCIES", "COMPLIANCE_CHECK", "SOLUTIONING", "VALIDATE", "DONE"]
-    time_to_start: "< 60 minutes"
-    outputs: "all + compliance artifacts"
-    additional_gates: ["security_approved", "compliance_approved"]
+    name: 'Enterprise Flow'
+    description: 'Extended workflow with compliance and security gates'
+    use_for:
+      [
+        'Compliance-heavy projects',
+        'Large scale',
+        'Multi-team',
+        'Regulated industries',
+      ]
+    phases:
+      [
+        'ANALYSIS',
+        'STACK_SELECTION',
+        'SPEC_PM',
+        'SPEC_ARCHITECT',
+        'SPEC_DESIGN_TOKENS',
+        'SPEC_DESIGN_COMPONENTS',
+        'FRONTEND_BUILD',
+        'SECURITY_REVIEW',
+        'DEPENDENCIES',
+        'COMPLIANCE_CHECK',
+        'SOLUTIONING',
+        'VALIDATE',
+        'AUTO_REMEDY',
+        'DONE',
+      ]
+    time_to_start: '< 60 minutes'
+    outputs: 'all + compliance artifacts'
+    additional_gates: ['security_approved', 'compliance_approved']
 
 # =============================================================================
 # PHASE WORKFLOW DEFINITION
 # =============================================================================
 phases:
   ANALYSIS:
-    name: "ANALYSIS"
-    description: "Clarify requirements through guided Q&A with uncertainty resolution"
-    owner: "analyst"
+    name: 'ANALYSIS'
+    description: 'Clarify requirements through guided Q&A with uncertainty resolution'
+    owner: 'analyst'
     duration_minutes: 30
-    inputs: ["user_idea"]
-    outputs: ["constitution.md", "project-brief.md", "project-classification.json", "personas.md"]
-    next_phase: "STACK_SELECTION"
-    validators: ["presence", "markdown_frontmatter", "content_quality", "no_unresolved_clarifications"]
+    inputs: ['user_idea']
+    outputs:
+      [
+        'constitution.md',
+        'project-brief.md',
+        'project-classification.json',
+        'personas.md',
+      ]
+    next_phase: 'STACK_SELECTION'
+    validators:
+      [
+        'presence',
+        'markdown_frontmatter',
+        'content_quality',
+        'no_unresolved_clarifications',
+      ]
     allow_regeneration: true
     max_regeneration_attempts: 3
-    
+
     # Hybrid Clarification Mode (NEW - Inspired by GitHub Spec Kit)
     clarification:
       enabled: true
-      default_mode: "hybrid"  # Options: interactive | auto_resolve | hybrid
+      default_mode: 'hybrid' # Options: interactive | auto_resolve | hybrid
       max_questions: 10
       allow_skip: true
-      uncertainty_marker: "[NEEDS CLARIFICATION: {question}]"
-      assumption_marker: "[AI ASSUMED: {assumption} - {rationale}]"
+      uncertainty_marker: '[NEEDS CLARIFICATION: {question}]'
+      assumption_marker: '[AI ASSUMED: {assumption} - {rationale}]'
       modes:
         interactive:
-          description: "User answers all clarification questions before proceeding"
-          flow: "AI pauses → Shows questions → User answers → AI proceeds"
-          best_for: "Complex projects, compliance-heavy, precise requirements"
+          description: 'User answers all clarification questions before proceeding'
+          flow: 'AI pauses → Shows questions → User answers → AI proceeds'
+          best_for: 'Complex projects, compliance-heavy, precise requirements'
         auto_resolve:
-          description: "AI makes reasonable assumptions and documents them"
-          flow: "AI proceeds → Documents assumptions as [AI ASSUMED: rationale]"
-          best_for: "Fast iteration, MVPs, familiar domains"
+          description: 'AI makes reasonable assumptions and documents them'
+          flow: 'AI proceeds → Documents assumptions as [AI ASSUMED: rationale]'
+          best_for: 'Fast iteration, MVPs, familiar domains'
         hybrid:
-          description: "User chooses which questions to answer; AI resolves rest"
+          description: 'User chooses which questions to answer; AI resolves rest'
           flow: |
             1. AI generates output with [NEEDS CLARIFICATION] markers
             2. User sees question panel with options:
@@ -112,501 +190,1435 @@ phases:
                - "Auto-resolve remaining" → AI assumes rest
                - "Auto-resolve all" → Skip entirely (current speed)
             3. Auto-resolved items marked: [AI ASSUMED: {assumption}]
-          best_for: "Balanced control and speed"
-    
+          best_for: 'Balanced control and speed'
+
+    # Inline Validation (Phase 1 - Feedback Loops)
+    inline_validation:
+      enabled: true
+      blocking_on_errors: true
+      blocking_on_warnings: false
+      validators:
+        [
+          'presence',
+          'markdown_frontmatter',
+          'unresolved_clarifications',
+          'content_quality',
+        ]
+
     # Quality Checklist for this phase
     quality_checklist:
-      - "All FOUR files generated (constitution, brief, classification, personas)"
-      - "No unresolved [NEEDS CLARIFICATION] markers (unless auto-resolved)"
-      - "3-5 distinct personas (not variations of same user)"
-      - "Each persona has specific pain points (not generic)"
-      - "Success metrics are SMART format"
-      - "constitution.md has 5+ guiding principles with rationale"
-      - "project-brief.md has TAM/SAM/SOM analysis"
-      - "Competitive analysis identifies real or realistic competitors"
-    
+      - 'All FOUR files generated (constitution, brief, classification, personas)'
+      - 'No unresolved [NEEDS CLARIFICATION] markers (unless auto-resolved)'
+      - '3-5 distinct personas (not variations of same user)'
+      - 'Each persona has specific pain points (not generic)'
+      - 'Success metrics are SMART format'
+      - 'constitution.md has 5+ guiding principles with rationale'
+      - 'project-brief.md has TAM/SAM/SOM analysis'
+      - 'Competitive analysis identifies real or realistic competitors'
+
+    # Superpowers Integration (Skill Invocation Framework)
+    superpowers_integration:
+      skill: 'brainstorming'
+      trigger: 'pre_generation'
+      input_mapping:
+        topic: '$project_description'
+        constraints: '$scale_tier'
+        additionalContext: '$constitution_summary'
+      output_mapping:
+        refined_requirements: 'ideas'
+        recommendations: 'recommendations'
+        ranked_options: 'rankedOptions'
+
   STACK_SELECTION:
-    name: "STACK_SELECTION"
-    description: "AI-driven stack recommendation with scored alternatives; user approves, modifies, or customizes"
-    owner: "architect"
+    name: 'STACK_SELECTION'
+    description: 'AI-driven stack recommendation with scored alternatives; user approves, modifies, or customizes'
+    owner: 'architect'
     duration_minutes: 25
-    inputs: ["project-brief.md", "project-classification.json", "personas.md", "constitution.md"]
-    outputs: ["stack-analysis.md", "stack-decision.md", "stack-rationale.md", "stack.json"]
-    depends_on: ["ANALYSIS"]
-    gates: ["stack_approved"]
-    next_phase: "SPEC"
-    validators: ["presence", "stack_approved", "stack_completeness", "stack_json_check"]
-    mode: "ai_recommend_with_alternatives"
+    inputs:
+      [
+        'project-brief.md',
+        'project-classification.json',
+        'personas.md',
+        'constitution.md',
+      ]
+    outputs:
+      [
+        'stack-analysis.md',
+        'stack-decision.md',
+        'stack-rationale.md',
+        'stack.json',
+      ]
+    depends_on: ['ANALYSIS']
+    gates: ['stack_approved']
+    next_phase: 'SPEC_PM'
+    validators:
+      ['presence', 'stack_approved', 'stack_completeness', 'stack_json_check']
+    mode: 'ai_recommend_with_alternatives'
     process:
-      - "1. Architect reviews project-brief.md, project-classification.json, personas.md, constitution.md"
-      - "2. Score ALL stack templates across platform, scale, expertise, complexity, integrations"
-      - "3. Produce stack-analysis.md with primary + 2 alternatives and decision matrix"
-      - "4. User can: Accept primary, choose alternative, or customize"
-      - "5. Approval gate confirms final choice"
+      - '1. Architect reviews project-brief.md, project-classification.json, personas.md, constitution.md'
+      - '2. Score ALL stack templates across platform, scale, expertise, complexity, integrations'
+      - '3. Produce stack-analysis.md with primary + 2 alternatives and decision matrix'
+      - '4. User can: Accept primary, choose alternative, or customize'
+      - '5. Approval gate confirms final choice'
     quality_checklist:
-      - "stack-analysis.md includes Recommendation Summary with primary + alternatives"
-      - "Decision matrix with scores and reasoning provided"
-      - "Alternatives include 2-3 relevant options (not duplicates)"
-      - "stack-decision.md and stack-rationale.md both exist"
-      - "All required layers defined (frontend, mobile, backend, database, deployment)"
-      - "Trade-offs explicitly documented with mitigations"
-      - "Scaling considerations addressed"
-      - "Technical preferences from brief applied or justified if overridden"
-    
-  SPEC:
-    name: "SPEC"
-    description: "Generate detailed specifications and design system"
-    owner: ["pm", "architect"]
-    duration_minutes: 60
-    inputs: ["project-brief.md", "personas.md", "approved_stack"]
-    outputs: ["PRD.md", "data-model.md", "api-spec.json", "design-system.md", "component-inventory.md", "user-flows.md"]
-    depends_on: ["ANALYSIS", "STACK_SELECTION"]
-    next_phase: "DEPENDENCIES"
-    validators: ["markdown_frontmatter", "api_openapi", "presence", "content_coverage", "requirement_format", "design_system_compliance"]
-    allow_regeneration: true
-    max_regeneration_attempts: 3
-    quality_checklist:
-      - "Minimum 15 functional requirements for MVP"
-      - "Each requirement has >= 2 Gherkin acceptance criteria"
-      - "All MVP requirements link to a persona from personas.md"
-      - "Traceability matrix complete with no orphaned requirements"
-      - "NFRs have measurable targets (not vague statements)"
-      - "No circular dependencies between requirements"
-      - "api-spec.json is valid OpenAPI 3.0.3"
-      - "All endpoints have error responses defined"
-      - "design-system.md has NO purple/indigo as primary color"
-      - "design-system.md uses OKLCH color format"
-      - "design-system.md has exactly 4 typography sizes"
-      - "design-system.md spacing values all divisible by 4 or 8"
-      - "design-system.md includes Framer Motion animation tokens"
-      - "component-inventory.md links to shadcn docs for each component"
-      - "user-flows.md has Mermaid diagrams for all major PRD flows"
-    
-  DEPENDENCIES:
-    name: "DEPENDENCIES"
-    description: "Auto-generate project dependencies from approved stack"
-    owner: "devops"
+      - 'stack-analysis.md includes Recommendation Summary with primary + alternatives'
+      - 'Decision matrix with scores and reasoning provided'
+      - 'Alternatives include 2-3 relevant options (not duplicates)'
+      - 'stack-decision.md and stack-rationale.md both exist'
+      - 'All required layers defined (frontend, mobile, backend, database, deployment)'
+      - 'Trade-offs explicitly documented with mitigations'
+      - 'Scaling considerations addressed'
+      - 'Technical preferences from brief applied or justified if overridden'
+
+    # Inline Validation (Phase 1 - Feedback Loops)
+    inline_validation:
+      enabled: true
+      blocking_on_errors: true
+      blocking_on_warnings: false
+      validators:
+        ['presence', 'stack_json_check', 'stack_completeness', 'stack_approval']
+
+  SPEC_PM:
+    name: 'SPEC_PM'
+    description: 'Generate Product Requirements Document (PRD)'
+    owner: 'pm'
     duration_minutes: 30
-    inputs: ["PRD.md", "approved_stack"]
-    outputs: ["DEPENDENCIES.md", "dependencies.json"]
-    depends_on: ["SPEC"]
-    next_phase: "SOLUTIONING"
-    validators: ["presence", "dependencies_json_check"]
-    quality_checklist:
-      - "All dependencies have version pinned (exact or caret)"
-      - "Every production dependency links to a PRD requirement"
-      - "No duplicate functionality (e.g., don't include both Axios and Fetch wrapper)"
-      - "No deprecated packages included"
-      - "Licenses recorded and compatible"
-      - "Bundle size estimates provided"
-      - "All packages actively maintained (updated within 12 months)"
-      - "Article 4 (Anti-Abstraction) compliance: abstraction layers justified"
-    
-  SOLUTIONING:
-    name: "SOLUTIONING"
-    description: "Create architecture and task breakdown with test-first approach"
-    owner: ["architect", "scrummaster"]
-    duration_minutes: 60
-    inputs: ["PRD.md", "data-model.md", "api-spec.json", "DEPENDENCIES.md"]
-    outputs: ["architecture.md", "epics.md", "tasks.md", "plan.md"]
-    depends_on: ["SPEC", "DEPENDENCIES"]
-    next_phase: "VALIDATE"
-    validators: ["markdown_frontmatter", "tasks_dag", "presence", "content_coverage", "requirement_traceability", "test_first_compliance"]
+    inputs: ['project-brief.md', 'personas.md', 'approved_stack']
+    outputs: ['PRD.md']
+    depends_on: ['ANALYSIS', 'STACK_SELECTION']
+    next_phase: 'SPEC_ARCHITECT'
+    validators:
+      [
+        'markdown_frontmatter',
+        'presence',
+        'content_coverage',
+        'requirement_format',
+      ]
     allow_regeneration: true
     max_regeneration_attempts: 3
     quality_checklist:
-      - "plan.md has ALL 9 sections (not truncated)"
-      - "epics.md covers all PRD epics"
-      - "tasks.md has minimum 15 MVP tasks"
-      - "Every task links to REQ-XXX-YYY from PRD"
-      - "No circular dependencies in task graph"
-      - "All tasks have Gherkin-style acceptance criteria"
-      - "Story points add up correctly per epic"
-      - "Timeline is realistic (not overly optimistic)"
-      - "Tests listed BEFORE implementation notes in each task (Article 2)"
-      - "Parallel tasks marked with [P] for concurrent execution"
-      - "Task groups organized (Sequential vs Parallel)"
-      - "Article 1 (Library-First): Features structured as modules"
-      - "Article 3 (Simplicity): <= 3 services for MVP or justified"
-      - "Article 5 (Integration-First): Test config specifies real services"
-    
+      - 'Minimum 15 functional requirements for MVP'
+      - 'Each requirement has >= 2 Gherkin acceptance criteria'
+      - 'All MVP requirements link to a persona from personas.md'
+      - 'Traceability matrix complete with no orphaned requirements'
+      - 'NFRs have measurable targets (not vague statements)'
+      - 'No circular dependencies between requirements'
+
+  SPEC_ARCHITECT:
+    name: 'SPEC_ARCHITECT'
+    description: 'Generate data model and API specifications'
+    owner: 'architect'
+    duration_minutes: 30
+    inputs: ['project-brief.md', 'personas.md', 'approved_stack', 'PRD.md']
+    outputs: ['data-model.md', 'api-spec.json', 'architecture-decisions.md']
+    depends_on: ['SPEC_PM', 'STACK_SELECTION']
+    next_phase: 'DEPENDENCIES'
+    validators: ['markdown_frontmatter', 'api_openapi', 'presence']
+    allow_regeneration: true
+    max_regeneration_attempts: 3
+    quality_checklist:
+      - 'api-spec.json is valid OpenAPI 3.0.3'
+      - 'All endpoints have error responses defined'
+      - 'Data model aligns with PRD requirements'
+
+  SPEC_DESIGN_TOKENS:
+    name: 'SPEC_DESIGN_TOKENS'
+    description: 'Generate stack-agnostic design tokens (colors, typography, spacing, animation)'
+    owner: 'designer'
+    duration_minutes: 30
+    inputs: ['project-brief.md', 'personas.md']
+    outputs: ['design-tokens.md']
+    depends_on: ['ANALYSIS']
+    next_phase: 'SPEC_DESIGN_COMPONENTS'
+    validators: ['presence', 'markdown_frontmatter', 'anti_ai_slop']
+    requires_stack: false
+    priority: 2
+
+    # Inline Validation - Make ANTI-SLOP WARNINGS blocking!
+    inline_validation:
+      enabled: true
+      blocking_on_errors: true
+      blocking_on_warnings: true # ← CHANGED: Anti-slop warnings now block
+      validators:
+        - 'presence'
+        - 'markdown_frontmatter'
+        - 'anti_ai_slop'
+
+    quality_checklist:
+      - 'Design tokens include color palette (primary, secondary, accent, neutral)'
+      - 'Typography scale defined (4 sizes minimum)'
+      - 'Spacing system divisible by 4 or 8'
+      - 'Animation tokens for transitions and micro-interactions'
+      - 'No stack-specific implementation details'
+
+  SPEC_DESIGN_COMPONENTS:
+    name: 'SPEC_DESIGN_COMPONENTS'
+    description: 'Map design tokens to stack-specific components and generate interaction patterns (requires stack selection)'
+    owner: 'designer'
+    duration_minutes: 45
+    inputs: ['design-tokens.md', 'approved_stack']
+    outputs: ['component-mapping.md', 'journey-maps.md']
+    depends_on: ['SPEC_DESIGN_TOKENS', 'STACK_SELECTION']
+    next_phase: 'FRONTEND_BUILD'
+    validators: ['presence', 'markdown_frontmatter', 'anti_ai_slop']
+    requires_stack: true
+    priority: 3
+
+    # Inline Validation - Make ANTI-SLOP WARNINGS blocking!
+    inline_validation:
+      enabled: true
+      blocking_on_errors: true
+      blocking_on_warnings: true # ← CHANGED: Anti-slop warnings now block
+      validators:
+        - 'presence'
+        - 'markdown_frontmatter'
+        - 'anti_ai_slop'
+        - 'two_file_design_output' # ← NEW: Validate both files exist
+
+    quality_checklist:
+      - 'Component mapping uses stack-appropriate UI library (shadcn/ui, Material UI, etc.)'
+      - 'Journey maps show user interactions across all major flows'
+      - 'Interaction patterns documented with animation specs'
+      - 'Responsive behavior defined for each component'
+      - 'Accessibility requirements specified for all components'
+
+  FRONTEND_BUILD:
+    name: 'FRONTEND_BUILD'
+    description: 'Generate production-ready frontend components with subagent dispatch (one component per LLM session)'
+    owner: 'frontend_developer'
+    duration_minutes: 60
+    inputs:
+      [
+        'design-tokens.md',
+        'component-mapping.md',
+        'journey-maps.md',
+        'approved_stack',
+      ]
+    outputs:
+      [
+        'components/ui/button.tsx',
+        'components/ui/card.tsx',
+        'components/ui/input.tsx',
+        'components/ui/badge.tsx',
+        'components/ui/dialog.tsx',
+        'components/ui/dropdown-menu.tsx',
+        'components/ui/tabs.tsx',
+        'components/ui/select.tsx',
+        'components/ui/textarea.tsx',
+        'components/ui/form.tsx',
+        'components/ui/alert.tsx',
+        'components/ui/toast.tsx',
+        'lib/motion.ts',
+      ]
+    depends_on:
+      ['SPEC_DESIGN_COMPONENTS', 'STACK_SELECTION', 'SPEC_DESIGN_TOKENS']
+    next_phase: 'DEPENDENCIES'
+    validators:
+      [
+        'presence',
+        'typescript_compile',
+        'anti_generic_code',
+        'no_console_log',
+        'accessibility_check',
+      ]
+    requires_stack: true
+    phase_type: 'implementation'
+    priority: 5
+
+    # Subagent Dispatch Configuration (from frontend-developer integration spec)
+    subagent_dispatch:
+      enabled: true
+      isolation: 'per_component' # Each component = fresh LLM session
+      max_parallel: 3 # Generate 3 components concurrently
+      retry_on_failure: 2
+
+    inline_validation:
+      enabled: true
+      blocking_on_errors: true
+      blocking_on_warnings: true
+      validators:
+        - 'presence'
+        - 'typescript_compile'
+        - 'no_console_log'
+        - 'accessibility_check'
+
+    quality_checklist:
+      - 'All components in component-mapping.md are generated'
+      - 'Components follow shadcn/ui patterns and conventions'
+      - 'Design tokens from design-tokens.md are applied correctly'
+      - 'Framer Motion animations implemented with spring physics'
+      - 'useReducedMotion check implemented in all animations'
+      - 'TypeScript compiles without errors'
+      - 'No console.log, TODO, or placeholder code'
+      - 'Components export proper TypeScript interfaces'
+      - 'Accessibility attributes properly implemented (ARIA, keyboard nav)'
+      - 'Each component generated in isolated LLM session (no context pollution)'
+
+    # Superpowers Integration (Skill Invocation Framework)
+    superpowers_integration:
+      skill: 'subagent_driven_development'
+      trigger: 'pre_generation'
+      input_mapping:
+        task: '$component_generation'
+        subtasks: '$component_list'
+      output_mapping:
+        dispatch_plan: 'dispatchPlan'
+        execution_order: 'executionOrder'
+        parallel_groups: 'parallelGroups'
+
+  DEPENDENCIES:
+    name: 'DEPENDENCIES'
+    description: 'Auto-generate project dependencies from approved stack'
+    owner: 'devops'
+    duration_minutes: 30
+    inputs: ['PRD.md', 'approved_stack']
+    outputs: ['DEPENDENCIES.md', 'dependencies.json']
+    depends_on: ['SPEC_DESIGN_COMPONENTS', 'SPEC_ARCHITECT']
+    next_phase: 'SOLUTIONING'
+    validators: ['presence', 'dependencies_json_check']
+    quality_checklist:
+      - 'All dependencies have version pinned (exact or caret)'
+      - 'Every production dependency links to a PRD requirement'
+      - "No duplicate functionality (e.g., don't include both Axios and Fetch wrapper)"
+      - 'No deprecated packages included'
+      - 'Licenses recorded and compatible'
+      - 'Bundle size estimates provided'
+      - 'All packages actively maintained (updated within 12 months)'
+      - 'Article 4 (Anti-Abstraction) compliance: abstraction layers justified'
+
+  SOLUTIONING:
+    name: 'SOLUTIONING'
+    description: 'Create architecture and task breakdown with test-first approach'
+    owner: ['architect', 'scrummaster']
+    duration_minutes: 60
+    inputs: ['PRD.md', 'data-model.md', 'api-spec.json', 'DEPENDENCIES.md']
+    outputs: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md']
+    depends_on: ['SPEC_ARCHITECT', 'DEPENDENCIES']
+    next_phase: 'VALIDATE'
+    validators:
+      [
+        'markdown_frontmatter',
+        'tasks_dag',
+        'presence',
+        'content_coverage',
+        'requirement_traceability',
+        'test_first_compliance',
+      ]
+    allow_regeneration: true
+    max_regeneration_attempts: 3
+    quality_checklist:
+      - 'plan.md has ALL 9 sections (not truncated)'
+      - 'epics.md covers all PRD epics'
+      - 'tasks.md has minimum 15 MVP tasks'
+      - 'Every task links to REQ-XXX-YYY from PRD'
+      - 'No circular dependencies in task graph'
+      - 'All tasks have Gherkin-style acceptance criteria'
+      - 'Story points add up correctly per epic'
+      - 'Timeline is realistic (not overly optimistic)'
+      - 'Tests listed BEFORE implementation notes in each task (Article 2)'
+      - 'Parallel tasks marked with [P] for concurrent execution'
+      - 'Task groups organized (Sequential vs Parallel)'
+      - 'Article 1 (Library-First): Features structured as modules'
+      - 'Article 3 (Simplicity): <= 3 services for MVP or justified'
+      - 'Article 5 (Integration-First): Test config specifies real services'
+
+    # Superpowers Integration (Skill Invocation Framework)
+    superpowers_integration:
+      skill: 'writing_plans'
+      trigger: 'pre_generation'
+      input_mapping:
+        phaseType: '$phase_name'
+        requirements: '$artifact_context'
+      output_mapping:
+        plan_content: 'plan'
+        tasks: 'tasks'
+        milestones: 'milestones'
+
   VALIDATE:
-    name: "VALIDATE"
-    description: "Cross-artifact consistency and coverage analysis"
-    owner: "validator"
+    name: 'VALIDATE'
+    description: 'Cross-artifact consistency and coverage analysis'
+    owner: 'validator'
     duration_minutes: 15
-    inputs: ["all_previous_artifacts"]
-    outputs: ["validation-report.md", "coverage-matrix.md"]
-    depends_on: ["SOLUTIONING"]
-    next_phase: "DONE"
+    inputs: ['all_previous_artifacts']
+    outputs: ['validation-report.md', 'coverage-matrix.md']
+    depends_on: ['SOLUTIONING']
+    next_phase: 'DONE'
     # NOTE: Validator names (below) must exist under the top-level `validators:` section.
     # These checks are enforced deterministically (not via LLM) to prevent spec/implementation drift.
-    validators: ["requirement_traceability", "api_endpoint_coverage", "cross_artifact_consistency", "constitutional_compliance"]
+    validators:
+      [
+        'requirement_traceability',
+        'api_endpoint_coverage',
+        'cross_artifact_consistency',
+        'constitutional_compliance',
+        'typescript_compile',
+        'anti_generic_code',
+        'llm_quality',
+      ]
     quality_checklist:
-      - "Every REQ-XXX in PRD maps to at least one task"
-      - "All API endpoints have corresponding data model entities"
-      - "Design system tokens used consistently in component-inventory"
-      - "No orphaned user stories without acceptance criteria"
-      - "Stack choice in architecture.md matches approved stack"
-      - "All personas in PRD exist in personas.md"
-      - "All EPIC-IDs in tasks.md exist in epics.md"
-      - "Constitutional Articles 1-5 compliance verified"
-      - "No unresolved [NEEDS CLARIFICATION] markers"
-      - "All [AI ASSUMED] items documented in validation report"
+      - 'Every REQ-XXX in PRD maps to at least one task'
+      - 'All API endpoints have corresponding data model entities'
+      - 'Design system tokens used consistently in component-inventory'
+      - 'No orphaned user stories without acceptance criteria'
+      - 'Stack choice in architecture.md matches approved stack'
+      - 'All personas in PRD exist in personas.md'
+      - 'All EPIC-IDs in tasks.md exist in epics.md'
+      - 'Constitutional Articles 1-5 compliance verified'
+      - 'No unresolved [NEEDS CLARIFICATION] markers'
+      - 'All [AI ASSUMED] items documented in validation report'
     validation_checks:
       requirement_to_task_mapping:
-        description: "Every PRD requirement has at least one implementing task"
-        source: "PRD.md"
-        target: "tasks.md"
+        description: 'Every PRD requirement has at least one implementing task'
+        source: 'PRD.md'
+        target: 'tasks.md'
         pattern: "REQ-[A-Z]+-\\d{3}"
       api_to_data_model_mapping:
-        description: "All API response schemas have corresponding data model entities"
-        source: "api-spec.json"
-        target: "data-model.md"
+        description: 'All API response schemas have corresponding data model entities'
+        source: 'api-spec.json'
+        target: 'data-model.md'
       persona_consistency:
-        description: "All personas referenced in PRD exist in personas.md"
-        source: "PRD.md"
-        target: "personas.md"
+        description: 'All personas referenced in PRD exist in personas.md'
+        source: 'PRD.md'
+        target: 'personas.md'
       stack_consistency:
-        description: "Technologies in architecture.md match stack-decision.md"
-        source: "architecture.md"
-        target: "stack-decision.md"
-    
-  DONE:
-    name: "DONE"
-    description: "Generate handoff and ZIP package"
-    owner: "orchestrator"
+        description: 'Technologies in architecture.md match stack-decision.md'
+        source: 'architecture.md'
+        target: 'stack-decision.md'
+
+    # Superpowers Integration (Skill Invocation Framework)
+    superpowers_integration:
+      skill: 'verification_before_completion'
+      trigger: 'post_generation'
+      input_mapping:
+        artifacts: '$all_phase_artifacts'
+        checklist: '$quality_checklist'
+      output_mapping:
+        status: 'status'
+        checks: 'checks'
+        can_proceed: 'canProceed'
+
+  AUTO_REMEDY:
+    name: 'AUTO_REMEDY'
+    description: 'Automated remediation of validation failures through targeted agent re-runs'
+    owner: 'validator'
     duration_minutes: 10
-    inputs: ["all_previous_artifacts"]
-    outputs: ["README.md", "HANDOFF.md", "project.zip"]
-    depends_on: ["VALIDATE"]
-    validators: ["handoff_complete", "zip_created", "cross_artifact_consistency"]
+    inputs: ['validation-report.md', 'all_artifacts_from_failed_phase']
+    outputs: ['updated_artifacts']
+    depends_on: []
+    gates: []
+    next_phase: 'VALIDATE'
+    validators: []
+    clarification:
+      enabled: false
+    inline_validation:
+      enabled: false
     quality_checklist:
-      - "HANDOFF.md generated with complete LLM prompt"
-      - "All artifacts included in ZIP"
-      - "README.md provides quick start guide"
-      - "Document reading order specified"
-      - "Stack summary matches approved stack"
-      - "Security baseline checklist included"
-      - "Validation report shows all checks passed"
-      - "No unresolved issues from VALIDATE phase"
+      - 'Failure classified correctly (7 types)'
+      - 'Remediation strategy selected'
+      - 'Safeguards passed (user edit, protected artifact, retry limit, change scope)'
+      - 'Agent re-run instructions generated'
+      - 'ValidationRun and AutoRemedyRun records created'
+
+    # Superpowers Integration (Skill Invocation Framework)
+    superpowers_integration:
+      skill: 'systematic_debugging'
+      trigger: 'on_demand'
+      input_mapping:
+        issue: '$validation_issue'
+        errorLogs: '$error_logs'
+      output_mapping:
+        root_cause: 'rootCause'
+        recommendations: 'recommendations'
+        resolution_steps: 'resolutionSteps'
+
+  DONE:
+    name: 'DONE'
+    description: 'Generate handoff and ZIP package'
+    owner: 'orchestrator'
+    duration_minutes: 10
+    inputs: ['all_previous_artifacts']
+    outputs: ['README.md', 'HANDOFF.md', 'project.zip']
+    depends_on: ['VALIDATE']
+    validators:
+      ['handoff_complete', 'zip_created', 'cross_artifact_consistency']
+    quality_checklist:
+      - 'HANDOFF.md generated with complete LLM prompt'
+      - 'All artifacts included in ZIP'
+      - 'README.md provides quick start guide'
+      - 'Document reading order specified'
+      - 'Stack summary matches approved stack'
+      - 'Security baseline checklist included'
+      - 'Validation report shows all checks passed'
+      - 'No unresolved issues from VALIDATE phase'
+
+    # Superpowers Integration (Skill Invocation Framework)
+    superpowers_integration:
+      skill: 'finishing_a_development_branch'
+      trigger: 'on_demand'
+      input_mapping:
+        branchName: '$project_branch'
+        artifacts: '$all_artifacts'
+      output_mapping:
+        status: 'status'
+        checklist: 'checklist'
+        actions: 'actions'
+        can_merge: 'canMerge'
 
 # Technology Stack Configuration
 # Mode: hybrid - Architect proposes based on requirements, user can accept, modify, or go custom
-stack_selection_mode: "hybrid"
+stack_selection_mode: 'hybrid'
+
+# === COMPOSITIONAL STACK ARCHITECTURE ===
+# New architecture: base layers + composable addons
+# Replaces monolithic templates with mix-and-match components
+
+composition_system:
+  version: '2.0'
+  mode: 'compositional' # compositional | legacy | hybrid
+
+  # Base Layers - Primary frontend/framework choice
+  base_layers:
+    nextjs_app_router:
+      name: 'Next.js App Router'
+      type: 'frontend_framework'
+      description: 'Next.js 16+ with App Router, Server Components, Server Actions'
+      composition:
+        frontend: 'Next.js 16 (App Router)'
+        backend: 'Next.js API routes / Server Actions'
+      compatible_with:
+        mobile: ['expo_integration', 'react_native_bare', 'capacitor', 'none']
+        backend:
+          [
+            'fastapi_api',
+            'express_api',
+            'go_api',
+            'serverless_only',
+            'integrated',
+          ]
+        data:
+          [
+            'neon_postgres',
+            'supabase_full',
+            'firebase_full',
+            'planetscale',
+            'turso',
+          ]
+        architecture: ['monolith', 'edge', 'microservices']
+      strengths:
+        ['Server Components', 'Fast refresh', 'Type-safe', 'SEO optimized']
+      tradeoffs: ['Learning curve for App Router', 'More opinionated']
+      best_for:
+        ['Full-stack web apps', 'SEO-critical sites', 'Real-time dashboards']
+
+    remix:
+      name: 'Remix'
+      type: 'frontend_framework'
+      description: 'Remix with nested routes, progressive enhancement, edge-ready'
+      composition:
+        frontend: 'Remix (React Router v6)'
+        backend: 'Remix loaders/actions'
+      compatible_with:
+        mobile: ['react_native_bare', 'capacitor', 'none']
+        backend:
+          [
+            'fastapi_api',
+            'express_api',
+            'go_api',
+            'serverless_only',
+            'integrated',
+          ]
+        data: ['neon_postgres', 'supabase_full', 'planetscale', 'turso']
+        architecture: ['monolith', 'edge', 'microservices']
+      strengths:
+        [
+          'Progressive enhancement',
+          'Nested routes',
+          'Edge-first',
+          'Web fundamentals',
+        ]
+      tradeoffs: ['Smaller ecosystem than Next.js', 'Newer framework']
+      best_for:
+        ['Edge-first apps', 'Progressive enhancement', 'Form-heavy apps']
+
+    sveltekit:
+      name: 'SvelteKit'
+      type: 'frontend_framework'
+      description: 'SvelteKit with Svelte 5, smallest bundle, no virtual DOM'
+      composition:
+        frontend: 'SvelteKit (Svelte 5)'
+        backend: 'SvelteKit endpoints'
+      compatible_with:
+        mobile: ['capacitor', 'none']
+        backend:
+          [
+            'fastapi_api',
+            'express_api',
+            'go_api',
+            'serverless_only',
+            'integrated',
+          ]
+        data: ['neon_postgres', 'supabase_full', 'planetscale', 'turso']
+        architecture: ['monolith', 'edge', 'microservices']
+      strengths:
+        [
+          'Smallest bundle',
+          'No virtual DOM',
+          'Excellent performance',
+          'Simple mental model',
+        ]
+      tradeoffs: ['Smaller ecosystem', 'Fewer libraries', 'Less mature tooling']
+      best_for:
+        [
+          'Performance-critical apps',
+          'Minimal bundle size',
+          'Simple state management',
+        ]
+
+    vue_nuxt:
+      name: 'Vue + Nuxt'
+      type: 'frontend_framework'
+      description: 'Nuxt 3 with Vue 3, auto-imports, hybrid rendering'
+      composition:
+        frontend: 'Nuxt 3 (Vue 3)'
+        backend: 'Nuxt server routes / Nitro'
+      compatible_with:
+        mobile: ['capacitor', 'none']
+        backend:
+          [
+            'fastapi_api',
+            'express_api',
+            'go_api',
+            'serverless_only',
+            'integrated',
+          ]
+        data: ['neon_postgres', 'supabase_full', 'planetscale', 'turso']
+        architecture: ['monolith', 'edge', 'microservices']
+      strengths:
+        ['Excellent DX', 'Auto-imports', 'Hybrid rendering', 'Vue ecosystem']
+      tradeoffs: ['Smaller ecosystem than React', 'Less job market demand']
+      best_for: ['Vue teams', 'Content-heavy sites', 'Progressive enhancement']
+
+    astro:
+      name: 'Astro'
+      type: 'frontend_framework'
+      description: 'Astro with islands architecture, zero JS by default'
+      composition:
+        frontend: 'Astro with React/Vue/Svelte islands'
+        backend: 'Serverless functions (optional)'
+      compatible_with:
+        mobile: ['none']
+        backend: ['serverless_only', 'integrated']
+        data: ['neon_postgres', 'supabase_full', 'headless_cms', 'none']
+        architecture: ['monolith', 'edge']
+      strengths:
+        [
+          'Zero JS by default',
+          'Fastest load times',
+          'SEO optimized',
+          'Multi-framework',
+        ]
+      tradeoffs:
+        [
+          'Limited interactivity',
+          'Rebuild for content',
+          'Less suitable for SPAs',
+        ]
+      best_for: ['Marketing sites', 'Blogs', 'Documentation', 'Content sites']
+
+    react_spa:
+      name: 'React SPA'
+      type: 'frontend_framework'
+      description: 'React 18 SPA with Vite, client-side routing'
+      composition:
+        frontend: 'React 18 + Vite'
+        backend: 'Separate API server'
+      compatible_with:
+        mobile: ['react_native_bare', 'none']
+        backend: ['fastapi_api', 'express_api', 'go_api', 'django_api']
+        data: ['neon_postgres', 'supabase_full', 'firebase_full', 'mongodb']
+        architecture: ['monolith', 'microservices']
+      strengths:
+        [
+          'Full control',
+          'Flexible architecture',
+          'Mature ecosystem',
+          'Simple deployment',
+        ]
+      tradeoffs:
+        ['SEO challenges', 'Manual optimizations', 'Separate deployments']
+      best_for: ['Traditional SPAs', 'Dashboard apps', 'Internal tools']
+
+    django:
+      name: 'Django'
+      type: 'backend_framework'
+      description: 'Django with templates/HTMX or Django REST for API'
+      composition:
+        frontend: 'Django templates + HTMX (or separate SPA)'
+        backend: 'Django'
+      compatible_with:
+        mobile: ['react_native_bare', 'flutter', 'none']
+        backend: ['integrated']
+        data: ['postgresql', 'mongodb']
+        architecture: ['monolith', 'microservices']
+      strengths:
+        [
+          'Batteries included',
+          'Excellent admin',
+          'Mature ecosystem',
+          'Python power',
+        ]
+      tradeoffs: ['Less interactive UIs by default', 'Monolithic by default']
+      best_for: ['Python teams', 'Admin-heavy apps', 'Rapid prototyping']
+
+  # Mobile Addons - Optional mobile platform integration
+  mobile_addons:
+    expo_integration:
+      name: 'Expo (React Native)'
+      type: 'mobile_platform'
+      description: 'Expo with React Native for iOS + Android from single codebase'
+      composition:
+        mobile: 'Expo with React Native'
+      requires_base: ['nextjs_app_router', 'remix', 'react_spa']
+      strengths:
+        ['Single codebase', 'Fast iteration', 'OTA updates', 'Managed workflow']
+      tradeoffs: ['Bundle size', 'Some native modules require ejecting']
+      best_for:
+        ['MVPs', 'Fast prototyping', 'Teams without native mobile expertise']
+
+    react_native_bare:
+      name: 'React Native (Bare)'
+      type: 'mobile_platform'
+      description: 'Bare React Native for full native control'
+      composition:
+        mobile: 'React Native (bare workflow)'
+      requires_base: ['nextjs_app_router', 'remix', 'react_spa', 'django']
+      strengths:
+        ['Full native control', 'All native modules', 'Better performance']
+      tradeoffs:
+        ['More setup', 'Native dev knowledge required', 'Slower iteration']
+      best_for:
+        [
+          'Production apps',
+          'Complex native integrations',
+          'Performance-critical',
+        ]
+
+    flutter:
+      name: 'Flutter'
+      type: 'mobile_platform'
+      description: 'Flutter for iOS + Android with Dart'
+      composition:
+        mobile: 'Flutter (iOS + Android)'
+      requires_base: ['django', 'react_spa']
+      strengths:
+        ['Single codebase', 'Native performance', 'Beautiful UI', 'Hot reload']
+      tradeoffs: ['Dart language', 'Larger bundle', 'Different ecosystem']
+      best_for:
+        ['Mobile-first apps', 'Pixel-perfect UIs', 'Cross-platform consistency']
+
+    capacitor:
+      name: 'Capacitor'
+      type: 'mobile_platform'
+      description: 'Capacitor to wrap web app as native mobile app'
+      composition:
+        mobile: 'Capacitor (iOS + Android from web)'
+      requires_base:
+        ['nextjs_app_router', 'remix', 'sveltekit', 'vue_nuxt', 'react_spa']
+      strengths:
+        ['Reuse web code', 'Quick mobile version', 'Web-first approach']
+      tradeoffs: ['WebView performance', 'Not fully native feel']
+      best_for:
+        [
+          'Web apps needing mobile presence',
+          'Content-heavy apps',
+          'PWA extensions',
+        ]
+
+    none:
+      name: 'No Mobile'
+      type: 'mobile_platform'
+      description: 'Web-only, no native mobile app'
+      composition:
+        mobile: 'None (responsive web design)'
+      requires_base:
+        [
+          'nextjs_app_router',
+          'remix',
+          'sveltekit',
+          'vue_nuxt',
+          'astro',
+          'react_spa',
+          'django',
+        ]
+      strengths: ['Simplest setup', 'Single deployment', 'Lower maintenance']
+      tradeoffs: ['No native mobile experience', 'Limited offline capabilities']
+      best_for: ['Web-first products', 'Admin dashboards', 'Internal tools']
+
+  # Backend Addons - Separate backend services (when not using integrated)
+  backend_addons:
+    fastapi_api:
+      name: 'FastAPI (Python)'
+      type: 'backend_service'
+      description: 'FastAPI for high-performance Python API with async support'
+      composition:
+        backend: 'FastAPI (Python)'
+      requires_base:
+        ['nextjs_app_router', 'remix', 'sveltekit', 'vue_nuxt', 'react_spa']
+      incompatible_with: ['integrated']
+      strengths:
+        [
+          'Python ecosystem',
+          'Async/await',
+          'ML/AI libraries',
+          'Auto-generated docs',
+        ]
+      tradeoffs:
+        ['Separate deployment', 'Two languages', 'More operational complexity']
+      best_for:
+        [
+          'ML/AI workloads',
+          'Data pipelines',
+          'Python teams',
+          'Complex backend logic',
+        ]
+      deployment: 'Railway, Render, or AWS'
+
+    express_api:
+      name: 'Express.js API'
+      type: 'backend_service'
+      description: 'Express.js for flexible Node.js API server'
+      composition:
+        backend: 'Express.js or Fastify'
+      requires_base: ['react_spa', 'vue_nuxt', 'sveltekit']
+      incompatible_with: ['integrated']
+      strengths:
+        [
+          'Full control',
+          'Flexible architecture',
+          'Mature ecosystem',
+          'Same language',
+        ]
+      tradeoffs: ['Manual setup', 'Less opinionated', 'More boilerplate']
+      best_for: ['Custom server needs', 'WebSocket apps', 'Traditional SPAs']
+      deployment: 'Any (Vercel, Railway, AWS, etc.)'
+
+    go_api:
+      name: 'Go Backend'
+      type: 'backend_service'
+      description: 'Go backend with Gin/Echo/Chi for high performance'
+      composition:
+        backend: 'Go (Gin, Echo, or Chi)'
+      requires_base: ['react_spa', 'vue_nuxt', 'sveltekit', 'nextjs_app_router']
+      incompatible_with: ['integrated']
+      strengths:
+        [
+          'Fastest performance',
+          'Low memory',
+          'Great concurrency',
+          'Type safety',
+        ]
+      tradeoffs: ['Two languages', 'More verbose', 'Smaller web ecosystem']
+      best_for:
+        [
+          'High-throughput APIs',
+          'Microservices',
+          'Performance-critical systems',
+        ]
+      deployment: 'Docker on any cloud'
+
+    django_api:
+      name: 'Django REST Framework'
+      type: 'backend_service'
+      description: 'Django REST Framework for Python API'
+      composition:
+        backend: 'Django REST Framework'
+      requires_base: ['react_spa', 'vue_nuxt', 'flutter']
+      incompatible_with: ['integrated', 'django']
+      strengths:
+        [
+          'Batteries included',
+          'Excellent admin',
+          'ORM',
+          'Authentication built-in',
+        ]
+      tradeoffs: ['Monolithic by default', 'Python overhead']
+      best_for: ['Admin-heavy APIs', 'CRUD operations', 'Python teams']
+      deployment: 'Railway, Render, AWS'
+
+    serverless_only:
+      name: 'Serverless Functions'
+      type: 'backend_service'
+      description: 'Serverless functions only (Vercel/Cloudflare Workers/AWS Lambda)'
+      composition:
+        backend: 'Serverless functions'
+      requires_base: ['nextjs_app_router', 'remix', 'astro', 'react_spa']
+      incompatible_with: ['integrated']
+      strengths: ['Auto-scaling', 'Pay-per-use', 'Zero ops', 'Global edge']
+      tradeoffs: ['Cold starts', 'Stateless', 'Vendor lock-in']
+      best_for: ['APIs', 'Webhooks', 'Event handlers', 'Cost optimization']
+      deployment: 'Vercel, Cloudflare, AWS Lambda'
+
+    integrated:
+      name: 'Integrated Backend'
+      type: 'backend_service'
+      description: "Use framework's built-in backend (Next.js API routes, Remix loaders, etc.)"
+      composition:
+        backend: 'Integrated with frontend framework'
+      requires_base:
+        ['nextjs_app_router', 'remix', 'sveltekit', 'vue_nuxt', 'django']
+      incompatible_with:
+        [
+          'fastapi_api',
+          'express_api',
+          'go_api',
+          'django_api',
+          'serverless_only',
+        ]
+      strengths:
+        ['Single deployment', 'Same language', 'Type-safe', 'Simple ops']
+      tradeoffs: ['Less separation of concerns', 'Framework lock-in']
+      best_for:
+        ['Full-stack frameworks', 'Monolith architecture', 'Fast iteration']
+      deployment: 'Vercel, Netlify, Cloudflare'
+
+  # Data Addons - Database and storage solutions
+  data_addons:
+    convex:
+      name: 'Convex'
+      type: 'database'
+      description: 'Convex - PostgreSQL-backed reactive database with built-in auth and file storage (Context7: /websites/convex_dev)'
+      composition:
+        database: 'Convex (PostgreSQL-backed)'
+        auth: 'Convex Auth'
+        storage: 'Convex Storage'
+      compatible_with_all: true
+      strengths:
+        [
+          'Type-safe end-to-end',
+          'realtime by default',
+          'fastest iteration',
+          'minimal setup',
+        ]
+      tradeoffs: ['Vendor dependency', 'less control than self-hosted']
+      best_for: ['Web apps', 'real-time collaboration', 'MVP to production']
+
+    neon_postgres:
+      name: 'Neon Postgres + Drizzle'
+      type: 'database'
+      description: 'Neon serverless Postgres with Drizzle ORM and Cloudflare R2 storage'
+      composition:
+        database: 'Neon Postgres + Drizzle ORM'
+        storage: 'Cloudflare R2 (S3-compatible)'
+        auth: 'Better Auth'
+      compatible_with_all: true
+      strengths:
+        [
+          'Serverless Postgres',
+          'Type-safe ORM',
+          'Cheap R2 storage',
+          'Modern auth',
+        ]
+      tradeoffs: ['Vendor dependency', 'Edge regions limited']
+      best_for:
+        ['Web apps', 'Serverless architectures', 'Cost-conscious projects']
+
+    supabase_full:
+      name: 'Supabase'
+      type: 'database'
+      description: 'Supabase with Postgres, Auth, Storage, Real-time'
+      composition:
+        database: 'PostgreSQL (via Supabase)'
+        auth: 'Supabase Auth'
+        storage: 'Supabase Storage'
+      compatible_with_all: true
+      strengths:
+        [
+          'All-in-one backend',
+          'Real-time subscriptions',
+          'Self-hostable',
+          'Row-level security',
+        ]
+      tradeoffs: ['Vendor dependency', 'Less mature than Firebase']
+      best_for:
+        ['Rapid prototyping', 'Real-time features', 'Open-source preference']
+
+    firebase_full:
+      name: 'Firebase'
+      type: 'database'
+      description: 'Firebase with Firestore, Auth, Storage, Functions'
+      composition:
+        database: 'Firestore (NoSQL)'
+        auth: 'Firebase Auth'
+        storage: 'Firebase Storage'
+      compatible_with_all: true
+      strengths:
+        ['Real-time sync', 'Offline-first', 'Mobile SDKs', 'Mature ecosystem']
+      tradeoffs: ['NoSQL limitations', 'Vendor lock-in', 'Cost at scale']
+      best_for: ['Mobile apps', 'Real-time collaboration', 'Rapid prototyping']
+
+    planetscale:
+      name: 'PlanetScale + Prisma'
+      type: 'database'
+      description: 'PlanetScale MySQL with Prisma ORM'
+      composition:
+        database: 'PlanetScale MySQL + Prisma ORM'
+      compatible_with_all: true
+      strengths:
+        ['Branching workflow', 'Horizontal scaling', 'Connection pooling']
+      tradeoffs: ['MySQL not Postgres', 'Prisma overhead']
+      best_for:
+        ['High-scale apps', 'Teams wanting branching', 'MySQL preference']
+
+    turso:
+      name: 'Turso + Drizzle'
+      type: 'database'
+      description: 'Turso SQLite at the edge with Drizzle ORM'
+      composition:
+        database: 'Turso (SQLite) + Drizzle ORM'
+      compatible_with: ['nextjs_app_router', 'remix', 'astro']
+      strengths: ['Sub-50ms latency', 'SQLite power', 'Edge-first', 'Low cost']
+      tradeoffs: ['SQLite limitations', 'Not for huge datasets']
+      best_for: ['Edge apps', 'Global low latency', 'Read-heavy workloads']
+
+    mongodb:
+      name: 'MongoDB'
+      type: 'database'
+      description: 'MongoDB with Mongoose ODM'
+      composition:
+        database: 'MongoDB with Mongoose'
+      compatible_with: ['react_spa', 'django']
+      strengths: ['Flexible schema', 'Document model', 'Mature ecosystem']
+      tradeoffs: ['NoSQL limitations', 'No ACID by default']
+      best_for: ['Flexible schemas', 'Document-heavy data', 'Rapid prototyping']
+
+    postgresql:
+      name: 'PostgreSQL'
+      type: 'database'
+      description: 'Self-hosted or managed PostgreSQL'
+      composition:
+        database: 'PostgreSQL'
+      compatible_with: ['django', 'react_spa']
+      strengths:
+        ['Most powerful SQL', 'Self-hostable', 'ACID compliant', 'Extensions']
+      tradeoffs: ['Self-hosting complexity', 'Manual scaling']
+      best_for: ['Enterprise apps', 'Self-hosting', 'Complex queries']
+
+    headless_cms:
+      name: 'Headless CMS'
+      type: 'database'
+      description: 'Headless CMS (Sanity, Contentful, Strapi)'
+      composition:
+        database: 'Headless CMS (Sanity, Contentful, Strapi)'
+      compatible_with: ['astro', 'nextjs_app_router', 'remix']
+      strengths: ['Content management', 'Content preview', 'Multi-channel']
+      tradeoffs: ['Not for transactional data', 'CMS vendor lock-in']
+      best_for: ['Content sites', 'Marketing sites', 'Blogs']
+
+    none:
+      name: 'No Database'
+      type: 'database'
+      description: 'No database (static site or external API only)'
+      composition:
+        database: 'None'
+      compatible_with: ['astro']
+      strengths: ['Simplest setup', 'Zero database costs', 'Fast deployment']
+      tradeoffs: ['No dynamic data', 'Limited functionality']
+      best_for: ['Static sites', 'Landing pages', 'Documentation']
+
+  # Architecture Addons - Deployment architecture patterns
+  architecture_addons:
+    monolith:
+      name: 'Monolith'
+      type: 'architecture'
+      description: 'Single deployment, all code together'
+      compatible_with_all: true
+      strengths: ['Simplest deployment', 'Easy local dev', 'Single codebase']
+      tradeoffs: ['Harder to scale teams', 'All or nothing deployment']
+      best_for: ['Small teams', 'MVPs', 'Most projects']
+
+    edge:
+      name: 'Edge Computing'
+      type: 'architecture'
+      description: 'Edge-first deployment for global low latency'
+      compatible_with: ['nextjs_app_router', 'remix', 'astro', 'sveltekit']
+      requires_data: ['turso', 'planetscale', 'supabase_full']
+      strengths: ['Sub-50ms latency globally', 'Auto-scaling', 'Pay-per-use']
+      tradeoffs: ['Edge runtime limitations', 'Cold starts', 'Vendor lock-in']
+      best_for:
+        ['Global apps', 'Low latency requirements', 'Static + dynamic hybrid']
+
+    microservices:
+      name: 'Microservices'
+      type: 'architecture'
+      description: 'Multiple independent services, separate deployments'
+      compatible_with: ['react_spa', 'django']
+      requires_backend: ['fastapi_api', 'express_api', 'go_api', 'django_api']
+      strengths:
+        ['Independent scaling', 'Team autonomy', 'Technology flexibility']
+      tradeoffs:
+        ['Operational complexity', 'Network overhead', 'Distributed debugging']
+      best_for: ['Large teams', 'High scale', 'Different service requirements']
+
+# Legacy template mapping for backward compatibility
+# Maps old template IDs to new compositional definitions
+legacy_template_migration:
+  nextjs_shadcn_design:
+    composition:
+      base: 'nextjs_app_router'
+      mobile: 'none'
+      backend: 'integrated'
+      data: 'none'
+      architecture: 'monolith'
+    reason: 'Next.js with shadcn/ui for design-focused landing pages'
+
+  expo_convex_mobile:
+    composition:
+      base: 'react_spa'
+      mobile: 'expo_integration'
+      backend: 'integrated'
+      data: 'convex'
+      architecture: 'monolith'
+    reason: 'Expo mobile with Convex backend for real-time apps'
+
+  nextjs_convex_saas:
+    composition:
+      base: 'nextjs_app_router'
+      mobile: 'none'
+      backend: 'integrated'
+      data: 'convex'
+      architecture: 'monolith'
+    reason: 'Full-stack Next.js + Convex SaaS application'
+
+  hono_bun_api:
+    composition:
+      base: 'react_spa'
+      mobile: 'none'
+      backend: 'serverless_only'
+      data: 'turso'
+      architecture: 'edge'
+    reason: 'Hono + Bun for ultrafast edge APIs'
 
 # Stack Templates (Quick-start options)
-# These are SUGGESTIONS, not requirements. The Architect agent will propose the best fit
-# based on project requirements, or the user can fully customize.
+# Streamlined to 4 popular templates based on current market trends (2025-2026)
+# See Context7 documentation for framework accuracy:
+# - Next.js: /vercel/next.js - Most popular full-stack React framework
+# - Convex: /websites/convex_dev - Fastest growing fullstack BaaS with built-in auth
+# - React Native: /facebook/react-native - Dominant cross-platform mobile (Context7 docs)
+# - Hono: /honojs/website - Ultrafast web framework for edge/serverless
+# - Fastify: /fastify/fastify - High-performance Node.js API framework
 stack_templates:
+  # === WEB (LANDING & DESIGN) ===
+  nextjs_shadcn_design:
+    name: 'Next.js Design System (Web Landing)'
+    description: 'Premium web landing pages with Next.js App Router, Tailwind CSS, shadcn/ui, and Framer Motion animations'
+    composition:
+      frontend: 'Next.js 16 (App Router) with React 19'
+      styling: 'Tailwind CSS + shadcn/ui components'
+      animations: 'Framer Motion'
+      deployment: 'Vercel'
+    best_for:
+      [
+        'Landing pages',
+        'Marketing sites',
+        'Design showcases',
+        'Premium portfolios',
+      ]
+    strengths:
+      [
+        'High-fidelity animations',
+        'Premium typography',
+        'Type-safe components',
+        'SEO optimized',
+      ]
+    tradeoffs: ['No backend included', 'Client-side interactivity only']
+    scaling: 'CDN-based, infinitely scalable with Vercel'
+    market_popularity: 'high'
 
-  # === FULL-STACK WEB + MOBILE ===
-  nextjs_fullstack_expo:
-    name: "Next.js Full-Stack + Expo Mobile"
-    description: "Unified TypeScript codebase with Next.js App Router, Expo mobile, and a serverless-ready Neon + Drizzle backend"
+  # === MOBILE (NATIVE & HYBRID) ===
+  expo_convex_mobile:
+    name: 'Expo + Convex (Mobile App)'
+    description: 'Cross-platform mobile with Expo, NativeWind (Tailwind), and Convex backend for real-time data'
     composition:
-      frontend: "Next.js 14 (App Router)"
-      mobile: "Expo with React Native"
-      backend: "Next.js API routes / tRPC"
-      database: "Neon Postgres + Drizzle ORM"
-      auth: "Better Auth"
-      storage: "Cloudflare R2 (S3-compatible)"
-      deployment: "Vercel"
-    best_for: ["MVPs", "dashboards", "CRUD SaaS", "low ops footprint"]
-    strengths: ["Single language", "unified codebase", "fast iteration", "integrated API"]
-    tradeoffs: ["Less suitable for heavy backend compute", "mobile distribution adds release complexity"]
-    scaling: "Good for <10k DAU, managed infrastructure"
-    
-  hybrid_nextjs_fastapi:
-    name: "Next.js + FastAPI + Expo"
-    description: "Decoupled services with Python backend for heavy compute"
-    composition:
-      frontend: "Next.js 14"
-      mobile: "Expo with React Native"
-      backend: "FastAPI (Python)"
-      database: "PostgreSQL with SQLAlchemy"
-      deployment: "Separate infra (Vercel + Railway/Render)"
-    best_for: ["AI/ML applications", "ETL/data pipelines", "long-running jobs"]
-    strengths: ["Python ecosystem", "decoupled services", "async workers"]
-    tradeoffs: ["More operational complexity", "separate deployments"]
-    scaling: "Good for 10k-100k DAU, complex backend logic"
+      mobile: 'Expo + React Native with Expo Router'
+      styling: 'NativeWind (Tailwind CSS for RN)'
+      backend: 'Convex (serverless functions, realtime DB, auth)'
+      database: 'Convex (PostgreSQL-backed)'
+      auth: 'Convex Auth or Clerk'
+      deployment: 'Expo EAS + Convex Cloud'
+    best_for:
+      [
+        'Mobile-first apps',
+        'Consumer apps',
+        'Real-time features',
+        'Cross-platform iOS/Android',
+      ]
+    strengths:
+      [
+        'Single codebase for iOS/Android',
+        'Tailwind styling via NativeWind',
+        'Realtime by default',
+        'Fast iteration',
+      ]
+    tradeoffs: ['Expo managed workflow limitations', 'Convex vendor lock-in']
+    scaling: 'Excellent - Convex handles scaling automatically'
+    market_popularity: 'high'
 
-  # === WEB-ONLY (NO MOBILE) ===
-  nextjs_web_app:
-    name: "Next.js Web App (Neon + Drizzle + R2 + Better Auth)"
-    description: "Full-stack Next.js App Router with Neon Postgres, Drizzle ORM, Cloudflare R2 storage, and Better Auth"
+  # === WEB APP (FULL-STACK SAAS) ===
+  nextjs_convex_saas:
+    name: 'Next.js + Convex SaaS (Web App)'
+    description: 'Production-ready full-stack SaaS with Next.js App Router, Convex real-time backend, and Clerk/Convex Auth'
     composition:
-      frontend: "Next.js 14 (App Router)"
-      mobile: "None (responsive web design)"
-      backend: "Next.js API routes / Server Actions"
-      database: "Neon Postgres + Drizzle ORM"
-      auth: "Better Auth"
-      storage: "Cloudflare R2 (S3-compatible)"
-      deployment: "Vercel"
-    best_for: ["Web apps", "admin dashboards", "internal tools", "B2B SaaS", "CRUD SaaS"]
-    strengths: ["Fast iteration", "type-safe DB access", "simple ops", "R2-backed media storage"]
-    tradeoffs: ["No native mobile experience"]
-    scaling: "Good for any scale with proper caching; Neon + serverless patterns support growth"
+      frontend: 'Next.js 16 (App Router) with React 19'
+      backend: 'Convex (serverless functions, realtime database)'
+      auth: 'Clerk or Convex Auth'
+      database: 'Convex (PostgreSQL-backed)'
+      styling: 'Tailwind CSS + shadcn/ui'
+      deployment: 'Vercel (frontend) + Convex (backend)'
+    best_for:
+      [
+        'SaaS applications',
+        'Real-time dashboards',
+        'AI-integrated apps',
+        'Startup MVPs',
+      ]
+    strengths:
+      [
+        'Type-safe end-to-end',
+        'Realtime by default',
+        'Fastest iteration velocity',
+        'Minimal setup',
+      ]
+    tradeoffs:
+      ['Convex vendor lock-in', 'Less control than self-hosted backend']
+    scaling: 'Excellent - Convex auto-scales with usage'
+    market_popularity: 'highest' # Based on Context7 research - fastest growing stack
 
-  nextjs_web_only:
-    name: "Next.js Web Only (Legacy ID)"
-    description: "Legacy template id retained for compatibility; prefer nextjs_web_app"
+  # === API (BACKENDS & SERVICES) ===
+  hono_bun_api:
+    name: 'Hono + Bun (API Only)'
+    description: 'Ultrafast edge-ready API with Hono web framework, Bun runtime, and Zod validation'
     composition:
-      frontend: "Next.js 14 (App Router)"
-      mobile: "None (responsive web design)"
-      backend: "Next.js API routes / Server Actions"
-      database: "Neon Postgres + Drizzle ORM"
-      auth: "Better Auth"
-      storage: "Cloudflare R2 (S3-compatible)"
-      deployment: "Vercel"
-    best_for: ["Web apps", "admin dashboards", "internal tools", "B2B SaaS"]
-    strengths: ["Simplest setup", "server components", "no mobile complexity"]
-    tradeoffs: ["No native mobile experience"]
-    scaling: "Good for any scale with proper caching"
-
-  react_express:
-    name: "React SPA + Express API"
-    description: "Traditional SPA with separate Node.js backend"
-    composition:
-      frontend: "React 18 + Vite"
-      mobile: "None (or add React Native later)"
-      backend: "Express.js or Fastify"
-      database: "PostgreSQL or MongoDB"
-      deployment: "Any (Vercel, AWS, Railway, etc.)"
-    best_for: ["Traditional SPAs", "custom server needs", "WebSocket apps"]
-    strengths: ["Full control", "flexible architecture", "mature ecosystem"]
-    tradeoffs: ["More setup required", "manual optimizations"]
-    scaling: "Highly flexible based on backend design"
-
-  vue_nuxt:
-    name: "Vue + Nuxt Full-Stack"
-    description: "Vue.js ecosystem with Nuxt for SSR/SSG"
-    composition:
-      frontend: "Nuxt 3 (Vue 3)"
-      mobile: "None (or Capacitor/Ionic)"
-      backend: "Nuxt server routes / Nitro"
-      database: "PostgreSQL with Prisma"
-      deployment: "Vercel, Netlify, or Cloudflare"
-    best_for: ["Vue teams", "content-heavy sites", "progressive enhancement"]
-    strengths: ["Excellent DX", "auto-imports", "hybrid rendering"]
-    tradeoffs: ["Smaller ecosystem than React"]
-    scaling: "Good for most use cases"
-
-  svelte_kit:
-    name: "SvelteKit Full-Stack"
-    description: "Svelte with SvelteKit for full-stack apps"
-    composition:
-      frontend: "SvelteKit (Svelte 5)"
-      mobile: "None (or Capacitor)"
-      backend: "SvelteKit endpoints"
-      database: "PostgreSQL with Drizzle"
-      deployment: "Vercel, Cloudflare, or Netlify"
-    best_for: ["Performance-critical apps", "smaller bundle size", "simpler mental model"]
-    strengths: ["Smallest bundle", "no virtual DOM", "excellent performance"]
-    tradeoffs: ["Smaller ecosystem", "fewer libraries"]
-    scaling: "Excellent performance at any scale"
-
-  # === STATIC / JAMstack ===
-  astro_static:
-    name: "Astro Static Site"
-    description: "Content-focused static site with optional islands"
-    composition:
-      frontend: "Astro with React/Vue/Svelte islands"
-      mobile: "None (responsive web)"
-      backend: "Serverless functions (optional)"
-      database: "Headless CMS (Sanity, Contentful, Strapi) or none"
-      deployment: "Vercel, Netlify, or Cloudflare Pages"
-    best_for: ["Marketing sites", "blogs", "documentation", "low interactivity"]
-    strengths: ["Zero JS by default", "fastest load times", "SEO-optimized"]
-    tradeoffs: ["Limited interactivity", "rebuild for content updates"]
-    scaling: "CDN-based, infinitely scalable"
-
-  # === SERVERLESS / EDGE ===
-  serverless_edge:
-    name: "Serverless Edge Stack"
-    description: "Edge-first architecture for global low-latency"
-    composition:
-      frontend: "Next.js or Remix"
-      mobile: "None or React Native"
-      backend: "Cloudflare Workers / Vercel Edge Functions"
-      database: "Turso, PlanetScale, or Supabase"
-      deployment: "Cloudflare or Vercel"
-    best_for: ["Global apps", "low latency requirements", "cost optimization"]
-    strengths: ["Sub-50ms latency globally", "auto-scaling", "pay-per-use"]
-    tradeoffs: ["Edge runtime limitations", "cold starts"]
-    scaling: "Global edge, virtually unlimited"
-
-  # === BACKEND-HEAVY ===
-  django_htmx:
-    name: "Django + HTMX"
-    description: "Python-first with hypermedia approach"
-    composition:
-      frontend: "Django templates + HTMX + Alpine.js"
-      mobile: "None (or Django REST + mobile app)"
-      backend: "Django"
-      database: "PostgreSQL"
-      deployment: "Railway, Render, or AWS"
-    best_for: ["Python teams", "rapid prototyping", "admin-heavy apps"]
-    strengths: ["Batteries included", "excellent admin", "mature ecosystem"]
-    tradeoffs: ["Less interactive UIs", "monolithic by default"]
-    scaling: "Good with proper caching and async views"
-
-  go_react:
-    name: "Go Backend + React Frontend"
-    description: "High-performance Go backend with React SPA"
-    composition:
-      frontend: "React 18 + Vite"
-      mobile: "None or React Native"
-      backend: "Go (Gin, Echo, or Chi)"
-      database: "PostgreSQL"
-      deployment: "Docker on any cloud"
-    best_for: ["High-throughput APIs", "microservices", "performance-critical"]
-    strengths: ["Fastest backend", "low memory", "great concurrency"]
-    tradeoffs: ["Two languages", "more verbose backend"]
-    scaling: "Excellent for high-traffic systems"
-
-  # === MOBILE-FIRST ===
-  flutter_firebase:
-    name: "Flutter + Firebase"
-    description: "Cross-platform mobile with Firebase backend"
-    composition:
-      frontend: "Flutter Web (optional)"
-      mobile: "Flutter (iOS + Android)"
-      backend: "Firebase (Firestore, Auth, Functions)"
-      database: "Firestore (NoSQL)"
-      deployment: "Firebase Hosting + App Stores"
-    best_for: ["Mobile-first apps", "real-time features", "rapid prototyping"]
-    strengths: ["Single codebase for iOS/Android", "real-time sync", "offline-first"]
-    tradeoffs: ["Dart language", "Firebase vendor lock-in", "Firestore limitations"]
-    scaling: "Good for most mobile apps, watch Firestore costs"
-
-  react_native_supabase:
-    name: "React Native + Supabase"
-    description: "React Native mobile with Supabase backend"
-    composition:
-      frontend: "React (web, optional)"
-      mobile: "React Native (bare or Expo)"
-      backend: "Supabase (PostgreSQL + Auth + Storage)"
-      database: "PostgreSQL (via Supabase)"
-      deployment: "Supabase + App Stores"
-    best_for: ["Mobile apps needing SQL", "real-time features", "open-source preference"]
-    strengths: ["PostgreSQL power", "real-time subscriptions", "self-hostable"]
-    tradeoffs: ["Less mature than Firebase"]
-    scaling: "Good, scales with PostgreSQL"
+      frontend: 'None (API-only)'
+      backend: 'Hono (web framework)'
+      runtime: 'Bun (JavaScript runtime)'
+      validation: 'Zod'
+      database: 'Optional: Turso, Neon, or external'
+      auth: 'JWT or integrate with external provider'
+      deployment: 'Bun server, Cloudflare Workers, or Docker'
+    best_for:
+      [
+        'REST APIs',
+        'Microservices',
+        'Edge functions',
+        'High-performance backends',
+      ]
+    strengths:
+      [
+        'Ultrafast performance (Context7: /honojs/website)',
+        'Web standards based',
+        'Works on any JS runtime',
+        'Minimal footprint',
+      ]
+    tradeoffs: ['No frontend included', 'Two languages for fullstack projects']
+    scaling: 'Excellent - Bun handles high concurrency'
+    market_popularity: 'high'
 
 # Custom Stack Schema
 # When user selects "custom", they define each layer
 custom_stack_schema:
   frontend:
     framework:
-      type: "string"
-      options: ["React", "Vue", "Svelte", "Angular", "Solid", "Qwik", "Vanilla JS", "None"]
-      description: "Core UI framework"
+      type: 'string'
+      options:
+        [
+          'React',
+          'Vue',
+          'Svelte',
+          'Angular',
+          'Solid',
+          'Qwik',
+          'Vanilla JS',
+          'None',
+        ]
+      description: 'Core UI framework'
     meta_framework:
-      type: "string | null"
-      options: ["Next.js", "Nuxt", "SvelteKit", "Remix", "Astro", "Vite SPA", "None"]
-      description: "Full-stack framework (optional)"
+      type: 'string | null'
+      options:
+        ['Next.js', 'Nuxt', 'SvelteKit', 'Remix', 'Astro', 'Vite SPA', 'None']
+      description: 'Full-stack framework (optional)'
     styling:
-      type: "string"
-      options: ["Tailwind CSS", "CSS Modules", "styled-components", "Emotion", "Vanilla CSS", "Sass"]
-      default: "Tailwind CSS"
+      type: 'string'
+      options:
+        [
+          'Tailwind CSS',
+          'CSS Modules',
+          'styled-components',
+          'Emotion',
+          'Vanilla CSS',
+          'Sass',
+        ]
+      default: 'Tailwind CSS'
     ui_library:
-      type: "string"
-      options: ["shadcn/ui", "Radix UI", "Headless UI", "Material UI", "Chakra UI", "Ant Design", "Custom", "None"]
-      default: "shadcn/ui"
-      
+      type: 'string'
+      options:
+        [
+          'shadcn/ui',
+          'Radix UI',
+          'Headless UI',
+          'Material UI',
+          'Chakra UI',
+          'Ant Design',
+          'Custom',
+          'None',
+        ]
+      default: 'shadcn/ui'
+
   mobile:
     platform:
-      type: "string"
-      options: ["none", "expo", "react-native-bare", "flutter", "native-ios", "native-android", "capacitor", "ionic"]
-      default: "none"
-      description: "Mobile platform choice"
-      
+      type: 'string'
+      options:
+        [
+          'none',
+          'expo',
+          'react-native-bare',
+          'flutter',
+          'native-ios',
+          'native-android',
+          'capacitor',
+          'ionic',
+        ]
+      default: 'none'
+      description: 'Mobile platform choice'
+
   backend:
     language:
-      type: "string"
-      options: ["TypeScript", "Python", "Go", "Rust", "Ruby", "Java", "PHP", "C#", "Serverless-only"]
-      description: "Primary backend language"
+      type: 'string'
+      options:
+        [
+          'TypeScript',
+          'Python',
+          'Go',
+          'Rust',
+          'Ruby',
+          'Java',
+          'PHP',
+          'C#',
+          'Serverless-only',
+        ]
+      description: 'Primary backend language'
     framework:
-      type: "string"
+      type: 'string'
       options_by_language:
-        TypeScript: ["Express", "Fastify", "Hono", "tRPC", "Next.js API", "NestJS", "Elysia"]
-        Python: ["FastAPI", "Django", "Flask", "Litestar"]
-        Go: ["Gin", "Echo", "Chi", "Fiber"]
-        Rust: ["Axum", "Actix", "Rocket"]
-        Ruby: ["Rails", "Sinatra", "Hanami"]
-        Java: ["Spring Boot", "Quarkus", "Micronaut"]
-        PHP: ["Laravel", "Symfony"]
-        "C#": [".NET Core", "ASP.NET"]
-      description: "Backend framework"
-      
+        TypeScript:
+          [
+            'Express',
+            'Fastify',
+            'Hono',
+            'tRPC',
+            'Next.js API',
+            'NestJS',
+            'Elysia',
+          ]
+        Python: ['FastAPI', 'Django', 'Flask', 'Litestar']
+        Go: ['Gin', 'Echo', 'Chi', 'Fiber']
+        Rust: ['Axum', 'Actix', 'Rocket']
+        Ruby: ['Rails', 'Sinatra', 'Hanami']
+        Java: ['Spring Boot', 'Quarkus', 'Micronaut']
+        PHP: ['Laravel', 'Symfony']
+        'C#': ['.NET Core', 'ASP.NET']
+      description: 'Backend framework'
+
   database:
     type:
-      type: "string"
-      options: ["sql", "nosql", "edge", "graph", "none"]
-      description: "Database paradigm"
+      type: 'string'
+      options: ['sql', 'nosql', 'edge', 'graph', 'none']
+      description: 'Database paradigm'
     provider:
-      type: "string"
+      type: 'string'
       options_by_type:
-        sql: ["PostgreSQL", "MySQL", "SQLite", "SQL Server", "CockroachDB"]
-        nosql: ["MongoDB", "DynamoDB", "Firestore", "CouchDB"]
-        edge: ["Turso", "PlanetScale", "Neon", "Supabase", "D1"]
-        graph: ["Neo4j", "DGraph", "ArangoDB"]
-      description: "Database provider"
+        sql: ['PostgreSQL', 'MySQL', 'SQLite', 'SQL Server', 'CockroachDB']
+        nosql: ['MongoDB', 'DynamoDB', 'Firestore', 'CouchDB']
+        edge: ['Turso', 'PlanetScale', 'Neon', 'Supabase', 'D1']
+        graph: ['Neo4j', 'DGraph', 'ArangoDB']
+      description: 'Database provider'
     orm:
-      type: "string"
-      options: ["Prisma", "Drizzle", "TypeORM", "Sequelize", "SQLAlchemy", "Django ORM", "GORM", "Raw SQL"]
-      description: "ORM/query builder"
-      
+      type: 'string'
+      options:
+        [
+          'Prisma',
+          'Drizzle',
+          'TypeORM',
+          'Sequelize',
+          'SQLAlchemy',
+          'Django ORM',
+          'GORM',
+          'Raw SQL',
+        ]
+      description: 'ORM/query builder'
+
   deployment:
     platform:
-      type: "string"
-      options: ["Vercel", "Netlify", "Cloudflare", "AWS", "GCP", "Azure", "Railway", "Render", "Fly.io", "DigitalOcean", "Self-hosted"]
-      description: "Deployment platform"
+      type: 'string'
+      options:
+        [
+          'Vercel',
+          'Netlify',
+          'Cloudflare',
+          'AWS',
+          'GCP',
+          'Azure',
+          'Railway',
+          'Render',
+          'Fly.io',
+          'DigitalOcean',
+          'Self-hosted',
+        ]
+      description: 'Deployment platform'
     architecture:
-      type: "string"
-      options: ["monolith", "modular-monolith", "microservices", "serverless", "edge"]
-      default: "monolith"
-      description: "Deployment architecture"
+      type: 'string'
+      options:
+        ['monolith', 'modular-monolith', 'microservices', 'serverless', 'edge']
+      default: 'monolith'
+      description: 'Deployment architecture'
 
 # Technical Preferences (User can specify in project brief)
 # These override defaults when generating dependencies
 technical_preferences_schema:
   state_management:
-    options: ["zustand", "redux", "jotai", "recoil", "mobx", "valtio", "none"]
-    default: "zustand"
+    options: ['zustand', 'redux', 'jotai', 'recoil', 'mobx', 'valtio', 'none']
+    default: 'zustand'
   data_fetching:
-    options: ["tanstack-query", "swr", "rtk-query", "apollo", "urql", "fetch"]
-    default: "tanstack-query"
+    options: ['tanstack-query', 'swr', 'rtk-query', 'apollo', 'urql', 'fetch']
+    default: 'tanstack-query'
   forms:
-    options: ["react-hook-form", "formik", "react-final-form", "native"]
-    default: "react-hook-form"
+    options: ['react-hook-form', 'formik', 'react-final-form', 'native']
+    default: 'react-hook-form'
   validation:
-    options: ["zod", "yup", "joi", "valibot", "arktype"]
-    default: "zod"
+    options: ['zod', 'yup', 'joi', 'valibot', 'arktype']
+    default: 'zod'
   http_client:
-    options: ["fetch", "axios", "ky", "got"]
-    default: "fetch"
+    options: ['fetch', 'axios', 'ky', 'got']
+    default: 'fetch'
   testing:
-    options: ["vitest", "jest", "mocha"]
-    default: "vitest"
+    options: ['vitest', 'jest', 'mocha']
+    default: 'vitest'
   e2e_testing:
-    options: ["playwright", "cypress", "none"]
-    default: "playwright"
+    options: ['playwright', 'cypress', 'none']
+    default: 'playwright'
   animation:
-    options: ["framer-motion", "react-spring", "gsap", "none"]
-    default: "framer-motion"
+    options: ['framer-motion', 'react-spring', 'gsap', 'none']
+    default: 'framer-motion'
 
 # Agent definitions
 agents:
   analyst:
-    role: "Business Analyst and Product Strategist"
-    perspective: "CEO/CPO"
+    role: 'Business Analyst and Product Strategist'
+    perspective: 'CEO/CPO'
     responsibilities:
-      - "Ask clarifying questions to understand project vision"
-      - "Generate constitution, project brief, and personas"
-      - "Classify project type, scale tier, platforms, and backend complexity"
-      - "Mark uncertainties for user resolution or AI auto-resolution"
+      - 'Ask clarifying questions to understand project vision'
+      - 'Generate constitution, project brief, and personas'
+      - 'Classify project type, scale tier, platforms, and backend complexity'
+      - 'Mark uncertainties for user resolution or AI auto-resolution'
     prompt_template: |
       # ROLE
       You are a Business Analyst and Product Strategist operating as a CEO/CPO advisor.
@@ -616,6 +1628,43 @@ agents:
       Generate three comprehensive analysis documents plus a classification summary that will guide all subsequent development phases.
       These documents must be detailed enough to serve as the foundation for PRD creation and architecture decisions.
 
+      # =============================================================================
+      # CHAIN-OF-THOUGHT REASONING (REQUIRED)
+      # =============================================================================
+      Before generating any artifacts, you MUST think through your analysis step-by-step.
+      Document your reasoning in a <reasoning> block below. This reasoning will be validated
+      and stored alongside your artifacts.
+
+      <reasoning>
+      ## 1. User Need Analysis
+      - What is the core problem users are trying to solve?
+      - Who are the primary user personas affected by this project?
+      - What are the critical user workflows and journeys?
+      - What evidence or data supports these needs?
+
+      ## 2. Project Classification Reasoning
+      - Based on the project description, why did you classify this as [project_type]?
+      - What factors determined the [scale_tier] selection?
+      - How will the scale tier affect downstream architecture decisions?
+      - What backend complexity level is appropriate and why?
+
+      ## 3. Assumptions & Risks Identified
+      - What key assumptions did you make in your analysis?
+      - What risks might affect the project's success?
+      - How do these assumptions impact the recommended architecture?
+
+      ## 4. Persona Design Rationale
+      - Why were these specific personas selected?
+      - How do personas differ from each other in their needs and workflows?
+      - What are the key differentiating factors between personas?
+      - Which personas are MVP-critical vs. nice-to-have?
+
+      ## 5. Competitive Differentiation
+      - What makes this project different from existing competitors?
+      - What unique value proposition does it offer?
+      - What market gaps is it addressing?
+      </reasoning>
+
       # PROJECT DESCRIPTION
       {{projectIdea}}
 
@@ -623,7 +1672,7 @@ agents:
       # UNCERTAINTY PROTOCOL (MANDATORY - Inspired by GitHub Spec Kit)
       # =============================================================================
       When generating these documents, you MUST follow this protocol:
-      
+
       1. **Mark ALL Ambiguities**: Use `[NEEDS CLARIFICATION: specific question]`
          - If the project description doesn't specify something important, MARK IT
          - Don't guess or assume - surface the uncertainty
@@ -645,7 +1694,7 @@ agents:
          - `[NEEDS CLARIFICATION: What authentication methods should be supported - email/password only, or also OAuth providers like Google/GitHub?]`
          - `[AI ASSUMED: Target scale is <10k users based on MVP focus - adjust if enterprise scale needed]`
          - `[NEEDS CLARIFICATION: Is offline functionality required for the mobile app?]`
-      
+
       5. **Clarification Mode**: {{clarificationMode}}
          - If "interactive": Generate [NEEDS CLARIFICATION] markers and STOP for user input
          - If "hybrid" (DEFAULT): Generate [NEEDS CLARIFICATION] markers; user will choose which to answer
@@ -729,6 +1778,62 @@ agents:
       # OUTPUT FORMAT
       Generate each file in a SEPARATE code block with this EXACT format:
 
+      ## OUTPUT FORMAT EXAMPLES
+
+      ### Example 1: project-classification.json
+      ```json
+      {
+        "project_type": "saas_application",
+        "scale_tier": "startup",
+        "platform_targets": ["web"],
+        "backend_complexity": "moderate_business_logic"
+      }
+      ```
+
+      ### Example 2: personas.md
+      ```markdown
+      # User Personas
+
+      ## Alex - The Indie Full-Stack Developer
+      - **Goals**: Build and ship side projects quickly, minimize maintenance overhead, focus on code quality
+      - **Pain Points**: Spending too much time on boilerplate, getting stuck on infrastructure decisions, wrestling with authentication
+      - **Tech Proficiency**: Advanced - 10 years experience, uses Next.js, TypeScript, and PostgreSQL daily
+
+      ## Maya - The DevRel Team Lead
+      - **Goals**: Create compelling content, engage with developer community, measure campaign effectiveness
+      - **Pain Points**: Manual data collection from multiple platforms, inconsistent metrics across tools, time-consuming reporting
+      - **Tech Proficiency**: Intermediate - comfortable with APIs and can write scripts, prefers no-code tools when possible
+      ```
+
+      ### Example 3: constitution.md
+      ```markdown
+      # Project Constitution
+
+      ## Mission Statement
+      Build a developer tool that reduces time-to-first-commit from hours to minutes for indie hackers.
+
+      ## Core Values
+      1. **Developer Experience First** - Every feature must pass the "would I use this daily?" test
+      2. **Opinionated Defaults** - Choose the best tool for the job; don't make users decide
+      3. **Zero Maintenance** - Architecture must be simple enough that a single developer can maintain it
+      ```
+
+      ### Example 4: project-brief.md
+      ```markdown
+      # Project Brief
+
+      ## Executive Summary
+      A SaaS platform that generates production-ready project scaffolds for indie developers, reducing setup time from 4+ hours to under 15 minutes.
+
+      ## Problem Statement
+      Indie developers waste an average of 4.2 hours setting up project infrastructure before writing their first line of business logic.
+
+      ## Success Metrics
+      - Generate 1,000 projects in the first month
+      - Achieve 80% user completion rate for project setup
+      - Collect NPS score of 50+ from generated projects
+      ```
+
       ```
       filename: constitution.md
       ---
@@ -795,14 +1900,14 @@ agents:
       - Compliance: GDPR-ready design considerations
 
       Generate all three files now with comprehensive, actionable content.
-      
+
   pm:
-    role: "Product Manager"
-    perspective: "CPO"
+    role: 'Product Manager'
+    perspective: 'CPO'
     responsibilities:
-      - "Convert vision into concrete specifications"
-      - "Document requirements comprehensively"
-      - "Prioritize features and create PRD"
+      - 'Convert vision into concrete specifications'
+      - 'Document requirements comprehensively'
+      - 'Prioritize features and create PRD'
     prompt_template: |
       # ROLE
       You are a Product Manager (CPO perspective) creating a production-ready PRD.
@@ -814,6 +1919,34 @@ agents:
 
       Personas:
       {{personas}}
+
+      # =============================================================================
+      # CHAIN-OF-THOUGHT REASONING (REQUIRED)
+      # =============================================================================
+      Before writing requirements, you MUST analyze and document your prioritization reasoning.
+      Output your reasoning in a <reasoning> block before generating the PRD.
+
+      <reasoning>
+      ## 1. Feature Prioritization Rationale
+      - Why were certain features prioritized for MVP vs. Phase 2/3?
+      - What dependencies exist between features that affected ordering?
+      - How did you balance user needs vs. technical complexity?
+
+      ## 2. Requirement Scope Analysis
+      - How did you determine the boundary of the MVP?
+      - What features were intentionally excluded and why?
+      - What is the minimum viable set of features to deliver value?
+
+      ## 3. User Need Mapping
+      - How do requirements map back to user pain points from personas.md?
+      - Which persona needs does each requirement address?
+      - Are there any gaps between persona needs and requirements?
+
+      ## 4. Technical Feasibility Assessment
+      - Are there any requirements that may be technically challenging?
+      - What assumptions did you make about implementation complexity?
+      - Are there any requirements that need further technical clarification?
+      </reasoning>
 
       # MANDATORY SECTIONS
 
@@ -937,23 +2070,23 @@ agents:
       - [ ] NFRs have measurable targets (not vague statements)
       - [ ] No circular dependencies between requirements
       - [ ] Success metrics are SMART (Specific, Measurable, Achievable, Relevant, Time-bound)
-      
+
       # PERSONA CONSISTENCY (CRITICAL - VALIDATION WILL FAIL WITHOUT THIS)
       You MUST reference personas from personas.md BY THEIR EXACT NAMES:
       - In the Persona(s) field of each requirement
       - In the Actor field of each use case
       - In the Persona column of the traceability matrix
-      
+
       IMPORTANT: Extract the EXACT persona names from the Personas section above.
       For example, if personas.md defines:
       - "Alex - the indie full-stack developer"
       - "Maya - the DevRel team lead"
       - "Sam - the platform engineer"
-      
+
       Then in your PRD, use these EXACT names:
       - **Persona(s)**: Alex, Maya
       - **Actor**: Sam
-      
+
       DO NOT use generic terms like "Developer", "User", or "Admin".
       DO NOT create new persona names that don't exist in personas.md.
       EVERY requirement MUST reference at least one persona by name.
@@ -964,15 +2097,62 @@ agents:
       - If the product uses JWTs: include max expiry + rotation/refresh strategy
       - Always include: HTTPS-only, input validation, and audit logging rules (no PII in logs)
 
+      ## OUTPUT FORMAT EXAMPLES
+
+      ### Example 1: Functional Requirement Format
+      ```markdown
+      ### REQ-AUTH-001: User Registration
+      - **Priority**: MVP
+      - **Persona(s)**: Alex - The Indie Full-Stack Developer
+      - **Description**: The system SHALL allow users to create accounts with email and password
+      - **Acceptance Criteria** (Gherkin format):
+        - GIVEN a user is on the registration page WHEN they submit valid credentials THEN an account is created
+        - GIVEN a user submits an existing email WHEN registering THEN an error message is displayed
+      - **Dependencies**: None
+      - **Notes**: Password must be at least 8 characters with mixed case and numbers
+      ```
+
+      ### Example 2: Non-Functional Requirement Format
+      ```markdown
+      ### NFR-PERF-001: API Response Time
+      - **Requirement**: API endpoints SHALL respond within 500ms for 95% of requests
+      - **Measurement**: Monitored via APM tool, excluding cold starts
+      - **Target**: p95 response time < 500ms
+      ```
+
+      ### Example 3: Traceability Matrix Format
+      ```markdown
+      ## 8. Traceability Matrix
+      | Requirement ID | Epic | User Story | Persona | Priority | Dependencies |
+      |----------------|------|------------|---------|----------|--------------|
+      | REQ-AUTH-001   | EPIC-001 | US-001-001 | Alex | MVP | None |
+      | REQ-AUTH-002   | EPIC-001 | US-001-002 | Maya | MVP | REQ-AUTH-001 |
+      ```
+
+      ## OUTPUT FORMAT
+      ```
+      filename: PRD.md
+      ---
+      title: Product Requirements Document
+      owner: pm
+      version: 1.0
+      date: {{currentDate}}
+      status: draft
+      project: {{projectName}}
+      ---
+
+      [Complete PRD content following ALL sections above]
+      ```
+
       Generate the complete PRD now with comprehensive coverage.
-      
+
   architect:
-    role: "Chief Architect"
-    perspective: "CTO"
+    role: 'Chief Architect'
+    perspective: 'CTO'
     responsibilities:
-      - "Design system architecture"
-      - "Make technology choices"
-      - "Create data models and API specs"
+      - 'Design system architecture'
+      - 'Make technology choices'
+      - 'Create data models and API specs'
     prompt_template: |
       # ROLE
       You are a Chief Architect (CTO perspective) designing production-ready systems.
@@ -1000,6 +2180,37 @@ agents:
       Analyze project requirements and recommend the optimal stack with scored alternatives.
 
       **CRITICAL: Use intelligent defaults ONLY if inputs are incomplete.**
+
+      # =============================================================================
+      # CHAIN-OF-THOUGHT REASONING (REQUIRED)
+      # =============================================================================
+      Before recommending a stack, you MUST analyze and document your reasoning.
+      Output your reasoning in a <reasoning> block before generating any artifacts.
+
+      <reasoning>
+      ## 1. Requirements Analysis
+      - What are the key technical constraints from the project brief and constitution?
+      - What are the performance requirements (users, data volume, traffic)?
+      - What is the expected scale tier (prototype/startup/growth/enterprise)?
+      - What platforms must be supported (web, mobile, desktop)?
+
+      ## 2. Technology Evaluation
+      - Why did you select the primary recommendation over alternatives?
+      - What specific factors made alternative stacks less suitable?
+      - How does the chosen stack align with team expertise and preferences?
+      - What trade-offs were made in the selection?
+
+      ## 3. Risk Assessment
+      - What are the technical risks of this stack choice?
+      - What are the operational/maintenance risks?
+      - What is the mitigation strategy for identified risks?
+      - What are the exit costs if the stack needs to change later?
+
+      ## 4. Scoring Rationale
+      - How did you score each criteria (platform, scale, expertise, complexity, integrations)?
+      - What was the weighted importance of each criteria?
+      - Why did the chosen stack score higher than alternatives?
+      </reasoning>
 
       #### INPUT ANALYSIS
       Review these documents for stack-relevant signals:
@@ -1068,6 +2279,13 @@ agents:
       - DEFAULT_FALLBACK_USED: [true | false]
 
       ## Evaluation Results
+
+      CRITICAL FORMAT REQUIREMENT:
+      - After each heading (### 🏆, ### 🥈, ### 🥉), write ONLY the template_id
+      - DO NOT add explanatory text like "stack" or "is the best fit"
+      - Example CORRECT: "### 🏆 Primary Recommendation: nextjs_web_app"
+      - Example WRONG: "### 🏆 Primary Recommendation: nextjs_web_app stack"
+      - Example WRONG: "### 🏆 Primary Recommendation: The nextjs_web_app is the best"
 
       ### 🏆 Primary Recommendation: [template_id]
       **Score: [0-100]**
@@ -1340,6 +2558,39 @@ agents:
       ### FOR PHASE: solutioning
       Generate architecture.md with comprehensive system design.
 
+      # =============================================================================
+      # CHAIN-OF-THOUGHT REASONING (REQUIRED)
+      # =============================================================================
+      Before designing the architecture, you MUST analyze and document your architectural decisions.
+      Output your reasoning in a <reasoning> block before generating architecture.md.
+
+      <reasoning>
+      ## 1. Architectural Design Rationale
+      - What are the key architectural patterns being used and why?
+      - How does the architecture support the approved stack selection?
+      - What trade-offs were made between simplicity and extensibility?
+
+      ## 2. Component Design Decisions
+      - How did you decide on the component boundaries?
+      - What is the rationale for the data flow between components?
+      - How do components map to PRD requirements?
+
+      ## 3. Security Architecture Justification
+      - How does the architecture address OWASP Top 10 risks?
+      - What authentication and authorization patterns are being used?
+      - How is sensitive data protected at rest and in transit?
+
+      ## 4. Scalability & Performance Considerations
+      - How does the architecture handle expected scale (users, traffic, data)?
+      - What caching strategies are recommended and why?
+      - What are the horizontal/vertical scaling approaches?
+
+      ## 5. Technology Selection Justification
+      - Why were specific libraries/frameworks chosen for each layer?
+      - How do these choices align with team expertise?
+      - What are the maintenance and evolution considerations?
+      </reasoning>
+
       #### ARCHITECTURE.MD STRUCTURE
 
       **1. System Overview**
@@ -1432,6 +2683,117 @@ agents:
       - More than 4 font sizes
       - Pill-shaped buttons (rounded-full) as default
       - Default Tailwind color names as primary colors
+
+      ## OUTPUT FORMAT EXAMPLES
+
+      ### Example 1: data-model.md Entity Format
+      ```markdown
+      filename: data-model.md
+      ---
+      title: Data Model
+      owner: architect
+      version: 1.0
+      date: 2026-01-06
+      status: draft
+      ---
+
+      # Data Model
+
+      ## Entity-Relationship Diagram
+      ```mermaid
+      erDiagram
+          USER ||--o{ PROJECT : owns
+          PROJECT ||--o{ TASK : contains
+          USER ||--o{ TASK : assigned
+      ```
+
+      ## User Table
+      | Column | Type | Constraints | Default | Description |
+      |--------|------|-------------|---------|-------------|
+      | id | UUID | PK, NOT NULL | gen_random_uuid() | Unique identifier |
+      | email | VARCHAR(255) | UNIQUE, NOT NULL | - | User email address |
+      | password_hash | VARCHAR(255) | NOT NULL | - | bcrypt hashed password |
+
+      ## Indexes
+      - `CREATE INDEX idx_user_email ON users(email) -- Fast email lookup`
+      ```
+
+      ### Example 2: api-spec.json OpenAPI Format
+      ```json
+      filename: api-spec.json
+      {
+        "openapi": "3.0.3",
+        "info": {
+          "title": "Project API",
+          "version": "1.0.0"
+        },
+        "paths": {
+          "/auth/register": {
+            "post": {
+              "tags": ["auth"],
+              "summary": "Register new user",
+              "requestBody": {
+                "required": true,
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "$ref": "#/components/schemas/RegisterRequest"
+                    }
+                  }
+                }
+              },
+              "responses": {
+                "201": { "description": "User created" },
+                "400": { "$ref": "#/components/responses/BadRequest" }
+              }
+            }
+          }
+        },
+        "components": {
+          "schemas": {
+            "RegisterRequest": {
+              "type": "object",
+              "required": ["email", "password"],
+              "properties": {
+                "email": { "type": "string", "format": "email" },
+                "password": { "type": "string", "minLength": 8 }
+              }
+            }
+          },
+          "responses": {
+            "BadRequest": { "description": "Invalid input" }
+          }
+        }
+      }
+      ```
+
+      ### Example 3: architecture.md System Overview
+      ```markdown
+      filename: architecture.md
+      ---
+      title: System Architecture
+      owner: architect
+      version: 1.0
+      date: 2026-01-06
+      status: draft
+      ---
+
+      # System Architecture
+
+      ## System Overview
+      ```mermaid
+      graph TB
+          Client[Web Client] --> API[Next.js API]
+          API --> DB[(PostgreSQL)]
+          API --> Auth[Auth Service]
+      ```
+
+      ## Technology Stack
+      | Layer | Technology | Version |
+      |-------|------------|---------|
+      | Frontend | Next.js | 14.x |
+      | Database | PostgreSQL | 15.x |
+      ```
 
       # OUTPUT FORMAT
 
@@ -1557,15 +2919,15 @@ agents:
       - [ ] UI standards reference shadcn/ui
 
       Generate the required files for phase: {{phase}}
-      
+
   scrummaster:
-    role: "Scrum Master and Project Manager"
-    perspective: "VP Engineering"
+    role: 'Scrum Master and Project Manager'
+    perspective: 'VP Engineering'
     responsibilities:
-      - "Break requirements into executable tasks with TEST-FIRST approach"
-      - "Plan execution and ensure nothing falls through cracks"
-      - "Create epics and task breakdown with parallelism markers"
-      - "Ensure Constitutional Article compliance"
+      - 'Break requirements into executable tasks with TEST-FIRST approach'
+      - 'Plan execution and ensure nothing falls through cracks'
+      - 'Create epics and task breakdown with parallelism markers'
+      - 'Ensure Constitutional Article compliance'
     prompt_template: |
       # ROLE
       You are a Scrum Master and Project Manager (VP Engineering perspective).
@@ -1776,6 +3138,85 @@ agents:
       - UI component tasks
       - Testing tasks
 
+      ## OUTPUT FORMAT EXAMPLES
+
+      ### Example 1: plan.md Timeline Section
+      ```markdown
+      filename: plan.md
+      ---
+      title: Execution Plan
+      owner: scrummaster
+      version: 1.0
+      date: 2026-01-06
+      status: draft
+      ---
+
+      # Execution Plan
+
+      ## Project Timeline
+      | Phase | Duration | Key Deliverables | Dependencies |
+      |-------|----------|------------------|--------------|
+      | Setup | Week 1 | Dev environment, CI/CD | None |
+      | Sprint 1 | Week 2-3 | Auth, Core Models | Setup |
+      ```
+
+      ### Example 2: epics.md Format
+      ```markdown
+      filename: epics.md
+      ---
+      title: Project Epics
+      owner: scrummaster
+      version: 1.0
+      date: 2026-01-06
+      status: draft
+      ---
+
+      # Project Epics
+
+      ## EPIC-001: User Authentication
+      - **Description**: Implement user registration and login flows
+      - **Requirements**: REQ-AUTH-001, REQ-AUTH-002, REQ-AUTH-003
+      - **Priority**: MVP
+      - **Estimated Effort**: M (2-3 sprints)
+      - **Story Points**: 8
+      ```
+
+      ### Example 3: tasks.md Task Format
+      ```markdown
+      filename: tasks.md
+      ---
+      title: Task Breakdown
+      owner: scrummaster
+      version: 1.0
+      date: 2026-01-06
+      status: draft
+      ---
+
+      ## TASK-AUTH-001: Implement User Registration API
+
+      | Field | Value |
+      |-------|-------|
+      | **Epic** | EPIC-001 |
+      | **Requirements** | REQ-AUTH-001 |
+      | **Priority** | MVP |
+      | **Complexity** | Medium (4-6h) |
+      | **Story Points** | 3 |
+      | **Depends On** | None |
+      | **Parallel** | No |
+
+      **User Story**: As a new user, I want to register with email/password so I can create an account
+
+      **Acceptance Criteria**:
+      - [ ] GIVEN user on registration page WHEN submits valid data THEN account created
+      - [ ] GIVEN existing email WHEN registering THEN error shown
+
+      **Test Specifications**:
+      | Test Type | Test Name |
+      |-----------|-----------|
+      | Contract | auth.contract.test.ts |
+      | Integration | auth.integration.test.ts |
+      ```
+
       # OUTPUT FORMAT
 
       Generate THREE separate code blocks in this ORDER:
@@ -1834,14 +3275,280 @@ agents:
       Missing requirements = incomplete implementation plan.
 
       Generate all three files now, starting with plan.md.
-      
-  devops:
-    role: "DevOps Engineer"
-    perspective: "Infrastructure & SRE"
+
+  frontend_developer:
+    role: 'Frontend Developer'
+    perspective: 'Senior UI Engineer'
     responsibilities:
-      - "Ensure project is deployment-ready"
-      - "Define dependencies and security policies"
-      - "Create deployment and monitoring setup"
+      - 'Generate production-ready frontend components from design specs'
+      - 'Implement design tokens and component patterns'
+      - 'Ensure accessibility and animation standards'
+      - 'Create type-safe React components'
+    prompt_template: |
+      # ROLE
+      You are a Senior UI Engineer (Frontend Developer perspective) creating production-ready React components.
+      Your output generates actual code files that will be used in the project.
+
+      # CONTEXT
+      Design Tokens:
+      {{designTokens}}
+
+      Component Mapping:
+      {{componentMapping}}
+
+      Journey Maps:
+      {{journeyMaps}}
+
+      Stack Configuration:
+      {{stackConfig}}
+
+      # OUTPUT DIRECTORY STRUCTURE
+      All files should be generated relative to the project root:
+      - components/ui/{component}.tsx
+      - lib/motion.ts
+      - types/index.ts
+
+      # MCP CODE LOOKUP (Article 1 - Library-First Compliance)
+      ## Use MCP Tools to Fetch Accurate Code Patterns
+
+      CRITICAL: To ensure production-ready, accurate code, you MUST use MCP tools
+      before generating components. This prevents hallucination and ensures
+      patterns match real library implementations.
+
+      ${MCP_TOOLS_DOC}
+
+      ## Before Generating Any Component:
+
+      1. **Call exa-code MCP tool** to fetch real shadcn/ui component code:
+         ```
+         Search for: "${SHADCN_UI_PATTERNS.button.query}"
+         Library: shadcn/ui
+         ```
+
+      2. **Call context7 MCP tool** for documentation details:
+         ```
+         Query: "How to implement button component with cva variants?"
+         Library: shadcn/ui
+         ```
+
+      3. **Use fetched patterns** as reference for your component structure
+
+      ## Component Generation with MCP Reference
+
+      For each component in component-mapping.md:
+
+      ```
+      # MCP Reference for {ComponentName}
+      - Query: "${SHADCN_UI_PATTERNS.button.query}"
+      - Source: shadcn/ui repository (production code)
+      - Adaptations needed:
+        * Replace hardcoded colors with design token variables
+        * Adjust animation durations to match motion tokens
+        * Update imports to use @/lib/utils aliases
+      ```
+
+      ## Animation Requirements (with MCP Reference)
+
+      Use framer-motion patterns from MCP:
+
+      1. **Call exa-code** for framer-motion animation patterns:
+         ```
+         Search for: "framer-motion fadeInUp useReducedMotion React TypeScript"
+         Library: framer-motion
+         ```
+
+      2. **Call context7** for motion configuration:
+         ```
+         Query: "framer-motion motion config spring animation duration"
+         Library: framer-motion
+         ```
+
+      ## Motion Utils (lib/motion.ts) - MCP Verified
+
+      ## shadcn/ui Pattern (MANDATORY)
+      All components MUST follow the shadcn/ui pattern:
+      1. Use Radix UI primitives as foundation
+      2. Use cva (class-variance-authority) for component variants
+      3. Use cn() utility for class merging (clsx + tailwind-merge)
+      4. Include proper TypeScript interfaces
+      5. Export component + sub-components
+
+      ## Required Imports (Always Include)
+      ```typescript
+      import * as React from "react"
+      import { cva, type VariantProps } from "class-variance-authority"
+      import { cn } from "@/lib/utils"
+      import { motion, type MotionProps } from "framer-motion"
+      ```
+
+      ## Component Structure Template
+      ```typescript
+      // components/ui/{component}.tsx
+      import * as React from "react"
+      import { cva, type VariantProps } from "class-variance-authority"
+      import { cn } from "@/lib/utils"
+      import { motion } from "framer-motion"
+
+      const {component}Variants = cva(
+        "base classes here",
+        {
+          variants: {
+            variant: {
+              default: "default variant classes",
+              destructive: "destructive variant classes",
+              outline: "outline variant classes",
+            },
+            size: {
+              default: "default size classes",
+              sm: "small size classes",
+              lg: "large size classes",
+              icon: "icon size classes",
+            },
+          },
+          defaultVariants: {
+            variant: "default",
+            size: "default",
+          },
+        }
+      )
+
+      export interface {Component}Props
+        extends React.HTMLAttributes<HTMLDivElement>,
+          VariantProps<typeof {component}Variants> {
+          asChild?: boolean
+        }
+
+      function {Component}({
+        className,
+        variant,
+        size,
+        ...props
+      }: {Component}Props) {
+        return (
+          <motion.div
+            className={cn({component}Variants({ variant, size, className }))}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            {...props}
+          />
+        )
+      }
+
+      export { {Component}, {component}Variants }
+      ```
+
+      ## Animation Requirements
+      - Use framer-motion for ALL animations
+      - Implement useReducedMotion check
+      - Follow motion tokens from design-tokens.md
+      - Default durations: fast=150ms, normal=250ms, slow=400ms
+      - Default springs: snappy(stiffness: 400, damping: 30)
+
+      ## Motion Utils (lib/motion.ts)
+      ```typescript
+      import { type MotionConfigVector, type MotionConfig } from "motion"
+
+      export const motionConfig = {
+        spring: {
+          snappy: { type: "spring", stiffness: 400, damping: 30 },
+          gentle: { type: "spring", stiffness: 200, damping: 20 },
+          bouncy: { type: "spring", stiffness: 300, damping: 15 },
+        },
+        duration: {
+          fast: 0.15,
+          normal: 0.25,
+          slow: 0.4,
+        },
+        easing: {
+          default: [0.25, 0.1, 0.25, 1],
+          easeOut: [0, 0, 0.2, 1],
+        },
+      }
+
+      export const fadeInUp = {
+        initial: { opacity: 0, y: 4 },
+        animate: { opacity: 1, y: 0 },
+        exit: { opacity: 0, y: -4 },
+      }
+
+      export const scaleIn = {
+        initial: { opacity: 0, scale: 0.95 },
+        animate: { opacity: 1, scale: 1 },
+        exit: { opacity: 0, scale: 0.95 },
+      }
+
+      // Hook for reduced motion preference
+      export function useMotionPreferences() {
+        const prefersReducedMotion = typeof window !== "undefined"
+          ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          : false
+
+        return {
+          shouldReduceMotion: prefersReducedMotion,
+          transition: prefersReducedMotion ? { duration: 0 } : motionConfig.duration.normal,
+        }
+      }
+      ```
+
+      # OUTPUT FORMAT
+      Generate each component in a SEPARATE code block with this EXACT format:
+
+      ```
+      filename: components/ui/{component-name}.tsx
+      ---
+      title: {Component Name}
+      owner: frontend_developer
+      version: 1.0
+      date: {{currentDate}}
+      status: generated
+      ---
+
+      [Complete TypeScript component code]
+      ```
+
+      ```
+      filename: lib/motion.ts
+      ---
+      title: Motion Utilities
+      owner: frontend_developer
+      version: 1.0
+      date: {{currentDate}}
+      status: generated
+      ---
+
+      [Complete motion utilities code]
+      ```
+
+      # QUALITY CHECKLIST
+      - [ ] All components follow shadcn/ui pattern
+      - [ ] cva variants defined for all component states
+      - [ ] TypeScript interfaces properly exported
+      - [ ] Framer Motion animations with useReducedMotion check
+      - [ ] No hardcoded colors - use design tokens
+      - [ ] No generic placeholder text
+      - [ ] Components are accessible (aria- attributes where needed)
+      - [ ] Export statements match component names
+      - [ ] No circular imports
+
+      # ANTI-SLOP VALIDATION
+      CRITICAL: Your output will be validated for generic/placeholder code.
+      - DO NOT use placeholder text like "Lorem ipsum"
+      - DO NOT use generic class names like "container" without purpose
+      - DO NOT include commented-out code
+      - DO NOT use default Tailwind colors as primary
+      - DO NOT use purple/indigo gradients
+
+      Generate all components now with production-ready code.
+
+  devops:
+    role: 'DevOps Engineer'
+    perspective: 'Infrastructure & SRE'
+    responsibilities:
+      - 'Ensure project is deployment-ready'
+      - 'Define dependencies and security policies'
+      - 'Create deployment and monitoring setup'
     prompt_template: |
       # ROLE
       You are a DevOps Engineer (Infrastructure & SRE perspective).
@@ -1952,6 +3659,91 @@ agents:
       - ruff>=0.1.0 - Linting
       - black>=23.0.0 - Formatting
       - mypy>=1.8.0 - Type checking
+
+      ## OUTPUT FORMAT EXAMPLES
+
+      ### Example 1: DEPENDENCIES.md Dependency Entry Format
+      ```markdown
+      # Project Dependencies
+
+      ## Executive Summary
+      | Metric | Value |
+      |--------|-------|
+      | **Total Packages** | 42 |
+      | **Production** | 28 |
+      | **Development** | 14 |
+      | **Security Status** | 🟢 GREEN |
+      | **License Compliance** | ✅ All compatible |
+
+      ## Production Dependencies
+
+      ### Core Framework
+      #### next@14.1.0
+      | Attribute | Value |
+      |-----------|-------|
+      | **Category** | Production |
+      | **Purpose** | React framework with App Router |
+      | **PRD Requirement** | REQ-FRONT-001 |
+      | **License** | MIT |
+      | **Security Status** | ✅ No known vulnerabilities |
+      | **Maintenance** | Active (last release: 2024-12-01) |
+      | **Bundle Impact** | 70 KB (gzipped) |
+      | **Alternatives** | Remix (more learning curve), Gatsby (static focus) |
+
+      ### Authentication
+      #### bcryptjs@2.4.3
+      | Attribute | Value |
+      |-----------|-------|
+      | **Category** | Production |
+      | **Purpose** | Password hashing for auth |
+      | **PRD Requirement** | REQ-AUTH-003 |
+      | **License** | BSD-3-Clause |
+      | **Security Status** | ✅ No known vulnerabilities |
+      | **Maintenance** | Active (last release: 2024-06-15) |
+      | **Bundle Impact** | 2 KB (gzipped) |
+      ```
+
+      ### Example 2: dependencies.json Format
+      ```json
+      filename: dependencies.json
+      {
+        "package_manager": "pnpm",
+        "lockfile": "pnpm-lock.yaml",
+        "baseline": {
+          "dependencies": [
+            {
+              "name": "next",
+              "range": "^14.1.0",
+              "reason": "React framework with App Router for full-stack React",
+              "links": ["REQ-FRONT-001"],
+              "category": "core"
+            },
+            {
+              "name": "react",
+              "range": "^18.2.0",
+              "reason": "UI library",
+              "links": ["REQ-FRONT-001"],
+              "category": "core"
+            }
+          ],
+          "devDependencies": [
+            {
+              "name": "vitest",
+              "range": "^1.2.0",
+              "reason": "Unit testing framework",
+              "links": ["NFR-TEST-001"],
+              "category": "testing"
+            }
+          ]
+        },
+        "commands": {
+          "pnpm": {
+            "install": "pnpm install",
+            "ci": "pnpm install --frozen-lockfile"
+          }
+        }
+      }
+      ```
 
       # OUTPUT 1: DEPENDENCIES.md
 
@@ -2147,380 +3939,954 @@ agents:
 # Validation rules
 validators:
   presence:
-    description: "Check if all required files exist"
-    implementation: "file_exists_check"
-    
+    description: 'Check if all required files exist'
+    implementation: 'file_exists_check'
+
   markdown_frontmatter:
-    description: "Ensure markdown files have required frontmatter"
-    required_fields: ["title", "owner", "version", "date", "status"]
-    implementation: "frontmatter_parser"
-    
+    description: 'Ensure markdown files have required frontmatter'
+    required_fields: ['title', 'owner', 'version', 'date', 'status']
+    implementation: 'frontmatter_parser'
+
   content_quality:
-    description: "Check content is not empty or obviously incomplete"
+    description: 'Check content is not empty or obviously incomplete'
     min_length: 100
-    implementation: "content_length_check"
-    
+    implementation: 'content_length_check'
+
   content_coverage:
-    description: "Ensure sufficient content coverage"
+    description: 'Ensure sufficient content coverage'
     requirements:
-      PRD.md: "at_least_5_requirements"
-      data-model.md: "has_tables"
-      api-spec.json: "has_endpoints"
-      tasks.md: "at_least_10_tasks"
-      design-system.md: "has_color_palette_and_typography_and_spacing_and_animations"
-      component-inventory.md: "has_component_list_with_docs_links"
-      user-flows.md: "has_mermaid_diagrams"
-    implementation: "coverage_analysis"
-    
+      PRD.md: 'at_least_5_requirements'
+      data-model.md: 'has_tables'
+      api-spec.json: 'has_endpoints'
+      tasks.md: 'at_least_10_tasks'
+      design-system.md: 'has_color_palette_and_typography_and_spacing_and_animations'
+      component-inventory.md: 'has_component_list_with_docs_links'
+      user-flows.md: 'has_mermaid_diagrams'
+    implementation: 'coverage_analysis'
+
   api_openapi:
-    description: "Validate OpenAPI specification"
-    version: "3.0"
-    implementation: "openapi_validator"
-    
+    description: 'Validate OpenAPI specification'
+    version: '3.0'
+    implementation: 'openapi_validator'
+
   stack_approved:
-    description: "Check if stack has been approved by user"
-    implementation: "database_field_check"
-    field: "stack_approved"
+    description: 'Check if stack has been approved by user'
+    implementation: 'database_field_check'
+    field: 'stack_approved'
     expected_value: true
-    
+
   stack_completeness:
-    description: "Ensure stack decision includes all required layers"
+    description: 'Ensure stack decision includes all required layers'
     checks:
-      has_frontend: "Frontend framework specified"
+      has_frontend: 'Frontend framework specified'
       has_mobile_decision: "Mobile platform specified (can be 'none')"
-      has_backend: "Backend framework/language specified"
+      has_backend: 'Backend framework/language specified'
       has_database: "Database provider specified (can be 'none')"
-      has_deployment: "Deployment platform specified"
-      has_rationale: "stack-rationale.md exists with decision matrix"
-    implementation: "stack_validator"
+      has_deployment: 'Deployment platform specified'
+      has_rationale: 'stack-rationale.md exists with decision matrix'
+    implementation: 'stack_validator'
 
   stack_json_check:
-    description: "Validate stack.json exists and includes required keys"
-    implementation: "json_schema_check"
-    artifact: "stack.json"
-    required_fields: ["template_id", "architecture_type", "package_manager", "database", "auth", "storage"]
-    
+    description: 'Validate stack.json exists and includes required keys'
+    implementation: 'json_schema_check'
+    artifact: 'stack.json'
+    required_fields:
+      [
+        'template_id',
+        'architecture_type',
+        'package_manager',
+        'database',
+        'auth',
+        'storage',
+      ]
+
   dependencies_json_check:
-    description: "Validate dependencies.json exists and includes required keys"
-    implementation: "json_schema_check"
-    artifact: "dependencies.json"
-    required_fields: ["package_manager", "baseline", "commands"]
-    
+    description: 'Validate dependencies.json exists and includes required keys'
+    implementation: 'json_schema_check'
+    artifact: 'dependencies.json'
+    required_fields: ['package_manager', 'baseline', 'commands']
+
   tasks_dag:
-    description: "Ensure no circular dependencies in task list"
-    implementation: "dependency_graph_analysis"
-    
+    description: 'Ensure no circular dependencies in task list'
+    implementation: 'dependency_graph_analysis'
+
   handoff_complete:
-    description: "Check HANDOFF.md is generated and complete"
-    required_sections: ["project_context", "reading_order", "llm_prompt"]
-    implementation: "handoff_validator"
-    
+    description: 'Check HANDOFF.md is generated and complete'
+    required_sections: ['project_context', 'reading_order', 'llm_prompt']
+    implementation: 'handoff_validator'
+
   zip_created:
-    description: "Verify ZIP archive is created and contains all files"
-    required_files: ["HANDOFF.md", "constitution.md", "PRD.md", "architecture.md"]
-    implementation: "zip_validation"
-    
+    description: 'Verify ZIP archive is created and contains all files'
+    required_files:
+      ['HANDOFF.md', 'constitution.md', 'PRD.md', 'architecture.md']
+    implementation: 'zip_validation'
+
   requirement_format:
-    description: "Validate requirements follow REQ-XXX-YYY format"
+    description: 'Validate requirements follow REQ-XXX-YYY format'
     pattern: "REQ-[A-Z]+-\\d{3}"
     min_count: 15
-    implementation: "regex_pattern_check"
-    
+    implementation: 'regex_pattern_check'
+
   requirement_traceability:
-    description: "Ensure all PRD requirements are covered by tasks"
-    source_artifact: "PRD.md"
-    target_artifact: "tasks.md"
-    implementation: "cross_reference_check"
-    
+    description: 'Ensure all PRD requirements are covered by tasks'
+    source_artifact: 'PRD.md'
+    target_artifact: 'tasks.md'
+    implementation: 'cross_reference_check'
+
   api_endpoint_coverage:
-    description: "Ensure all API endpoints have corresponding tasks"
-    source_artifact: "api-spec.json"
-    target_artifact: "tasks.md"
-    implementation: "api_task_mapping"
-    
+    description: 'Ensure all API endpoints have corresponding tasks'
+    source_artifact: 'api-spec.json'
+    target_artifact: 'tasks.md'
+    implementation: 'api_task_mapping'
+
   cross_artifact_consistency:
-    description: "Verify consistency across all artifacts"
+    description: 'Verify consistency across all artifacts'
     checks:
-      - "All personas in PRD exist in personas.md"
-      - "All REQ-IDs in tasks.md exist in PRD.md"
-      - "All EPIC-IDs in tasks.md exist in epics.md"
-      - "Stack choice in architecture.md matches approved stack"
-    implementation: "multi_artifact_validation"
-    
+      - 'All personas in PRD exist in personas.md'
+      - 'All REQ-IDs in tasks.md exist in PRD.md'
+      - 'All EPIC-IDs in tasks.md exist in epics.md'
+      - 'Stack choice in architecture.md matches approved stack'
+    implementation: 'multi_artifact_validation'
+
   quality_score:
-    description: "Score artifact quality 0-100"
+    description: 'Score artifact quality 0-100'
     criteria:
       frontmatter_complete: 10
       min_content_length: 20
       structured_sections: 30
       actionable_criteria: 40
     minimum_score: 70
-    implementation: "quality_scoring"
-    
+    implementation: 'quality_scoring'
+
   no_unresolved_clarifications:
-    description: "Check that all [NEEDS CLARIFICATION] markers are resolved or auto-resolved"
-    implementation: "clarification_marker_check"
+    description: 'Check that all [NEEDS CLARIFICATION] markers are resolved or auto-resolved'
+    implementation: 'clarification_marker_check'
     allowed_unresolved: 0
-    auto_resolved_marker: "[AI ASSUMED:"
-    
+    auto_resolved_marker: '[AI ASSUMED:'
+
   test_first_compliance:
-    description: "Verify tasks have tests defined BEFORE implementation (Article 2)"
+    description: 'Verify tasks have tests defined BEFORE implementation (Article 2)'
     checks:
-      - "Each task has Test Specifications section"
-      - "Test section appears before Implementation Notes"
-      - "Contract, Integration, E2E, Unit test types specified"
-      - "Test configuration specifies real services (Article 5)"
-    implementation: "test_first_validator"
-    
+      - 'Each task has Test Specifications section'
+      - 'Test section appears before Implementation Notes'
+      - 'Contract, Integration, E2E, Unit test types specified'
+      - 'Test configuration specifies real services (Article 5)'
+    implementation: 'test_first_validator'
+
   constitutional_compliance:
-    description: "Verify all 5 Constitutional Articles are followed"
+    description: 'Verify all 5 Constitutional Articles are followed'
     articles:
       article_1:
-        check: "Features structured as modules with clear boundaries"
-        artifact: "architecture.md"
+        check: 'Features structured as modules with clear boundaries'
+        artifact: 'architecture.md'
       article_2:
-        check: "Tests specified before implementation in tasks"
-        artifact: "tasks.md"
+        check: 'Tests specified before implementation in tasks'
+        artifact: 'tasks.md'
       article_3:
-        check: "Maximum 3 services for MVP or justified complexity"
-        artifact: "architecture.md"
+        check: 'Maximum 3 services for MVP or justified complexity'
+        artifact: 'architecture.md'
       article_4:
-        check: "Abstraction layers justified in dependencies"
-        artifact: "DEPENDENCIES.md"
+        check: 'Abstraction layers justified in dependencies'
+        artifact: 'DEPENDENCIES.md'
       article_5:
-        check: "Integration tests use real services"
-        artifact: "tasks.md"
-    implementation: "constitutional_validator"
-    
+        check: 'Integration tests use real services'
+        artifact: 'tasks.md'
+    implementation: 'constitutional_validator'
+
   design_system_compliance:
-    description: "Ensure design follows fire-your-design-team.md principles"
+    description: 'Ensure design follows fire-your-design-team.md principles'
     checks:
-      typography_sizes: "Maximum 4 distinct font sizes"
-      font_weights: "Maximum 2 weights (regular, semibold)"
-      spacing_values: "All values divisible by 4 or 8"
-      color_distribution: "Follows 60/30/10 rule"
-      no_purple_primary: "Accent color is NOT purple/indigo/violet"
-      has_dark_mode: "Dark mode tokens are defined"
-      has_animation_tokens: "Framer Motion durations and springs defined"
-      reduced_motion_support: "useReducedMotion implementation noted"
+      typography_sizes: 'Maximum 4 distinct font sizes'
+      font_weights: 'Maximum 2 weights (regular, semibold)'
+      spacing_values: 'All values divisible by 4 or 8'
+      color_distribution: 'Follows 60/30/10 rule'
+      no_purple_primary: 'Accent color is NOT purple/indigo/violet'
+      has_dark_mode: 'Dark mode tokens are defined'
+      has_animation_tokens: 'Framer Motion durations and springs defined'
+      reduced_motion_support: 'useReducedMotion implementation noted'
     anti_patterns:
-      - "Purple/indigo gradients as primary"
-      - "Gradient blob backgrounds"
-      - "Inter font without justification"
-      - "More than 4 font sizes"
-      - "Pill-shaped buttons as default"
-      - "Default Tailwind colors"
-    implementation: "design_validator"
+      - 'Purple/indigo gradients as primary'
+      - 'Gradient blob backgrounds'
+      - 'Inter font without justification'
+      - 'More than 4 font sizes'
+      - 'Pill-shaped buttons as default'
+      - 'Default Tailwind colors'
+    implementation: 'design_validator'
+
+  typescript_compile:
+    description: 'Verify all generated code passes basic TypeScript syntax checks'
+    implementation: 'typescript_compile_check'
+
+  zip_presence:
+    description: 'Verify project.zip exists and contains all artifacts'
+    implementation: 'zip_presence_check'
+
+  llm_quality:
+    description: 'Verify artifact quality using LLM evaluation'
+    implementation: 'llm_quality_check'
+    focus_areas: ['readability', 'technical_depth', 'PRD_alignment']
+
+  anti_generic_code:
+    description: 'Ensure no forbidden AI-slop patterns exist in the code'
+    implementation: 'anti_generic_code_check'
 
 # Security baseline (applies to all projects)
 security_baseline:
   authentication:
-    - "All passwords hashed with bcrypt (cost 10+)"
-    - "JWT tokens with 1-hour expiry"
-    - "HTTPS only (no HTTP)"
-    
+    - 'All passwords hashed with bcrypt (cost 10+)'
+    - 'JWT tokens with 1-hour expiry'
+    - 'HTTPS only (no HTTP)'
+
   data_protection:
-    - "Sensitive data encrypted at rest (AES-256)"
-    - "TLS 1.2+ for transit"
-    
+    - 'Sensitive data encrypted at rest (AES-256)'
+    - 'TLS 1.2+ for transit'
+
   compliance:
-    - "GDPR-ready user data handling"
-    - "Audit logs for sensitive operations"
-    - "PII never in logs"
-    
+    - 'GDPR-ready user data handling'
+    - 'Audit logs for sensitive operations'
+    - 'PII never in logs'
+
   scanning:
-    - "npm audit (zero HIGH/CRITICAL)"
-    - "pip-audit (zero HIGH/CRITICAL)"
-    - "SAST scanning (SonarQube or Snyk)"
-    
+    - 'npm audit (zero HIGH/CRITICAL)'
+    - 'pip-audit (zero HIGH/CRITICAL)'
+    - 'SAST scanning (SonarQube or Snyk)'
+
   testing:
-    - "Unit test coverage >80%"
-    - "E2E tests for critical flows"
-    - "Security-focused test cases"
+    - 'Unit test coverage >80%'
+    - 'E2E tests for critical flows'
+    - 'Security-focused test cases'
 # Frontend UI/UX Standards
 # Design foundation: fire-your-design-team.md
 frontend_ui_standards:
-  design_foundation: "fire-your-design-team.md"
-  
+  design_foundation: 'fire-your-design-team.md'
+
   # Core libraries
-  component_library: "shadcn/ui"
-  animation_library: "framer-motion"
-  icon_library: "lucide-react"
-  styling: "Tailwind CSS v4"
-  color_format: "OKLCH"
+  component_library: 'shadcn/ui'
+  animation_library: 'framer-motion'
+  icon_library: 'lucide-react'
+  styling: 'Tailwind CSS v4'
+  color_format: 'OKLCH'
 
   initialization_commands:
-    - "pnpm dlx shadcn@latest init"
-    - "pnpm add framer-motion"
-    - description: "Initializes shadcn/ui with Tailwind v4, adds Framer Motion for animations"
+    - 'pnpm dlx shadcn@latest init'
+    - 'pnpm add framer-motion'
+    - description: 'Initializes shadcn/ui with Tailwind v4, adds Framer Motion for animations'
 
   # Typography System (STRICT: 4 sizes, 2 weights only)
   typography:
     max_sizes: 4
-    allowed_weights: ["regular", "semibold"]
-    default_font: "system-ui, sans-serif"
+    allowed_weights: ['regular', 'semibold']
+    default_font: 'system-ui, sans-serif'
     scale:
-      size_1: "Large headings (text-4xl, 36-48px)"
-      size_2: "Subheadings (text-2xl, 24-32px)"
-      size_3: "Body text (text-base, 16px)"
-      size_4: "Labels/captions (text-sm, 12-14px)"
+      size_1: 'Large headings (text-4xl, 36-48px)'
+      size_2: 'Subheadings (text-2xl, 24-32px)'
+      size_3: 'Body text (text-base, 16px)'
+      size_4: 'Labels/captions (text-sm, 12-14px)'
     forbidden:
-      - "Inter font as default without brand justification"
-      - "More than 4 distinct font sizes"
-      - "Thin weights (300) for body text"
-      - "ALL CAPS buttons"
+      - 'Inter font as default without brand justification'
+      - 'More than 4 distinct font sizes'
+      - 'Thin weights (300) for body text'
+      - 'ALL CAPS buttons'
 
   # Spacing System (8pt grid)
   spacing:
     grid_unit: 8
     allowed_values: [4, 8, 12, 16, 24, 32, 40, 48, 64]
-    rule: "All spacing values MUST be divisible by 4 or 8"
+    rule: 'All spacing values MUST be divisible by 4 or 8'
     tailwind_mapping:
-      xs: "p-1, m-1 (4px)"
-      sm: "p-2, m-2 (8px)"
-      md: "p-4, m-4 (16px)"
-      lg: "p-6, m-6 (24px)"
-      xl: "p-8, m-8 (32px)"
-      2xl: "p-12, m-12 (48px)"
+      xs: 'p-1, m-1 (4px)'
+      sm: 'p-2, m-2 (8px)'
+      md: 'p-4, m-4 (16px)'
+      lg: 'p-6, m-6 (24px)'
+      xl: 'p-8, m-8 (32px)'
+      2xl: 'p-12, m-12 (48px)'
 
   # Color Distribution (60/30/10 rule)
   color_rule:
     neutral_percentage: 60
     complementary_percentage: 30
     accent_percentage: 10
-    description: "60% backgrounds/cards, 30% text/icons, 10% CTAs/highlights"
+    description: '60% backgrounds/cards, 30% text/icons, 10% CTAs/highlights'
 
   # Animation System (Framer Motion)
   motion:
-    library: "framer-motion"
+    library: 'framer-motion'
     durations:
-      fast: "150ms"
-      normal: "250ms"
-      slow: "400ms"
-    default_easing: "spring"
+      fast: '150ms'
+      normal: '250ms'
+      slow: '400ms'
+    default_easing: 'spring'
     spring_configs:
-      snappy: "stiffness: 400, damping: 30"
-      gentle: "stiffness: 200, damping: 20"
-      bouncy: "stiffness: 300, damping: 15"
+      snappy: 'stiffness: 400, damping: 30'
+      gentle: 'stiffness: 200, damping: 20'
+      bouncy: 'stiffness: 300, damping: 15'
     required:
-      - "Always implement useReducedMotion check"
-      - "Exit animations must mirror enter animations"
-      - "Stagger delays: 0.03-0.08s"
+      - 'Always implement useReducedMotion check'
+      - 'Exit animations must mirror enter animations'
+      - 'Stagger delays: 0.03-0.08s'
 
   # CRITICAL: Anti-Patterns to Avoid (AI Slop Prevention)
   avoid:
     colors:
-      - "Purple/indigo gradients (bg-indigo-500, bg-violet-600)"
-      - "Neon accents on dark backgrounds"
-      - "Blue-purple hero gradients"
-      - "Rainbow/multi-color gradients"
-      - "Default Tailwind color names as primary"
+      - 'Purple/indigo gradients (bg-indigo-500, bg-violet-600)'
+      - 'Neon accents on dark backgrounds'
+      - 'Blue-purple hero gradients'
+      - 'Rainbow/multi-color gradients'
+      - 'Default Tailwind color names as primary'
     layouts:
-      - "Gradient blob/mesh backgrounds"
-      - "Hero + 3 cards + testimonials template"
-      - "Generic stock photo grids"
-      - "Centered everything (use alignment grid)"
+      - 'Gradient blob/mesh backgrounds'
+      - 'Hero + 3 cards + testimonials template'
+      - 'Generic stock photo grids'
+      - 'Centered everything (use alignment grid)'
     typography:
-      - "Inter font without brand justification"
-      - "More than 4 font sizes"
-      - "Thin weights (300) for body text"
-      - "Giant hero text (80px+)"
+      - 'Inter font without brand justification'
+      - 'More than 4 font sizes'
+      - 'Thin weights (300) for body text'
+      - 'Giant hero text (80px+)'
     components:
-      - "Pill-shaped buttons (rounded-full) as default"
-      - "Gradient buttons"
-      - "Excessive drop shadows"
-      - "Icon + text + icon buttons"
-      - "Glassmorphism without readability testing"
+      - 'Pill-shaped buttons (rounded-full) as default'
+      - 'Gradient buttons'
+      - 'Excessive drop shadows'
+      - 'Icon + text + icon buttons'
+      - 'Glassmorphism without readability testing'
 
   # Component Installation
   common_components_to_install:
-    - button: "Interactive action elements"
-    - card: "Content containers with header/footer"
-    - input: "Form input fields"
-    - badge: "Status and tag labels"
-    - dialog: "Modal dialogs and confirmations"
-    - dropdown-menu: "Dropdown menus and navigation"
-    - tabs: "Tabbed content sections"
-    - select: "Select dropdowns"
-    - textarea: "Multi-line text inputs"
-    - form: "Form composition helpers"
-    - alert: "Alert messages and notifications"
-    - toast: "Toast notifications"
+    - button: 'Interactive action elements'
+    - card: 'Content containers with header/footer'
+    - input: 'Form input fields'
+    - badge: 'Status and tag labels'
+    - dialog: 'Modal dialogs and confirmations'
+    - dropdown-menu: 'Dropdown menus and navigation'
+    - tabs: 'Tabbed content sections'
+    - select: 'Select dropdowns'
+    - textarea: 'Multi-line text inputs'
+    - form: 'Form composition helpers'
+    - alert: 'Alert messages and notifications'
+    - toast: 'Toast notifications'
 
   # Accessibility (non-negotiable)
   accessibility:
-    - "Use semantic HTML: <button>, <input>, <form>, <nav>"
-    - "Include aria-labels for interactive elements"
-    - "Ensure keyboard navigation works"
-    - "Implement useReducedMotion for all animations"
-    - "WCAG AA minimum contrast ratios"
-    - "Minimum touch target size: 44x44px"
+    - 'Use semantic HTML: <button>, <input>, <form>, <nav>'
+    - 'Include aria-labels for interactive elements'
+    - 'Ensure keyboard navigation works'
+    - 'Implement useReducedMotion for all animations'
+    - 'WCAG AA minimum contrast ratios'
+    - 'Minimum touch target size: 44x44px'
 
   # Responsive Design
   responsive_design:
-    - "Mobile-first approach"
-    - "Use Tailwind breakpoints: sm, md, lg, xl, 2xl"
-    - "8pt grid must hold at all breakpoints"
+    - 'Mobile-first approach'
+    - 'Use Tailwind breakpoints: sm, md, lg, xl, 2xl'
+    - '8pt grid must hold at all breakpoints'
 
   # Dev Setup
   dev_setup:
-    step_1: "pnpm dlx shadcn@latest init (select new-york style)"
-    step_2: "pnpm add framer-motion"
-    step_3: "Create lib/motion.ts with spring configs"
-    step_4: "Add components: pnpm dlx shadcn@latest add button card ..."
-    step_5: "Reference fire-your-design-team.md for design decisions"
+    step_1: 'pnpm dlx shadcn@latest init (select new-york style)'
+    step_2: 'pnpm add framer-motion'
+    step_3: 'Create lib/motion.ts with spring configs'
+    step_4: 'Add components: pnpm dlx shadcn@latest add button card ...'
+    step_5: 'Reference fire-your-design-team.md for design decisions'
+
+  designer:
+    role: 'Creative Director and UI/UX Designer'
+    perspective: 'Design Lead with bold aesthetic vision'
+    responsibilities:
+      - 'Create distinctive, production-grade design specifications'
+      - 'Generate component mappings and user journey maps'
+      - 'Apply anti-slop rules (no Inter, no purple defaults)'
+      - 'Commit to bold aesthetic directions per frontend-design/SKILL.md'
+    prompt_template: |
+      # ROLE
+      You are a Creative Director and UI/UX Designer creating distinctive, production-grade
+      design specifications. Your outputs must avoid generic "AI slop" aesthetics and instead
+      deliver memorable, intentional design work.
+
+      # AESTHETIC DIRECTION (CRITICAL - CHOOSE ONE)
+      Before generating ANY design work, commit to a bold aesthetic direction:
+
+      **Choose exactly one**:
+      - [ ] Brutally Minimal - Maximum restraint, precision typography, generous whitespace
+      - [ ] Maximalist Chaos - Bold colors, overlapping elements, unexpected layouts
+      - [ ] Retro-Futuristic - 70s/80s influences with modern tech
+      - [ ] Organic/Natural - Earth tones, soft shapes, natural motion
+      - [ ] Luxury/Refined - Sophisticated, editorial, restrained palette
+      - [ ] Playful/Toy-like - Bright colors, bouncy animations, rounded forms
+      - [ ] Editorial/Magazine - Typography-driven, asymmetric layouts
+      - [ ] Brutalist/Raw - Industrial, high contrast, system fonts exposed
+      - [ ] Art Deco/Geometric - Pattern-driven, gold accents, angular
+      - [ ] Soft/Pastel - Gentle colors, subtle shadows, calming
+      - [ ] Industrial/Utilitarian - Function-first, visible structure
+      - [ ] Custom: [DESCRIBE YOUR VISION]
+
+      **Once chosen, commit to it fully.** Every design decision reinforces this aesthetic.
+
+      # PROJECT CONTEXT
+      Project Brief:
+      {{brief}}
+
+      Personas:
+      {{personas}}
+
+      Approved Stack: {{stackChoice}}
+
+      # =============================================================================
+      # ANTI-SLOP RULES (MANDATORY - from frontend-design/SKILL.md)
+      # =============================================================================
+      NEVER use these patterns:
+      - [ ] Inter, Roboto, Arial, or system fonts as defaults
+      - [ ] Purple/indigo gradients (bg-indigo-500, bg-violet-600)
+      - [ ] Gradient blob/mesh hero backgrounds
+      - [ ] Pill-shaped buttons (rounded-full) as default
+      - [ ] More than 4 font sizes
+      - [ ] Default Tailwind color names as primary colors
+      - [ ] Predictable, centered layouts without intentional asymmetry
+      - [ ] Generic placeholder text or "lorem ipsum" beyond placeholders
+
+      # =============================================================================
+      # PHASE: {{phase}}
+      # =============================================================================
+
+      ## FOR PHASE: SPEC_DESIGN_TOKENS
+
+      Generate design-tokens.md with:
+
+      ### 1. Aesthetic Direction Statement
+      ```
+      ## Aesthetic Direction: [CHOSEN DIRECTIVE]
+      Rationale: [2-3 sentences why this fits the project brief and personas]
+      ```
+
+      ### 2. Color Palette (NO PURPLE DEFAULTS!)
+      Derive from project brief and brand values. Use OKLCH format.
+
+      ```typescript
+      // design-tokens.ts format
+      export const colors = {
+        // Light Mode - 60/30/10 rule
+        background: 'oklch(0.98 0.01 250)', // 60% - Dominant
+        foreground: 'oklch(0.15 0.02 240)', // 30% - Complementary
+        accent: 'oklch(0.55 0.18 30)',      // 10% - Accent (NO PURPLE!)
+        // Semantic tokens
+        primary: { /* ... */ },
+        secondary: { /* ... */ },
+        destructive: { /* ... */ },
+      };
+      ```
+
+      ### 3. Typography (DISTINCTIVE FONTS - NO INTER!)
+      Choose fonts that are beautiful, unique, and interesting:
+
+      | Role | Font Suggestion | Weight | Use Case |
+      |------|-----------------|--------|----------|
+      | Display | [Unique choice - e.g., Space Grotesk, Playfair Display] | Bold | Headlines |
+      | Body | [Characterful choice - e.g., Source Serif 4, Geist] | Regular | Body text |
+      | Mono | [Functional choice - e.g., JetBrains Mono, Geist Mono] | Regular | Code |
+
+      **Rationale**: [Why these fonts match the aesthetic direction]
+
+      ### 4. Animation Physics (NOT JUST DURATION!)
+      Define animations as physics parameters:
+
+      ```typescript
+      export const motion = {
+        // Spring physics - not arbitrary durations
+        snappy: { type: 'spring', stiffness: 400, damping: 30, mass: 1 },
+        gentle: { type: 'spring', stiffness: 200, damping: 25, mass: 1 },
+        bouncy: { type: 'spring', stiffness: 300, damping: 15, mass: 1 },
+        // Only use duration when spring doesn't apply
+        fade: { duration: 200 },
+        slide: { duration: 250 },
+      };
+      ```
+
+      ### 5. Spacing Scale (8pt Grid)
+      | Token | Value | Use Case |
+      |-------|-------|----------|
+      | xs | 4px | Tight spacing |
+      | sm | 8px | Default small |
+      | md | 16px | Default medium |
+      | lg | 24px | Section spacing |
+      | xl | 32px | Large spacing |
+      | 2xl | 48px | Hero spacing |
+
+      ### 6. Spatial Composition Guidelines
+      Based on chosen aesthetic:
+      - [ ] Asymmetry: [Describe intentional imbalance]
+      - [ ] Negative space: [Generous or controlled?]
+      - [ ] Overlap: [Layered elements?]
+      - [ ] Grid: [Break grid intentionally?]
+
+      ## FOR PHASE: SPEC_DESIGN_COMPONENTS
+
+      Generate TWO separate files (CRITICAL - see OUTPUT FORMAT):
+
+      ### component-mapping.md
+      Map each component to:
+      - **PRD Requirement**: Which REQ-XXX does this serve?
+      - **Persona**: Which persona uses this?
+      - **Aesthetic Integration**: How does it reflect the chosen direction?
+      - **States**: Normal, loading, error, empty (ALL required)
+      - **Interactions**: Hover, focus, active, disabled
+      - **Responsive**: Breakpoint behavior
+
+      ### journey-maps.md
+      Document user journeys with:
+      - **Journey Name**: [Descriptive name]
+      - **Persona**: [Exact persona name from personas.md]
+      - **Steps**: Numbered flow with screen descriptions
+      - **Component References**: Which components from component-mapping.md
+      - **Error States**: What can go wrong at each step?
+      - **Empty States**: How does the UI look with no data?
+      - **Success States**: What does success look like?
+
+      ## OUTPUT FORMAT EXAMPLES
+
+      ### Example 1: design-tokens.md Color Palette Format
+      ```markdown
+      filename: design-tokens.md
+      ---
+      title: Design Tokens
+      owner: designer
+      version: 1.0
+      date: 2026-01-06
+      status: draft
+      aesthetic_direction: Brutally Minimal
+      ---
+
+      # Design Tokens for Project Scaffold
+
+      ## Aesthetic Direction: Brutally Minimal
+      Rationale: Maximum restraint allows content to shine; perfect for developer tools where clarity is paramount.
+
+      ## Color Palette (OKLCH)
+      ### Light Mode
+      | Role | OKLCH Value | Tailwind Var | Use Case |
+      |------|-------------|--------------|----------|
+      | Neutral (60%) | oklch(0.99 0.005 250) | --background | Page backgrounds |
+      | Complementary (30%) | oklch(0.13 0.02 240) | --foreground | Primary text |
+      | Accent (10%) | oklch(0.55 0.18 200) | --primary | CTAs, links |
+
+      ### Dark Mode
+      | Role | OKLCH Value | Tailwind Var | Use Case |
+      |------|-------------|--------------|----------|
+      | Neutral (60%) | oklch(0.10 0.01 240) | --background | Page backgrounds |
+      ```
+
+      ### Example 2: component-mapping.md Component Entry
+      ```markdown
+      filename: component-mapping.md
+      ---
+      title: Component Mapping
+      owner: designer
+      version: 1.0
+      date: 2026-01-06
+      status: draft
+      aesthetic_direction: Brutally Minimal
+      ---
+
+      # Component Mapping for Project Scaffold
+
+      ## Components
+
+      ### COMP-001: Primary Button
+      - **PRD Requirement**: REQ-UI-001
+      - **Persona**: Alex - The Indie Full-Stack Developer
+      - **Description**: Main call-to-action button for form submissions
+      - **States**:
+        - [x] Normal: Solid primary color, sharp corners
+        - [x] Loading: Spinner icon, reduced opacity
+        - [x] Error: Red border, error icon
+        - [x] Empty: Dashed border, "No data" text
+      - **Interactions**: Hover (darker), Focus (ring), Active (press), Disabled (grayed)
+      - **Responsive**: Full width on mobile, auto on desktop
+      - **Aesthetic Notes**: Sharp edges reinforce brutalist minimal aesthetic
+      ```
+
+      ### Example 3: journey-maps.md Journey Flow
+      ```markdown
+      filename: journey-maps.md
+      ---
+      title: User Journey Maps
+      owner: designer
+      version: 1.0
+      date: 2026-01-06
+      status: draft
+      aesthetic_direction: Brutally Minimal
+      ---
+
+      # User Journey Maps for Project Scaffold
+
+      ## Journey 1: Project Creation Flow
+      - **Persona**: Alex - The Indie Full-Stack Developer
+      - **PRD Requirements**: REQ-PROJ-001, REQ-PROJ-002
+      - **Steps**:
+        1. Landing → User sees minimal hero with "Start Project" button
+        2. Template Selection → Grid of template cards (COMP-002)
+        3. Configuration → Form inputs (COMP-003) for project settings
+        4. Review → Summary view with "Generate" button (COMP-001)
+        5. Completion → Download ready indicator
+      - **Error States**: Invalid config shows inline error messages
+      - **Empty States**: Placeholder templates shown when no selection
+      - **Component References**: COMP-001, COMP-002, COMP-003
+      ```
+
+      # OUTPUT FORMAT
+
+      ## FOR SPEC_DESIGN_TOKENS (Single file)
+      ```
+      filename: design-tokens.md
+      ---
+      title: Design Tokens
+      owner: designer
+      version: 1.0
+      date: {{currentDate}}
+      status: draft
+      aesthetic_direction: [CHOSEN DIRECTIVE]
+      ---
+
+      # Design Tokens for {{projectName}}
+
+      ## Aesthetic Direction: [NAME]
+      [2-3 sentence rationale tied to project brief]
+
+      ## Color Palette (OKLCH)
+      [Complete palette with 60/30/10 rule]
+
+      ## Typography
+      [Font choices with rationale - NO Inter!]
+
+      ## Motion Physics
+      [Spring configurations - NO arbitrary durations!]
+
+      ## Spacing System
+      [8pt grid scale]
+
+      ## Spatial Composition
+      [Layout guidelines based on aesthetic]
+      ```
+
+      ## FOR SPEC_DESIGN_COMPONENTS (TWO FILES - SEPARATE CODE BLOCKS!)
+
+      ```
+      filename: component-mapping.md
+      ---
+      title: Component Mapping
+      owner: designer
+      version: 1.0
+      date: {{currentDate}}
+      status: draft
+      aesthetic_direction: [CHOSEN DIRECTIVE]
+      ---
+
+      # Component Mapping for {{projectName}}
+
+      ## Aesthetic Direction: [NAME]
+      [Reinforce chosen aesthetic]
+
+      ## Components
+
+      ### [COMPONENT-001]: [Name]
+      - **PRD Requirement**: REQ-XXX
+      - **Persona**: [Exact persona name]
+      - **Description**: [What it does]
+      - **States**:
+        - [x] Normal: [Description]
+        - [x] Loading: [Description]
+        - [x] Error: [Description]
+        - [x] Empty: [Description]
+      - **Interactions**: [Hover, focus, active, disabled]
+      - **Responsive**: [Breakpoint behavior]
+      - **Aesthetic Notes**: [How it reflects chosen direction]
+      ```
+
+      ```
+      filename: journey-maps.md
+      ---
+      title: User Journey Maps
+      owner: designer
+      version: 1.0
+      date: {{currentDate}}
+      status: draft
+      aesthetic_direction: [CHOSEN DIRECTIVE]
+      ---
+
+      # User Journey Maps for {{projectName}}
+
+      ## Journey 1: [Name]
+      - **Persona**: [Exact persona name]
+      - **PRD Requirements**: REQ-XXX, REQ-XXX
+      - **Steps**:
+        1. [Entry point] → [Screen description]
+        2. [Action] → [Screen description with component refs]
+        3. [Completion] → [Success state]
+      - **Error States**: [What goes wrong, how recovered]
+      - **Empty States**: [No data scenarios]
+      - **Component References**: [COMP-001, COMP-002]
+      ```
+
+      # QUALITY CHECKLIST (Self-verify)
+
+      ## For SPEC_DESIGN_TOKENS:
+      - [ ] Aesthetic direction is chosen and committed
+      - [ ] No Inter, Roboto, or system fonts used
+      - [ ] No purple/indigo color defaults
+      - [ ] Colors use OKLCH format
+      - [ ] Animation defined as physics (stiffness/damping), not just duration
+      - [ ] Maximum 4 font sizes
+      - [ ] Spacing follows 8pt grid
+
+      ## For SPEC_DESIGN_COMPONENTS:
+      - [ ] BOTH files generated (component-mapping.md AND journey-maps.md)
+      - [ ] Each component references PRD requirement by ID (REQ-XXX)
+      - [ ] Each component references persona by EXACT NAME
+      - [ ] All 4 states documented (normal, loading, error, empty)
+      - [ ] Each journey has 3+ steps
+      - [ ] Error states documented for each journey
+      - [ ] Empty states documented for each journey
+      - [ ] Journey components reference component-mapping.md IDs
+
+  frontend_developer:
+    role: 'Frontend Developer'
+    perspective: 'Senior React Engineer'
+    responsibilities:
+      - 'Build production-ready React components with TypeScript'
+      - 'Follow shadcn/ui patterns and design tokens'
+      - 'Implement accessibility (useReducedMotion, ARIA, keyboard nav)'
+      - 'Generate complete code - NO placeholders, NO TODO comments'
+      - 'Use subagent dispatch for isolation per component'
+    prompt_template: |
+      # ROLE
+      You are a frontend-developer.md expert building production-grade React components.
+
+      # CORE PRINCIPLES (from frontend-developer.md)
+
+      ## React 19 + Next.js 15 Patterns
+      - Use Server Actions for mutations where appropriate
+      - Use useActionState for form state management
+      - Use useOptimistic for immediate UI feedback
+      - Implement Suspense boundaries for loading states
+
+      ## Component Architecture
+      - Follow atomic design principles
+      - Props interfaces with TypeScript (export for consumers)
+      - Forward refs for DOM components
+      - React.memo for expensive renders
+
+      ## Accessibility (WCAG 2.1 AA)
+      - useReducedMotion for animations
+      - Proper ARIA attributes
+      - Keyboard navigation (Tab, Enter, Space, Escape)
+      - Focus management for modals/dialogs
+
+      ## Performance
+      - Dynamic imports for large components
+      - Image optimization with next/image
+      - Proper code splitting
+
+      ## Testing Readiness
+      - Component structured for React Testing Library
+      - Data-testid attributes on key elements
+      - Clear component boundaries
+
+      # PROJECT CONTEXT
+      Design Tokens:
+      {{designTokens}}
+
+      Approved Stack:
+      {{approvedStack}}
+
+      Component Specification:
+      {{componentSpec}}
+
+      ## OUTPUT FORMAT EXAMPLES
+
+      ### Example 1: Button.tsx Component
+      ```typescript filename: components/ui/button.tsx
+      // Generated by frontend-developer skill
+      // Persona: Alex - The Indie Full-Stack Developer
+      // PRD Requirements: REQ-UI-001
+
+      'use client';
+
+      import * as React from 'react';
+      import { cva, type VariantProps } from 'class-variance-authority';
+      import { motion } from 'framer-motion';
+      import { cn } from '@/lib/utils';
+      import { motionConfig } from '@/lib/motion';
+
+      const buttonVariants = cva(
+        'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
+        {
+          variants: {
+            variant: {
+              default: 'bg-primary text-primary-foreground shadow hover:bg-primary/90',
+              destructive: 'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90',
+              outline: 'border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground',
+              secondary: 'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80',
+              ghost: 'hover:bg-accent hover:text-accent-foreground',
+              link: 'text-primary underline-offset-4 hover:underline',
+            },
+            size: {
+              default: 'h-9 px-4 py-2',
+              sm: 'h-8 rounded-md px-3 text-xs',
+              lg: 'h-10 rounded-md px-8',
+              icon: 'h-9 w-9',
+            },
+          },
+          defaultVariants: {
+            variant: 'default',
+            size: 'default',
+          },
+        }
+      );
+
+      export interface ButtonProps
+        extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+          VariantProps<typeof buttonVariants> {
+        asChild?: boolean;
+      }
+
+      function Button({
+        className,
+        variant,
+        size,
+        ...props
+      }: ButtonProps) {
+        return (
+          <motion.button
+            className={cn(buttonVariants({ variant, size, className }))}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            transition={motionConfig.spring.gentle}
+            {...props}
+          />
+        );
+      }
+
+      export { Button, buttonVariants };
+      ```
+
+      ### Example 2: Card.tsx Component
+      ```typescript filename: components/ui/card.tsx
+      // Generated by frontend-developer skill
+      // Persona: Maya - The DevRel Team Lead
+      // PRD Requirements: REQ-UI-002
+
+      'use client';
+
+      import * as React from 'react';
+      import { motion } from 'framer-motion';
+      import { cn } from '@/lib/utils';
+
+      function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+        return (
+          <motion.div
+            className={cn(
+              'rounded-xl border bg-card text-card-foreground shadow',
+              className
+            )}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            {...props}
+          />
+        );
+      }
+
+      function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+        return (
+          <div className={cn('flex flex-col space-y-1.5 p-6', className)} {...props} />
+        );
+      }
+
+      function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+        return <div className={cn('p-6 pt-0', className)} {...props} />;
+      }
+
+      export { Card, CardHeader, CardContent };
+      ```
+
+      # OUTPUT FORMAT
+      Generate component file in this EXACT format:
+
+      ```typescript filename: {{path}}
+      // Generated by frontend-developer skill
+      // Persona: {{persona}}
+      // PRD Requirements: {{prdRequirements}}
+
+      'use client';
+
+      import * as React from 'react';
+      import { motion } from 'framer-motion';
+      import { cn } from '@/lib/utils';
+      import { colors, typography, motion as motionTokens } from '@/lib/design-tokens';
+
+      // [Complete, production-ready code]
+      ```
+
+      # QUALITY GATES
+      - [ ] Valid TypeScript (compiles without errors)
+      - [ ] NO console.log, debugger, or TODO comments
+      - [ ] useReducedMotion accessibility included
+      - [ ] Proper TypeScript interfaces (no any)
+      - [ ] Loading, error, and empty states handled
+      - [ ] Keyboard navigation works
+      - [ ] ARIA attributes correct
+
+      Generate the component now.
 
 # File structure templates
 file_structure:
-  project_directory: "/projects/{slug}/"
-  specs_directory: "/projects/{slug}/specs/"
-  artifact_versioning: "v{version}/"
-  
+  project_directory: '/projects/{slug}/'
+  specs_directory: '/projects/{slug}/specs/'
+  artifact_versioning: 'v{version}/'
+
   zip_structure:
     root_files:
-      - "constitution.md"
-      - "project-brief.md"
-      - "project-classification.json"
-      - "personas.md"
-      - "README.md"
-      - "HANDOFF.md"
+      - 'constitution.md'
+      - 'project-brief.md'
+      - 'project-classification.json'
+      - 'personas.md'
+      - 'README.md'
+      - 'HANDOFF.md'
     specs_folder:
-      - "stack-analysis.md"
-      - "stack-decision.md"
-      - "stack-rationale.md"
-      - "stack.json"
-      - "PRD.md"
-      - "data-model.md"
-      - "api-spec.json"
-      - "design-system.md"
-      - "component-inventory.md"
-      - "user-flows.md"
-      - "architecture.md"
-      - "epics.md"
-      - "tasks.md"
-      - "plan.md"
-      - "DEPENDENCIES.md"
-      - "dependencies.json"
+      - 'stack-analysis.md'
+      - 'stack-decision.md'
+      - 'stack-rationale.md'
+      - 'stack.json'
+      - 'PRD.md'
+      - 'data-model.md'
+      - 'api-spec.json'
+      - 'design-system.md'
+      - 'component-inventory.md'
+      - 'user-flows.md'
+      - 'architecture.md'
+      - 'epics.md'
+      - 'tasks.md'
+      - 'plan.md'
+      - 'DEPENDENCIES.md'
+      - 'dependencies.json'
     config_folder:
-      - ".ai-config/analyst_prompt.md"
-      - ".ai-config/pm_prompt.md"
-      - ".ai-config/architect_prompt.md"
-      - ".ai-config/scrummaster_prompt.md"
-      - ".ai-config/devops_prompt.md"
-      - ".ai-config/validators.yml"
+      - '.ai-config/analyst_prompt.md'
+      - '.ai-config/pm_prompt.md'
+      - '.ai-config/architect_prompt.md'
+      - '.ai-config/scrummaster_prompt.md'
+      - '.ai-config/devops_prompt.md'
+      - '.ai-config/validators.yml'
     docs_folder:
-      - "docs/security-baseline.md"
-      - "docs/DEPS_NOTES.md"
+      - 'docs/security-baseline.md'
+      - 'docs/DEPS_NOTES.md'
 
 # LLM configuration
 llm_config:
-  provider: "gemini"
-  model: "gemini-2.5-flash"
-  max_tokens: 16384  # Increased for complex outputs
-  temperature: 0.5   # Balanced between creativity and consistency
+  provider: 'gemini'
+  model: 'gemini-3-flash-preview'
+  max_tokens: 16384 # Increased for complex outputs
+  temperature: 0.5 # Balanced between creativity and consistency
   top_p: 0.95
-  timeout_seconds: 180  # Increased for longer generations
-  
+  timeout_seconds: 180 # Increased for longer generations
+
   # Phase-specific overrides for optimal output quality
   # DYNAMIC TOKEN ALLOCATION: Uses percentageAllocation to automatically adjust to any LLM model
   # When a new model is added, phases automatically scale to that model's maxOutputTokens
@@ -2534,67 +4900,160 @@ llm_config:
   # Set both percentageAllocation AND legacy max_tokens during migration period.
   # The system will use percentageAllocation (new) and ignore max_tokens (legacy) when both present.
   phase_overrides:
+    # Token allocations optimized for FULL artifact generation (no truncation)
+    # Each phase gets an independent percentage of the model's max output tokens
     ANALYSIS:
       temperature: 0.7
-      percentageAllocation: 50      # 50% of model's max output
-      minTokens: 8000              # Minimum 8K tokens for quality analysis
+      percentageAllocation: 80 # 80% - 4 comprehensive documents (constitution, brief, personas, classification)
+      minTokens: 16000 # Minimum 16K tokens for quality analysis
       # Legacy fallback (ignored if percentageAllocation present):
-      max_tokens: 32000
+      max_tokens: 51200
 
     STACK_SELECTION:
       temperature: 0.3
-      percentageAllocation: 25      # 25% of model's max output
-      minTokens: 4000              # Minimum 4K tokens
+      percentageAllocation: 50 # 50% - 4 technical documents (analysis, decision, rationale, stack.json)
+      minTokens: 12000 # Minimum 12K tokens
       # Legacy fallback:
-      max_tokens: 16000
+      max_tokens: 32000
 
-    SPEC:
+    SPEC_PM:
       temperature: 0.3
-      percentageAllocation: 75      # 75% of model's max output (comprehensive specs)
-      minTokens: 12000             # Minimum 12K tokens for detailed specs
+      percentageAllocation: 75 # 75% - PRD with comprehensive Gherkin requirements
+      minTokens: 12000 # Minimum 12K tokens for detailed PRD
       # Legacy fallback:
       max_tokens: 48000
 
+    SPEC_ARCHITECT:
+      temperature: 0.3
+      percentageAllocation: 75 # 75% - Data model and OpenAPI specification
+      minTokens: 12000 # Minimum 12K tokens for detailed specs
+      # Legacy fallback:
+      max_tokens: 48000
+
+    SPEC_DESIGN_TOKENS:
+      temperature: 0.3
+      percentageAllocation: 40 # 40% - Design tokens with color, typography, spacing, animation
+      minTokens: 8000 # Minimum 8K tokens for design tokens
+      # Legacy fallback:
+      max_tokens: 25600
+
+    SPEC_DESIGN_COMPONENTS:
+      temperature: 0.3
+      percentageAllocation: 60 # 60% - Component mapping and journey maps
+      minTokens: 10000 # Minimum 10K tokens for component specs
+      # Legacy fallback:
+      max_tokens: 38400
+
+    FRONTEND_BUILD:
+      temperature: 0.3
+      percentageAllocation: 80 # 80% - Production-ready React components
+      minTokens: 14000 # Minimum 14K tokens for frontend build
+      # Legacy fallback:
+      max_tokens: 51200
+
     DEPENDENCIES:
       temperature: 0.2
-      percentageAllocation: 37      # 37% of model's max output
-      minTokens: 6000              # Minimum 6K tokens
+      percentageAllocation: 50 # 50% - DEPENDENCIES.md and dependencies.json
+      minTokens: 10000 # Minimum 10K tokens
       # Legacy fallback:
-      max_tokens: 24000
+      max_tokens: 32000
 
     SOLUTIONING:
       temperature: 0.4
-      percentageAllocation: 100     # 100% of model's max output (uses full capability)
-      minTokens: 16000             # Minimum 16K tokens for detailed architecture
+      percentageAllocation: 100 # 100% of model's max output (uses full capability)
+      minTokens: 16000 # Minimum 16K tokens for detailed architecture
       # Legacy fallback:
       max_tokens: 64000
 
     VALIDATE:
       temperature: 0.3
-      percentageAllocation: 50      # 50% of model's max output
-      minTokens: 8000              # Minimum 8K tokens
+      percentageAllocation: 60 # 60% - Validation and coverage reports
+      minTokens: 10000 # Minimum 10K tokens
+      # Legacy fallback:
+      max_tokens: 38400
+
+    AUTO_REMEDY:
+      temperature: 0.4
+      percentageAllocation: 50 # 50% - Remediation with sufficient context
+      minTokens: 10000 # Minimum 10K tokens
       # Legacy fallback:
       max_tokens: 32000
 
     DONE:
       temperature: 0.3
-      percentageAllocation: 50      # 50% of model's max output
-      minTokens: 8000              # Minimum 8K tokens
+      percentageAllocation: 60 # 60% - HANDOFF.md and README generation
+      minTokens: 10000 # Minimum 10K tokens
       # Legacy fallback:
-      max_tokens: 32000
-  
+      max_tokens: 38400
+
+  # Streaming validation configuration
+  # Monitors LLM output in real-time and can abort on violations
+  streaming_validation:
+    enabled: true
+    abort_on_violations: true
+    check_interval_ms: 100
+    # Phases where streaming validation is enabled
+    enabled_phases:
+      - 'SPEC_DESIGN_COMPONENTS'
+      - 'FRONTEND_BUILD'
+      - 'SOLUTIONING'
+    # Phase-specific overrides
+    phase_overrides:
+      SPEC_DESIGN_COMPONENTS:
+        abort_on_violations: true
+        check_interval_ms: 100
+      FRONTEND_BUILD:
+        abort_on_violations: true
+        check_interval_ms: 50
+      SOLUTIONING:
+        abort_on_violations: false
+        check_interval_ms: 200
+    # Validation patterns (regex strings)
+    patterns:
+      placeholder:
+        - "/\\/\\/\\s*TODO[:\\s]/i"
+        - "/\\/\\*\\s*TODO[:\\s]/i"
+        - '/placeholder/i'
+        - '/lorem ipsum/i'
+        - "/\\[?TO BE IMPLEMENTED\\]?/i"
+        - "/\\[?WIP\\]?/i"
+        - "/\\[?XXX\\]?/i"
+        - '/TBD/i'
+        - '/FIXME/i'
+        - '/REVIEW:/i'
+      slop:
+        - '/purple.*gradient/i'
+        - '/indigo.*gradient/i'
+        - '/blob.*background/i'
+        - '/inter font/i'
+        - '/beautiful.*gradient/i'
+        - '/stunning.*design/i'
+        - '/eye-catching/i'
+        - '/modern.*look/i'
+        - '/sleek.*design/i'
+        - '/visually.*appealing/i'
+        - '/captivating/i'
+        - '/breathtaking/i'
+        - '/exquisite/i'
+        - '/radiant/i'
+        - '/ethereal/i'
+      format:
+        - '/undefined/i'
+        - "/null\\s*[,\\n]/"
+        - "/\\[object Object\\]/"
+
   # Rate limiting and cost management
   rate_limit:
     requests_per_minute: 60
     tokens_per_hour: 100000
-    
+
   cost_management:
-    max_cost_per_project: 50.0  # USD
+    max_cost_per_project: 50.0 # USD
     token_cost_per_million: 0.5
 
 # Project defaults
 project_defaults:
-  current_phase: "ANALYSIS"
+  current_phase: 'ANALYSIS'
   phases_completed: []
   stack_choice: null
   stack_approved: false

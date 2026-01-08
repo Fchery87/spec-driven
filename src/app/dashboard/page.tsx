@@ -18,8 +18,10 @@ import {
 import { 
   Trash2, Search, Plus, MoreHorizontal, ArrowUpRight, 
   ChevronDown, ChevronUp, Layers, Clock, CheckCircle2,
-  AlertCircle, FolderOpen, TrendingUp
+  AlertCircle, FolderOpen, TrendingUp,
+  Settings, Shield, Cog
 } from 'lucide-react';
+import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 
 interface Project {
   slug: string;
@@ -34,7 +36,20 @@ interface Project {
   };
 }
 
-const PHASES = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE', 'DONE'];
+const PHASES = [
+  'ANALYSIS',
+  'STACK_SELECTION',
+  'SPEC_PM',
+  'SPEC_ARCHITECT',
+  'SPEC_DESIGN_TOKENS',
+  'SPEC_DESIGN_COMPONENTS',
+  'FRONTEND_BUILD',
+  'DEPENDENCIES',
+  'SOLUTIONING',
+  'VALIDATE',
+  'AUTO_REMEDY',
+  'DONE'
+];
 
 export default function Dashboard() {
   const router = useRouter();
@@ -145,7 +160,8 @@ export default function Dashboard() {
   }, [projects]);
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted">
+    <ErrorBoundary>
+      <main className="min-h-screen bg-gradient-to-br from-background via-background to-muted">
       <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
         {/* Hero Header with Gradient */}
         <div className="gradient-header dark:gradient-header-dark rounded-2xl p-6 border border-border/50">
@@ -476,6 +492,43 @@ export default function Dashboard() {
           </Card>
         )}
 
+        {/* Settings Section */}
+        <Card className="border-border/50 bg-muted/30">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Settings & Credentials
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Button 
+                variant="outline" 
+                className="h-auto py-4 justify-start gap-3"
+                onClick={() => router.push('/user/credentials')}
+              >
+                <Shield className="h-5 w-5 text-primary" />
+                <div className="text-left">
+                  <p className="font-medium">My Credentials</p>
+                  <p className="text-xs text-muted-foreground">Manage LLM and MCP API keys</p>
+                </div>
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                className="h-auto py-4 justify-start gap-3"
+                onClick={() => router.push('/admin')}
+              >
+                <Cog className="h-5 w-5 text-muted-foreground" />
+                <div className="text-left">
+                  <p className="font-medium">Admin Settings</p>
+                  <p className="text-xs text-muted-foreground">Global configuration (admin only)</p>
+                </div>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Delete confirmation dialog */}
         <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <DialogContent className="sm:max-w-[425px]">
@@ -512,6 +565,7 @@ export default function Dashboard() {
         </Dialog>
       </div>
     </main>
+    </ErrorBoundary>
   );
 }
 

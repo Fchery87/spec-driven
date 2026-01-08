@@ -1,3 +1,5 @@
+import { StackComposition } from '@/types/composition';
+
 export type ProjectClassification = {
   project_type?: string;
   scale_tier?: string;
@@ -105,4 +107,62 @@ export function deriveIntelligentDefaultStack(
     stack: DEFAULT_STACKS_BY_TYPE.web_app,
     reason: 'fallback default for web applications',
   };
+}
+
+// Composition mapping: maps project_type to StackComposition
+const COMPOSITION_BY_PROJECT_TYPE: Record<string, StackComposition> = {
+  web_app: {
+    base: 'nextjs_app_router',
+    mobile: 'none',
+    backend: 'integrated',
+    data: 'neon_postgres',
+    architecture: 'monolith',
+  },
+  mobile_app: {
+    base: 'react_spa',
+    mobile: 'expo_integration',
+    backend: 'integrated',
+    data: 'supabase_full',
+    architecture: 'monolith',
+  },
+  fullstack_with_mobile: {
+    base: 'nextjs_app_router',
+    mobile: 'expo_integration',
+    backend: 'integrated',
+    data: 'neon_postgres',
+    architecture: 'monolith',
+  },
+  api_platform: {
+    base: 'nextjs_app_router',
+    mobile: 'none',
+    backend: 'fastapi_api',
+    data: 'neon_postgres',
+    architecture: 'monolith',
+  },
+  static_site: {
+    base: 'astro',
+    mobile: 'none',
+    backend: 'none',
+    data: 'none',
+    architecture: 'monolith',
+  },
+  backend_heavy: {
+    base: 'nextjs_app_router',
+    mobile: 'none',
+    backend: 'fastapi_api',
+    data: 'neon_postgres',
+    architecture: 'monolith',
+  },
+};
+
+export function deriveCompositionFromClassification(
+  classification: ProjectClassification | null,
+  _projectBrief: string
+): StackComposition | null {
+  if (!classification?.project_type) {
+    return null;
+  }
+
+  const composition = COMPOSITION_BY_PROJECT_TYPE[classification.project_type];
+  return composition ?? null;
 }

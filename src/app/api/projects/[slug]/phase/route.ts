@@ -5,17 +5,35 @@ import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 
-const PHASES = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE', 'DONE'];
+const PHASES = [
+  'ANALYSIS',
+  'STACK_SELECTION',
+  'SPEC_PM',
+  'SPEC_ARCHITECT',
+  'SPEC_DESIGN_TOKENS',
+  'SPEC_DESIGN_COMPONENTS',
+  'FRONTEND_BUILD',
+  'DEPENDENCIES',
+  'SOLUTIONING',
+  'VALIDATE',
+  'AUTO_REMEDY',
+  'DONE'
+];
 
 const getPhaseOutputs = (phase: string): string[] => {
   const outputs: Record<string, string[]> = {
     ANALYSIS: ['constitution.md', 'project-brief.md', 'project-classification.json', 'personas.md'],
     STACK_SELECTION: ['stack-analysis.md', 'stack-decision.md', 'stack-rationale.md', 'stack.json'],
-    SPEC: ['PRD.md', 'data-model.md', 'api-spec.json', 'design-system.md', 'component-inventory.md', 'user-flows.md'],
+    SPEC_PM: ['PRD.md'],
+    SPEC_ARCHITECT: ['data-model.md', 'api-spec.json'],
+    SPEC_DESIGN_TOKENS: ['design-tokens.md'],
+    SPEC_DESIGN_COMPONENTS: ['component-mapping.md', 'journey-maps.md'],
+    FRONTEND_BUILD: ['frontend-components.md'],
     DEPENDENCIES: ['DEPENDENCIES.md', 'dependencies.json'],
     SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],
     VALIDATE: ['validation-report.md', 'coverage-matrix.md'],
-    DONE: ['README.md', 'HANDOFF.md']
+    AUTO_REMEDY: ['remediation-report.md'],
+    DONE: ['README.md', 'HANDOFF.md', 'project.zip']
   };
   return outputs[phase] || [];
 };

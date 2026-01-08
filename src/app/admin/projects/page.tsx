@@ -13,6 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { FolderOpen, Search, User } from 'lucide-react';
+import { ErrorBoundary } from '@/components/error/ErrorBoundary';
 
 interface ProjectData {
   id: string;
@@ -30,7 +31,20 @@ interface ProjectData {
   ownerName: string | null;
 }
 
-const PHASES = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE', 'DONE'];
+const PHASES = [
+  'ANALYSIS',
+  'STACK_SELECTION',
+  'SPEC_PM',
+  'SPEC_ARCHITECT',
+  'SPEC_DESIGN_TOKENS',
+  'SPEC_DESIGN_COMPONENTS',
+  'FRONTEND_BUILD',
+  'DEPENDENCIES',
+  'SOLUTIONING',
+  'VALIDATE',
+  'AUTO_REMEDY',
+  'DONE'
+];
 
 export default function AllProjectsPage() {
   const [projects, setProjects] = useState<ProjectData[]>([]);
@@ -87,7 +101,8 @@ export default function AllProjectsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <ErrorBoundary>
+      <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <FolderOpen className="h-6 w-6 text-primary" />
@@ -204,6 +219,7 @@ export default function AllProjectsPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }

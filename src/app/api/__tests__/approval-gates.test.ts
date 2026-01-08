@@ -28,11 +28,11 @@ vi.mock('@/backend/services/orchestrator/orchestrator_engine');
 vi.mock('@/app/api/middleware/auth-guard', () => ({
   requireAuth: async () => mockSession,
   withAuth: (handler: unknown) => async (req: unknown, ctx: unknown) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     return (handler as any)(req, ctx, mockSession);
   },
   withAdminAuth: (handler: unknown) => async (req: unknown, ctx: unknown) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     return (handler as any)(req, ctx, mockSession);
   },
   isAdmin: () => true,
@@ -89,27 +89,27 @@ describe('Approval Gates and Phase Execution', () => {
         ...mockMetadata,
         current_phase: 'STACK_SELECTION'
       };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(metadataStackSelection);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.listArtifacts as any).mockReturnValue([]);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.writeArtifact as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.recordPhaseHistory as any).mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (OrchestratorEngine.prototype.runPhaseAgent as any).mockResolvedValue({
         success: true,
         message: 'Stack selection executed',
         artifacts: { 'STACK_SELECTION/stack-analysis.md': 'content' }
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (OrchestratorEngine.prototype.resolveStackSelectionMetadata as any).mockReturnValue({
         projectType: 'web_app',
         scaleTier: 'startup',
@@ -134,7 +134,7 @@ describe('Approval Gates and Phase Execution', () => {
         ...mockMetadata,
         current_phase: 'DONE'
       };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(metadataDone);
 
       const request = new NextRequest(
@@ -151,7 +151,7 @@ describe('Approval Gates and Phase Execution', () => {
     });
 
     it('should return 404 if project not found', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(null);
 
       const request = new NextRequest(
@@ -174,23 +174,23 @@ describe('Approval Gates and Phase Execution', () => {
         current_phase: 'SPEC',
         phases_completed: ['ANALYSIS', 'STACK_SELECTION']
       };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(metadataForSpec);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.listArtifacts as any).mockReturnValue([]);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (OrchestratorEngine.prototype.runPhaseAgent as any).mockResolvedValue({
         success: true,
         message: 'Phase executed',
         artifacts: {}
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.recordPhaseHistory as any).mockResolvedValue(undefined);
 
       const request = new NextRequest(
@@ -205,22 +205,22 @@ describe('Approval Gates and Phase Execution', () => {
 
     it('should execute orchestrator for automatable phases', async () => {
       const runPhaseSpy = vi.spyOn(OrchestratorEngine.prototype, 'runPhaseAgent');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(metadataForAnalysis);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.listArtifacts as any).mockReturnValue([]);
       runPhaseSpy.mockResolvedValue({
         success: true,
         message: 'Analysis phase executed',
         artifacts: { 'analysis.md': 'content' }
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.recordPhaseHistory as any).mockResolvedValue(undefined);
 
       const request = new NextRequest(
@@ -238,21 +238,21 @@ describe('Approval Gates and Phase Execution', () => {
 
     it('should record phase completion in database', async () => {
       const recordHistorySpy = vi.spyOn(ProjectDBService.prototype, 'recordPhaseHistory');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(metadataForAnalysis);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.listArtifacts as any).mockReturnValue([]);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (OrchestratorEngine.prototype.runPhaseAgent as any).mockResolvedValue({
         success: true,
         message: 'Phase executed',
         artifacts: {}
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
 
       const request = new NextRequest(
@@ -271,17 +271,17 @@ describe('Approval Gates and Phase Execution', () => {
 
     it('should record phase failure in database', async () => {
       const recordHistorySpy = vi.spyOn(ProjectDBService.prototype, 'recordPhaseHistory');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(metadataForAnalysis);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.listArtifacts as any).mockReturnValue([]);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (OrchestratorEngine.prototype.runPhaseAgent as any).mockResolvedValue({
         success: false,
         message: 'Phase execution failed',
         artifacts: {}
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
 
       const request = new NextRequest(
@@ -305,23 +305,23 @@ describe('Approval Gates and Phase Execution', () => {
         'analysis.md': 'Analysis content',
         'summary.md': 'Summary content'
       };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(metadataForAnalysis);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.listArtifacts as any).mockReturnValue([]);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (OrchestratorEngine.prototype.runPhaseAgent as any).mockResolvedValue({
         success: true,
         message: 'Phase executed',
         artifacts
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.saveProjectMetadata as any).mockImplementation(() => {});
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.recordPhaseHistory as any).mockResolvedValue(undefined);
 
       const request = new NextRequest(
@@ -337,15 +337,15 @@ describe('Approval Gates and Phase Execution', () => {
     });
 
     it('should handle orchestrator execution errors', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(metadataForAnalysis);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.listArtifacts as any).mockReturnValue([]);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (OrchestratorEngine.prototype.runPhaseAgent as any).mockRejectedValue(
         new Error('LLM API error')
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
 
       const request = new NextRequest(
@@ -362,21 +362,21 @@ describe('Approval Gates and Phase Execution', () => {
 
     it('should update project metadata after execution', async () => {
       const saveMetadataSpy = vi.spyOn(projectUtils, 'saveProjectMetadata');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.getProjectMetadata as any).mockReturnValue(metadataForAnalysis);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.listArtifacts as any).mockReturnValue([]);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (OrchestratorEngine.prototype.runPhaseAgent as any).mockResolvedValue({
         success: true,
         message: 'Phase executed',
         artifacts: {}
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (projectUtils.persistProjectToDB as any).mockResolvedValue(undefined);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.getProjectBySlug as any).mockResolvedValue(mockProjectData);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (ProjectDBService.prototype.recordPhaseHistory as any).mockResolvedValue(undefined);
 
       const request = new NextRequest(

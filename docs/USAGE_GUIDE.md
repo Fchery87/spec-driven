@@ -2,25 +2,30 @@
 
 Quick reference for using the Spec-Driven platform features.
 
-**Version 3.1** - Updated with AI-driven Stack Selection, Streamlined Dependencies, and Intelligent Defaults.
+**Version 3.5** - Updated with Superpowers Skill Invocation Framework, Anti-AI-Slop Validation, and Enhanced Frontend Build.
 
 ---
 
-## Phase Workflow (7 Phases)
+## Phase Workflow (12 Phases)
 
 ```
-ANALYSIS → STACK_SELECTION → SPEC → DEPENDENCIES → SOLUTIONING → VALIDATE → DONE
+ANALYSIS → STACK_SELECTION → SPEC_PM → SPEC_ARCHITECT → SPEC_DESIGN_TOKENS → SPEC_DESIGN_COMPONENTS → FRONTEND_BUILD → DEPENDENCIES → SOLUTIONING → VALIDATE → AUTO_REMEDY → DONE
 ```
 
-| Phase           | User Action                                              | Outputs                                                  |
-| --------------- | -------------------------------------------------------- | -------------------------------------------------------- |
-| ANALYSIS        | Answer clarification questions (or let AI assume)        | constitution.md, project-brief.md, personas.md           |
-| STACK_SELECTION | Review AI recommendation, approve/customize stack (GATE) | stack-analysis.md, stack-decision.md, stack-rationale.md |
-| SPEC            | Review generated specs                                   | PRD.md, data-model.md, api-spec.json, design-system.md   |
-| DEPENDENCIES    | Auto-generated from approved stack (no approval needed)  | DEPENDENCIES.md, dependencies.json                       |
-| SOLUTIONING     | Review architecture and tasks                            | architecture.md, epics.md, tasks.md, plan.md             |
-| VALIDATE        | Run validation checks, review results                    | validation-report.md, coverage-matrix.md                 |
-| DONE            | Download handoff                                         | README.md, HANDOFF.md, project.zip                       |
+| Phase                  | User Action                                              | Outputs                                                  |
+| ---------------------- | -------------------------------------------------------- | -------------------------------------------------------- |
+| ANALYSIS               | Answer clarification questions (or let AI assume)        | constitution.md, project-brief.md, personas.md           |
+| STACK_SELECTION        | Review AI recommendation, approve/customize stack (GATE) | stack-analysis.md, stack-decision.md, stack-rationale.md |
+| SPEC_PM                | Review Product Requirements Document                     | PRD.md                                                   |
+| SPEC_ARCHITECT         | Review technical architecture specs                      | data-model.md, api-spec.json                             |
+| SPEC_DESIGN_TOKENS     | Review brand colors, fonts, and motion tokens            | design-tokens.md, design-system.md                       |
+| SPEC_DESIGN_COMPONENTS | Review component mapping and user flows                  | component-inventory.md, user-flows.md                    |
+| FRONTEND_BUILD         | Monitor codebase generation (no artifacts)               | (Source code files in background)                        |
+| DEPENDENCIES           | Auto-generated from approved stack                       | DEPENDENCIES.md, dependencies.json                       |
+| SOLUTIONING            | Review implementation plan and tasks                     | architecture.md, epics.md, tasks.md, plan.md             |
+| VALIDATE               | Run consistency checks and review results                | validation-report.md, coverage-matrix.md                 |
+| AUTO_REMEDY            | Review AI-generated fixes for validation failures        | remediation-report.md                                   |
+| DONE                   | Download final project package                           | README.md, HANDOFF.md, project.zip                       |
 
 ---
 
@@ -127,6 +132,75 @@ Five governing principles enforced across ALL generated specifications:
 
 ---
 
+## Superpowers Skill Invocation Framework
+
+The platform includes a **Superpowers Skill Invocation Framework** that automatically invokes specialized skills during specific phases to enhance productivity and quality.
+
+### Available Skills
+
+| Skill | Phases | Purpose |
+|-------|--------|---------|
+| **Brainstorming** | ANALYSIS, STACK_SELECTION | Generates creative ideas and recommendations before generation |
+| **Writing Plans** | SOLUTIONING, SPEC_PM, SPEC_ARCHITECT, DEPENDENCIES | Creates structured plans and documentation |
+| **Systematic Debugging** | VALIDATE, AUTO_REMEDY | Provides structured debugging for issue resolution |
+| **Verification** | VALIDATE, DONE | Performs comprehensive verification before completion |
+| **Subagent-Driven Development** | FRONTEND_BUILD, SOLUTIONING | Manages parallel subagent execution for complex tasks |
+| **Finishing Branch** | DONE | Handles branch finalization and cleanup |
+
+### How It Works
+
+Skills are automatically invoked based on phase configuration in `orchestrator_spec.yml`:
+
+```yaml
+ANALYSIS:
+  superpowers_integration:
+    skill: "brainstorming"
+    trigger: "pre_generation"
+    input_mapping:
+      topic: "$project_description"
+      constraints: "$scale_tier"
+    output_mapping:
+      refined_requirements: "ideas"
+      recommendations: "recommendations"
+```
+
+### Skill Execution Flow
+
+1. **Pre-generation trigger**: Skills like Brainstorming run before phase generation to prepare context
+2. **Post-generation trigger**: Verification skills run after generation to validate outputs
+3. **On-demand trigger**: Debugging and finishing skills can be invoked when needed
+
+### Example: Brainstorming in ANALYSIS
+
+When entering the ANALYSIS phase with Superpowers enabled:
+
+1. The framework extracts project context (description, scale tier, constitution)
+2. Brainstorming skill generates 5-7 ideas with pros/cons
+3. Ideas are mapped to context and available to the analyst agent
+4. Results influence requirement generation
+
+### API Access
+
+```typescript
+import { SuperpowersExecutor } from '@/backend/services/superpowers/skill_executor';
+
+// Execute a skill manually
+const executor = new SuperpowersExecutor();
+const result = await executor.executeSkill(
+  'brainstorming',
+  'ANALYSIS',
+  { topic: 'E-commerce platform', constraints: 'MVP, 3 months' },
+  'project-123',
+  'My Project'
+);
+
+// Get available skills for a phase
+const skills = executor.getAvailableSkills('SOLUTIONING');
+// Returns: ['writing_plans', 'verification_before_completion']
+```
+
+---
+
 ## Stack Selection
 
 The platform supports **hybrid stack selection** with 12+ predefined templates or fully custom stacks.
@@ -187,15 +261,15 @@ After stack approval:
 
 ## Design System
 
-The SPEC phase generates design system artifacts following [fire-your-design-team.md](../fire-your-design-team.md).
+The design phases (`SPEC_DESIGN_TOKENS` and `SPEC_DESIGN_COMPONENTS`) generate design system artifacts following [fire-your-design-team.md](../fire-your-design-team.md).
 
 ### Artifacts Generated
 
-| Artifact                 | Content                                                             |
-| ------------------------ | ------------------------------------------------------------------- |
-| `design-system.md`       | Colors, typography (4 sizes max), spacing (8pt grid), motion tokens |
-| `component-inventory.md` | UI components mapped to shadcn/ui                                   |
-| `user-flows.md`          | Key user journeys with wireframes                                   |
+| Artifact               | Content                                                             |
+| ---------------------- | ------------------------------------------------------------------- |
+| `design-tokens.md`     | Colors, typography (4 sizes max), spacing (8pt grid), motion tokens |
+| `component-mapping.md` | UI components mapped to shadcn/ui                                   |
+| `journey-maps.md`      | Key user journeys with wireframes                                   |
 
 ### Anti-Patterns Avoided
 
@@ -408,8 +482,8 @@ const path = getArtifactPath('my-project', 'SPEC', 'PRD.md');
 // Result: /projects/my-project/specs/SPEC/v1/PRD.md
 
 // Get required files for phase
-const required = getRequiredFilesForPhase('SPEC');
-// Result: ['PRD.md', 'data-model.md', 'api-spec.json']
+const required = getRequiredFilesForPhase('SPEC_PM');
+// Result: ['PRD.md']
 
 // Type-safe phase checking
 if (isValidPhase(userInput)) {
@@ -612,12 +686,12 @@ export const POST = withCorrelationId(async (req: NextRequest) => {
       // 3. Log operation start
       logger.info('Starting phase execution', {
         projectId,
-        phase: 'SPEC',
+        phase: 'SPEC_PM',
         userId,
       });
 
       // 4. Execute operation
-      const result = await executePhase(projectId, 'SPEC');
+      const result = await executePhase(projectId, 'SPEC_PM');
 
       // 5. Log success
       logger.info('Phase execution completed', {
@@ -735,4 +809,4 @@ As you integrate these utilities into more routes:
 
 ---
 
-**Last Updated:** December 10, 2025
+**Last Updated:** January 6, 2026

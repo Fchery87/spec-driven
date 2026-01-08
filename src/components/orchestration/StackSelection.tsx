@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CheckCircle2, AlertCircle, Sparkles, Shield, Loader2 } from "lucide-react"
 import { StackRecommendationView } from "./StackRecommendationView"
 import { StackCard, StackTemplate } from "./StackCard"
+import { CompositionBuilder } from "./CompositionBuilder"
 
 interface TechnicalPreferences {
   state_management?: string
@@ -49,8 +50,15 @@ export function StackSelection({
   const [reasoning, setReasoning] = useState('')
   const [preferences, setPreferences] = useState<TechnicalPreferences>({})
   
-  // View state: 'recommendation' | 'browse'
-  const [viewMode, setViewMode] = useState<'recommendation' | 'browse'>('recommendation')
+  // View state: 'recommendation' | 'browse' | 'compose'
+  // Default to 'compose' for better UX - templates are hidden behind toggle
+  const [viewMode, setViewMode] = useState<'recommendation' | 'browse' | 'compose'>('compose')
+  
+  // Show all templates toggle (for Browse mode)
+  const [showAllTemplates, setShowAllTemplates] = useState(false)
+
+  // Composition system state
+  const [compositionSystem, setCompositionSystem] = useState<any>(null)
   
   // Fetch stack templates from API
   useEffect(() => {
@@ -61,6 +69,9 @@ export function StackSelection({
         if (data.success) {
           setTemplates(data.data.templates)
           setPreferenceOptions(data.data.technical_preferences || {})
+          if (data.data.composition_system) {
+            setCompositionSystem(data.data.composition_system)
+          }
         } else {
           setError('Failed to load stack templates')
         }
@@ -73,11 +84,13 @@ export function StackSelection({
     fetchTemplates()
   }, [])
 
-  // Switch to browse mode if no analysis content is available
+  // Switch to compose mode by default - templates are hidden behind toggle
+  // Only show recommendation if analysis content exists and user hasn't chosen compose
   useEffect(() => {
-    if (!loading && !analysisContent) {
-      setViewMode('browse')
+    if (!loading && analysisContent) {
+      setViewMode('recommendation')
     }
+    // Otherwise stay in 'compose' mode (the default)
   }, [loading, analysisContent])
 
   const handleStackClick = (stackId: string) => {
@@ -143,17 +156,31 @@ export function StackSelection({
         </h2>
         <div className="flex items-center justify-center gap-2 text-sm">
           {analysisContent && (
-             <Button 
-               variant={viewMode === 'recommendation' ? "secondary" : "ghost"}
-               onClick={() => setViewMode('recommendation')}
-               size="sm"
-             >
-               AI Recommendations
-             </Button>
+            <Button
+              variant={viewMode === 'recommendation' ? "secondary" : "ghost"}
+              onClick={() => setViewMode('recommendation')}
+              size="sm"
+            >
+              AI Recommendations
+            </Button>
           )}
-          <Button 
+          <Button
+            variant={viewMode === 'compose' ? "secondary" : "ghost"}
+            onClick={() => {
+              setViewMode('compose')
+              setShowAllTemplates(false)
+            }}
+            size="sm"
+            disabled={!compositionSystem}
+          >
+            Compose Custom
+          </Button>
+          <Button
             variant={viewMode === 'browse' ? "secondary" : "ghost"}
-            onClick={() => setViewMode('browse')}
+            onClick={() => {
+              setViewMode('browse')
+              setShowAllTemplates(true)
+            }}
             size="sm"
           >
             Browse All Templates
@@ -162,7 +189,18 @@ export function StackSelection({
       </div>
 
       {/* Main Content Area */}
-      {showRecommendationView ? (
+      {viewMode === 'compose' ? (
+        compositionSystem && (
+          <CompositionBuilder
+            compositionSystem={compositionSystem}
+            onComplete={(composition, resolvedStack) => {
+              const stackId = `${composition.base}+${composition.mobile}+${composition.backend}+${composition.data}+${composition.architecture}`
+              onStackSelect(stackId, `Composed stack: ${composition.base} + ${composition.mobile}`, preferences)
+            }}
+            isLoading={isLoading}
+          />
+        )
+      ) : showRecommendationView ? (
         <StackRecommendationView
           stackAnalysisContent={analysisContent!}
           classificationContent={classificationContent}
@@ -172,20 +210,48 @@ export function StackSelection({
           isLoading={isLoading}
         />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {templates.map((template) => (
-            <StackCard
-              key={template.id}
-              template={template}
-              isSelected={pendingStack === template.id}
-              onSelect={handleStackClick}
-            />
-          ))}
-        </div>
+        <>
+          {/* Quick Picks Toggle */}
+          <div className="flex items-center justify-between mb-4">
+            <Button
+              variant={!showAllTemplates ? "secondary" : "outline"}
+              onClick={() => setShowAllTemplates(false)}
+              size="sm"
+            >
+              Quick Picks (4)
+            </Button>
+            <Button
+              variant={showAllTemplates ? "secondary" : "outline"}
+              onClick={() => setShowAllTemplates(true)}
+              size="sm"
+            >
+              Show All Templates ({templates.length})
+            </Button>
+          </div>
+
+          {/* Templates Grid */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {(showAllTemplates ? templates : templates.slice(0, 4)).map((template) => (
+              <StackCard
+                key={template.id}
+                template={template}
+                isSelected={pendingStack === template.id}
+                onSelect={handleStackClick}
+              />
+            ))}
+          </div>
+
+          {/* Show All Notice */}
+          {!showAllTemplates && templates.length > 4 && (
+            <p className="text-center text-sm text-muted-foreground mt-4">
+              Showing 4 popular templates. Click &quot;Show All Templates&quot; to browse all {templates.length} options.
+            </p>
+          )}
+        </>
       )}
 
-      {/* Custom Stack Option (Visible in Browse Mode or if selected) */}
-      {(viewMode === 'browse' || showCustom) && (
+      {/* Custom Stack Option (Visible in Browse Mode with Show All or if selected) */}
+      {(viewMode === 'browse' && (showAllTemplates || showCustom)) && (
         <Card className={`border-dashed border-border ${showCustom ? 'ring-2 ring-primary' : ''}`}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

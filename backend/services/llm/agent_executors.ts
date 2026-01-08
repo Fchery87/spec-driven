@@ -1,6 +1,8 @@
 import { LLMProvider } from './providers/base';
+import { GeminiClient } from './llm_client';
 import { ConfigLoader } from '../orchestrator/config_loader';
 import { logger } from '@/lib/logger';
+import { ValidationIssue } from '../orchestrator/inline_validation';
 import {
   deriveIntelligentDefaultStack,
   parseProjectClassification,
@@ -10,6 +12,39 @@ import {
   detectFeaturesFromPRD,
   formatDependencyPresetForPrompt,
 } from '@/backend/config/dependency-presets';
+import { asString } from '@/backend/lib/artifact_utils';
+
+// ============================================================================
+// TYPE DEFINITIONS FOR AGENT EXECUTORS
+// ============================================================================
+
+export interface AgentConfig {
+  // Configuration options for agent execution
+  [key: string]: unknown;
+}
+
+export interface AgentExecutor {
+  role: string;
+  perspective: string;
+  expertise: string[];
+  generateArtifacts: (
+    context: Record<string, unknown>
+  ) => Promise<ArtifactGenerationResult>;
+  validateArtifacts?: (
+    artifacts: Record<string, string | Buffer>
+  ) => ValidationResult;
+}
+
+export interface ArtifactGenerationResult {
+  success: boolean;
+  artifacts: Record<string, string | Buffer>;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ValidationResult {
+  canProceed: boolean;
+  issues: ValidationIssue[];
+}
 
 /**
  * PURE FUNCTION ARCHITECTURE
@@ -26,14 +61,13 @@ import {
 // PROMPT BUILDING HELPERS
 // ============================================================================
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildPrompt(template: string, variables: Record<string, any>): string {
   let prompt = template;
 
   // Add standard variables that should always be available
   const standardVars = {
     currentDate: new Date().toISOString().split('T')[0],
-    ...variables
+    ...variables,
   };
 
   for (const [key, value] of Object.entries(standardVars)) {
@@ -46,147 +80,343 @@ function buildPrompt(template: string, variables: Record<string, any>): string {
 }
 
 // ============================================================================
-// ARTIFACT PARSING
+// CHAIN-OF-THOUGHT REASONING EXTRACTION
 // ============================================================================
 
-function parseArtifacts(content: string, expectedFiles: string[]): Record<string, string> {
-  const artifacts: Record<string, string> = {};
-  const expectedMap = expectedFiles.reduce<Record<string, string>>((map, filename) => {
-    map[filename.toLowerCase()] = filename;
-    return map;
-  }, {});
+/**
+ * Extract reasoning block from LLM response content.
+ * Looks for content wrapped in <reasoning>...</reasoning> tags.
+ *
+ * @param content - The raw LLM response content
+ * @returns The extracted reasoning text, or null if not found
+ */
+export function extractReasoning(content: string): string | null {
+  const match = content.match(/<reasoning>\s*([\s\S]*?)\s*<\/reasoning>/i);
+  return match ? match[1].trim() : null;
+}
 
-  // Try to extract files from markdown code blocks with explicit filename markers
-  // Supports:
-  // ```markdown filename: plan.md\n...``` and
-  // ```\nfilename: plan.md\n...```
-  const fileRegex = /```(?:(\w+)[ \t]*)?\n?filename:\s*([^\n]+)\n([\s\S]*?)```/g;
+/**
+ * Extract reasoning and artifacts from a response that contains both.
+ * The reasoning should be in a <reasoning> block, and artifacts follow.
+ *
+ * @param content - The raw LLM response content
+ * @returns Object containing reasoning (if present) and the cleaned content for artifact parsing
+ */
+export interface ReasoningExtractionResult {
+  reasoning: string | null;
+  cleanedContent: string;
+}
+
+/**
+ * Extract reasoning block and remove it from content for artifact parsing.
+ * Useful when LLM outputs reasoning followed by artifacts.
+ */
+export function extractReasoningAndClean(
+  content: string
+): ReasoningExtractionResult {
+  const reasoning = extractReasoning(content);
+
+  // Remove the reasoning block from content to get clean artifact content
+  const cleanedContent = reasoning
+    ? content.replace(/<reasoning>[\s\S]*?<\/reasoning>\s*/i, '').trim()
+    : content;
+
+  return {
+    reasoning,
+    cleanedContent,
+  };
+}
+
+// ============================================================================
+// ARTIFACT PARSING - FAIL-FAST ARCHITECTURE
+// ============================================================================
+
+interface ParseResult {
+  success: boolean;
+  artifacts: Record<string, string | Buffer>;
+  parseMethod: 'structured' | 'markdown_strict' | 'failed';
+  errors: string[];
+}
+
+/**
+ * Parse artifacts with fail-fast behavior.
+ *
+ * OLD (PROBLEMATIC): 6-layer fallback chain with silent degradation
+ * - Attempt 1: Markdown code blocks with filename markers
+ * - Attempt 2: JSON extraction
+ * - Attempt 3: Header-based parsing
+ * - ...
+ * - Attempt 5: DEGRADE - dump everything into first file ← BAD
+ * - Attempt 6: SILENT FAILURE - empty strings ← WORSE
+ *
+ * NEW (ROBUST):
+ * - PRIMARY: Structured output detection (JSON array with filename/content)
+ * - FALLBACK: Strict markdown parsing (NO degradation!)
+ * - FAILURE: Throw clear error instead of silent degradation
+ */
+function parseArtifacts(
+  content: string,
+  expectedFiles: string[],
+  options: { allowMarkdownFallback?: boolean } = { allowMarkdownFallback: true }
+): Record<string, string | Buffer> {
+  const result = parseArtifactsInternal(content, expectedFiles, options);
+
+  if (result.success) {
+    return result.artifacts;
+  }
+
+  // For backward compatibility, return partial results but log warning
+  // This maintains existing behavior while adding new validation path
+  logger.warn('[ParseArtifacts] Parse failed, returning partial results', {
+    expectedFiles,
+    foundFiles: Object.keys(result.artifacts),
+    errors: result.errors,
+  });
+
+  return result.artifacts;
+}
+
+/**
+ * Internal parse function that returns full ParseResult
+ */
+function parseArtifactsInternal(
+  content: string,
+  expectedFiles: string[],
+  options: { allowMarkdownFallback?: boolean } = { allowMarkdownFallback: true }
+): ParseResult {
+  const result: ParseResult = {
+    success: false,
+    artifacts: {},
+    parseMethod: 'failed',
+    errors: [],
+  };
+
+  // PRIMARY PATH: Try structured extraction first (JSON array pattern)
+  const structuredArtifacts = extractStructuredArtifacts(content);
+  if (structuredArtifacts) {
+    result.artifacts = structuredArtifacts;
+    result.parseMethod = 'structured';
+    result.success = validateAllFilesPresent(result.artifacts, expectedFiles);
+    if (result.success) {
+      return result;
+    }
+    result.errors.push('Structured output missing required files');
+  }
+
+  // FALLBACK: Strict markdown code block parsing (NO degradation!)
+  if (options.allowMarkdownFallback) {
+    const markdownArtifacts = parseMarkdownBlocksStrict(content, expectedFiles);
+    if (markdownArtifacts) {
+      result.artifacts = markdownArtifacts;
+      result.parseMethod = 'markdown_strict';
+      result.success = validateAllFilesPresent(result.artifacts, expectedFiles);
+      if (result.success) {
+        return result;
+      }
+      result.errors.push('Markdown fallback missing required files');
+    }
+  }
+
+  // NO DEGRADATION: Don't dump everything into first file
+  // NO SILENT FAILURE: Don't fill with empty strings
+
+  result.errors.push(
+    `Parse failed. Expected files: ${expectedFiles.join(', ')}. ` +
+      `Found files: ${Object.keys(result.artifacts).join(', ') || 'none'}. ` +
+      `Parse method attempted: ${result.parseMethod}`
+  );
+
+  return result;
+}
+
+/**
+ * Extract artifacts from structured JSON array format.
+ * Looks for: [{"filename": "...", "content": "..."}]
+ */
+function extractStructuredArtifacts(
+  content: string
+): Record<string, string | Buffer> | null {
+  // Try to find JSON array pattern
+  const arrayMatch = content.match(/\[\s*\{\s*"filename"/);
+  if (!arrayMatch) return null;
+
+  try {
+    // Find the JSON array boundaries
+    const startIndex = content.indexOf('[');
+    if (startIndex === -1) return null;
+
+    let braceCount = 0;
+    let endIndex = -1;
+
+    for (let i = startIndex; i < content.length; i++) {
+      if (content[i] === '{') braceCount++;
+      if (content[i] === '}') braceCount--;
+      if (braceCount === 0 && content[i] === ']') {
+        endIndex = i + 1;
+        break;
+      }
+    }
+
+    if (endIndex === -1) return null;
+
+    const jsonContent = content.slice(startIndex, endIndex);
+    const artifacts: Array<{ filename: string; content: string }> =
+      JSON.parse(jsonContent);
+
+    const result: Record<string, string | Buffer> = {};
+    for (const artifact of artifacts) {
+      if (artifact.filename && typeof artifact.content === 'string') {
+        result[artifact.filename] = artifact.content;
+      }
+    }
+
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Strict markdown code block parsing - requires ALL files found.
+ * Returns null if any expected file is missing (no partial results).
+ */
+function parseMarkdownBlocksStrict(
+  content: string,
+  expectedFiles: string[]
+): Record<string, string | Buffer> | null {
+  const fileRegex =
+    /```(?:(\w+)[ \t]*)?\n?filename:\s*([^\n]+)\n([\s\S]*?)```/g;
+
+  const artifacts: Record<string, string | Buffer> = {};
   let match;
 
   while ((match = fileRegex.exec(content)) !== null) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [, language, filename, fileContent] = match;
-    const rawName = filename.trim();
-    const normalizedName = expectedMap[rawName.toLowerCase()] || rawName;
-    artifacts[normalizedName] = fileContent.trim();
-  }
+    const normalizedName = filename.trim();
 
-  // Special handling for JSON files - try to extract JSON blocks
-  for (const filename of expectedFiles) {
-    if (filename.endsWith('.json') && !artifacts[filename]) {
-      // Try multiple patterns for JSON extraction
-      // Pattern 1: ```json\n{...}```
-      const jsonBlockRegex = /```json\s*\n(\{[\s\S]*?\})\s*```/g;
-      let jsonMatch;
-      while ((jsonMatch = jsonBlockRegex.exec(content)) !== null) {
-        const jsonContent = jsonMatch[1].trim();
-        // Validate it's actually valid JSON
-        try {
-          JSON.parse(jsonContent);
-          artifacts[filename] = jsonContent;
-          break;
-        } catch {
-          // Not valid JSON, continue searching
-        }
-      }
-
-      // Pattern 2: Look for OpenAPI structure specifically
-      if (!artifacts[filename]) {
-        const openapiMatch = content.match(/"openapi"\s*:\s*"[\d.]+"/);
-        if (openapiMatch) {
-          // Find the complete JSON object containing openapi
-          const startIndex = content.lastIndexOf('{', openapiMatch.index);
-          if (startIndex !== -1) {
-            // Try to find matching closing brace
-            let braceCount = 0;
-            let endIndex = -1;
-            for (let i = startIndex; i < content.length; i++) {
-              if (content[i] === '{') braceCount++;
-              if (content[i] === '}') braceCount--;
-              if (braceCount === 0) {
-                endIndex = i + 1;
-                break;
-              }
-            }
-            if (endIndex !== -1) {
-              const jsonContent = content.slice(startIndex, endIndex);
-              try {
-                JSON.parse(jsonContent);
-                artifacts[filename] = jsonContent;
-              } catch {
-                // Failed to parse, continue
-              }
-            }
-          }
-        }
-      }
+    // Only accept files that are in our expected list
+    if (expectedFiles.includes(normalizedName)) {
+      artifacts[normalizedName] = fileContent.trim();
     }
   }
 
-  // If some but not all files found, try header-based parsing
-  if (Object.keys(artifacts).length > 0 && Object.keys(artifacts).length < expectedFiles.length) {
-    for (const filename of expectedFiles) {
-      if (!artifacts[filename]) {
-        const fileHeader = new RegExp(`#?\\s*${filename.replace('.', '\\.')}`, 'i');
-        const parts = content.split(fileHeader);
+  // Return null if not ALL files found (strict!)
+  const allFound = expectedFiles.every((f) => artifacts[f]);
+  return allFound ? artifacts : null;
+}
 
-        if (parts.length > 1) {
-          let fileContent = parts[1];
-          for (const otherFile of expectedFiles) {
-            if (otherFile !== filename) {
-              const nextHeader = new RegExp(`#?\\s*${otherFile.replace('.', '\\.')}`, 'i');
-              const headerParts = fileContent.split(nextHeader);
-              if (headerParts.length > 1) {
-                fileContent = headerParts[0];
-                break;
-              }
-            }
-          }
-          artifacts[filename] = fileContent.trim();
-        }
+/**
+ * Validate all expected files are present
+ */
+function validateAllFilesPresent(
+  artifacts: Record<string, string | Buffer>,
+  expectedFiles: string[]
+): boolean {
+  return expectedFiles.every((f) => artifacts[f] && artifacts[f].length > 0);
+}
+
+/**
+ * Parse with validation - REJECT on failure, RETRY with enhanced prompt.
+ * This is the main entry point for artifact parsing.
+ */
+export async function parseArtifactsWithValidation(
+  content: string,
+  expectedFiles: string[],
+  llmClient: LLMProvider,
+  originalPrompt: string,
+  phase: string,
+  maxRetries: number = 2
+): Promise<Record<string, string | Buffer>> {
+  const parseResult = parseArtifactsInternal(content, expectedFiles);
+
+  if (parseResult.success) {
+    return parseResult.artifacts;
+  }
+
+  // Retry with enhanced prompt
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const enhancedPrompt = buildRetryPrompt(
+      originalPrompt,
+      expectedFiles,
+      parseResult.errors,
+      attempt
+    );
+
+    try {
+      const response = await llmClient.generateCompletion(
+        enhancedPrompt,
+        undefined,
+        1,
+        phase
+      );
+
+      const retryResult = parseArtifactsInternal(
+        response.content,
+        expectedFiles
+      );
+
+      if (retryResult.success) {
+        logger.info(`[ParseArtifacts] Retry ${attempt} succeeded`, {
+          phase,
+          parseMethod: retryResult.parseMethod,
+        });
+        return retryResult.artifacts;
       }
+    } catch (retryError) {
+      logger.warn(`[ParseArtifacts] Retry ${attempt} failed`, {
+        phase,
+        error: (retryError as Error).message,
+      });
     }
   }
 
-  // If no files extracted, try header-based parsing for all expected files
-  if (Object.keys(artifacts).length === 0) {
-    for (const filename of expectedFiles) {
-      const fileHeader = new RegExp(`#?\\s*${filename.replace('.', '\\.')}`, 'i');
-      const parts = content.split(fileHeader);
+  // Final failure - don't degrade, throw clear error!
+  throw new Error(
+    `Artifact parsing failed after ${maxRetries} retries for phase ${phase}. ` +
+      `Expected files: ${expectedFiles.join(', ')}. ` +
+      `Errors: ${parseResult.errors.join('; ')}. ` +
+      `Use structured output (JSON array with filename/content) to fix.`
+  );
+}
 
-      if (parts.length > 1) {
-        let fileContent = parts[1];
-        for (const otherFile of expectedFiles) {
-          if (otherFile !== filename) {
-            const nextHeader = new RegExp(`#?\\s*${otherFile.replace('.', '\\.')}`, 'i');
-            const headerParts = fileContent.split(nextHeader);
-            if (headerParts.length > 1) {
-              fileContent = headerParts[0];
-              break;
-            }
-          }
-        }
-        artifacts[filename] = fileContent.trim();
-      }
-    }
-  }
+/**
+ * Build retry prompt with explicit format instructions
+ */
+function buildRetryPrompt(
+  originalPrompt: string,
+  expectedFiles: string[],
+  errors: string[],
+  attempt: number
+): string {
+  return `
+${originalPrompt}
 
-  // Fallback: if still no artifacts, put entire content into first file
-  if (Object.keys(artifacts).length === 0 && expectedFiles.length > 0) {
-    logger.warn(`Failed to parse artifacts. Expected files: ${expectedFiles.join(', ')}`);
-    logger.warn(`Putting entire response in first expected file: ${expectedFiles[0]}`);
-    artifacts[expectedFiles[0]] = content;
-  }
+---
 
-  // Fill missing files with empty strings
-  for (const filename of expectedFiles) {
-    if (!artifacts[filename]) {
-      logger.warn(`Missing expected artifact: ${filename}. Creating placeholder.`);
-      artifacts[filename] = '';
-    }
-  }
+## CRITICAL: OUTPUT FORMAT REQUIREMENTS (Retry #${attempt})
 
-  return artifacts;
+Previous attempt failed: ${errors.join('; ')}
+
+You MUST output a JSON array with this EXACT format:
+\`\`\`json
+[
+  {"filename": "${expectedFiles[0]}", "content": "..."}
+  ${expectedFiles
+    .slice(1)
+    .map((f) => `, {"filename": "${f}", "content": "..."}`)
+    .join('')}
+]
+\`\`\`
+
+Rules:
+1. Output ONLY the JSON array, wrapped in markdown code block with \`\`\`json
+2. filename must match expected files EXACTLY: ${expectedFiles.join(', ')}
+3. content must be the COMPLETE file (including frontmatter if applicable)
+4. ALL ${expectedFiles.length} files must be present
+5. NO extra files, NO partial files
+
+Generate the output now with ALL files complete.
+`;
 }
 
 // ============================================================================
@@ -195,32 +425,55 @@ function parseArtifacts(content: string, expectedFiles: string[]): Record<string
 
 /**
  * Execute Analyst Agent (ANALYSIS phase)
- * Generates: constitution.md, project-brief.md, project-classification.json, personas.md
+ * Generates: project-classification.json, guiding-principles.md, user-personas.md, user-journeys.md
  */
 async function executeAnalystAgent(
   llmClient: LLMProvider,
   configLoader: ConfigLoader,
   projectIdea: string,
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   logger.info('[ANALYSIS] Executing Analyst Agent');
 
   const agentConfig = configLoader.getSection('agents').analyst;
   const prompt = buildPrompt(agentConfig.prompt_template, {
     projectIdea,
-    projectName: projectName || 'Untitled Project'
+    projectName: projectName || 'Untitled Project',
   });
 
-  const response = await llmClient.generateCompletion(prompt, undefined, 3, 'ANALYSIS');
-  const artifacts = parseArtifacts(response.content, [
+  // Use structured output for reliable JSON artifact generation
+  // Must match orchestrator_spec.yml ANALYSIS phase outputs
+  const expectedFiles = [
     'constitution.md',
     'project-brief.md',
     'project-classification.json',
-    'personas.md'
-  ]);
+    'personas.md',
+  ];
 
-  logger.info('[ANALYSIS] Agent completed', { artifacts: Object.keys(artifacts) });
-  return artifacts;
+  // Type assertion to access GeminiClient's structured output method
+  const structuredArtifacts = await (
+    llmClient as unknown as {
+      generateStructuredArtifacts: (
+        prompt: string,
+        expectedFiles: string[],
+        phase?: string,
+        options?: {
+          temperature?: number;
+          maxOutputTokens?: number;
+          retries?: number;
+        }
+      ) => Promise<Record<string, string | Buffer>>;
+    }
+  ).generateStructuredArtifacts(prompt, expectedFiles, 'ANALYSIS', {
+    temperature: 0.3,
+    maxOutputTokens: 8192,
+    retries: 2,
+  });
+
+  logger.info('[ANALYSIS] Agent completed', {
+    artifacts: Object.keys(structuredArtifacts),
+  });
+  return structuredArtifacts;
 }
 
 /**
@@ -233,20 +486,34 @@ async function executePMAgent(
   projectBrief: string,
   personas: string,
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   logger.info('[SPEC] Executing PM Agent for PRD generation');
 
   const agentConfig = configLoader.getSection('agents').pm;
   const prompt = buildPrompt(agentConfig.prompt_template, {
     brief: projectBrief,
     personas: personas,
-    projectName: projectName || 'Untitled Project'
+    projectName: projectName || 'Untitled Project',
   });
 
-  const response = await llmClient.generateCompletion(prompt, undefined, 3, 'SPEC');
-  const artifacts = parseArtifacts(response.content, ['PRD.md']);
+  const response = await llmClient.generateCompletion(
+    prompt,
+    undefined,
+    3,
+    'SPEC'
+  );
+  const artifacts = await parseArtifactsWithValidation(
+    response.content,
+    ['PRD.md'],
+    llmClient,
+    prompt,
+    'SPEC',
+    2
+  );
 
-  logger.info('[SPEC] PM Agent completed', { artifacts: Object.keys(artifacts) });
+  logger.info('[SPEC] PM Agent completed', {
+    artifacts: Object.keys(artifacts),
+  });
   return artifacts;
 }
 
@@ -260,7 +527,7 @@ async function executePMAgent(
 async function executeArchitectAgent(
   llmClient: LLMProvider,
   configLoader: ConfigLoader,
-  phase: 'STACK_SELECTION' | 'SPEC' | 'SOLUTIONING',
+  phase: 'STACK_SELECTION' | 'SPEC' | 'SPEC_ARCHITECT' | 'SOLUTIONING',
   projectBrief: string,
   personas: string,
   constitution: string,
@@ -270,24 +537,29 @@ async function executeArchitectAgent(
   projectClassification?: string,
   defaultStack?: string,
   defaultStackReason?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   logger.info(`[${phase}] Executing Architect Agent`, {
     briefLength: projectBrief?.length || 0,
     personasLength: personas?.length || 0,
     constitutionLength: constitution?.length || 0,
     prdLength: prd?.length || 0,
     stackChoice,
-    projectName
+    projectName,
   });
 
   const agentConfig = configLoader.getSection('agents').architect;
 
   let expectedFiles: string[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let variables: Record<string, any>;
+
+  let variables: Record<string, any> | undefined;
 
   if (phase === 'STACK_SELECTION') {
-    expectedFiles = ['stack-analysis.md', 'stack-decision.md', 'stack-rationale.md', 'stack.json'];
+    expectedFiles = [
+      'stack.json',
+      'stack-analysis.md',
+      'stack-decision.md',
+      'stack-rationale.md',
+    ];
     variables = {
       brief: projectBrief,
       personas,
@@ -298,10 +570,43 @@ async function executeArchitectAgent(
       projectName: projectName || 'Untitled Project',
       classification: projectClassification || '',
       defaultStack: defaultStack || 'nextjs_web_app',
-      defaultStackReason: defaultStackReason || 'Fallback default for web applications'
+      defaultStackReason:
+        defaultStackReason || 'Fallback default for web applications',
     };
-  } else if (phase === 'SPEC') {
-    expectedFiles = ['data-model.md', 'api-spec.json'];
+
+    const prompt = buildPrompt(agentConfig.prompt_template, variables);
+
+    // Use structured output for reliable JSON artifact generation
+    const structuredArtifacts = await (
+      llmClient as unknown as {
+        generateStructuredArtifacts: (
+          prompt: string,
+          expectedFiles: string[],
+          phase?: string,
+          options?: {
+            temperature?: number;
+            maxOutputTokens?: number;
+            retries?: number;
+          }
+        ) => Promise<Record<string, string | Buffer>>;
+      }
+    ).generateStructuredArtifacts(prompt, expectedFiles, 'STACK_SELECTION', {
+      temperature: 0.3,
+      maxOutputTokens: 8192,
+      retries: 2,
+    });
+
+    logger.info('[STACK_SELECTION] Architect Agent completed', {
+      artifacts: Object.keys(structuredArtifacts),
+    });
+    return structuredArtifacts;
+  } else if (phase === 'SPEC' || phase === 'SPEC_ARCHITECT') {
+    // SPEC and SPEC_ARCHITECT both generate data-model.md, api-spec.json, architecture-decisions.md
+    expectedFiles = [
+      'data-model.md',
+      'api-spec.json',
+      'architecture-decisions.md',
+    ];
     variables = {
       brief: projectBrief,
       personas,
@@ -309,9 +614,36 @@ async function executeArchitectAgent(
       prd: prd,
       phase: 'SPEC',
       stackChoice: stackChoice || 'web_application',
-      projectName: projectName || 'Untitled Project'
+      projectName: projectName || 'Untitled Project',
     };
-  } else {
+
+    const prompt = buildPrompt(agentConfig.prompt_template, variables);
+
+    // Use structured output for reliable JSON artifact generation
+    const structuredArtifacts = await (
+      llmClient as unknown as {
+        generateStructuredArtifacts: (
+          prompt: string,
+          expectedFiles: string[],
+          phase?: string,
+          options?: {
+            temperature?: number;
+            maxOutputTokens?: number;
+            retries?: number;
+          }
+        ) => Promise<Record<string, string | Buffer>>;
+      }
+    ).generateStructuredArtifacts(prompt, expectedFiles, 'SPEC', {
+      temperature: 0.3,
+      maxOutputTokens: 8192,
+      retries: 2,
+    });
+
+    logger.info('[SPEC] Architect Agent completed', {
+      artifacts: Object.keys(structuredArtifacts),
+    });
+    return structuredArtifacts;
+  } else if (phase === 'SOLUTIONING') {
     expectedFiles = ['architecture.md'];
     // Use a dedicated, shorter prompt for SOLUTIONING architecture generation
     // Increased limits to provide more context while staying within 1M token context window
@@ -325,24 +657,25 @@ async function executeArchitectAgent(
       originalBriefLength: projectBrief.length,
       truncatedBriefLength: truncatedBrief.length,
       originalPrdLength: prd.length,
-      truncatedPrdLength: truncatedPrd.length
+      truncatedPrdLength: truncatedPrd.length,
     });
-    
+
     // Dedicated architecture prompt - much shorter than the full template
     // Get stack template details for consistency
-    const stackTemplates: Record<string, string> = {
-      'nextjs_fullstack_expo': 'Next.js 14 + TypeScript + Expo for mobile',
-      'nextjs_web_only': 'Next.js 14 + TypeScript (web only, no mobile)',
-      'nextjs_web_app': 'Next.js 14 + TypeScript (web application)',
-      'hybrid_nextjs_fastapi': 'Next.js frontend + FastAPI Python backend',
-      'react_express': 'React SPA + Express.js backend',
-      'vue_nuxt': 'Vue 3 + Nuxt 3',
-      'svelte_kit': 'SvelteKit fullstack',
-      'django_htmx': 'Django + HTMX hypermedia',
-      'go_react': 'Go backend + React frontend',
+    const stackTemplates: Record<string, string | Buffer> = {
+      nextjs_fullstack_expo: 'Next.js 14 + TypeScript + Expo for mobile',
+      nextjs_web_only: 'Next.js 14 + TypeScript (web only, no mobile)',
+      nextjs_web_app: 'Next.js 14 + TypeScript (web application)',
+      hybrid_nextjs_fastapi: 'Next.js frontend + FastAPI Python backend',
+      react_express: 'React SPA + Express.js backend',
+      vue_nuxt: 'Vue 3 + Nuxt 3',
+      svelte_kit: 'SvelteKit fullstack',
+      django_htmx: 'Django + HTMX hypermedia',
+      go_react: 'Go backend + React frontend',
     };
     const chosenStack = stackChoice || 'nextjs_web_only';
-    const stackDescription = stackTemplates[chosenStack] || `Custom stack: ${chosenStack}`;
+    const stackDescription =
+      stackTemplates[chosenStack] || `Custom stack: ${chosenStack}`;
 
     const architecturePrompt = `You are a Chief Architect designing the system architecture for "${name}".
 
@@ -419,159 +752,48 @@ graph TB
 
 Generate the complete architecture.md now:`;
 
-    const response = await llmClient.generateCompletion(architecturePrompt, undefined, 3, phase);
-    const artifacts = parseArtifacts(response.content, expectedFiles);
-    
+    const response = await llmClient.generateCompletion(
+      architecturePrompt,
+      undefined,
+      3,
+      phase
+    );
+    const artifacts = await parseArtifactsWithValidation(
+      response.content,
+      expectedFiles,
+      llmClient,
+      architecturePrompt,
+      phase,
+      2
+    );
+
     // If parsing failed, use raw response
-    if (!artifacts['architecture.md'] || artifacts['architecture.md'].trim().length < 500) {
-      logger.warn('[SOLUTIONING] architecture.md parsing failed, using raw response');
+    if (
+      !artifacts['architecture.md'] ||
+      asString(artifacts['architecture.md']).trim().length < 500
+    ) {
+      logger.warn(
+        '[SOLUTIONING] architecture.md parsing failed, using raw response'
+      );
       artifacts['architecture.md'] = response.content;
     }
-    
+
     logger.info(`[${phase}] Architect Agent completed`, {
       artifacts: Object.keys(artifacts),
-      architectureLength: artifacts['architecture.md']?.length || 0
+      architectureLength: artifacts['architecture.md']?.length || 0,
     });
     return artifacts;
+  } else {
+    // This should never happen with valid phases
+    throw new Error(`Unhandled architect phase: ${phase}`);
   }
-
-  const prompt = buildPrompt(agentConfig.prompt_template, variables);
-  const response = await llmClient.generateCompletion(prompt, undefined, 3, phase);
-  const artifacts = parseArtifacts(response.content, expectedFiles);
-
-  logger.info(`[${phase}] Architect Agent initial parse`, {
-    artifacts: Object.keys(artifacts),
-    dataModelLength: artifacts['data-model.md']?.length || 0,
-    apiSpecLength: artifacts['api-spec.json']?.length || 0
-  });
-
-  // Fallback: If api-spec.json is empty in SPEC phase, try to regenerate it specifically
-  if (phase === 'SPEC' && (!artifacts['api-spec.json'] || artifacts['api-spec.json'].trim().length < 100)) {
-    logger.warn('[SPEC] api-spec.json missing or too short, triggering fallback generation');
-    const fallbackPrompt = `You are a Chief Architect. Generate ONLY an OpenAPI 3.0.3 specification based on the following PRD.
-
-## PRD Summary:
-${prd.slice(0, 20000)}
-
-## Requirements:
-1. Output ONLY valid JSON - no markdown, no explanation
-2. Must include "openapi": "3.0.3"
-3. Include all CRUD endpoints for entities mentioned in the PRD
-4. Include authentication endpoints (register, login, logout)
-5. Include proper schemas in components
-6. Include error responses (400, 401, 403, 404, 500)
-
-Output the complete OpenAPI JSON now:`;
-
-    const apiSpecResponse = await llmClient.generateCompletion(fallbackPrompt, undefined, 3, phase);
-    
-    // Try to extract JSON from the response
-    let apiSpecContent = apiSpecResponse.content.trim();
-    
-    // Remove markdown code fences if present
-    if (apiSpecContent.startsWith('```')) {
-      apiSpecContent = apiSpecContent.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-    }
-    
-    // Try to parse to validate
-    try {
-      JSON.parse(apiSpecContent);
-      artifacts['api-spec.json'] = apiSpecContent;
-      logger.info('[SPEC] api-spec.json fallback generation successful', { length: apiSpecContent.length });
-    } catch (e) {
-      logger.error('[SPEC] api-spec.json fallback generation failed to produce valid JSON');
-    }
-  }
-
-  // Fallback: If data-model.md is too short, try to regenerate
-  if (phase === 'SPEC' && (!artifacts['data-model.md'] || artifacts['data-model.md'].trim().length < 500)) {
-    logger.warn('[SPEC] data-model.md missing or too short, triggering fallback generation');
-    
-    // Extract key entities from PRD to focus the generation
-    const prdSummary = prd.slice(0, 15000);
-    
-    const fallbackPrompt = `You are a Chief Architect. Generate a CONCISE but complete data-model.md.
-
-## PRD Context:
-${prdSummary}
-
-## CRITICAL INSTRUCTIONS:
-- Be CONCISE - focus on core entities only (5-10 tables max for MVP)
-- Use compact table format, not verbose descriptions
-- Keep the total output under 3000 words
-
-## Required Sections (keep each brief):
-
-### 1. ER Diagram (Mermaid)
-\`\`\`mermaid
-erDiagram
-    USER ||--o{ POST : creates
-    (add 5-10 key relationships)
-\`\`\`
-
-### 2. Table Schemas (use this compact format):
-**users**
-| Column | Type | Constraints |
-|--------|------|-------------|
-| id | UUID | PK |
-| email | VARCHAR(255) | UNIQUE, NOT NULL |
-(continue for each table)
-
-### 3. Key Indexes (one-liners)
-- \`idx_users_email\` on users(email)
-
-### 4. Enums (if needed)
-\`\`\`sql
-CREATE TYPE status AS ENUM ('active', 'inactive');
-\`\`\`
-
-## Output format:
-\`\`\`
-filename: data-model.md
----
-title: Data Model
-owner: architect
-version: 1.0
-date: ${new Date().toISOString().split('T')[0]}
-status: draft
----
-
-(content here - keep it focused and concise)
-\`\`\`
-
-Generate now:`;
-
-    // Use SOLUTIONING phase config for fallback (has 32768 tokens vs 16384 for SPEC)
-    const dataModelResponse = await llmClient.generateCompletion(fallbackPrompt, undefined, 3, 'SOLUTIONING');
-    const fallbackArtifacts = parseArtifacts(dataModelResponse.content, ['data-model.md']);
-    
-    if (fallbackArtifacts['data-model.md'] && fallbackArtifacts['data-model.md'].trim().length > 500) {
-      artifacts['data-model.md'] = fallbackArtifacts['data-model.md'];
-      logger.info('[SPEC] data-model.md fallback generation successful', { length: artifacts['data-model.md'].length });
-    } else {
-      // If still too short, use the response content directly if it looks like a data model
-      const rawContent = dataModelResponse.content;
-      if (rawContent.includes('erDiagram') || rawContent.includes('Table') || rawContent.includes('Column')) {
-        artifacts['data-model.md'] = rawContent;
-        logger.info('[SPEC] data-model.md using raw response', { length: rawContent.length });
-      } else {
-        logger.error('[SPEC] data-model.md fallback generation failed to produce sufficient content');
-      }
-    }
-  }
-
-  logger.info(`[${phase}] Architect Agent completed`, {
-    artifacts: Object.keys(artifacts),
-    dataModelLength: artifacts['data-model.md']?.length || 0,
-    apiSpecLength: artifacts['api-spec.json']?.length || 0
-  });
-  return artifacts;
 }
 
 /**
  * Execute Scrum Master Agent (SOLUTIONING phase)
  * Generates: epics.md, tasks.md, plan.md
- * Split into 3 separate calls to avoid token limit truncation
+ *
+ * Leveraging automatic multi-turn continuation in GeminiClient for maximum output.
  */
 async function executeScrumMasterAgent(
   llmClient: LLMProvider,
@@ -579,281 +801,122 @@ async function executeScrumMasterAgent(
   prd: string,
   dataModel: string,
   apiSpec: string,
-  projectName?: string
-): Promise<Record<string, string>> {
-  logger.info('[SOLUTIONING] Executing Scrum Master Agent (split into 3 calls)');
+  projectName?: string,
+  remediationPrompt?: string
+): Promise<Record<string, string | Buffer>> {
+  logger.info(
+    '[SOLUTIONING] Executing Scrum Master Agent (single comprehensive prompt)',
+    { isRemediation: !!remediationPrompt }
+  );
 
-  const artifacts: Record<string, string> = {};
   const currentDate = new Date().toISOString().split('T')[0];
   const name = projectName || 'Untitled Project';
 
   // Truncate context to fit within 1M token context window while providing comprehensive context
-  // Supporting Gemini 3.0 Flash's 64K output capability for detailed epics, tasks, and planning
-  const prdContext = prd.slice(0, 80000);
-  const dataModelContext = dataModel.slice(0, 30000);
-  const apiSpecContext = apiSpec.slice(0, 30000);
+  // Supporting Gemini 3.0 Flash's 64K output capability (multi-turn) for detailed epics, tasks, and planning
+  const prdContext = prd.slice(0, 100000);
+  const dataModelContext = dataModel.slice(0, 40000);
+  const apiSpecContext = apiSpec.slice(0, 40000);
 
-  // Extract requirement IDs from FULL PRD (not truncated) to ensure all are mapped
+  // Extract requirement IDs from FULL PRD
   const requirementIds = prd.match(/REQ-[A-Z]+-\d+/g) || [];
   const uniqueReqs = Array.from(new Set(requirementIds));
-  
-  logger.info('[SOLUTIONING] Extracted requirements from PRD', { 
+
+  logger.info('[SOLUTIONING] Extracted requirements from PRD', {
     totalRequirements: uniqueReqs.length,
-    requirements: uniqueReqs.join(', ')
+    requirements: uniqueReqs.join(', '),
   });
-  
-  // === CALL 1: Generate epics.md ===
-  logger.info('[SOLUTIONING] Generating epics.md...');
-  const epicsPrompt = `You are an expert Scrum Master. Generate epics.md for "${name}".
+
+  const comprehensivePrompt = `You are an expert Scrum Master designing the project plan for "${name}".
 
 ## Context
 PRD Summary:
 ${prdContext}
 
-Data Model Summary:
+Data Model & API Spec Context:
 ${dataModelContext}
+${apiSpecContext}
 
 ## PRD Requirements to Cover (${uniqueReqs.length} total)
-The following requirements MUST be mapped to epics:
+The following requirements MUST be mapped to epics and tasks:
 ${uniqueReqs.join(', ') || 'Extract REQ-XXX-YYY from PRD above'}
 
-## Instructions
-Create 4-8 epics covering the full MVP scope. CRITICAL REQUIREMENTS:
+## Your Task
+Generate three comprehensive artifacts: epics.md, tasks.md, and plan.md.
 
-1. **Each epic MUST list the PRD requirements it addresses** using the REQ-XXX-YYY format
-2. Every requirement from the PRD must be covered by at least one epic
-3. Include clear acceptance criteria in Gherkin format (Given/When/Then)
+### 1. epics.md
+- Create 4-8 epics covering the full MVP scope.
+- **Each epic MUST list the PRD requirements it addresses** (REQ-XXX-YYY).
+- Include clear acceptance criteria in Gherkin format.
+
+### 2. tasks.md
+- Break down epics into concrete development tasks.
+- **Each task MUST reference specific REQ-XXX-YYY IDs.**
+- Include test specifications (Gherkin) for every task.
+- Ensure EVERY requirement has at least one implementing task.
+
+### 3. plan.md
+- Provide a timeline, MVP scope summary, and risk assessment.
+- Define success metrics tied to specific requirements.
 
 ## Output Format
-Output ONLY a single fenced code block:
+Output each file in a separate fenced code block with the "filename: [name]" marker.
+
 \`\`\`
 filename: epics.md
----
-title: Product Epics
-owner: scrummaster
-version: 1.0
-date: ${currentDate}
-status: draft
----
-
-# Product Epics
-
-## Epic 1: User Authentication
-**Description:** Implement secure user authentication system
-**Requirements Covered:** REQ-AUTH-001, REQ-AUTH-002, REQ-AUTH-003
-**Business Value:** Enables secure access and protects user data
-**Acceptance Criteria:**
-- Given a new user, When they register with valid email/password, Then account is created
-- Given a registered user, When they login with correct credentials, Then they receive auth token
-- Given an authenticated user, When their token expires, Then they are prompted to re-login
-**Dependencies:** None
-
-## Epic 2: [Title]
-**Description:** ...
-**Requirements Covered:** REQ-XXX-001, REQ-XXX-002
-**Business Value:** ...
-**Acceptance Criteria:**
-- Given ... When ... Then ...
-**Dependencies:** Epic 1
-
-(continue for all epics - MUST cover ALL requirements)
+...
 \`\`\`
 
-Generate now:`;
-
-  const epicsResponse = await llmClient.generateCompletion(epicsPrompt, undefined, 3, 'SOLUTIONING');
-  const epicsArtifacts = parseArtifacts(epicsResponse.content, ['epics.md']);
-  artifacts['epics.md'] = epicsArtifacts['epics.md'] || epicsResponse.content;
-
-  // === CALL 2: Generate tasks.md ===
-  logger.info('[SOLUTIONING] Generating tasks.md...');
-  const epicsContext = artifacts['epics.md']?.slice(0, 6000) || '';
-  
-  const tasksPrompt = `You are an expert Scrum Master. Generate tasks.md for "${name}".
-
-## Context
-Epics (with Requirements):
-${epicsContext}
-
-PRD Summary:
-${prdContext.slice(0, 15000)}
-
-## PRD Requirements to Implement (${uniqueReqs.length} total - MANDATORY - ALL MUST BE MAPPED)
-The following requirements MUST each have at least one implementing task:
-${uniqueReqs.join(', ') || 'Extract ALL REQ-XXX-YYY from PRD above'}
-
-IMPORTANT: If you see requirements in the PRD that are not in this list, you MUST still create tasks for them.
-
-## Instructions
-Break down epics into concrete development tasks. CRITICAL REQUIREMENTS:
-
-1. **Each task MUST reference the specific PRD requirement(s) it implements** (REQ-XXX-YYY)
-2. **EVERY requirement from the PRD must have at least one implementing task - NO EXCEPTIONS**
-3. Include test specifications BEFORE implementation details (Test-First)
-4. Use Gherkin format (Given/When/Then) for acceptance criteria
-5. **Before finishing, verify EVERY REQ-XXX-YYY has at least one task**
-
-## Output Format
-Output ONLY a single fenced code block:
 \`\`\`
 filename: tasks.md
----
-title: Development Tasks
-owner: scrummaster
-version: 1.0
-date: ${currentDate}
-status: draft
----
-
-# Development Tasks
-
-## Sprint 1 Tasks
-
-### TASK-001: Implement User Registration API
-- **Epic:** Epic 1 - User Authentication
-- **Implements:** REQ-AUTH-001, REQ-AUTH-002
-- **Points:** 5
-- **Priority:** P0
-- **Description:** Create registration endpoint with email/password validation
-- **Test Specification:**
-  - Given valid email and password, When POST /auth/register, Then return 201 with user object
-  - Given existing email, When POST /auth/register, Then return 409 Conflict
-  - Given invalid email format, When POST /auth/register, Then return 400 Bad Request
-- **Technical Notes:** Use bcrypt for password hashing, validate email format
-
-### TASK-002: [Title]
-- **Epic:** Epic X
-- **Implements:** REQ-XXX-001
-- **Points:** N
-- **Priority:** P0/P1/P2
-- **Description:** ...
-- **Test Specification:**
-  - Given ... When ... Then ...
-- **Technical Notes:** ...
-
-(continue for ALL tasks - every requirement MUST have implementing tasks)
+...
 \`\`\`
 
-## VALIDATION CHECKLIST (Complete before generating)
-Before outputting, verify:
-- [ ] Every REQ-AUTH-XXX has at least one task
-- [ ] Every REQ-USER-XXX has at least one task  
-- [ ] Every REQ-CRUD-XXX has at least one task
-- [ ] Every REQ-MEDIA-XXX has at least one task
-- [ ] Every REQ-PAYMENT-XXX has at least one task
-- [ ] Every REQ-ADMIN-XXX has at least one task
-- [ ] Every REQ-SEARCH-XXX has at least one task
-- [ ] Every REQ-NOTIF-XXX has at least one task
-- [ ] Every REQ-INTEG-XXX has at least one task
-- [ ] All tasks have Gherkin test specifications
-
-If ANY requirement is missing a task, ADD ONE before generating output.
-
-Generate now:`;
-
-  const tasksResponse = await llmClient.generateCompletion(tasksPrompt, undefined, 3, 'SOLUTIONING');
-  const tasksArtifacts = parseArtifacts(tasksResponse.content, ['tasks.md']);
-  artifacts['tasks.md'] = tasksArtifacts['tasks.md'] || tasksResponse.content;
-
-  // === CALL 3: Generate plan.md ===
-  logger.info('[SOLUTIONING] Generating plan.md...');
-  const tasksContext = artifacts['tasks.md']?.slice(0, 4000) || '';
-
-  const planPrompt = `You are an expert Scrum Master. Generate plan.md for "${name}".
-
-## Context
-Epics Summary:
-${epicsContext.slice(0, 3000)}
-
-Tasks Summary:
-${tasksContext}
-
-## Instructions
-Create a comprehensive execution plan. CRITICAL REQUIREMENTS:
-
-1. **Reference specific requirements** (REQ-XXX-YYY) when defining MVP scope
-2. **Include test milestones** - tests must be written before implementation
-3. **Use Gherkin acceptance criteria** for key deliverables
-4. **Define clear success metrics** tied to requirements
-
-## Output Format
-Output ONLY a single fenced code block:
 \`\`\`
 filename: plan.md
----
-title: Execution Plan
-owner: scrummaster
-version: 1.0
-date: ${currentDate}
-status: draft
----
-
-# Execution Plan
-
-## 1. Timeline Overview
-| Sprint | Duration | Focus | Key Deliverables |
-|--------|----------|-------|------------------|
-| Sprint 1 | 2 weeks | Auth & Core | REQ-AUTH-001 to REQ-AUTH-004 |
-| Sprint 2 | 2 weeks | Features | REQ-CRUD-001 to REQ-CRUD-005 |
-| ... | ... | ... | ... |
-
-## 2. MVP Scope (Requirements Included)
-The MVP will implement the following requirements:
-- **Authentication:** REQ-AUTH-001, REQ-AUTH-002, REQ-AUTH-003, REQ-AUTH-004
-- **Core CRUD:** REQ-CRUD-001, REQ-CRUD-002, REQ-CRUD-003
-- **User Management:** REQ-USER-001, REQ-USER-002
-(list all MVP requirements)
-
-## 3. Phase 2 Scope (Post-MVP)
-Requirements deferred to Phase 2:
-- REQ-XXX-YYY: [reason for deferral]
-(list deferred requirements)
-
-## 4. Test-First Milestones
-| Milestone | Tests Due | Implementation Due | Requirements |
-|-----------|-----------|-------------------|--------------|
-| Auth Tests | Week 1 | Week 2 | REQ-AUTH-* |
-| ... | ... | ... | ... |
-
-## 5. Resource Allocation
 ...
-
-## 6. Risk Assessment
-| Risk | Probability | Impact | Mitigation |
-|------|-------------|--------|------------|
-| ... | ... | ... | ... |
-
-## 7. Success Metrics
-| Metric | Target | Measures Requirements |
-|--------|--------|----------------------|
-| User Registration Rate | >80% completion | REQ-AUTH-001 |
-| ... | ... | ... |
-
-## 8. Go-Live Checklist
-- [ ] All REQ-AUTH-* requirements tested and passing
-- [ ] All REQ-CRUD-* requirements tested and passing
-- [ ] Security audit complete
-- [ ] Performance benchmarks met
 \`\`\`
 
-Generate now:`;
+Generate all three artifacts now. If the output is long, continue until complete:`;
 
-  const planResponse = await llmClient.generateCompletion(planPrompt, undefined, 3, 'SOLUTIONING');
-  const planArtifacts = parseArtifacts(planResponse.content, ['plan.md']);
-  artifacts['plan.md'] = planArtifacts['plan.md'] || planResponse.content;
+  // Inject remediation context if provided
+  const finalPrompt = remediationPrompt
+    ? `${comprehensivePrompt}
 
-  logger.info('[SOLUTIONING] Scrum Master Agent completed', { 
+## REMEDIATION MODE - CRITICAL
+${remediationPrompt}
+`
+    : comprehensivePrompt;
+
+  const response = await llmClient.generateCompletion(
+    finalPrompt,
+    undefined,
+    3,
+    'SOLUTIONING'
+  );
+  const artifacts = await parseArtifactsWithValidation(
+    response.content,
+    ['epics.md', 'tasks.md', 'plan.md'],
+    llmClient,
+    comprehensivePrompt,
+    'SOLUTIONING',
+    2
+  );
+
+  logger.info('[SOLUTIONING] Scrum Master Agent completed', {
     artifacts: Object.keys(artifacts),
+    totalLength: response.content.length,
     epicsLength: artifacts['epics.md']?.length || 0,
     tasksLength: artifacts['tasks.md']?.length || 0,
-    planLength: artifacts['plan.md']?.length || 0
+    planLength: artifacts['plan.md']?.length || 0,
   });
+
   return artifacts;
 }
 
 /**
  * Execute DevOps Agent (DEPENDENCIES phase)
- * Generates: DEPENDENCIES.md, dependencies.json
+ * Generates: dependencies.json, deployment-config.md
  */
 async function executeDevOpsAgent(
   llmClient: LLMProvider,
@@ -861,7 +924,7 @@ async function executeDevOpsAgent(
   prd: string,
   stackChoice: string = 'nextjs_web_app',
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   logger.info('[DEPENDENCIES] Executing DevOps Agent');
 
   const agentConfig = configLoader.getSection('agents').devops;
@@ -884,62 +947,35 @@ async function executeDevOpsAgent(
     dependencyPreset,
     detectedFeatures: detectedFeatures.length
       ? detectedFeatures.join(', ')
-      : 'None'
+      : 'None',
   });
 
-  const response = await llmClient.generateCompletion(prompt, undefined, 3, 'DEPENDENCIES');
-  const artifacts = parseArtifacts(response.content, [
-    'DEPENDENCIES.md',
-    'dependencies.json'
-  ]);
+  // Use structured output for reliable JSON artifact generation
+  const expectedFiles = ['dependencies.json', 'DEPENDENCIES.md'];
 
-  if (!artifacts['DEPENDENCIES.md']) {
-    artifacts['DEPENDENCIES.md'] = `---
-title: Dependencies
-owner: devops
-version: 1.0
-date: ${new Date().toISOString().split('T')[0]}
-status: draft
----
+  const structuredArtifacts = await (
+    llmClient as unknown as {
+      generateStructuredArtifacts: (
+        prompt: string,
+        expectedFiles: string[],
+        phase?: string,
+        options?: {
+          temperature?: number;
+          maxOutputTokens?: number;
+          retries?: number;
+        }
+      ) => Promise<Record<string, string | Buffer>>;
+    }
+  ).generateStructuredArtifacts(prompt, expectedFiles, 'DEPENDENCIES', {
+    temperature: 0.3,
+    maxOutputTokens: 8192,
+    retries: 2,
+  });
 
-# Dependencies
-
-## Stack Template
-- ${stackChoice}
-
-## Core Dependencies
-${dependencyContract.baseline.dependencies
-  .map((dep) => `- ${dep.name}@${dep.range}`)
-  .join('\n')}
-
-## Dev Dependencies
-${dependencyContract.baseline.devDependencies.length > 0
-  ? dependencyContract.baseline.devDependencies
-      .map((dep) => `- ${dep.name}@${dep.range}`)
-      .join('\n')
-  : '- None'}
-
-## Add-ons
-${dependencyContract.addons.length > 0
-  ? dependencyContract.addons
-      .map((addon) =>
-        `### ${addon.capability}\n${addon.packages
-          .map((dep) => `- ${dep.name}@${dep.range}`)
-          .join('\n')}`
-      )
-      .join('\n\n')
-  : 'None'}
-`;
-  }
-
-  artifacts['dependencies.json'] = JSON.stringify(
-    dependencyContract,
-    null,
-    2
-  );
-
-  logger.info('[DEPENDENCIES] DevOps Agent completed', { artifacts: Object.keys(artifacts) });
-  return artifacts;
+  logger.info('[DEPENDENCIES] DevOps Agent completed', {
+    artifacts: Object.keys(structuredArtifacts),
+  });
+  return structuredArtifacts;
 }
 
 // ============================================================================
@@ -951,57 +987,73 @@ ${dependencyContract.addons.length > 0
 export async function getAnalystExecutor(
   llmClient: LLMProvider,
   projectId: string,
-  artifacts: Record<string, string>,
+  artifacts: Record<string, string | Buffer>,
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   const configLoader = new ConfigLoader();
-  const projectIdea = artifacts['project_idea'] || 'Project for analysis';
+  const projectIdea = asString(
+    artifacts['project_idea'] || 'Project for analysis'
+  );
   return executeAnalystAgent(llmClient, configLoader, projectIdea, projectName);
 }
 
 export async function getPMExecutor(
   llmClient: LLMProvider,
   projectId: string,
-  artifacts: Record<string, string>,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  artifacts: Record<string, string | Buffer>,
+
   stackChoice?: string,
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   const configLoader = new ConfigLoader();
-  const brief = artifacts['ANALYSIS/project-brief.md'] || '';
-  const personas = artifacts['ANALYSIS/personas.md'] || '';
+  const brief = asString(artifacts['ANALYSIS/project-brief.md'] || '');
+  const personas = asString(artifacts['ANALYSIS/personas.md'] || '');
   return executePMAgent(llmClient, configLoader, brief, personas, projectName);
 }
 
 export async function getArchitectExecutor(
   llmClient: LLMProvider,
   projectId: string,
-  artifacts: Record<string, string>,
-  phase: 'SPEC' | 'SOLUTIONING' = 'SOLUTIONING',
+  artifacts: Record<string, string | Buffer>,
+  phase: 'SPEC' | 'SPEC_ARCHITECT' | 'SOLUTIONING' = 'SOLUTIONING',
   stackChoice?: string,
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   const configLoader = new ConfigLoader();
-  const brief = artifacts['ANALYSIS/project-brief.md'] || '';
-  const personas = artifacts['ANALYSIS/personas.md'] || '';
-  const constitution = artifacts['ANALYSIS/constitution.md'] || '';
-  const prd = artifacts['SPEC/PRD.md'] || '';
-  return executeArchitectAgent(llmClient, configLoader, phase, brief, personas, constitution, prd, stackChoice, projectName);
+  const brief = asString(artifacts['ANALYSIS/project-brief.md'] || '');
+  const personas = asString(artifacts['ANALYSIS/personas.md'] || '');
+  const constitution = asString(artifacts['ANALYSIS/constitution.md'] || '');
+  // Support both SPEC_PM and SPEC paths for PRD
+  const prd = asString(
+    artifacts['SPEC_PM/PRD.md'] || artifacts['SPEC/PRD.md'] || ''
+  );
+  return executeArchitectAgent(
+    llmClient,
+    configLoader,
+    phase,
+    brief,
+    personas,
+    constitution,
+    prd,
+    stackChoice,
+    projectName
+  );
 }
 
 export async function getStackSelectionExecutor(
   llmClient: LLMProvider,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
   projectId: string,
-  artifacts: Record<string, string>,
+  artifacts: Record<string, string | Buffer>,
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   const configLoader = new ConfigLoader();
-  const brief = artifacts['ANALYSIS/project-brief.md'] || '';
-  const personas = artifacts['ANALYSIS/personas.md'] || '';
-  const constitution = artifacts['ANALYSIS/constitution.md'] || '';
-  const classificationRaw =
-    artifacts['ANALYSIS/project-classification.json'] || '';
+  const brief = asString(artifacts['ANALYSIS/project-brief.md'] || '');
+  const personas = asString(artifacts['ANALYSIS/personas.md'] || '');
+  const constitution = asString(artifacts['ANALYSIS/constitution.md'] || '');
+  const classificationRaw = asString(
+    artifacts['ANALYSIS/project-classification.json'] || ''
+  );
   const classification = parseProjectClassification(classificationRaw);
   const defaultStack = deriveIntelligentDefaultStack(classification, brief);
   return executeArchitectAgent(
@@ -1023,26 +1075,51 @@ export async function getStackSelectionExecutor(
 export async function getScruMasterExecutor(
   llmClient: LLMProvider,
   projectId: string,
-  artifacts: Record<string, string>,
-  projectName?: string
-): Promise<Record<string, string>> {
+  artifacts: Record<string, string | Buffer>,
+  projectName?: string,
+  remediationPrompt?: string
+): Promise<Record<string, string | Buffer>> {
   const configLoader = new ConfigLoader();
-  const prd = artifacts['SPEC/PRD.md'] || '';
-  const dataModel = artifacts['SPEC/data-model.md'] || '';
-  const apiSpec = artifacts['SPEC/api-spec.json'] || '';
-  return executeScrumMasterAgent(llmClient, configLoader, prd, dataModel, apiSpec, projectName);
+  const prd = asString(
+    artifacts['SPEC/PRD.md'] || artifacts['SPEC_PM/PRD.md'] || ''
+  );
+  const dataModel = asString(
+    artifacts['SPEC/data-model.md'] ||
+      artifacts['SPEC_ARCHITECT/data-model.md'] ||
+      ''
+  );
+  const apiSpec = asString(
+    artifacts['SPEC/api-spec.json'] ||
+      artifacts['SPEC_ARCHITECT/api-spec.json'] ||
+      ''
+  );
+  return executeScrumMasterAgent(
+    llmClient,
+    configLoader,
+    prd,
+    dataModel,
+    apiSpec,
+    projectName,
+    remediationPrompt
+  );
 }
 
 export async function getDevOpsExecutor(
   llmClient: LLMProvider,
   projectId: string,
-  artifacts: Record<string, string>,
+  artifacts: Record<string, string | Buffer>,
   stackChoice?: string,
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   const configLoader = new ConfigLoader();
-  const prd = artifacts['SPEC/PRD.md'] || '';
-  return executeDevOpsAgent(llmClient, configLoader, prd, stackChoice || 'nextjs_web_app', projectName);
+  const prd = asString(artifacts['SPEC/PRD.md'] || '');
+  return executeDevOpsAgent(
+    llmClient,
+    configLoader,
+    prd,
+    stackChoice || 'nextjs_web_app',
+    projectName
+  );
 }
 
 // ============================================================================
@@ -1051,8 +1128,8 @@ export async function getDevOpsExecutor(
 
 /**
  * Execute Design System Agent
- * Generates design-system.md, component-inventory.md, and user-flows.md
- * Following fire-your-design-team.md principles
+ * Generates design-tokens.md, component-mapping.md, and journey-maps.md
+ * Following fire-your-design-team.md principles and orchestrator_spec.yml phase definitions
  */
 async function executeDesignAgent(
   llmClient: LLMProvider,
@@ -1060,12 +1137,12 @@ async function executeDesignAgent(
   prd: string,
   personas: string,
   projectName?: string
-): Promise<Record<string, string>> {
+): Promise<Record<string, string | Buffer>> {
   logger.info('[SPEC] Executing Design Agent', {
     briefLength: projectBrief?.length || 0,
     prdLength: prd?.length || 0,
     personasLength: personas?.length || 0,
-    projectName
+    projectName,
   });
 
   const designSystemPrompt = `You are a Senior UI/UX Designer following strict design system principles.
@@ -1090,6 +1167,15 @@ ${prd.slice(0, 15000)}
 - display: 32-48px (semibold) - hero text, page titles
 - NO OTHER SIZES ALLOWED
 
+### Font Selection (CRITICAL - Will fail validation if ignored):
+- **NEVER use Inter** - this is considered "AI slop" and will be rejected
+- Choose a font appropriate to the project's personality:
+  - Professional/Corporate: "DM Sans", "IBM Plex Sans", "Source Sans Pro"
+  - Creative/Modern: "Outfit", "Space Grotesk", "Manrope"
+  - Editorial/Content: "Merriweather", "Lora", "Crimson Pro"
+  - Technical/Developer: "JetBrains Mono", "Fira Code", "IBM Plex Mono"
+- Use system font stack as fallback: -apple-system, BlinkMacSystemFont, system-ui, sans-serif
+
 ### Spacing: 8pt Grid ONLY
 - All spacing values MUST be: 8, 16, 24, 32, 48, 64, 96
 - NO values like 10, 15, 20, 25, 30
@@ -1106,10 +1192,10 @@ ${prd.slice(0, 15000)}
 - Spring config: { stiffness: 400, damping: 30 } for snappy interactions
 - Always include reduced motion alternatives
 
-### ANTI-PATTERNS TO AVOID (AI Slop):
+### ANTI-PATTERNS TO AVOID (AI Slop - Will cause validation failure):
+- NO "Inter" font anywhere in the document - VALIDATION WILL FAIL
 - NO purple/violet as primary color unless brand-specific
 - NO gradient blob backgrounds
-- NO Inter font as default (choose project-appropriate font)
 - NO excessive border radius (max 12px for containers)
 - NO generic "modern" purple gradient buttons
 
@@ -1124,7 +1210,7 @@ Generate a design-system.md file with:
 
 Output format:
 \`\`\`markdown
-filename: design-system.md
+filename: design-tokens.md
 ---
 title: "Design System"
 owner: "architect"
@@ -1158,7 +1244,7 @@ status: "draft"
 ## PRD Features:
 ${prd.slice(0, 15000)}
 
-Generate component-inventory.md listing ALL UI components needed for this project.
+Generate component-mapping.md listing ALL UI components needed for this project and their mapping to the design system.
 
 For each component, specify:
 1. Component name
@@ -1168,16 +1254,16 @@ For each component, specify:
 
 Output format:
 \`\`\`markdown
-filename: component-inventory.md
+filename: component-mapping.md
 ---
-title: "Component Inventory"
+title: "Component Mapping"
 owner: "architect"
 version: "1"
 date: "${new Date().toISOString().split('T')[0]}"
 status: "draft"
 ---
 
-# Component Inventory
+# Component Mapping
 
 ## Layout Components
 | Component | Base | Variants | Animation |
@@ -1215,7 +1301,7 @@ ${personas.slice(0, 4000)}
 ## PRD Features:
 ${prd.slice(0, 15000)}
 
-Generate user-flows.md documenting the key user journeys.
+Generate journey-maps.md documenting the key user journeys and interaction patterns.
 
 For each flow:
 1. Flow name and description
@@ -1227,16 +1313,16 @@ For each flow:
 
 Output format:
 \`\`\`markdown
-filename: user-flows.md
+filename: journey-maps.md
 ---
-title: "User Flows"
+title: "Journey Maps"
 owner: "architect"
 version: "1"
 date: "${new Date().toISOString().split('T')[0]}"
 status: "draft"
 ---
 
-# User Flows
+# Journey Maps
 
 ## Flow 1: [Primary User Journey]
 **Persona**: [Target persona]
@@ -1263,37 +1349,65 @@ status: "draft"
 \`\`\``;
 
   // Generate all three design artifacts
-  const [designSystemResponse, componentResponse, userFlowsResponse] = await Promise.all([
-    llmClient.generateCompletion(designSystemPrompt, undefined, 2, 'SPEC'),
-    llmClient.generateCompletion(componentInventoryPrompt, undefined, 2, 'SPEC'),
-    llmClient.generateCompletion(userFlowsPrompt, undefined, 2, 'SPEC')
-  ]);
+  const [designSystemResponse, componentResponse, userFlowsResponse] =
+    await Promise.all([
+      llmClient.generateCompletion(designSystemPrompt, undefined, 2, 'SPEC'),
+      llmClient.generateCompletion(
+        componentInventoryPrompt,
+        undefined,
+        2,
+        'SPEC'
+      ),
+      llmClient.generateCompletion(userFlowsPrompt, undefined, 2, 'SPEC'),
+    ]);
 
-  const artifacts: Record<string, string> = {};
+  const artifacts: Record<string, string | Buffer> = {};
 
-  // Parse design-system.md
-  const designSystemArtifacts = parseArtifacts(designSystemResponse.content, ['design-system.md']);
-  if (designSystemArtifacts['design-system.md']) {
-    artifacts['design-system.md'] = designSystemArtifacts['design-system.md'];
+  // Parse design-tokens.md
+  const designSystemArtifacts = await parseArtifactsWithValidation(
+    designSystemResponse.content,
+    ['design-tokens.md'],
+    llmClient,
+    designSystemPrompt,
+    'SPEC',
+    2
+  );
+  if (designSystemArtifacts['design-tokens.md']) {
+    artifacts['design-tokens.md'] = designSystemArtifacts['design-tokens.md'];
   }
 
-  // Parse component-inventory.md
-  const componentArtifacts = parseArtifacts(componentResponse.content, ['component-inventory.md']);
-  if (componentArtifacts['component-inventory.md']) {
-    artifacts['component-inventory.md'] = componentArtifacts['component-inventory.md'];
+  // Parse component-mapping.md
+  const componentArtifacts = await parseArtifactsWithValidation(
+    componentResponse.content,
+    ['component-mapping.md'],
+    llmClient,
+    componentInventoryPrompt,
+    'SPEC',
+    2
+  );
+  if (componentArtifacts['component-mapping.md']) {
+    artifacts['component-mapping.md'] =
+      componentArtifacts['component-mapping.md'];
   }
 
-  // Parse user-flows.md
-  const userFlowsArtifacts = parseArtifacts(userFlowsResponse.content, ['user-flows.md']);
-  if (userFlowsArtifacts['user-flows.md']) {
-    artifacts['user-flows.md'] = userFlowsArtifacts['user-flows.md'];
+  // Parse journey-maps.md
+  const userFlowsArtifacts = await parseArtifactsWithValidation(
+    userFlowsResponse.content,
+    ['journey-maps.md'],
+    llmClient,
+    userFlowsPrompt,
+    'SPEC',
+    2
+  );
+  if (userFlowsArtifacts['journey-maps.md']) {
+    artifacts['journey-maps.md'] = userFlowsArtifacts['journey-maps.md'];
   }
 
   logger.info('[SPEC] Design Agent completed', {
     artifacts: Object.keys(artifacts),
-    designSystemLength: artifacts['design-system.md']?.length || 0,
-    componentInventoryLength: artifacts['component-inventory.md']?.length || 0,
-    userFlowsLength: artifacts['user-flows.md']?.length || 0
+    designTokensLength: artifacts['design-tokens.md']?.length || 0,
+    componentMappingLength: artifacts['component-mapping.md']?.length || 0,
+    journeyMapsLength: artifacts['journey-maps.md']?.length || 0,
   });
 
   return artifacts;
@@ -1302,11 +1416,367 @@ status: "draft"
 export async function getDesignExecutor(
   llmClient: LLMProvider,
   projectId: string,
-  artifacts: Record<string, string>,
+  artifacts: Record<string, string | Buffer>,
   projectName?: string
-): Promise<Record<string, string>> {
-  const brief = artifacts['ANALYSIS/project-brief.md'] || '';
-  const prd = artifacts['SPEC/PRD.md'] || '';
-  const personas = artifacts['ANALYSIS/personas.md'] || '';
+): Promise<Record<string, string | Buffer>> {
+  const brief = asString(artifacts['ANALYSIS/project-brief.md'] || '');
+  const prd = asString(artifacts['SPEC/PRD.md'] || '');
+  const personas = asString(artifacts['ANALYSIS/personas.md'] || '');
   return executeDesignAgent(llmClient, brief, prd, personas, projectName);
+}
+
+/**
+ * Design Agent - UI/UX Designer and Design Systems Architect
+ * Perspective: Head of Design
+ * Expertise: UI/UX design, design systems, accessibility, color theory
+ */
+export function getDesignerExecutor(config: AgentConfig = {}): AgentExecutor {
+  return {
+    role: 'designer',
+    perspective: 'head_of_design',
+    expertise: [
+      'ui_ux_design',
+      'design_systems',
+      'accessibility',
+      'color_theory',
+    ],
+
+    async generateArtifacts(context: any): Promise<ArtifactGenerationResult> {
+      const {
+        phase,
+        stack,
+        constitution,
+        projectBrief,
+        projectPath,
+        projectId,
+        llmClient,
+      } = context;
+
+      // Build design context from project inputs
+      const designContext = {
+        phase,
+        stack,
+        constitution,
+        projectBrief,
+        projectPath,
+        projectId,
+        antiAISlopRules: {
+          forbidden: [
+            'purple gradients',
+            'Inter font default',
+            'blob backgrounds',
+          ],
+          required: [
+            'OKLCH colors',
+            '60/30/10 rule',
+            '8pt grid',
+            '4 typography sizes',
+          ],
+        },
+      };
+
+      // llmClient must be provided in context (passed from orchestrator)
+      if (!llmClient) {
+        throw new Error(
+          'llmClient is required in context for getDesignerExecutor.generateArtifacts'
+        );
+      }
+
+      // Generate artifacts using LLM
+      const llmPrompt = `You are a Head of Design (UI/UX Designer and Design Systems Architect).
+
+## Phase: ${phase}
+## Stack: ${stack || 'Not selected yet (stack-agnostic)'}
+
+## Anti-AI-Slop Rules (STRICTLY ENFORCE):
+FORBIDDEN:
+- Purple gradients
+- Inter font as default
+- Blob backgrounds
+
+REQUIRED:
+- OKLCH color system (not RGB/HEX)
+- 60/30/10 color rule (60% light, 30% medium, 10% dark)
+- 8pt grid system
+- 4 typography sizes minimum
+- Design tokens first, components second
+
+## Project Context:
+${projectBrief ? `Project Brief:\n${projectBrief}\n\n` : ''}
+${constitution ? `Constitution:\n${constitution}\n\n` : ''}
+${stack ? `Tech Stack:\n${stack}\n\n` : ''}
+
+${
+  phase === 'SPEC_DESIGN_TOKENS'
+    ? `Generate design-tokens.md with:
+
+1. Colors (OKLCH format)
+   - Primary: 60% lightness
+   - Secondary: 30% lightness  
+   - Accent: 10% lightness
+
+2. Typography (4 sizes, 8pt grid)
+   - Display: 32px (8pt base)
+   - Heading: 24px
+   - Body: 16px
+   - Caption: 14px
+
+3. Spacing (8pt grid)
+   - Base spacing unit: 8px
+   - Scale: 8, 16, 24, 32, 40, 48
+
+4. Animation tokens
+   - Duration
+   - Easing
+   - Delay
+
+5. Shadow tokens (if needed)
+
+6. Border radius tokens
+
+7. Z-index scale
+
+Format as markdown with frontmatter.`
+    : `Generate TWO separate files: component-mapping.md and journey-maps.md
+
+IMPORTANT: Output MUST follow this exact structure with file markers:
+
+---FILE: component-mapping.md---
+---
+title: "Component Mapping"
+owner: "designer"
+version: "1"
+date: "${new Date().toISOString().split('T')[0]}"
+status: "draft"
+---
+
+# Component Mapping
+
+## Design Tokens to Component Props
+- Color tokens mapped to component props
+- Typography tokens to text components
+- Spacing tokens to layout components
+
+## Stack-Specific Components
+- ${
+        stack
+          ? `Components for ${stack}`
+          : 'Shadcn/ui components (if React/Next.js)'
+      }
+- Component variants and states
+- Props interface for each component
+
+---FILE: journey-maps.md---
+---
+title: "Journey Maps"
+owner: "designer"
+version: "1"
+date: "${new Date().toISOString().split('T')[0]}"
+status: "draft"
+---
+
+# Journey Maps
+
+## User Flows
+- Key user journeys
+- Screen states and transitions
+
+## Interactions
+- Transition animations
+- Micro-interactions
+- Accessibility considerations
+
+You MUST include both ---FILE: markers exactly as shown above.`
+}`;
+
+      const llmResponse = await llmClient.generateCompletion(
+        llmPrompt,
+        undefined,
+        2,
+        phase
+      );
+
+      // Parse artifacts from response
+      const artifacts: Record<string, string | Buffer> = {};
+
+      if (phase === 'SPEC_DESIGN_TOKENS') {
+        // Use structured output for reliable single-file generation
+        const structuredArtifacts = await (
+          llmClient as unknown as {
+            generateStructuredArtifacts: (
+              prompt: string,
+              expectedFiles: string[],
+              phase?: string,
+              options?: {
+                temperature?: number;
+                maxOutputTokens?: number;
+                retries?: number;
+              }
+            ) => Promise<Record<string, string | Buffer>>;
+          }
+        ).generateStructuredArtifacts(llmPrompt, ['design-tokens.md'], phase, {
+          temperature: 0.3,
+          maxOutputTokens: 8192,
+          retries: 2,
+        });
+        artifacts['design-tokens.md'] = structuredArtifacts['design-tokens.md'];
+      } else if (phase === 'SPEC_DESIGN_COMPONENTS') {
+        // CRITICAL: Use two-file structured output to ensure BOTH files are generated
+        // The LLM sometimes ignores the two-file requirement, so structured output ENFORCES it
+        const structuredArtifacts = await (
+          llmClient as unknown as {
+            generateStructuredArtifacts: (
+              prompt: string,
+              expectedFiles: string[],
+              phase?: string,
+              options?: {
+                temperature?: number;
+                maxOutputTokens?: number;
+                retries?: number;
+              }
+            ) => Promise<Record<string, string | Buffer>>;
+          }
+        ).generateStructuredArtifacts(
+          llmPrompt,
+          ['component-mapping.md', 'journey-maps.md'],
+          phase,
+          { temperature: 0.3, maxOutputTokens: 8192, retries: 2 }
+        );
+
+        artifacts['component-mapping.md'] =
+          structuredArtifacts['component-mapping.md'];
+        artifacts['journey-maps.md'] = structuredArtifacts['journey-maps.md'];
+      }
+
+      logger.info('[DESIGNER] Artifacts generated', {
+        phase,
+        artifacts: Object.keys(artifacts),
+        stackAgnostic: phase === 'SPEC_DESIGN_TOKENS',
+      });
+
+      return {
+        success: true,
+        artifacts,
+        metadata: {
+          phase,
+          agent: 'designer',
+          generatedAt: new Date().toISOString(),
+          stackAgnostic: phase === 'SPEC_DESIGN_TOKENS',
+          stack: stack,
+        },
+      };
+    },
+
+    validateArtifacts(
+      artifacts: Record<string, string | Buffer>
+    ): ValidationResult {
+      const results: ValidationIssue[] = [];
+
+      for (const [artifactName, content] of Object.entries(artifacts)) {
+        // Anti-AI-Slop validation
+        const forbiddenPatterns = [
+          'purple-gradient',
+          'blob background',
+          'Inter, sans-serif',
+          '"Inter",',
+          "'Inter'",
+        ];
+        const requiredPatterns = [
+          'oklch',
+          '60/30/10',
+          '8pt',
+          'typography-sizes',
+        ];
+
+        forbiddenPatterns.forEach((pattern) => {
+          const contentStr = asString(content);
+          if (contentStr.toLowerCase().includes(pattern)) {
+            results.push({
+              severity: 'error',
+              artifactId: artifactName,
+              message: `Anti-AI-slop violation: forbidden pattern "${pattern}" detected`,
+            });
+          }
+        });
+
+        requiredPatterns.forEach((pattern) => {
+          const contentStr = asString(content);
+          if (!contentStr.toLowerCase().includes(pattern)) {
+            results.push({
+              severity: 'warning',
+              artifactId: artifactName,
+              message: `Anti-AI-slop warning: required pattern "${pattern}" not found`,
+            });
+          }
+        });
+      }
+
+      return {
+        canProceed: !results.some((r) => r.severity === 'error'),
+        issues: results,
+      };
+    },
+  };
+}
+
+/**
+ * Execute DONE phase - Generate handoff package
+ * Generates: README.md, HANDOFF.md, project.zip
+ */
+export async function getHandoffExecutor(
+  llmClient: LLMProvider,
+  projectId: string,
+  artifacts: Record<string, string | Buffer>,
+  projectName?: string
+): Promise<Record<string, string | Buffer>> {
+  logger.info('[DONE] Generating handoff package');
+
+  const { HandoffGenerator } = await import(
+    '@/backend/services/file_system/handoff_generator'
+  );
+
+  // Extract stack choice from artifacts for project metadata
+  const stackDecision = asString(
+    artifacts['STACK_SELECTION/stack-decision.md'] || ''
+  );
+  const stackMatch = stackDecision.match(
+    /##? Approved Stack.*?\n([\s\S]*?)(?=\n##|\n#|$)/i
+  );
+  const stackChoice = stackMatch
+    ? stackMatch[1].trim().split('\n')[0].replace(/^- /, '')
+    : 'custom';
+
+  const projectMetadata = {
+    name: projectName,
+    stack_choice: stackChoice,
+  };
+
+  const handoffGenerator = new HandoffGenerator(projectId, artifacts);
+
+  // Generate README.md
+  const readmeContent = await handoffGenerator.generateReadme(
+    undefined,
+    projectMetadata
+  );
+
+  // Generate HANDOFF.md
+  const handoffContent = await handoffGenerator.generateHandoff(
+    undefined,
+    projectMetadata
+  );
+
+  // Create actual project.zip
+  const zipBuffer = await handoffGenerator.createZip();
+
+  logger.info('[DONE] Handoff package generated', {
+    readmeLength: readmeContent?.length || 0,
+    handoffLength: handoffContent?.length || 0,
+    zipSize: zipBuffer.length,
+  });
+
+  return {
+    'README.md': readmeContent || '',
+    'HANDOFF.md': handoffContent || '',
+    'project.zip': zipBuffer,
+  };
 }

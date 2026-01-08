@@ -1,5 +1,15 @@
-import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, statSync, unlinkSync, rmSync } from 'fs';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import {
+  existsSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  unlinkSync,
+  rmSync,
+} from 'fs';
+import { promises as fsPromises } from 'fs';
+ 
 import { resolve, dirname, basename } from 'path';
 import { createHash } from 'crypto';
 import { logger } from '@/lib/logger';
@@ -23,7 +33,7 @@ export class ProjectStorage {
 
   constructor(config?: Partial<ProjectStorageConfig>) {
     this.basePath = config?.base_path || '/projects';
-    
+
     if (config?.create_if_missing !== false && !existsSync(this.basePath)) {
       mkdirSync(this.basePath, { recursive: true });
     }
@@ -34,21 +44,29 @@ export class ProjectStorage {
    */
   createProjectDirectory(projectSlug: string): string {
     const projectPath = this.getProjectPath(projectSlug);
-    
+
     if (!existsSync(projectPath)) {
       mkdirSync(projectPath, { recursive: true });
     }
 
-    // Create standard directory structure
+    // Create standard directory structure (12-phase system)
     const directories = [
       'specs/ANALYSIS/v1',
       'specs/STACK_SELECTION/v1',
-      'specs/SPEC/v1',
+      'specs/SPEC_PM/v1',
+      'specs/SPEC_ARCHITECT/v1',
+      'specs/SPEC_DESIGN_TOKENS/v1',
+      'specs/SPEC_DESIGN_COMPONENTS/v1',
+      'specs/FRONTEND_BUILD/v1',
       'specs/DEPENDENCIES/v1',
       'specs/SOLUTIONING/v1',
       'specs/VALIDATE/v1',
+      'specs/AUTO_REMEDY/v1',
+      'specs/DONE/v1',
+      // Legacy fallback for existing projects
+      'specs/SPEC/v1',
       '.ai-config',
-      'docs'
+      'docs',
     ];
 
     for (const dir of directories) {
@@ -67,7 +85,7 @@ export class ProjectStorage {
         phases_completed: [],
         current_phase: 'ANALYSIS',
         stack_approved: false,
-        artifact_versions: {}
+        artifact_versions: {},
       };
       writeFileSync(metadataPath, JSON.stringify(metadata, null, 2));
     }
@@ -85,9 +103,19 @@ export class ProjectStorage {
   /**
    * Create phase directory
    */
-  createPhaseDirectory(projectSlug: string, phase: string, version: number = 1): string {
-    const phasePath = resolve(this.basePath, projectSlug, 'specs', phase, `v${version}`);
-    
+  createPhaseDirectory(
+    projectSlug: string,
+    phase: string,
+    version: number = 1
+  ): string {
+    const phasePath = resolve(
+      this.basePath,
+      projectSlug,
+      'specs',
+      phase,
+      `v${version}`
+    );
+
     if (!existsSync(phasePath)) {
       mkdirSync(phasePath, { recursive: true });
     }
@@ -96,44 +124,126 @@ export class ProjectStorage {
   }
 
   /**
-   * Write artifact to project
+   * Write artifact to project (async)
    */
-  writeArtifact(
+  async writeArtifactAsync(
     projectSlug: string,
     phase: string,
     artifactName: string,
-    content: string,
+    content: string | Buffer,
     version: number = 1
-  ): string {
-    const artifactPath = this.getArtifactPath(projectSlug, phase, artifactName, version);
-    
+  ): Promise<string> {
+    const artifactPath = this.getArtifactPath(
+      projectSlug,
+      phase,
+      artifactName,
+      version
+    );
+
     // Ensure directory exists
     const dir = dirname(artifactPath);
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
 
-    writeFileSync(artifactPath, content, 'utf8');
-    
+    await fsPromises.writeFile(artifactPath, content);
+
     // Update metadata
-    this.updateArtifactMetadata(projectSlug, artifactName, {
+    await this.updateArtifactMetadataAsync(projectSlug, artifactName, {
       phase,
       version,
       file_path: artifactPath,
-      file_size: Buffer.byteLength(content),
+      file_size:
+        typeof content === 'string'
+          ? Buffer.byteLength(content)
+          : content.length,
       content_hash: createHash('sha256').update(content).digest('hex'),
-      updated_at: new Date()
+      updated_at: new Date(),
     });
 
     return artifactPath;
   }
 
   /**
-   * Read artifact from project
+   * Write artifact to project (sync - legacy)
    */
-  readArtifact(projectSlug: string, phase: string, artifactName: string, version: number = 1): string {
-    const artifactPath = this.getArtifactPath(projectSlug, phase, artifactName, version);
-    
+  writeArtifact(
+    projectSlug: string,
+    phase: string,
+    artifactName: string,
+    content: string | Buffer,
+    version: number = 1
+  ): string {
+    const artifactPath = this.getArtifactPath(
+      projectSlug,
+      phase,
+      artifactName,
+      version
+    );
+
+    // Ensure directory exists
+    const dir = dirname(artifactPath);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+
+    writeFileSync(artifactPath, content);
+
+    // Update metadata
+    this.updateArtifactMetadata(projectSlug, artifactName, {
+      phase,
+      version,
+      file_path: artifactPath,
+      file_size:
+        typeof content === 'string'
+          ? Buffer.byteLength(content)
+          : content.length,
+      content_hash: createHash('sha256').update(content).digest('hex'),
+      updated_at: new Date(),
+    });
+
+    return artifactPath;
+  }
+
+  /**
+   * Read artifact from project (async)
+   */
+  async readArtifactAsync(
+    projectSlug: string,
+    phase: string,
+    artifactName: string,
+    version: number = 1
+  ): Promise<string> {
+    const artifactPath = this.getArtifactPath(
+      projectSlug,
+      phase,
+      artifactName,
+      version
+    );
+
+    if (!existsSync(artifactPath)) {
+      throw new Error(`Artifact not found: ${artifactPath}`);
+    }
+
+    return fsPromises.readFile(artifactPath, 'utf8');
+  }
+
+  /**
+   * Read artifact from project (sync - legacy)
+   */
+  readArtifact(
+    projectSlug: string,
+    phase: string,
+    artifactName: string,
+    version: number = 1
+  ): string {
+    const artifactPath = this.getArtifactPath(
+      projectSlug,
+      phase,
+      artifactName,
+      version
+    );
+
     if (!existsSync(artifactPath)) {
       throw new Error(`Artifact not found: ${artifactPath}`);
     }
@@ -144,9 +254,19 @@ export class ProjectStorage {
   /**
    * List artifacts in phase
    */
-  listArtifacts(projectSlug: string, phase: string, version: number = 1): ArtifactInfo[] {
-    const phasePath = resolve(this.basePath, projectSlug, 'specs', phase, `v${version}`);
-    
+  listArtifacts(
+    projectSlug: string,
+    phase: string,
+    version: number = 1
+  ): ArtifactInfo[] {
+    const phasePath = resolve(
+      this.basePath,
+      projectSlug,
+      'specs',
+      phase,
+      `v${version}`
+    );
+
     if (!existsSync(phasePath)) {
       return [];
     }
@@ -158,14 +278,14 @@ export class ProjectStorage {
       const filePath = resolve(phasePath, file);
       const stats = statSync(filePath);
       const content = readFileSync(filePath, 'utf8');
-      
+
       artifacts.push({
         name: file,
         path: filePath,
         size: stats.size,
         created_at: stats.birthtime,
         modified_at: stats.mtime,
-        hash: createHash('sha256').update(content).digest('hex')
+        hash: createHash('sha256').update(content).digest('hex'),
       });
     }
 
@@ -175,23 +295,55 @@ export class ProjectStorage {
   /**
    * Get artifact path
    */
-  getArtifactPath(projectSlug: string, phase: string, artifactName: string, version: number = 1): string {
-    return resolve(this.basePath, projectSlug, 'specs', phase, `v${version}`, artifactName);
+  getArtifactPath(
+    projectSlug: string,
+    phase: string,
+    artifactName: string,
+    version: number = 1
+  ): string {
+    return resolve(
+      this.basePath,
+      projectSlug,
+      'specs',
+      phase,
+      `v${version}`,
+      artifactName
+    );
   }
 
   /**
    * Check if artifact exists
    */
-  artifactExists(projectSlug: string, phase: string, artifactName: string, version: number = 1): boolean {
-    const artifactPath = this.getArtifactPath(projectSlug, phase, artifactName, version);
+  artifactExists(
+    projectSlug: string,
+    phase: string,
+    artifactName: string,
+    version: number = 1
+  ): boolean {
+    const artifactPath = this.getArtifactPath(
+      projectSlug,
+      phase,
+      artifactName,
+      version
+    );
     return existsSync(artifactPath);
   }
 
   /**
    * Delete artifact
    */
-  deleteArtifact(projectSlug: string, phase: string, artifactName: string, version: number = 1): boolean {
-    const artifactPath = this.getArtifactPath(projectSlug, phase, artifactName, version);
+  deleteArtifact(
+    projectSlug: string,
+    phase: string,
+    artifactName: string,
+    version: number = 1
+  ): boolean {
+    const artifactPath = this.getArtifactPath(
+      projectSlug,
+      phase,
+      artifactName,
+      version
+    );
 
     try {
       if (existsSync(artifactPath)) {
@@ -200,7 +352,10 @@ export class ProjectStorage {
       }
       return false;
     } catch (error) {
-      logger.error(`Failed to delete artifact ${artifactPath}:`, error instanceof Error ? error : new Error(String(error)));
+      logger.error(
+        `Failed to delete artifact ${artifactPath}:`,
+        error instanceof Error ? error : new Error(String(error))
+      );
       return false;
     }
   }
@@ -208,10 +363,29 @@ export class ProjectStorage {
   /**
    * Get project metadata
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
+  async getProjectMetadataAsync(projectSlug: string): Promise<any> {
+    const metadataPath = resolve(this.basePath, projectSlug, 'metadata.json');
+
+    if (!existsSync(metadataPath)) {
+      return null;
+    }
+
+    try {
+      const content = await fsPromises.readFile(metadataPath, 'utf8');
+      return JSON.parse(content);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Get project metadata (sync - legacy)
+   */
+   
   getProjectMetadata(projectSlug: string): any {
     const metadataPath = resolve(this.basePath, projectSlug, 'metadata.json');
-    
+
     if (!existsSync(metadataPath)) {
       return null;
     }
@@ -225,29 +399,75 @@ export class ProjectStorage {
   }
 
   /**
-   * Update project metadata
+   * Update project metadata (async)
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  updateProjectMetadata(projectSlug: string, updates: any): void {
+   
+  async updateProjectMetadataAsync(
+    projectSlug: string,
+    updates: any
+  ): Promise<void> {
     const metadataPath = resolve(this.basePath, projectSlug, 'metadata.json');
-    const metadata = this.getProjectMetadata(projectSlug) || {};
-    
+    const metadata = (await this.getProjectMetadataAsync(projectSlug)) || {};
+
     const updatedMetadata = {
       ...metadata,
       ...updates,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+    };
+
+    await fsPromises.writeFile(
+      metadataPath,
+      JSON.stringify(updatedMetadata, null, 2)
+    );
+  }
+
+  /**
+   * Update project metadata (sync - legacy)
+   */
+   
+  updateProjectMetadata(projectSlug: string, updates: any): void {
+    const metadataPath = resolve(this.basePath, projectSlug, 'metadata.json');
+    const metadata = this.getProjectMetadata(projectSlug) || {};
+
+    const updatedMetadata = {
+      ...metadata,
+      ...updates,
+      updated_at: new Date().toISOString(),
     };
 
     writeFileSync(metadataPath, JSON.stringify(updatedMetadata, null, 2));
   }
 
   /**
-   * Update artifact metadata
+   * Update artifact metadata (async)
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private updateArtifactMetadata(projectSlug: string, artifactName: string, info: any): void {
+   
+  private async updateArtifactMetadataAsync(
+    projectSlug: string,
+    artifactName: string,
+    info: any
+  ): Promise<void> {
+    const metadata = (await this.getProjectMetadataAsync(projectSlug)) || {};
+
+    if (!metadata.artifacts) {
+      metadata.artifacts = {};
+    }
+
+    metadata.artifacts[artifactName] = info;
+    await this.updateProjectMetadataAsync(projectSlug, metadata);
+  }
+
+  /**
+   * Update artifact metadata (sync - legacy)
+   */
+   
+  private updateArtifactMetadata(
+    projectSlug: string,
+    artifactName: string,
+    info: any
+  ): void {
     const metadata = this.getProjectMetadata(projectSlug) || {};
-    
+
     if (!metadata.artifacts) {
       metadata.artifacts = {};
     }
@@ -265,7 +485,7 @@ export class ProjectStorage {
     }
 
     try {
-      return readdirSync(this.basePath).filter(item => {
+      return readdirSync(this.basePath).filter((item) => {
         const itemPath = resolve(this.basePath, item);
         return statSync(itemPath).isDirectory();
       });
@@ -287,7 +507,10 @@ export class ProjectStorage {
       }
       return false;
     } catch (error) {
-      logger.error(`Failed to delete project ${projectPath}:`, error instanceof Error ? error : new Error(String(error)));
+      logger.error(
+        `Failed to delete project ${projectPath}:`,
+        error instanceof Error ? error : new Error(String(error))
+      );
       return false;
     }
   }
@@ -295,10 +518,10 @@ export class ProjectStorage {
   /**
    * Get project statistics
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   getProjectStats(projectSlug: string): any {
     const projectPath = this.getProjectPath(projectSlug);
-    
+
     if (!existsSync(projectPath)) {
       return null;
     }
@@ -306,16 +529,31 @@ export class ProjectStorage {
     const stats = {
       total_artifacts: 0,
       total_size: 0,
-      phases: {} as Record<string, number>
+      phases: {} as Record<string, number>,
     };
 
-    const phases = ['ANALYSIS', 'STACK_SELECTION', 'SPEC', 'DEPENDENCIES', 'SOLUTIONING', 'VALIDATE'];
-    
+    const phases = [
+      'ANALYSIS',
+      'STACK_SELECTION',
+      'SPEC_PM',
+      'SPEC_ARCHITECT',
+      'SPEC_DESIGN_TOKENS',
+      'SPEC_DESIGN_COMPONENTS',
+      'FRONTEND_BUILD',
+      'DEPENDENCIES',
+      'SOLUTIONING',
+      'VALIDATE',
+      'AUTO_REMEDY',
+      'DONE',
+      // Legacy fallback for existing projects
+      'SPEC',
+    ];
+
     for (const phase of phases) {
       const artifacts = this.listArtifacts(projectSlug, phase);
       stats.phases[phase] = artifacts.length;
       stats.total_artifacts += artifacts.length;
-      
+
       for (const artifact of artifacts) {
         stats.total_size += artifact.size;
       }

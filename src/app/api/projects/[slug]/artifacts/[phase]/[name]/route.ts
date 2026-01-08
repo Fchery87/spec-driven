@@ -8,7 +8,9 @@ export const runtime = 'nodejs';
 export const GET = withAuth(
   async (
     _request: NextRequest,
-    { params }: { params: Promise<{ slug: string; phase: string; name: string }> },
+    {
+      params,
+    }: { params: Promise<{ slug: string; phase: string; name: string }> },
     session: AuthSession
   ) => {
     try {
@@ -33,30 +35,38 @@ export const GET = withAuth(
           contentType = 'application/json';
         } else if (name.endsWith('.md')) {
           contentType = 'text/markdown';
+        } else if (name.endsWith('.zip')) {
+          contentType = 'application/zip';
         }
 
-        return new NextResponse(content, {
+        return new NextResponse(content as any, {
           status: 200,
           headers: {
             'Content-Type': contentType,
-            'Content-Disposition': `inline; filename="${name}"`
-          }
+            'Content-Disposition': `inline; filename="${name}"`,
+          },
         });
       } catch (fileErr) {
-        logger.error(`Failed to read artifact file ${name}:`, fileErr instanceof Error ? fileErr : new Error(String(fileErr)));
+        logger.error(
+          `Failed to read artifact file ${name}:`,
+          fileErr instanceof Error ? fileErr : new Error(String(fileErr))
+        );
         return NextResponse.json(
           { success: false, error: 'Artifact not found' },
           { status: 404 }
         );
       }
     } catch (error) {
-      logger.error('Error fetching artifact:', error instanceof Error ? error : undefined);
+      logger.error(
+        'Error fetching artifact:',
+        error instanceof Error ? error : undefined
+      );
       return NextResponse.json(
         {
           success: false,
           error: `Failed to fetch artifact: ${
             error instanceof Error ? error.message : String(error)
-          }`
+          }`,
         },
         { status: 500 }
       );

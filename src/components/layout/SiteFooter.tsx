@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState, useEffect } from "react"
+
 import { Home, LayoutDashboard, PlusCircle, Database, Package, Mail, Github, Twitter } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -39,11 +39,8 @@ const footerLinks: Array<{ title: string; links: FooterLink[] }> = [
 ]
 
 export function SiteFooter({ className }: SiteFooterProps) {
-  const [year, setYear] = useState<number | null>(null)
-
-  useEffect(() => {
-    setYear(new Date().getFullYear())
-  }, [])
+  // Use suppressHydrationWarning on the element displaying the year to handle SSR/client mismatch
+  const year = new Date().getFullYear()
 
   return (
     <footer className={cn("border-t border-border/40 bg-muted/30", className)}>
@@ -125,7 +122,7 @@ export function SiteFooter({ className }: SiteFooterProps) {
 
         <div className="mt-10 flex flex-col gap-4 border-t border-border/40 pt-6 md:flex-row md:items-center md:justify-between">
           <p className="text-xs text-muted-foreground" suppressHydrationWarning>
-            © {year ?? new Date().getFullYear()} Spec-Driven Platform. All rights reserved.
+            © {year} Spec-Driven Platform. All rights reserved.
           </p>
           <p className="text-xs text-muted-foreground">
             Built with clarity and confidence.

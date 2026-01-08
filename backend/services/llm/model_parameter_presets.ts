@@ -16,7 +16,13 @@
  * and industry best practices for optimal LLM generation.
  */
 
-export type ProviderType = 'gemini' | 'openai' | 'anthropic' | 'zai' | 'groq' | 'deepseek';
+export type ProviderType =
+  | 'gemini'
+  | 'openai'
+  | 'anthropic'
+  | 'zai'
+  | 'groq'
+  | 'deepseek';
 
 export interface ModelPreset {
   temperature: number;
@@ -40,14 +46,15 @@ export const MODEL_PARAMETER_PRESETS: Record<string, ModelPreset> = {
   // ============================================================================
   // GOOGLE GEMINI MODELS (Temperature: 0-2.0, Supports TopP adjustment)
   // ============================================================================
-  'gemini-3.0-flash': {
+  'gemini-3-flash-preview': {
     provider: 'gemini',
     temperature: 0.7, // Balanced creativity & accuracy
     timeout: 180, // Fast model, reasonable timeout
     topP: 0.95,
     frequencyPenalty: 0.0,
     presencePenalty: 0.0,
-    recommendedUseCase: 'General-purpose, fast processing, balanced outputs',
+    recommendedUseCase:
+      'Latest frontier-class performance, visual and spatial reasoning',
     maxOutputTokens: 65500,
   },
 
@@ -167,13 +174,23 @@ export const MODEL_PARAMETER_PRESETS: Record<string, ModelPreset> = {
   // ============================================================================
   // Z.AI GLM MODELS (Temperature: 0-2.0)
   // ============================================================================
+  'glm-4.7': {
+    provider: 'zai',
+    temperature: 0.7,
+    timeout: 240,
+    topP: 0.95,
+    recommendedUseCase:
+      'Latest flagship, superior coding and agentic capabilities (128K output)',
+    maxOutputTokens: 131072,
+  },
+
   'glm-4.6': {
     provider: 'zai',
     temperature: 0.7,
-    timeout: 180,
+    timeout: 240,
     topP: 0.95,
-    recommendedUseCase: 'Latest flagship model',
-    maxOutputTokens: 4096,
+    recommendedUseCase: 'Flagship model with 128K output',
+    maxOutputTokens: 131072,
   },
 
   'glm-4-plus': {
@@ -335,16 +352,16 @@ export function getTemperatureRange(provider: ProviderType): [number, number] {
  * @param modelId - The model identifier
  * @returns Model constraints or undefined
  */
-export function getModelConstraints(
-  modelId: string
-): {
-  provider: ProviderType;
-  temperatureRange: [number, number];
-  maxOutputTokens: number;
-  supportsTopP: boolean;
-  supportsFrequencyPenalty: boolean;
-  supportsPresencePenalty: boolean;
-} | undefined {
+export function getModelConstraints(modelId: string):
+  | {
+      provider: ProviderType;
+      temperatureRange: [number, number];
+      maxOutputTokens: number;
+      supportsTopP: boolean;
+      supportsFrequencyPenalty: boolean;
+      supportsPresencePenalty: boolean;
+    }
+  | undefined {
   const preset = getModelPreset(modelId);
   if (!preset) return undefined;
 

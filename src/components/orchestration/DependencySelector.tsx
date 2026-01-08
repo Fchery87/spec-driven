@@ -263,14 +263,18 @@ export function DependencySelector({
   }
 
   const derivedArchitecture = useMemo(() => mapToArchitecture(selectedArchitecture), [selectedArchitecture])
-  const [architecture, setArchitecture] = useState<ArchitectureType>(derivedArchitecture)
-
-  useEffect(() => {
-    if (!selectedArchitecture) return
-    // Keep the selector aligned to the approved stack choice unless the user explicitly switches to custom deps.
-    if (architecture === "custom") return
-    setArchitecture(derivedArchitecture)
-  }, [derivedArchitecture, architecture, selectedArchitecture])
+  // Track if user has explicitly selected custom mode
+  const [userSelectedCustom, setUserSelectedCustom] = useState(false)
+  // Use derived architecture unless user explicitly selected custom
+  const architecture = userSelectedCustom ? "custom" : derivedArchitecture
+  
+  const setArchitecture = (arch: ArchitectureType) => {
+    if (arch === "custom") {
+      setUserSelectedCustom(true)
+    } else {
+      setUserSelectedCustom(false)
+    }
+  }
   const [selectedOption, setSelectedOption] = useState<DependencyOption | null>(null)
   const [notes, setNotes] = useState("")
   const [customStack, setCustomStack] = useState<CustomStack>({

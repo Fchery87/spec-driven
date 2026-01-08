@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 /**
  * Concurrent execution safeguards
  * Prevents race conditions, duplicate work, and ensures idempotency
@@ -12,6 +12,7 @@ import { logger } from './logger';
  */
 class RequestDeduplicator {
   private inFlight: Map<string, Promise<any>> = new Map();
+  private cleanupTimeout: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * Execute a function only once per deduplication key
@@ -27,13 +28,24 @@ class RequestDeduplicator {
     // Execute and cache the promise
     const promise = fn().finally(() => {
       // Clean up after 30 seconds to allow new executions
-      setTimeout(() => this.inFlight.delete(key), 30000);
+      this.cleanupTimeout = setTimeout(() => this.inFlight.delete(key), 30000);
     });
 
     this.inFlight.set(key, promise);
     logger.debug('Request execution started', { key });
 
     return promise;
+  }
+
+  /**
+   * Clean up resources
+   */
+  destroy(): void {
+    if (this.cleanupTimeout) {
+      clearTimeout(this.cleanupTimeout);
+      this.cleanupTimeout = null;
+    }
+    this.inFlight.clear();
   }
 
   /**
@@ -65,14 +77,26 @@ class RequestDeduplicator {
 class IdempotencyTracker {
   private results: Map<string, { result: any; timestamp: number }> = new Map();
   private ttl: number; // milliseconds
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(ttlSeconds: number = 3600) {
     this.ttl = ttlSeconds * 1000;
 
     // Cleanup expired entries every 5 minutes
     if (typeof window === 'undefined') {
-      setInterval(() => this.cleanup(), 5 * 60 * 1000);
+      this.cleanupInterval = setInterval(() => this.cleanup(), 5 * 60 * 1000);
     }
+  }
+
+  /**
+   * Clean up resources
+   */
+  destroy(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+    this.results.clear();
   }
 
   /**
@@ -150,14 +174,26 @@ class IdempotencyTracker {
 class LockManager {
   private locks: Map<string, { owner: string; expiresAt: number }> = new Map();
   private lockTimeout: number; // milliseconds
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(lockTimeoutSeconds: number = 30) {
     this.lockTimeout = lockTimeoutSeconds * 1000;
 
     // Cleanup expired locks every minute
     if (typeof window === 'undefined') {
-      setInterval(() => this.cleanupExpiredLocks(), 60 * 1000);
+      this.cleanupInterval = setInterval(() => this.cleanupExpiredLocks(), 60 * 1000);
     }
+  }
+
+  /**
+   * Clean up resources
+   */
+  destroy(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+    this.locks.clear();
   }
 
   /**

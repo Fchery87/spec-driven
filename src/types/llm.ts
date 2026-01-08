@@ -7,6 +7,28 @@ export interface LLMConfig {
   api_key?: string;
   top_p?: number;
   phase?: string;  // Current phase for applying overrides
+  streaming_validation?: StreamingValidationConfig;
+}
+
+export interface StreamingValidationConfig {
+  enabled?: boolean;
+  abort_on_violations?: boolean;
+  check_interval_ms?: number;
+  patterns?: {
+    placeholder?: string[];
+    slop?: string[];
+    format?: string[];
+  };
+  enabled_phases?: string[];
+  phase_overrides?: Record<string, {
+    abort_on_violations?: boolean;
+    check_interval_ms?: number;
+    patterns?: {
+      placeholder?: string[];
+      slop?: string[];
+      format?: string[];
+    };
+  }>;
 }
 
 export interface PhaseOverride {

@@ -13,7 +13,7 @@ import { users } from '@/backend/lib/schema';
 import { JWTService, JWTPayload } from './jwt_service';
 import { PasswordService } from './password_service';
 import { z } from 'zod';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 import { logger } from '@/lib/logger';
 import { eq } from 'drizzle-orm';
 
@@ -200,7 +200,7 @@ export class AuthService {
   /**
    * Verify a token and get user payload
    */
-  verifyToken(token: string): JWTPayload | null {
+  async verifyToken(token: string): Promise<JWTPayload | null> {
     return this.jwtService.verifyToken(token);
   }
 
@@ -208,7 +208,7 @@ export class AuthService {
    * Get current user from token
    */
   async getCurrentUser(token: string) {
-    const payload = this.jwtService.verifyToken(token);
+    const payload = await this.jwtService.verifyToken(token);
     if (!payload) {
       return null;
     }

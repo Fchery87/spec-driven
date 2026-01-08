@@ -72,13 +72,13 @@ export async function requireAuth(request: NextRequest) {
 export function withAuth(
   handler: (
     request: NextRequest,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     context: any,
     session: AuthSession
   ) => Promise<Response | NextResponse>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
 ): (request: NextRequest, context: any) => Promise<Response | NextResponse> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return async (request: NextRequest, context: any) => {
     const session = await requireAuth(request);
 
@@ -114,13 +114,13 @@ export function isSuperAdmin(session: AuthSession): boolean {
 export function withAdminAuth(
   handler: (
     request: NextRequest,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     context: any,
     session: AuthSession
   ) => Promise<Response | NextResponse>
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
 ): (request: NextRequest, context: any) => Promise<Response | NextResponse> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return async (request: NextRequest, context: any) => {
     const session = await requireAuth(request);
 
