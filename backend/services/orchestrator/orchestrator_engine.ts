@@ -689,6 +689,38 @@ export class OrchestratorEngine {
   }
 
   /**
+   * Internal method to run phase agent with additional options
+   * Used by AUTO_REMEDY for remediation runs
+   */
+  private async runPhaseAgentInternal(
+    project: Project,
+    artifacts: Record<string, string | Buffer>,
+    options?: {
+      isRemediation?: boolean;
+      additionalPrompt?: string;
+    }
+  ): Promise<{
+    success: boolean;
+    artifacts: Record<string, string | Buffer>;
+    message: string;
+  }> {
+    // Store remediation context in a property that can be accessed by the LLM prompt builder
+    if (options?.isRemediation && options.additionalPrompt) {
+      // Add remediation context to project for prompt enhancement
+      (project as any)._remediationPrompt = options.additionalPrompt;
+    }
+
+    try {
+      // Call the main runPhaseAgent with the modified project
+      const result = await this.runPhaseAgent(project, artifacts);
+      return result;
+    } finally {
+      // Clean up remediation context
+      delete (project as any)._remediationPrompt;
+    }
+  }
+
+  /**
    * Run agent for current phase
    */
   async runPhaseAgent(
@@ -1087,14 +1119,134 @@ Please review the failures above and manually address them before proceeding.`
 
           if (result.canProceed) {
             logger.info(
-              '[AUTO_REMEDY] Remediation succeeded - re-running validation'
+              '[AUTO_REMEDY] Initiating actual remediation - re-running target phase'
             );
+
+            // ACTUALLY FIX THE FAILURES by re-running the target phase
+            const targetPhase = result.remediation?.phase || 'SOLUTIONING';
+            const remediationInstructions =
+              result.remediation?.additionalInstructions || '';
+
+            // Build context with failures for the regeneration
+            const failureContext = parsedReport.errors
+              .map((e, i) => `${i + 1}. ${e}`)
+              .join('\n');
+
+            try {
+              // Temporarily update project to target phase for re-generation
+              const originalPhase = project.current_phase;
+
+              // Create a modified project object for the remediation run
+              const remediationProject = {
+                ...project,
+                current_phase: targetPhase,
+                // Add remediation context that will be picked up by the agent
+                remediation_context: {
+                  isRemediation: true,
+                  originalFailures: parsedReport.errors,
+                  instructions: remediationInstructions,
+                  failureContext: failureContext,
+                },
+              };
+
+              logger.info(
+                '[AUTO_REMEDY] Re-running phase with remediation context',
+                {
+                  targetPhase,
+                  failureCount: parsedReport.errors.length,
+                }
+              );
+
+              // Run the phase agent for the target phase (this will regenerate artifacts)
+              // We pass empty artifacts to trigger fresh generation with remediation context
+              const regenerationResult = await this.runPhaseAgentInternal(
+                remediationProject as Project,
+                {},
+                {
+                  isRemediation: true,
+                  additionalPrompt: `
+REMEDIATION MODE ACTIVE - You MUST fix the following validation failures:
+
+${failureContext}
+
+${remediationInstructions}
+
+CRITICAL REQUIREMENTS:
+1. For each REQ-* ID listed above, create an explicit implementing task in tasks.md
+2. Each task must reference the requirement ID it implements (e.g., "Implements REQ-NOTIF-002")
+3. Ensure ALL requirements from PRD.md have at least one implementing task
+4. Do NOT remove any existing tasks that are working correctly
+`,
+                }
+              );
+
+              if (regenerationResult.success) {
+                logger.info(
+                  '[AUTO_REMEDY] Phase regeneration completed successfully',
+                  {
+                    artifactCount: Object.keys(regenerationResult.artifacts)
+                      .length,
+                  }
+                );
+
+                // Update the remediation report with success
+                const successReport = remediationReport.replace(
+                  '**Next Step:** Re-run the SOLUTIONING phase to apply remediation.',
+                  `✅ **Remediation Applied Successfully**
+
+The ${targetPhase} phase was re-run with remediation instructions.
+${Object.keys(regenerationResult.artifacts).length} artifacts were regenerated.
+
+**Regenerated Artifacts:**
+${Object.keys(regenerationResult.artifacts)
+  .map((a) => `- ${a}`)
+  .join('\n')}
+
+Please re-run the VALIDATE phase to confirm all failures are resolved.`
+                );
+
+                // Save updated report
+                await saveArtifactToR2(
+                  project.slug,
+                  'AUTO_REMEDY',
+                  'remediation-report.md',
+                  successReport
+                );
+
+                // Merge the regenerated artifacts with our report
+                return {
+                  success: true,
+                  artifacts: {
+                    'remediation-report.md': successReport,
+                    ...regenerationResult.artifacts,
+                  },
+                  message: `AUTO_REMEDY completed - regenerated ${
+                    Object.keys(regenerationResult.artifacts).length
+                  } artifacts in ${targetPhase} phase. Run VALIDATE to confirm fixes.`,
+                };
+              } else {
+                logger.warn('[AUTO_REMEDY] Phase regeneration failed', {
+                  message: regenerationResult.message,
+                });
+                // Fall through to return the report with instructions
+              }
+            } catch (remediationError) {
+              logger.error('[AUTO_REMEDY] Remediation execution failed', {
+                error:
+                  remediationError instanceof Error
+                    ? remediationError.message
+                    : String(remediationError),
+              });
+              // Fall through to return the report with manual instructions
+            }
+
+            // If automatic remediation failed, return report with instructions
             return {
               success: true,
               artifacts: {
                 'remediation-report.md': remediationReport,
               },
-              message: `AUTO_REMEDY completed - found ${parsedReport.errors.length} failures classified as '${result.classification?.type}'. Re-run ${result.remediation?.phase} phase to apply fixes.`,
+              message: `AUTO_REMEDY completed - found ${parsedReport.errors.length} failures classified as '${result.classification?.type}'. Automatic remediation was attempted. Please manually re-run ${result.remediation?.phase} phase if needed.`,
             };
           } else {
             logger.warn('[AUTO_REMEDY] Escalating to MANUAL_REVIEW');
@@ -1283,12 +1435,23 @@ Please review the failures above and manually address them before proceeding.`
           // Small delay to help with rate limiting
           await new Promise((resolve) => setTimeout(resolve, 2000));
 
+          // Check for remediation context from AUTO_REMEDY
+          const remediationPrompt = (project as any)._remediationPrompt as
+            | string
+            | undefined;
+          if (remediationPrompt) {
+            logger.info('[SOLUTIONING] Running in REMEDIATION mode', {
+              promptLength: remediationPrompt.length,
+            });
+          }
+
           // Scrum Master generates epics.md, tasks.md, plan.md
           const scrumArtifacts = await getScruMasterExecutor(
             llmClient,
             projectId,
             { ...artifacts, ...archArtifacts },
-            projectName
+            projectName,
+            remediationPrompt // Pass remediation context if present
           );
 
           generatedArtifacts = {

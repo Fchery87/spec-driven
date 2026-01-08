@@ -61,7 +61,6 @@ export interface ValidationResult {
 // PROMPT BUILDING HELPERS
 // ============================================================================
 
- 
 function buildPrompt(template: string, variables: Record<string, any>): string {
   let prompt = template;
 
@@ -551,7 +550,7 @@ async function executeArchitectAgent(
   const agentConfig = configLoader.getSection('agents').architect;
 
   let expectedFiles: string[];
-   
+
   let variables: Record<string, any> | undefined;
 
   if (phase === 'STACK_SELECTION') {
@@ -802,10 +801,12 @@ async function executeScrumMasterAgent(
   prd: string,
   dataModel: string,
   apiSpec: string,
-  projectName?: string
+  projectName?: string,
+  remediationPrompt?: string
 ): Promise<Record<string, string | Buffer>> {
   logger.info(
-    '[SOLUTIONING] Executing Scrum Master Agent (single comprehensive prompt)'
+    '[SOLUTIONING] Executing Scrum Master Agent (single comprehensive prompt)',
+    { isRemediation: !!remediationPrompt }
   );
 
   const currentDate = new Date().toISOString().split('T')[0];
@@ -878,8 +879,17 @@ filename: plan.md
 
 Generate all three artifacts now. If the output is long, continue until complete:`;
 
+  // Inject remediation context if provided
+  const finalPrompt = remediationPrompt
+    ? `${comprehensivePrompt}
+
+## REMEDIATION MODE - CRITICAL
+${remediationPrompt}
+`
+    : comprehensivePrompt;
+
   const response = await llmClient.generateCompletion(
-    comprehensivePrompt,
+    finalPrompt,
     undefined,
     3,
     'SOLUTIONING'
@@ -991,7 +1001,7 @@ export async function getPMExecutor(
   llmClient: LLMProvider,
   projectId: string,
   artifacts: Record<string, string | Buffer>,
-   
+
   stackChoice?: string,
   projectName?: string
 ): Promise<Record<string, string | Buffer>> {
@@ -1032,7 +1042,7 @@ export async function getArchitectExecutor(
 
 export async function getStackSelectionExecutor(
   llmClient: LLMProvider,
-   
+
   projectId: string,
   artifacts: Record<string, string | Buffer>,
   projectName?: string
@@ -1066,19 +1076,31 @@ export async function getScruMasterExecutor(
   llmClient: LLMProvider,
   projectId: string,
   artifacts: Record<string, string | Buffer>,
-  projectName?: string
+  projectName?: string,
+  remediationPrompt?: string
 ): Promise<Record<string, string | Buffer>> {
   const configLoader = new ConfigLoader();
-  const prd = asString(artifacts['SPEC/PRD.md'] || '');
-  const dataModel = asString(artifacts['SPEC/data-model.md'] || '');
-  const apiSpec = asString(artifacts['SPEC/api-spec.json'] || '');
+  const prd = asString(
+    artifacts['SPEC/PRD.md'] || artifacts['SPEC_PM/PRD.md'] || ''
+  );
+  const dataModel = asString(
+    artifacts['SPEC/data-model.md'] ||
+      artifacts['SPEC_ARCHITECT/data-model.md'] ||
+      ''
+  );
+  const apiSpec = asString(
+    artifacts['SPEC/api-spec.json'] ||
+      artifacts['SPEC_ARCHITECT/api-spec.json'] ||
+      ''
+  );
   return executeScrumMasterAgent(
     llmClient,
     configLoader,
     prd,
     dataModel,
     apiSpec,
-    projectName
+    projectName,
+    remediationPrompt
   );
 }
 
