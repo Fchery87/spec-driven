@@ -989,7 +989,7 @@ export class OrchestratorEngine {
 
         // Build validation result for downstream processing
         const validationResult = {
-          status: parsedReport.status,
+          status: parsedReport.status as 'pass' | 'warn' | 'fail',
           errors: parsedReport.errors,
           warnings: [] as string[],
           checks: {} as Record<string, boolean>,
@@ -1096,9 +1096,9 @@ Please review the failures above and manually address them before proceeding.`
 `;
 
           // Save the remediation report artifact
-          const { saveArtifactToR2 } = await import('@/lib/r2-storage');
+          const { uploadToR2 } = await import('@/lib/r2-storage');
           try {
-            await saveArtifactToR2(
+            await uploadToR2(
               project.slug,
               'AUTO_REMEDY',
               'remediation-report.md',
@@ -1119,10 +1119,10 @@ Please review the failures above and manually address them before proceeding.`
 
           if (result.canProceed) {
             logger.info(
-              '[AUTO_REMEDY] Initiating actual remediation - re-running target phase'
+              '[AUTO_REMEDY] Initiating actual remediation - directly calling executor'
             );
 
-            // ACTUALLY FIX THE FAILURES by re-running the target phase
+            // ACTUALLY FIX THE FAILURES by directly calling the executor
             const targetPhase = result.remediation?.phase || 'SOLUTIONING';
             const remediationInstructions =
               result.remediation?.additionalInstructions || '';
@@ -1132,39 +1132,7 @@ Please review the failures above and manually address them before proceeding.`
               .map((e, i) => `${i + 1}. ${e}`)
               .join('\n');
 
-            try {
-              // Temporarily update project to target phase for re-generation
-              const originalPhase = project.current_phase;
-
-              // Create a modified project object for the remediation run
-              const remediationProject = {
-                ...project,
-                current_phase: targetPhase,
-                // Add remediation context that will be picked up by the agent
-                remediation_context: {
-                  isRemediation: true,
-                  originalFailures: parsedReport.errors,
-                  instructions: remediationInstructions,
-                  failureContext: failureContext,
-                },
-              };
-
-              logger.info(
-                '[AUTO_REMEDY] Re-running phase with remediation context',
-                {
-                  targetPhase,
-                  failureCount: parsedReport.errors.length,
-                }
-              );
-
-              // Run the phase agent for the target phase (this will regenerate artifacts)
-              // We pass empty artifacts to trigger fresh generation with remediation context
-              const regenerationResult = await this.runPhaseAgentInternal(
-                remediationProject as Project,
-                {},
-                {
-                  isRemediation: true,
-                  additionalPrompt: `
+            const remediationPromptText = `
 REMEDIATION MODE ACTIVE - You MUST fix the following validation failures:
 
 ${failureContext}
@@ -1176,78 +1144,233 @@ CRITICAL REQUIREMENTS:
 2. Each task must reference the requirement ID it implements (e.g., "Implements REQ-NOTIF-002")
 3. Ensure ALL requirements from PRD.md have at least one implementing task
 4. Do NOT remove any existing tasks that are working correctly
-`,
+`;
+
+            try {
+              logger.info(
+                '[AUTO_REMEDY] Calling getScruMasterExecutor directly',
+                {
+                  targetPhase,
+                  failureCount: parsedReport.errors.length,
                 }
               );
 
-              if (regenerationResult.success) {
-                logger.info(
-                  '[AUTO_REMEDY] Phase regeneration completed successfully',
-                  {
-                    artifactCount: Object.keys(regenerationResult.artifacts)
-                      .length,
-                  }
-                );
-
-                // Update the remediation report with success
-                const successReport = remediationReport.replace(
-                  '**Next Step:** Re-run the SOLUTIONING phase to apply remediation.',
-                  `✅ **Remediation Applied Successfully**
-
-The ${targetPhase} phase was re-run with remediation instructions.
-${Object.keys(regenerationResult.artifacts).length} artifacts were regenerated.
-
-**Regenerated Artifacts:**
-${Object.keys(regenerationResult.artifacts)
-  .map((a) => `- ${a}`)
-  .join('\n')}
-
-Please re-run the VALIDATE phase to confirm all failures are resolved.`
-                );
-
-                // Save updated report
-                await saveArtifactToR2(
-                  project.slug,
-                  'AUTO_REMEDY',
-                  'remediation-report.md',
-                  successReport
-                );
-
-                // Merge the regenerated artifacts with our report
-                return {
-                  success: true,
-                  artifacts: {
-                    'remediation-report.md': successReport,
-                    ...regenerationResult.artifacts,
-                  },
-                  message: `AUTO_REMEDY completed - regenerated ${
-                    Object.keys(regenerationResult.artifacts).length
-                  } artifacts in ${targetPhase} phase. Run VALIDATE to confirm fixes.`,
-                };
-              } else {
-                logger.warn('[AUTO_REMEDY] Phase regeneration failed', {
-                  message: regenerationResult.message,
-                });
-                // Fall through to return the report with instructions
+              // Get the existing artifacts for context
+              const { buildArtifactCacheForProject } = await import(
+                './artifact_access'
+              );
+              const artifactCache = await buildArtifactCacheForProject(
+                project.slug
+              );
+              const contextArtifacts: Record<string, string | Buffer> = {};
+              for (const [key, value] of artifactCache.entries()) {
+                contextArtifacts[key] = value;
               }
+
+              // Get LLM client - create ConfigLoader locally since 'this' context may be lost
+              const { ConfigLoader: LocalConfigLoader } = await import(
+                './config_loader'
+              );
+              const localConfigLoader = new LocalConfigLoader();
+              const spec = localConfigLoader.loadSpec();
+
+              // Get LLM settings directly from database
+              const { db } = await import('@/db');
+              const { llmSettings } = await import('@/db/schema');
+              const { eq } = await import('drizzle-orm');
+              const settingsRows = await db
+                .select()
+                .from(llmSettings)
+                .where(eq(llmSettings.id, 'default'))
+                .limit(1);
+              const dbSettings = settingsRows[0] || {};
+
+              const provider = (dbSettings?.provider ||
+                spec.llm_config.provider ||
+                'gemini') as ProviderType;
+              // getProviderApiKeyAsync is already imported at the top of the file
+              const apiKey = await getProviderApiKeyAsync(provider);
+              const autoRemedyLlmConfig = {
+                provider,
+                model:
+                  dbSettings?.model ||
+                  (spec.llm_config.model as string) ||
+                  'gemini-2.5-flash',
+                max_tokens:
+                  dbSettings?.max_tokens ||
+                  (spec.llm_config.max_tokens as number) ||
+                  65000,
+                temperature:
+                  dbSettings?.temperature ||
+                  (spec.llm_config.temperature as number) ||
+                  0.7,
+                timeout_seconds:
+                  dbSettings?.timeout ||
+                  (spec.llm_config.timeout_seconds as number) ||
+                  120,
+                api_key: apiKey,
+                phase_overrides: (spec.llm_config as any).phase_overrides || {},
+              };
+              const llmClient = createLLMClient(autoRemedyLlmConfig);
+
+              // Directly call the Scrum Master executor with remediation prompt
+              const regeneratedArtifacts = await getScruMasterExecutor(
+                llmClient,
+                projectId,
+                contextArtifacts,
+                project.name || project.slug,
+                remediationPromptText
+              );
+
+              logger.info('[AUTO_REMEDY] SOLUTIONING regeneration completed', {
+                artifactCount: Object.keys(regeneratedArtifacts).length,
+                artifacts: Object.keys(regeneratedArtifacts),
+              });
+
+              // Save regenerated artifacts to R2
+              const { uploadToR2: uploadToR2Lib } = await import(
+                '@/lib/r2-storage'
+              );
+              for (const [name, content] of Object.entries(
+                regeneratedArtifacts
+              )) {
+                await uploadToR2Lib(
+                  project.slug,
+                  'SOLUTIONING',
+                  name,
+                  typeof content === 'string' ? content : content.toString()
+                );
+                logger.info(
+                  `[AUTO_REMEDY] Saved regenerated artifact: ${name}`
+                );
+              }
+
+              // Now re-run VALIDATE to check if fixes worked
+              logger.info(
+                '[AUTO_REMEDY] Re-running VALIDATE phase to verify fixes'
+              );
+              const { buildArtifactCacheForProject: rebuildCache } =
+                await import('./artifact_access');
+              const updatedCache = await rebuildCache(project.slug);
+              const updatedContext: Record<string, string | Buffer> = {};
+              for (const [key, value] of updatedCache.entries()) {
+                updatedContext[key] = value;
+              }
+
+              // Generate new validation
+              const validateResult = await this.validators.runValidators(
+                ['cross_artifact_consistency', 'requirement_traceability'],
+                project
+              );
+
+              const afterStatus = validateResult.status;
+              const afterErrors = validateResult.errors || [];
+
+              // Build comprehensive report
+              const comprehensiveReport = `---
+title: Remediation Report
+project: ${project.name || project.slug}
+generated_at: ${new Date().toISOString()}
+status: ${afterErrors.length === 0 ? 'fixed' : 'partial_fix'}
+---
+
+# AUTO_REMEDY Report
+
+## Summary
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Total Failures | ${parsedReport.errors.length} | ${afterErrors.length} |
+| Status | ❌ FAIL | ${afterErrors.length === 0 ? '✅ PASS' : '⚠️ PARTIAL'} |
+
+## Original Failures Detected
+
+${parsedReport.errors.map((e, i) => `${i + 1}. ${e}`).join('\n')}
+
+## Remediation Applied
+
+- **Target Phase:** ${targetPhase}
+- **Agent Re-run:** scrummaster
+- **Artifacts Regenerated:** ${Object.keys(regeneratedArtifacts).join(', ')}
+
+## Post-Remediation Status
+
+${
+  afterErrors.length === 0
+    ? `✅ **All failures have been resolved!**
+
+The SOLUTIONING phase was regenerated with task entries for all PRD requirements.`
+    : `⚠️ **Partial fix applied - ${afterErrors.length} issues remain:**
+
+${afterErrors.map((e, i) => `${i + 1}. ${e}`).join('\n')}
+
+You may need to run AUTO_REMEDY again or manually address the remaining issues.`
+}
+
+---
+*Generated by AUTO_REMEDY at ${new Date().toISOString()}*
+`;
+
+              // Save comprehensive report
+              await uploadToR2(
+                project.slug,
+                'AUTO_REMEDY',
+                'remediation-report.md',
+                comprehensiveReport
+              );
+
+              return {
+                success: true,
+                artifacts: {
+                  'remediation-report.md': comprehensiveReport,
+                  ...regeneratedArtifacts,
+                },
+                message: `AUTO_REMEDY completed - regenerated ${
+                  Object.keys(regeneratedArtifacts).length
+                } artifacts. ${
+                  afterErrors.length === 0
+                    ? 'All failures resolved!'
+                    : `${afterErrors.length} issues remain.`
+                }`,
+              };
             } catch (remediationError) {
               logger.error('[AUTO_REMEDY] Remediation execution failed', {
                 error:
                   remediationError instanceof Error
                     ? remediationError.message
                     : String(remediationError),
+                stack:
+                  remediationError instanceof Error
+                    ? remediationError.stack
+                    : undefined,
               });
-              // Fall through to return the report with manual instructions
-            }
 
-            // If automatic remediation failed, return report with instructions
-            return {
-              success: true,
-              artifacts: {
-                'remediation-report.md': remediationReport,
-              },
-              message: `AUTO_REMEDY completed - found ${parsedReport.errors.length} failures classified as '${result.classification?.type}'. Automatic remediation was attempted. Please manually re-run ${result.remediation?.phase} phase if needed.`,
-            };
+              // Update report with error
+              const errorReport = remediationReport.replace(
+                '**Next Step:** Re-run the SOLUTIONING phase to apply remediation.',
+                `❌ **Remediation Failed**
+
+Error: ${
+                  remediationError instanceof Error
+                    ? remediationError.message
+                    : String(remediationError)
+                }
+
+Please try running AUTO_REMEDY again or manually re-run the SOLUTIONING phase.`
+              );
+
+              return {
+                success: false,
+                artifacts: {
+                  'remediation-report.md': errorReport,
+                },
+                message: `AUTO_REMEDY failed: ${
+                  remediationError instanceof Error
+                    ? remediationError.message
+                    : String(remediationError)
+                }`,
+              };
+            }
           } else {
             logger.warn('[AUTO_REMEDY] Escalating to MANUAL_REVIEW');
             throw new Error(
