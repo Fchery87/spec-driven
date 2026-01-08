@@ -2,9 +2,9 @@ import type { LLMConfigWithOverrides } from '@/types/llm';
 
 const AUTO_REMEDY_SOLUTIONING_MAX_TOKENS_ZAI = 16000;
 
-export function applyAutoRemedyOverrides(
-  config: LLMConfigWithOverrides
-): LLMConfigWithOverrides {
+export function applyAutoRemedyOverrides<T extends LLMConfigWithOverrides>(
+  config: T
+): T {
   if (config.provider !== 'zai') {
     return config;
   }
@@ -24,5 +24,5 @@ export function applyAutoRemedyOverrides(
   return {
     ...config,
     phase_overrides: phaseOverrides,
-  };
+  } as T;
 }

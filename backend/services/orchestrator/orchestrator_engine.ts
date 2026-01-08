@@ -45,6 +45,7 @@ import {
   createLLMClient,
   ProviderType,
   getProviderApiKeyAsync,
+  type LLMFactoryConfig,
 } from '../llm/providers';
 import { DynamicPhaseTokenCalculator } from '../llm/dynamic_phase_token_calculator';
 import { ModelParameterResolver } from '../llm/model_parameter_resolver';
@@ -1144,7 +1145,7 @@ CRITICAL REQUIREMENTS:
                 'gemini') as ProviderType;
               // getProviderApiKeyAsync is already imported at the top of the file
               const apiKey = await getProviderApiKeyAsync(provider);
-              const autoRemedyLlmConfig = {
+              const autoRemedyLlmConfig: LLMFactoryConfig = {
                 provider,
                 model:
                   dbSettings?.model ||
@@ -1287,16 +1288,18 @@ You may need to run AUTO_REMEDY again or manually address the remaining issues.`
                 }`,
               };
             } catch (remediationError) {
-              logger.error('[AUTO_REMEDY] Remediation execution failed', {
-                error:
-                  remediationError instanceof Error
-                    ? remediationError.message
-                    : String(remediationError),
-                stack:
-                  remediationError instanceof Error
-                    ? remediationError.stack
-                    : undefined,
-              });
+              const remediationErrorInstance =
+                remediationError instanceof Error
+                  ? remediationError
+                  : new Error(String(remediationError));
+              logger.error(
+                '[AUTO_REMEDY] Remediation execution failed',
+                remediationErrorInstance,
+                {
+                  error: remediationErrorInstance.message,
+                  stack: remediationErrorInstance.stack,
+                }
+              );
 
               // Update report with error
               const errorReport = remediationReport.replace(
