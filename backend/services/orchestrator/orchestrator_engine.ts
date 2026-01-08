@@ -21,6 +21,8 @@ import {
 import { ConfigLoader } from './config_loader';
 import { Validators } from './validators';
 import { ArtifactManager } from './artifact_manager';
+import { parseValidationReport } from './validation_report_parser';
+import { applyAutoRemedyOverrides } from './auto_remedy_llm_config';
 import { existsSync } from 'fs';
 import { resolve } from 'path';
 import { createHash } from 'crypto';
@@ -915,46 +917,6 @@ export class OrchestratorEngine {
           });
         }
 
-        // Parse the validation report to extract failures
-        const parseValidationReport = (
-          content: string
-        ): { status: 'pass' | 'warn' | 'fail'; errors: string[] } => {
-          if (!content) {
-            return { status: 'pass', errors: [] };
-          }
-
-          const errors: string[] = [];
-          const overallStatusMatch = content.match(
-            /overall_status:\s*(pass|warn|fail)/i
-          );
-          const status = (overallStatusMatch?.[1]?.toLowerCase() || 'pass') as
-            | 'pass'
-            | 'warn'
-            | 'fail';
-
-          // Extract FAIL items from the report
-          const failRegex =
-            /\|\s*(REQ-[A-Z]+-\d+|[A-Za-z-]+)\s*\|\s*fail\s*\|\s*([^|]+)\|/gi;
-          let match;
-          while ((match = failRegex.exec(content)) !== null) {
-            const itemId = match[1].trim();
-            const message = match[2].trim();
-            errors.push(`${itemId}: ${message}`);
-          }
-
-          // Also check for sections marked with ❌
-          const failedSectionRegex =
-            /####\s*❌\s*([^\n]+)\n[^]*?(?=####|\n## |$)/g;
-          while ((match = failedSectionRegex.exec(content)) !== null) {
-            const sectionName = match[1].trim();
-            if (!errors.some((e) => e.includes(sectionName))) {
-              errors.push(`Section failed: ${sectionName}`);
-            }
-          }
-
-          return { status, errors };
-        };
-
         const parsedReport = parseValidationReport(validationReportContent);
         logger.info('[AUTO_REMEDY] Parsed validation report', {
           status: parsedReport.status,
@@ -1175,15 +1137,7 @@ CRITICAL REQUIREMENTS:
               const spec = localConfigLoader.loadSpec();
 
               // Get LLM settings directly from database
-              const { db } = await import('@/db');
-              const { llmSettings } = await import('@/db/schema');
-              const { eq } = await import('drizzle-orm');
-              const settingsRows = await db
-                .select()
-                .from(llmSettings)
-                .where(eq(llmSettings.id, 'default'))
-                .limit(1);
-              const dbSettings = settingsRows[0] || {};
+              const dbSettings = await this.getLLMSettingsFromDB();
 
               const provider = (dbSettings?.provider ||
                 spec.llm_config.provider ||
@@ -1211,7 +1165,9 @@ CRITICAL REQUIREMENTS:
                 api_key: apiKey,
                 phase_overrides: (spec.llm_config as any).phase_overrides || {},
               };
-              const llmClient = createLLMClient(autoRemedyLlmConfig);
+              const llmClient = createLLMClient(
+                applyAutoRemedyOverrides(autoRemedyLlmConfig)
+              );
 
               // Directly call the Scrum Master executor with remediation prompt
               const regeneratedArtifacts = await getScruMasterExecutor(
@@ -1252,10 +1208,7 @@ CRITICAL REQUIREMENTS:
               const { buildArtifactCacheForProject: rebuildCache } =
                 await import('./artifact_access');
               const updatedCache = await rebuildCache(project.slug);
-              const updatedContext: Record<string, string | Buffer> = {};
-              for (const [key, value] of updatedCache.entries()) {
-                updatedContext[key] = value;
-              }
+              this.validators.setArtifactCache(project, updatedCache);
 
               // Generate new validation
               const validateResult = await this.validators.runValidators(
@@ -1969,7 +1922,7 @@ Please try running AUTO_REMEDY again or manually re-run the SOLUTIONING phase.`
               // Merge fixed artifacts with the report
               generatedArtifacts = {
                 ...remediedArtifacts,
-                'auto-remedy-report.md': `
+                'remediation-report.md': `
 # AUTO-REMEDY REPORT
 Status: Success
 Classification: ${autoRemedyResult.classification?.type}
@@ -1990,7 +1943,7 @@ ${autoRemedyResult.remediation?.additionalInstructions || 'N/A'}
                     : String(reRunError),
               } as any);
               generatedArtifacts = {
-                'auto-remedy-report.md': `
+                'remediation-report.md': `
 # AUTO-REMEDY REPORT
 Status: Failed
 Error: ${reRunError instanceof Error ? reRunError.message : String(reRunError)}
@@ -2000,7 +1953,7 @@ Error: ${reRunError instanceof Error ? reRunError.message : String(reRunError)}
           } else {
             // No re-run needed or safeguards failed
             generatedArtifacts = {
-              'auto-remedy-report.md': `
+              'remediation-report.md': `
 # AUTO-REMEDY REPORT
 Status: Skipped
 Reason: ${autoRemedyResult.reason}
@@ -2014,7 +1967,7 @@ Reason: ${autoRemedyResult.reason}
             );
           }
           generatedArtifacts = {
-            'auto-remedy-report.md': `# AUTO_REMEDY Report
+            'remediation-report.md': `# AUTO_REMEDY Report
 
 ## Classification
 - Type: ${autoRemedyResult.classification?.type || 'unknown'}

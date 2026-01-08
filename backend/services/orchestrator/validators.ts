@@ -21,6 +21,11 @@ export class Validators {
     this.projectsBasePath = resolve(process.cwd(), 'projects');
   }
 
+  setArtifactCache(project: Project, cache: Map<string, string>): void {
+    this.artifactCache = cache;
+    this.artifactCacheProjectId = project.id;
+  }
+
   private async ensureArtifactCache(project: Project): Promise<void> {
     if (this.artifactCache && this.artifactCacheProjectId === project.id)
       return;
@@ -1794,11 +1799,12 @@ export class Validators {
     const warnings: string[] = [];
 
     try {
-      const prdContent = this.getArtifactContent(
-        project.id,
-        sourceArtifact || 'PRD.md',
-        'SPEC'
-      );
+      const source = sourceArtifact || 'PRD.md';
+      const prdContent =
+        source === 'PRD.md'
+          ? this.getArtifactContent(project.id, source, 'SPEC_PM') ||
+            this.getArtifactContent(project.id, source, 'SPEC')
+          : this.getArtifactContent(project.id, source);
       const tasksContent = this.getArtifactContent(
         project.id,
         targetArtifact || 'tasks.md',
@@ -2003,7 +2009,9 @@ export class Validators {
         'personas.md',
         'ANALYSIS'
       );
-      const prdContent = this.getArtifactContent(project.id, 'PRD.md', 'SPEC');
+      const prdContent =
+        this.getArtifactContent(project.id, 'PRD.md', 'SPEC_PM') ||
+        this.getArtifactContent(project.id, 'PRD.md', 'SPEC');
       const tasksContent = this.getArtifactContent(
         project.id,
         'tasks.md',
@@ -2319,7 +2327,7 @@ export class Validators {
       DEPENDENCIES: ['DEPENDENCIES.md', 'dependencies.json'],
       SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],
       VALIDATE: ['validation-report.md', 'coverage-matrix.md'],
-      AUTO_REMEDY: ['auto-remedy-report.md'],
+      AUTO_REMEDY: ['remediation-report.md'],
       DONE: ['HANDOFF.md'],
       // Legacy fallback for existing projects
       SPEC: [

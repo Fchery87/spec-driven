@@ -24,7 +24,7 @@ ANALYSIS → STACK_SELECTION → SPEC_PM → SPEC_ARCHITECT → SPEC_DESIGN_TOKE
 | DEPENDENCIES           | Auto-generated from approved stack                       | DEPENDENCIES.md, dependencies.json                       |
 | SOLUTIONING            | Review implementation plan and tasks                     | architecture.md, epics.md, tasks.md, plan.md             |
 | VALIDATE               | Run consistency checks and review results                | validation-report.md, coverage-matrix.md                 |
-| AUTO_REMEDY            | Review AI-generated fixes for validation failures        | auto-remedy-report.md                                    |
+| AUTO_REMEDY            | Review AI-generated fixes for validation failures        | remediation-report.md                                   |
 | DONE                   | Download final project package                           | README.md, HANDOFF.md, project.zip                       |
 
 ---

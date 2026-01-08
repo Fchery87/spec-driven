@@ -21,6 +21,7 @@ import { PhaseTimeline } from '@/components/orchestration/PhaseTimeline';
 import { ArtifactSidebar } from '@/components/orchestration/ArtifactSidebar';
 import { ActionBar } from '@/components/orchestration/ActionBar';
 import { ClarificationPanel, type ClarificationQuestion, type ClarificationMode } from '@/components/orchestration/ClarificationPanel';
+import { ValidationCompactCard } from '@/components/orchestration/ValidationCompactCard';
 import { ValidationResultsPanel, type ValidationCheck, type ValidationSummary } from '@/components/orchestration/ValidationResultsPanel';
 import { calculatePhaseStatuses, canAdvanceFromPhase } from '@/utils/phase-status';
 import { CheckCircle, Trash2, Download, FileText, AlertCircle, RotateCcw, History } from 'lucide-react';
@@ -880,6 +881,9 @@ export default function ProjectPage() {
 
   const canExecutePhase = shouldShowExecuteButton(project.current_phase);
   const hasCurrentArtifacts = hasArtifactsForPhase(project.current_phase, artifacts);
+  const hasValidationReport = Boolean(
+    artifacts['VALIDATE']?.some((artifact: Artifact) => artifact.name === 'validation-report.md')
+  );
 
   return (
     <ErrorBoundary>
@@ -953,6 +957,18 @@ export default function ProjectPage() {
               />
             </CardContent>
           </Card>
+        )}
+
+        {project.current_phase === 'AUTO_REMEDY' && (
+          <div className="mb-6">
+            <ValidationCompactCard
+              summary={validationSummary}
+              hasReport={hasValidationReport}
+              isValidating={isValidating}
+              onRunValidation={handleRunValidation}
+              onDownloadReport={handleDownloadValidationReport}
+            />
+          </div>
         )}
 
         {/* Validation Results Panel for VALIDATE phase */}
@@ -1415,7 +1431,7 @@ function getPhaseOutputs(phase: string): string[] {
     DEPENDENCIES: ['DEPENDENCIES.md', 'dependencies.json'],
     SOLUTIONING: ['architecture.md', 'epics.md', 'tasks.md', 'plan.md'],
     VALIDATE: ['validation-report.md', 'coverage-matrix.md'],
-    AUTO_REMEDY: ['auto-remedy-report.md'],
+    AUTO_REMEDY: ['remediation-report.md'],
     DONE: ['README.md', 'HANDOFF.md']
   };
   return outputs[phase] || [];

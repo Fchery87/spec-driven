@@ -359,7 +359,7 @@ export class ArtifactManager {
       'validation-report.md': 'VALIDATE',
       'coverage-matrix.md': 'VALIDATE',
       // AUTO_REMEDY phase
-      'auto-remedy-report.md': 'AUTO_REMEDY',
+      'remediation-report.md': 'AUTO_REMEDY',
       // DONE phase
       'README.md': 'DONE',
       'HANDOFF.md': 'DONE',
