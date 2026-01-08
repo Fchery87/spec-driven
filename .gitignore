@@ -102,6 +102,7 @@ bun.lock
 *.tsbuildinfo
 .cache/
 .eslintcache
+.worktrees/
 
 # ============================================================================
 # IDE & EDITOR
